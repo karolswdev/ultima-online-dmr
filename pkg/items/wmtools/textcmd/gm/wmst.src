@@ -1,0 +1,888 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-21
+// Modified: 2011-04-26
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/coords";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/items/utils";
+include "include/objects/location";
+
+include ":itemsets:definition";
+
+include ":wmtools:gmp_defs";
+include ":wmtools:common";
+include ":wmtools:wmstatics";
+include ":wmtools:statics";
+
+//-----------------------------------------------------------------------------
+
+program WMStaticsTool(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+
+    "set":       CmdSetCurrentGroup(who, text[2]);
+                 return;
+
+    "era":       CmdEraCurrentGroup(who);
+                 return;
+
+    "d":         CmdAddStaticsToGroup(who, text[2], "loc");
+                 return;
+                 
+    "dt":        CmdAddStaticsToGroup(who, text[2], "targ");
+                 return;
+                 
+    "de":        CmdDelStaticsToGroup(who, text[2], "loc");
+                 return;
+                 
+    "dte":       CmdDelStaticsToGroup(who, text[2], "targ");
+                 return;
+                 
+    "a":         CmdAddItemsToGroup(who, text[2]);
+                 return;
+                 
+    "go":        CmdGotoWmsGroup(who, text[2], text[3]);
+                 return;
+                 
+    "ga":        ProcAddWmsGroup(who);
+
+    "?":         SendSysMessage(who, ".is [a/d/dt/de/dte/ga/go]", FONT_NORMAL, COLOR_RED);
+                 return;
+
+  endcase
+
+  var SelName;
+
+  while(IsLoggedIn(who))
+
+    SelName := SelectWmsGroup(who);
+
+    if(SelName == 0)
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ProcessWmsGroupDetails(who, wmsName)
+
+  while(IsLoggedIn(who))
+    var wmsGroup := GetWmsGroup(wmsName);
+
+    if(!wmsGroup)
+      return;
+    endif
+
+    var Res := ShowItemDefinitionDetails(who, wmsName, wmsGroup.GetProp("Items"));
+
+    if(Res)
+      case(Res[1])
+        "rm":    CmdDeleteWmsGroupItem(who, wmsName, Res[2]);
+        "go":    CmdGotoWmsGroupItem(who, wmsName, Res[2]);
+        default: break;
+      endcase
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectWmsGroup(who)
+
+  var Names := GetWmsGroups();
+
+  if(!Names)
+    SendSysMessage(who, "Wystapil blad podczas pobierania nazw grup: "+Names.errortext, FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  BQGInit("WMS: grupy statikow: "+Names.size(), 650, 500, 0, 1);
+  GAddPageData(615,18,2650,2651,615,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Dodal");
+  GTextLine(180, 40, 999, "Nazwa");
+  GTextLine(300, 40, 999, "Czas");
+  GTextLine(440, 40, 999, "Przedmiotow");
+
+  GGumpPic(15, 58, 0xBB9);
+  GGumpPic(215, 58, 0xBB9);
+  GGumpPic(395, 58, 0xBB9);
+
+  GMultiPage();
+
+  var i := 1;
+
+  foreach wmsName in Names
+
+    var Elem := GetWmsGroup(wmsName);
+
+    GCheckNextPage(10);
+    GTextLine(40,60+GNPCount()*40, 550, Elem.GetProp("Type"));
+    GButton(70, 63+GNPCount()*40, 2117, 2118, i);
+    GTextLine(100,60+GNPCount()*40, 550, Elem.GetProp("Creator"));
+    GTextLine(180,60+GNPCount()*40, 590, wmsName);
+    GTextLine(300,60+GNPCount()*40, 1321, CUnixTime(Elem.GetProp("AddTime")));
+    GTextLine(440,60+GNPCount()*40, COLOR_YELLOW, Elem.GetProp("ItemCount"));
+
+    GTextLine(100,80+GNPCount()*40, COLOR_BLUE, Elem.GetProp("Realm"));
+    GTextLine(180,80+GNPCount()*40, 560, Elem.GetProp("Description"));
+    
+    GButton(590, 83+GNPCount()*40, 2117, 2118, 400000 + i);
+    GTextLine(607,80+GNPCount()*40, 990, "Zm");
+
+    if(Elem.GetProp("ItemCount"))
+      GButton(510, 63+GNPCount()*40, 2117, 2118, 100000 + i);
+      GTextLine(527,60+GNPCount()*40, 990, "Cl");
+    else
+      GButton(510, 63+GNPCount()*40, 2117, 2118, 200000 + i);
+      GTextLine(527,60+GNPCount()*40, 990, "Rm");
+    endif
+    
+    GButton(550, 63+GNPCount()*40, 2117, 2118, 500000 + i);
+    GTextLine(567,60+GNPCount()*40, 990, "Go");
+
+    GGumpPic(15, 98+GNPCount()*40, 0xBB9);
+    GGumpPic(215, 98+GNPCount()*40, 0xBB9);
+    GGumpPic(395, 98+GNPCount()*40, 0xBB9);
+
+    if(Elem.GetProp("Type") == WMS_TYPE_DEL)
+      GButton(590, 63+GNPCount()*40, 2117, 2118, 300000 + i);
+      GTextLine(607,60+GNPCount()*40, 990, "Sw");
+    endif
+
+    i += 1;
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(!Res.butid)
+    return 0;
+  endif
+
+  if(Res.butid > 500000)
+    CmdGotoWmsGroup(who, Names[Res.butid-500000]);
+    return error;
+  elseif(Res.butid > 400000)
+    ProcModWmsGroup(who, Names[Res.butid-400000]);
+    return error;
+  elseif(Res.butid > 300000)
+    CmdShowDelWmsGroup(who, Names[Res.butid-300000]);
+    return error;
+  elseif(Res.butid > 200000)
+    CmdRemoveWmsGroup(who, Names[Res.butid-200000]);
+    return error;
+  elseif(Res.butid > 100000)
+    CmdCleanWmsGroup(who, Names[Res.butid-100000]);
+    return error;
+  elseif(Res.butid)
+    ProcessWmsGroupDetails(who, Names[Res.butid]);
+    return error;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdAddStaticsToGroup(who, Name, aType := "loc")
+
+  var wmsGroup := GetWmsGroupForPerson(who, Name);
+
+  if(!wmsGroup)
+
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Realm") != who.realm)
+
+    SendSysMessage(who, "Grupa WMS o nazwie "+Name+" jest przypisania do realmu: '"+wmsGroup.GetProp("Realm")+"'.", FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Type") != WMS_TYPE_DEL)
+
+    SendSysMessage(who, "Grupa WMS o nazwie "+Name+" nie jest typem kasujacym!", FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  if(aType == "loc")
+
+    SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+    if(!YesNo(who, "Rog NW?"))
+      return;
+    endif
+
+    var nwLoc := GetLocStruct(who);
+    SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+    
+    SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+    if(!YesNo(who, "Rog SE?"))
+      return;
+    endif
+
+    var seLoc := GetLocStruct(who);
+    SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+    var Items := GetStaticsInBoundary(nwLoc, seLoc);
+
+    if(Items)
+
+      var Res := AddItemsToWmsGroup(Name, Items);
+      DisplayWmsResult(who, Res);
+
+    else
+
+      SendSysMessage(who, "Blad: "+Items.errortext, FONT_NORMAL, COLOR_RED);
+
+    endif
+
+  else
+
+    SendSysMessage(who, "Wskaz statika do usuniecia.", FONT_NORMAL, COLOR_GREEN);
+    var Loc := LocTarget(who);
+
+    if(!Loc)
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Item := GetLocStruct(Loc);
+    Item.realm := who.realm;
+    Item.+objtype := 0;
+
+    var Statics := ListStaticsAtLocation(Item.x, Item.y, LIST_IGNORE_Z, 0, Item.realm);
+
+    if(Statics.size() == 0)
+      SendSysMessage(who, "Wedlug serwera w tej lokacji nie ma statikow.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(Statics.size() == 1)
+      Item.objtype := Statics[1].objtype;
+    else
+      var Entries := dictionary;
+      var i := 1;
+      
+      foreach Static in Statics
+        Entries[i] := GetStaticName(Static.objtype)+" "+hex(Static.objtype);
+        i += 1;
+      endforeach
+
+      var Index := BQSelectEntry(who, Entries);
+
+      if(!Index)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+      Item.objtype := Statics[Index].objtype;
+
+    endif
+
+    var Items := array(Item);
+    var Res := AddItemsToWmsGroup(Name, Items);
+    DisplayWmsResult(who, Res);
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdDelStaticsToGroup(who, Name, aType := "loc")
+
+  var wmsGroup := GetWmsGroupForPerson(who, Name);
+
+  if(!wmsGroup)
+
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Realm") != who.realm)
+
+    SendSysMessage(who, "Grupa WMS o nazwie "+Name+" jest przypisania do realmu: '"+wmsGroup.GetProp("Realm")+"'.", FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Type") != WMS_TYPE_DEL)
+
+    SendSysMessage(who, "Grupa WMS o nazwie "+Name+" nie jest typem kasujacym!", FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  if(aType == "loc")
+
+    SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+    if(!YesNo(who, "Rog NW?"))
+      return;
+    endif
+
+    var nwLoc := GetLocStruct(who);
+    SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+    
+    SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+    if(!YesNo(who, "Rog SE?"))
+      return;
+    endif
+
+    var seLoc := GetLocStruct(who);
+    SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+    var Items := GetStaticsInBoundary(nwLoc, seLoc);
+
+    if(Items)
+
+      var Res := DelStaticItemsFromWmsGroup(Name, Items);
+      DisplayWmsResult(who, Res);
+
+    else
+
+      SendSysMessage(who, "Blad: "+Items.errortext, FONT_NORMAL, COLOR_RED);
+
+    endif
+
+  else
+
+    SendSysMessage(who, "Wskaz statika do usuniecia.", FONT_NORMAL, COLOR_GREEN);
+    var Loc := LocTarget(who);
+
+    if(!Loc)
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Item := GetLocStruct(Loc);
+    Item.realm := who.realm;
+    Item.+objtype := 0;
+
+    var Statics := ListStaticsAtLocation(Item.x, Item.y, LIST_IGNORE_Z, 0, Item.realm);
+
+    if(Statics.size() == 0)
+      SendSysMessage(who, "Wedlug serwera w tej lokacji nie ma statikow.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(Statics.size() == 1)
+      Item.objtype := Statics[1].objtype;
+    else
+      var Entries := dictionary;
+      var i := 1;
+      
+      foreach Static in Statics
+        Entries[i] := GetStaticName(Static.objtype)+" "+hex(Static.objtype);
+        i += 1;
+      endforeach
+
+      var Index := BQSelectEntry(who, Entries);
+
+      if(!Index)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+      Item.objtype := Statics[Index].objtype;
+
+    endif
+
+    var Items := array(Item);
+    var Res := DelStaticItemsFromWmsGroup(Name, Items);
+    DisplayWmsResult(who, Res);
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdAddItemsToGroup(who, Name)
+
+  var wmsGroup := GetWmsGroupForPerson(who, Name);
+
+  if(!wmsGroup)
+
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Realm") != who.realm)
+
+    SendSysMessage(who, "Grupa WMS o nazwie "+Name+" jest przypisania do realmu: '"+wmsGroup.GetProp("Realm")+"'.", FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Type") != WMS_TYPE_ADD)
+
+    SendSysMessage(who, "Grupa WMS o nazwie "+Name+" nie jest typem dodajacym!", FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  var nwLoc, seLoc;
+
+  SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog NW?"))
+    return;
+  endif
+
+  nwLoc := GetLocStruct(who);
+  SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+  
+  SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog SE?"))
+    return;
+  endif
+
+  seLoc := GetLocStruct(who);
+  SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  var Items := GetItemsInBoundary(nwLoc, seLoc);
+
+  if(Items)
+
+    var Res := AddItemsToWmsGroup(Name, Items);
+    DisplayWmsResult(who, Res);
+
+  else
+
+    SendSysMessage(who, "Blad: "+Items.errortext, FONT_NORMAL, COLOR_RED);
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdCleanWmsGroup(who, wmsName)
+
+  var wmsGroup := GetWmsGroup(wmsName);
+
+  if(!wmsGroup)
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(wmsGroup.GetProp("Creator") != who.acctname and !IsRealAdmin(who))
+    SendSysMessage(who, "Grupa: "+wmsName+" nie zostala stworzona przez Ciebie. Nie mozesz jej wyczyscic.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  SendSysMessage(who, "Chcesz wyczyscic przedmioty z grupy statikow o nazwie: "+wmsName+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Res := CleanItemsInWmsGroup(wmsName);
+
+  if(Res == error)
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  elseif(Res)
+    SendSysMessage(who, "Zniszczono "+Res.desCount+" przedmiotow. Usunieto "+Res.allCount+" wpisow.", FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Nie znaleziono przypisanych przedmiotow.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdShowDelWmsGroup(who, wmsName)
+
+  var wmsGroup := GetWmsGroupForPerson(who, wmsName);
+
+  if(!wmsGroup)
+
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  elseif(wmsGroup.GetProp("Type") != WMS_TYPE_DEL)
+    SendSysMessage(who, "Grupa WMS o nazwie "+wmsName+" nie jest tylko kasujacego.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Items    := wmsGroup.GetProp("Items");
+  var wmsRealm := wmsGroup.GetProp("Realm");
+  var crCount  := 0;
+  var failCount := 0;
+  var TempItems := array;
+
+  foreach Item in Items
+
+    var tItem := CreateItemAtLoc(Item.x, Item.y, Item.z, CR_TEMP_ITEM_OBJTYPE, 1, wmsRealm);
+
+    if(tItem)
+      tItem.graphic := Item.objtype;
+      tItem.color   := 1;
+      tItem.movable := 0;
+      TempItems.append(tItem);
+      crCount += 1;
+    else
+      failCount += 1;
+    endif
+
+  endforeach
+
+  SendSysMessage(who, "Stworzono "+crCount+" tymczasowych przedmiotow.", FONT_NORMAL, COLOR_GREEN);
+
+  if(failCount)
+    SendSysMessage(who, failCount+" nie udalo sie stworzyc.", FONT_NORMAL, COLOR_ORANGE);
+  endif
+
+  YesNo(who, "Juz?");
+
+  foreach Item in TempItems
+    DestroyItem(Item);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveWmsGroup(who, wmsName)
+
+  SendSysMessage(who, "Chcesz usunac WMS grupe: "+wmsName+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Res := DelWmsGroup(wmsName);
+
+  if(Res)
+    SendSysMessage(who, "Usunieto WMS grupe: "+wmsName+".", FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGotoWmsGroup(who, wmsName, Dir := "mid")
+
+  case(wmsName)
+    "nw":
+    "se":
+    "ne":
+    "sw":
+    "mid":  Dir := wmsName; wmsName := 0;
+  endcase
+  
+  var wmsGroup := GetWmsGroupForPerson(who, wmsName);
+
+  if(!wmsGroup)
+
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  var Items := wmsGroup.GetProp("Items");
+
+  if(!Items)
+    SendSysMessage(who, "Grupa WMS o nazwie "+wmsName+" nie posiada jeszcze przedmiotow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var minLoc := LocStruct();
+  var maxLoc := LocStruct();
+
+  minLoc := GetLocStruct(Items[1]);
+  maxLoc := GetLocStruct(Items[1]);
+
+  foreach Item in Items
+    minLoc.x := Min(minLoc.x, Item.x);
+    minLoc.y := Min(minLoc.y, Item.y);
+    
+    maxLoc.x := Max(maxLoc.x, Item.x);
+    maxLoc.y := Max(maxLoc.y, Item.y);
+  endforeach
+
+  var Realm := wmsGroup.GetProp("Realm");
+  var goLoc := LocStruct();
+  goLoc.realm := Realm;
+
+  case(Dir)
+    "nw":    goLoc.x := minLoc.x; goLoc.y := minLoc.y;
+    "ne":    goLoc.x := maxLoc.x; goLoc.y := minLoc.y;
+    "sw":    goLoc.x := minLoc.x; goLoc.y := maxLoc.y;
+    "se":    goLoc.x := maxLoc.x; goLoc.y := maxLoc.y;
+    default: goLoc.x := minLoc.x + CInt((maxLoc.x - minLoc.x) / 2); goLoc.y := minLoc.y + CInt((maxLoc.y - minLoc.y) / 2);
+             Dir := "mid";
+  endcase
+
+  goLoc.z := GetStandZ(goLoc.x, goLoc.y, goLoc.realm);
+
+  if(goLoc.z == error)
+    goLoc.z := GetWorldHeight(goLoc.x, goLoc.y, goLoc.realm);
+  endif
+
+  if(!goLoc)
+    SendSysMessage(who, "Nie udalo sie okreslic lokacji WMS grupy.", FONT_NORMAL, COLOR_RED);
+  else
+    MoveObject(who, goLoc.x, goLoc.y, goLoc.z, goLoc.realm, MOVEOBJECT_FORCELOCATION);
+    SendSysMessage(who, "Przenoszenie do WMS grupy: "+wmsName+" Dir: "+Dir, FONT_NORMAL, COLOR_GREEN);
+    SendSysMessage(who, "Loc: "+GetLocString(goLoc), FONT_NORMAL, COLOR_WHITE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+// WMS group addition!
+//-----------------------------------------------------------------------------
+
+function ProcAddWmsGroup(who)
+
+  var Data := WmsGroupStruct();
+
+  BuildAddWmsGroup(Data);
+
+  while(IsLoggedIn(who))
+
+    var Res := GSend(who);
+    SaveWmsGroupData(Data, Res);
+
+    case(Res.butid)
+      11:       Data.Type := BQSelectEntry(who, GetWmsGroupTypes());
+      
+      12:       Data.Realm := BQSelectEntry(who, GetRealmsNames());
+
+      15:       var nId := AddWmsGroup(who, Data);
+                if(nId)
+                  SendSysMessage(who, "Dodano nowa grupe WMS: "+Data.Name, FONT_NORMAL, COLOR_GREEN);
+                  return;
+                else
+                  SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+
+      16:       var Check := VerifyWmsGroupData(Data);
+                if(Check)
+                  SendSysMessage(who, "Dane zweryfikowane pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                else
+                  SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+
+      default:  return;
+    endcase
+
+    BuildAddWmsGroup(Data);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+// WMS group edition!
+//-----------------------------------------------------------------------------
+
+function ProcModWmsGroup(who, wmsName)
+
+  var Data := WmsGroupStruct(wmsName);
+
+  if(!Data)
+    SendSysMessage(who, "Blad: "+Data.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  BuildModWmsGroup(Data);
+
+  while(IsLoggedIn(who))
+
+    var ExData := WmsGroupStruct(wmsName);
+
+    var Res := GSend(who);
+    SaveWmsGroupData(Data, Res, 1);
+
+    case(Res.butid)
+      11:       Data.Type := BQSelectEntry(who, GetWmsGroupTypes());
+      
+      12:       Data.Realm := BQSelectEntry(who, GetRealmsNames());
+
+      15:       var nId := ModWmsGroup(who, Data);
+                if(nId)
+                  SendSysMessage(who, "Zmieniono grupe WMS: "+Data.Name, FONT_NORMAL, COLOR_GREEN);
+                  return;
+                else
+                  SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+
+      16:       var Check := VerifyWmsGroupData(Data, ExData);
+                if(Check)
+                  SendSysMessage(who, "Dane zweryfikowane pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                else
+                  SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+
+      default:  return;
+    endcase
+
+    BuildModWmsGroup(Data);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveWmsGroupData(byref Data, byref Res, bModifyMode := 0)
+ 
+  if(!bModifyMode)
+    Data.Name := Res.text[2];
+  endif
+
+  Data.Descr := Res.text[3];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddWmsGroup(byref Data)
+
+  BQGInit("Dodawanie WMS grupy", 650, 250);
+
+  GButton(90, 213, 2117, 2118, 15);
+  GTextLine(110, 210, 999, "Dodaj");
+
+  GButton(190, 213, 2117, 2118, 16);
+  GTextLine(210, 210, 999, "Weryfikuj");
+
+  BuildWmsGroupInfo(Data, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModWmsGroup(byref Data)
+
+  BQGInit("Modyfikacja WMS grupy: "+Data.Name, 650, 250, 6);
+
+  GButton(90, 213, 2117, 2118, 15);
+  GTextLine(110, 210, 999, "Zmien");
+
+  GButton(190, 213, 2117, 2118, 16);
+  GTextLine(210, 210, 999, "Weryfikuj");
+
+  BuildWmsGroupInfo(Data, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA | BQG_MODIFY_MODE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildWmsGroupInfo(byref Data, Flags := 0)
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+
+  BQGAddTextBox(100, 80, 300, 20, FCLR_TEBOX, Data.Descr, Flags, 1, 3, "Opis:");
+
+  BQGAddTextBox(100, 110, 120, 20, FCLR_TEBOX, GetWmsGroupTypeName(Data.Type), Flags, 1, 4, "Typ:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 110, 2714, 2715, 11);
+  endif
+
+  BQGAddTextBox(100, 140, 120, 20, FCLR_TEBOX, Data.Realm, Flags, 1, 5, "Realm:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 140, 2714, 2715, 12);
+  endif
+
+  if(Flags & BQG_MODIFY_MODE)
+    SetBitOff(Flags, BQG_EDITABLE);
+  endif
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Name, Flags, 1, 2, "Nazwa:");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdDeleteWmsGroupItem(who, wmsName, Index)
+ 
+  var wmsGroup := GetWmsGroup(wmsName);
+
+  if(!wmsGroup)
+    SendSysMessage(who, "Blad: "+wmsGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(wmsGroup.GetProp("Creator") != who.acctname and !IsRealAdmin(who))
+    SendSysMessage(who, "Grupa: "+wmsName+" nie zostala stworzona przez Ciebie. Nie mozesz usuwac z niej przedmiotow.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  var Item := GetWmsGroupItem(wmsName, Index);
+  var Res  := DeleteItemFromWmsGroup(wmsName, Index);
+
+  if(Res)
+    SendSysMessage(who, "Usunieto przedmiot: "+Item.name+"/"+hex(Item.objtype), FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGotoWmsGroupItem(who, wmsName, Index)
+
+  var Item := GetWmsGroupItem(wmsName, Index);
+
+  if(Item)
+    MoveObject(who, Item.x, Item.y, Item.z, Item.realm, MOVEOBJECT_FORCELOCATION);
+    SendSysMessage(who, "Przenoszenie do "+Item.name+"/"+hex(Item.objtype), FONT_NORMAL, COLOR_GREEN);
+    SendSysMessage(who, "Loc: "+GetLocString(Item), FONT_NORMAL, COLOR_WHITE);
+  else
+    SendSysMessage(who, "Blad: "+Item.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdSetCurrentGroup(who, wmsName)
+
+  var Res := SetCurrentWmsGroup(who, wmsName);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Ustawiono biezaca grupe WMS: "+wmsName, FONT_NORMAL, COLOR_WHITE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdEraCurrentGroup(who)
+
+  var Res := EraCurrentWmsGroup(who);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Usunieto biezaca grupe WMS.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 17;
+
+//-----------------------------------------------------------------------------
+
+program WwLunaBless(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var WWSkill   := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALSkill   := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  var Range     := CInt((WWSkill + ALSkill) / 20);
+  var ModAmount := CInt((WWSkill + ALSkill) * 0.05) + RandomInt(5);
+  var Duration  := GetWarCastDuration(Caster, GetWcType(WW_WCID));
+  var Gained := 0;
+
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 98, 0xF, 0xF, 3);
+  PlaySoundEffect(Caster, SFX_SPELL_STRENGTH);
+  PlaySoundEffect(Caster, SFX_SPELL_ARCH_PROTECTION);
+
+  sleepms(300);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(IsWearWolf(Mobile) and Mobile != Caster)
+      if(IsFriend(Caster, Mobile))
+        PlaySoundEffect(Mobile, SFX_SPELL_BLESS);
+        PlaySoundEffect(Mobile, SFX_SPELL_PROTECTION);
+        PlayPcEffect(Mobile, FX_BLESS_EFFECT, 98, 0xF, 0xF, 3);
+
+        if(!Gained and CanSkillMod(Mobile, SKILLID_WEARWOLF))
+          Gained := GainWarcastPoints(Caster, Mobile, WW_WCID, WCGAIN_DEFENSIVE);
+        endif
+
+        DoSkillMod(Mobile, SKILLID_WEARWOLF, ModAmount, Duration);
+      endif
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/logerror";
+include "fishing";
+
+//-----------------------------------------------------------------------------
+
+program UseSosBootle( who, bottle )
+
+  if(!StandardItemCheck(who,bottle))
+    return;
+  endif
+
+  var itmDesc := GetHarvestDescriptor(0xa363, who);
+  var message := CreateItemInPack(who, itmDesc);
+
+  if(!message)
+    DestroyItem(bottle);
+    SendSysMessage(who, "O nie! Zniszczyl"+ggm(who,3)+" wiadomosc!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(DestroyItem(bottle))
+    if(AssignSosMsgData(message))
+      SendSysMessage(who, "Wyciagn"+ggm(who,5)+" wiadomosc z butelki!",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who, "Cos bylo nie tak z ta wiadomoscia...",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    DestroyItem(message);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

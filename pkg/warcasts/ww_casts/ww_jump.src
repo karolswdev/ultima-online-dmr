@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_BASE;
+const WW_WCID                := 3;
+
+//-----------------------------------------------------------------------------
+
+program WwJump(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastLoc)
+
+  if(!IsWolfMorphed(Caster))
+    WcFizzleId(Caster, "Musisz byc w zwierzecej formie!", WW_WCID);
+    return 0;
+  endif
+
+  var Sx := caster.x, Sy := caster.y, Sz := caster.z;
+
+  if(!CheckLosAt(Caster,CastLoc.x,CastLoc.y,CastLoc.z) or GetStandingHeight(CastLoc.x,CastLoc.y,CastLoc.z,Caster.realm).multi)
+    Fizzle(Caster,"Nie widzisz tego!");
+    return;
+  endif
+
+  if(IsInGa(Caster.x, Caster.y, Caster.realm) or IsInGa(CastLoc.x, CastLoc.y, Caster.realm))
+    Fizzle(Caster,"Magia w tym miejscu slabo dziala...");
+    return;
+  endif
+
+
+  var MaxRange := CInt(GetEffectiveSkill(Caster,SKILLID_WEARWOLF) / 10);
+
+  if(coordist(Caster.x,Caster.y,CastLoc.x,CastLoc.y) > MaxRange)
+    WcFizzle(Caster, "Stoisz za daleko.", GetWcType(WW_WCID));
+    return 0;
+  endif
+
+  MoveObject( Caster, CastLoc.x, CastLoc.y, CastLoc.z);
+  PlayStationaryEff( sx, sy, sz, FX_SMOKE, 0xa, 0xa, 0, Caster.realm);
+  PlayStationaryEff( caster.x, caster.y, caster.z, FX_SMOKE, 0xa, 0xa, 0, Caster.realm);
+  PlaySoundEffect( caster, SFX_SPELL_TELEPORT );
+
+  GainWarcastPoints(Caster, Caster, WW_WCID, WCGAIN_NORMAL);
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

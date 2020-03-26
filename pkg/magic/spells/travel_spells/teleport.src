@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/move";
+include ":eventcore:event_data";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 22;
+
+//-----------------------------------------------------------------------------
+
+program CastTeleport( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var Sx := caster.x, Sy := caster.y, Sz := caster.z;
+  
+  if(!CheckLosAt(Caster,CastLoc.x,CastLoc.y,CastLoc.z) or GetStandingHeight(CastLoc.x,CastLoc.y,CastLoc.z,Caster.realm).multi)
+    Fizzle(Caster,"Nie widzisz tego!");
+    return;
+  endif
+  
+  if(!FindEventAreaByLoc(Caster) or Caster.z < -20)
+    if(NoTeleportZone(CastLoc.x, CastLoc.y, CastLoc.z, Caster.realm, TCF_NOCHECK_DUNG | TCF_NOCHECK_BLD) or NoTeleportZone(Caster.x, Caster.y, Caster.z, Caster.realm, TCF_NOCHECK_DUNG | TCF_NOCHECK_BLD))
+      Fizzle(Caster,"Nie uda Ci sie tam przeteleportowac...");
+      return;
+    endif
+  endif
+
+  MoveObject( Caster, CastLoc.x, CastLoc.y, CastLoc.z);
+  PlayStationaryEff( sx, sy, sz, FX_SMOKE, 0xa, 0xa, 0, Caster.realm);
+  PlayStationaryEff( caster.x, caster.y, caster.z, FX_SMOKE, 0xa, 0xa, 0, Caster.realm);
+  PlaySoundEffect( caster, SFX_SPELL_TELEPORT );
+  
+endfunction
+
+//-----------------------------------------------------------------------------

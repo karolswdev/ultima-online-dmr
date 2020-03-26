@@ -1,0 +1,664 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/client/fonts";
+include "include/const/props";
+include "include/bits";
+include "include/accounts";
+include "include/player/misc";
+include "include/cmds/misc";
+include "include/cmds/cmds";
+include "include/clock";
+include "include/gumpboxes";
+include ":toplist:toplist";
+include ":tips:tips";
+
+//-----------------------------------------------------------------------------
+
+var Who, gFlags;
+
+//-----------------------------------------------------------------------------
+
+const MAF_DARK               := 0x00000001;
+const MAF_EDITABLE           := 0x00000002;
+const MAF_RESTIPEDIT         := 0x00000004;
+
+//-----------------------------------------------------------------------------
+
+program Settings(_who,text)
+  
+  var res;
+  
+  who := _who;
+  
+  do
+    GInit(100,50);
+    GResPic(0,0,3600,400,360);
+    GButton(365,15,0xA94,0xA95,0);
+    GTextLine(40,25,40,"Ustawienia konta:");
+	
+	var TLParam := who.acct.GetProp(ACPROP_TOPLIST);
+    //-------------------------------------------------
+    
+	/*
+    GTextLine(50,50,50,"Toplista");
+    var TLParam := who.acct.GetProp(ACPROP_TOPLIST);
+    if(!TLParam)
+      TLParam := SetDefTLParam(who);
+    endif
+    if(TLParam[1])
+      GButton(30,54,2361,2360,1003);
+      GButton(130,54,2362,2361,1004);
+    else
+      GButton(30,54,2360,2361,1003);
+    endif
+    //-------------------------------------------------
+    
+    //-------------------------------------------------
+	*/
+	
+	GTextLine(50,70,50,"Zaawansowane");
+    GButton(30,74,2362,2361,1005);
+    
+        
+    GTextLine(40,125,40,"Ustawienia postaci:");
+    //-------------------------------------------------
+    GTextLine(50,150,50,"Cenzura");
+    var cenzor := CInt(GetObjProperty(who,"cenzor"));
+    if(cenzor)
+      GButton(30,154,2360,2361,2001);
+    else
+      GButton(30,154,2361,2360,2001);
+    endif
+	
+	
+	GTextLine(50,170,50,"Anonimowe imie w .online");
+    var anonymous := GetObjProperty(who,"online_anonymous");
+	if(anonymous)
+		GButton(30, 174, 2361, 2362, 2002);
+	else
+		GButton(30, 174, 2362, 2361, 2002);
+	endif
+	
+    //  GButton(30,174,2362,2361,2002);
+    //else
+    //  GButton(30,174,2361,2362,2002);
+    //endif
+    //-------------------------------------------------
+    
+	//TODO: goqsane 23-11-2017 - what the heck is this?
+	//GTextLine(50,170,50,"Gong");
+    //var gong_off := GetObjProperty(who,"gong_off");
+    //if(gong_off)
+    //  GButton(30,174,2362,2361,2002);
+    //else
+    //  GButton(30,174,2361,2362,2002);
+    //endif
+    //-------------------------------------------------
+    GTextLine(50,190,50,"Obrazenia");
+    var show_dmg := GetObjProperty(who, PROP_SHOW_DMG);
+    if(show_dmg)
+      GButton(30,194,2361,2362,2003);
+    else
+      GButton(30,194,2362,2361,2003);
+    endif
+    //-------------------------------------------------
+    GTextLine(50,210,50,"Podpis wydobywcy");
+    var HarvSignOff := GetObjProperty(who, PROP_SIGN_HARVOFF);
+    if(HarvSignOff)
+      GButton(30,214,2361,2362,2004);
+    else
+      GButton(30,214,2362,2361,2004);
+    endif
+
+    //-------------------------------------------------
+    GTextLine(50,230,50,"Wydobywaj tylko raz");
+    var HarvOne := GetObjProperty(who, PROP_HARVEST_ONE);
+    if(HarvOne)
+      GButton(30,234,2361,2362,2005);
+    else
+      GButton(30,234,2362,2361,2005);
+    endif
+
+    //-------------------------------------------------
+    GTextLine(50,250,50,"Nie pokazuj wskazowek");
+    var NoTips := GetObjProperty(who, "DontShowTips");
+    if(NoTips)
+      GButton(30,254,2361,2362,2006);
+    else
+      GButton(30,254,2362,2361,2006);
+    endif
+
+    //-------------------------------------------------
+    GTextLine(50,270,50,"Blokada karmy");
+    var KarmaBlock := GetObjProperty(who, "BlockedKarma");
+    if(!KarmaBlock)
+      GButton(30,274,2362,2360,2007);
+    else
+      GButton(30,274,2360,2362,2007);
+    endif
+    
+    
+    //-------------------------------------------------
+    GTextLine(50,290,50,"Nie pytaj o czarowanie w miescie");
+    var BlockAskCityCast := GetObjProperty(who, "BlockAskCityCast");
+    if(!BlockAskCityCast)
+      GButton(30,294,2362,2360,2008);
+    else
+      GButton(30,294,2360,2362,2008);
+    endif
+    
+    //-------------------------------------------------
+      
+    var status;
+
+    if(IsMurderer(who))
+      status := "Wyklucz mordercow z czarow obszarowych.";
+    else
+      status := "Wyklucz osoby praworzadne z czarow obszarowych.";
+    endif
+
+    GTextLine(50,310,50,status);
+    var RestrictedStAttack := GetObjProperty(who, "RestrictedStAttack");
+    if(!RestrictedStAttack)
+      GButton(30,314,2362,2360,2009);
+    else
+      GButton(30,314,2360,2362,2009);
+    endif
+
+    res := GSend(who);
+    
+    case(res[0])
+
+      1004: TLParam := SetDefTLParam(who);
+            SendSysMessage(who,"Toplista: zresetowana",FONT_NORMAL,COLOR_GREEN);
+            who.acct.SetProp(ACPROP_TOPLIST,TLParam);
+      1005: PlayerAccountManagement(text);
+
+      2001: cenzor := (cenzor + 1)%2;
+            if(cenzor)
+              SendSysMessage(who, "Cenzura: wylaczona", FONT_NORMAL, COLOR_RED);
+            else
+              SendSysMessage(who, "Cenzura: wlaczona", FONT_NORMAL, COLOR_BLUE);
+            endif
+             SetObjProperty(who, "cenzor",cenzor);
+			 
+	  2002: 
+			if(!GetObjProperty(who, "online_anonymous"))
+				SendSysMessage(who, "Od teraz Twoje imie bedzie widoczne w komendzie .online", FONT_NORMAL, COLOR_BLUE);
+				SetObjProperty(who, "online_anonymous", 1);
+			else
+				EraseObjProperty(who, "online_anonymous");
+				SendSysMessage(who, "Od teraz Twoje imie nie jest widoczne w komendzie .online", FONT_NORMAL, COLOR_RED);
+			endif
+           
+      2003: if(show_dmg)
+              SendSysMessage(who, "Obrazenia: wylaczone", FONT_NORMAL, COLOR_GREEN);
+              EraseObjProperty(who, PROP_SHOW_DMG);
+            else
+              SendSysMessage(who, "Obrazenia: wlaczone", FONT_NORMAL, COLOR_BLUE);
+              SetObjProperty(who, PROP_SHOW_DMG, 1);
+            endif
+
+      2004: if(!HarvSignOff)
+              SendSysMessage(who, "Podpis wydobywcy: wylaczone", FONT_NORMAL, COLOR_GREEN);
+              SetObjProperty(who, PROP_SIGN_HARVOFF, 1);
+            else
+              SendSysMessage(who, "Podpis wydobywcy: wlaczone", FONT_NORMAL, COLOR_BLUE);
+              EraseObjProperty(who, PROP_SIGN_HARVOFF);
+            endif
+
+      2005: if(!HarvOne)
+              SendSysMessage(who, "Wydobywaj tylko raz: wlaczone", FONT_NORMAL, COLOR_GREEN);
+              SetObjProperty(who, PROP_HARVEST_ONE, 1);
+            else
+              SendSysMessage(who, "Wydobywaj tylko raz: wylaczone", FONT_NORMAL, COLOR_BLUE);
+              EraseObjProperty(who, PROP_HARVEST_ONE);
+            endif
+
+      2006: if(!NoTips)
+              SendSysMessage(who, "Wskazowki NIE beda sie teraz pojawiac.", FONT_NORMAL, COLOR_GREEN);
+              SetObjProperty(who, "DontShowTips", 1);
+            else
+              SendSysMessage(who, "Wskazowki beda sie teraz pojawiac.", FONT_NORMAL, COLOR_BLUE);
+              EraseObjProperty(who, "DontShowTips");
+            endif
+
+      2007: if(!KarmaBlock)
+              SendSysMessage(who, "Zablokowal"+ggm(who,3)+" przyrost karmy.", FONT_NORMAL, COLOR_GREEN);
+              SetObjProperty(who, "BlockedKarma", 1);
+            else
+              SendSysMessage(who, "Odblokowal"+ggm(who,3)+" przyrost karmy.", FONT_NORMAL, COLOR_BLUE);
+              EraseObjProperty(who, "BlockedKarma");
+            endif
+            
+      2008: if(!BlockAskCityCast)
+              SendSysMessage(who, "Zablokowal"+ggm(who,3)+" pytanie o czarowanie w miescie.", FONT_NORMAL, COLOR_GREEN);
+              SetObjProperty(who, "BlockAskCityCast", 1);
+            else
+              SendSysMessage(who, "Odblokowal"+ggm(who,3)+" pytanie o czarowanie w miescie.", FONT_NORMAL, COLOR_BLUE);
+              EraseObjProperty(who, "BlockAskCityCast");
+            endif
+            
+      2009: 
+            if(!GetObjProperty(who, "RestrictedStAttack"))
+              SetObjProperty(who, "RestrictedStAttack", 1);
+              if(IsMurderer(who))
+                SendSysMessage(who, "Czary obszarowe nie beda teraz ranily mordercow!", FONT_NORMAL, COLOR_GREEN);
+              else
+                SendSysMessage(who, "Czary obszarowe nie beda teraz ranily prawych stworzen!", FONT_NORMAL, COLOR_GREEN);
+              endif
+            else
+              EraseObjProperty(who, "RestrictedStAttack");
+              SendSysMessage(who, "Czary obszarowe beda teraz ranily wszystkich!", FONT_NORMAL, COLOR_RED);
+            endif
+            
+    endcase
+
+  dowhile(res);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PlayerAccountManagement(text)
+
+  var Res := VerifyPlayerPassword();
+
+  if(!Res)
+    if(IsLoggedIn(who))
+      if(Res.errortext)
+        SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      endif
+      DisconnectClient(who);
+    endif
+    return 0;
+  endif
+
+  gFlags := 0;
+
+  if(text["lastip"])
+    BuildLastLogIPsGump();
+  else
+    BuildMainAccGump();
+  endif
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+
+    case(Res[0])
+      3:        if(!ChangePassword())
+                  return;
+                endif
+
+      5:        if(gFlags & MAF_RESTIPEDIT)
+                  if(SaveRestIPs(Res))
+                    SetBitOff(gFlags, MAF_RESTIPEDIT);
+                    SetBitOff(gFlags, MAF_EDITABLE);
+                  endif
+                else
+                  SetBitOn(gFlags, MAF_RESTIPEDIT);
+                  SetBitOn(gFlags, MAF_EDITABLE);
+                endif
+
+      6:        BuildLastLogIPsGump();
+                continue;
+
+      7:        if(!CmdFreezeAccount())
+                  return;
+                endif
+
+      10:       ;
+
+      1:
+      default:  return;
+    endcase
+
+    BuildMainAccGump();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainAccGump()
+
+  var Profile  := who.acct.GetProp("profile");
+  var ProfClr  := 555;
+  var PlayerIp := SplitIp(who.ip);
+  var IpText   := "";
+  var n;
+
+  for(n:=1;n<=PlayerIp.size();n:=n+1)
+    if(n > 1)
+      IpText := IpText + ". ";
+    endif
+    IpText := IpText + PlayerIp[n];
+  endfor
+
+  var RestIPs;
+
+  if(!(gFlags & MAF_RESTIPEDIT))
+    RestIPs  := who.acct.GetProp("RestIP");
+  endif
+
+  if(!Profile.login)
+    ProfClr := 1204;
+    Profile := "Brak";
+  else
+    Profile := Profile.login;
+  endif
+
+  GInit(50, 50);
+  GNoClose();
+  GNoDispose();
+  GResPic(0, 0, 0xA28, 480, 480);
+  GTextLine(160, 25, 1152, "Menu konta: ");
+  GTextLine(250, 25, 550, who.acctname);
+
+  MATextLine(120, 50, 200, 20, 555, IpText, 0, 1, 0, "Twoje IP:");
+
+  GTextLine(35, 162, 1152, "Dozwolone maski IP:");
+
+  if((RestIPs and RestIPs.size()) or (gFlags & MAF_RESTIPEDIT))
+    MATextLine(40, 195, 140, 20, 555, RestIPs, gFlags + MAF_DARK, 8, 10);
+  else
+    MATextLine(40, 195, 140, 20, 555, array("*.*.*.*"), gFlags + MAF_DARK, 8, 10);
+  endif
+
+  if(gFlags & MAF_RESTIPEDIT)
+    GTextLine(205, 344, 670, "Zapisz");
+  else
+    GTextLine(205, 344, 670, "Zmien");
+  endif
+  GButton(172, 341, 0x867, 0x869, 5);
+
+  GTextLine(255, 190, 670, "Zmien haslo na konto");
+  GButton(217, 187, 0x867, 0x869, 3);
+
+  GTextLine(255, 220, 670, "Pokaz ostatnie logowania");
+  GButton(217, 217, 0x867, 0x869, 6);
+
+  GTextLine(255, 250, 670, "Zamroz konto");
+  GButton(217, 247, 0x867, 0x869, 7);
+
+  GTextLine(200, 300, 550, "Dalsze informacje znajduja sie na witrynie");
+  GTextLine(200, 320, 550, "shardu w dziale komendy.");
+
+  GTextLine(30, 370, 550, "Jedynie IP odpowiadajace tym maskom beda mogly sie logowac na");
+  GTextLine(30, 390, 550, "konto. Brak wpisanych adresow oznacza brak ograniczen.");
+  GTextLine(30, 410, 550, "Nalezy uzywac tego tylko wtedy, gdy sie wie co robi.");
+  GTextLine(30, 430, 550, "Przyklad: 92.34.*.* , 123.43.55.33.");
+
+  GButton(380, 410, 0x47B, 0x47C, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLastLogIpsGump()
+
+  var LastIPs  := ReadFile(LASTLOG_PKG + who.acctname);
+
+  GInit(50, 50);
+  GNoClose();
+  GNoDispose();
+  GResPic(0, 0, 0xA28, 680, 490);
+  GTextLine(80, 30, 1152, "Ostatnie logowania na konto:");
+  GTextLine(260, 30, 550, who.acctname);
+
+  GResPic(42, 79, 0xa3c, 596, 332);
+
+  var n := 0, i;
+  var LastIP;
+  var lpEnd := ToMin(LastIPs.size()-16, 0);
+
+  GTextLine(70,  55, 999, "Adres IP");
+  GTextLine(180, 55, 999, "Imie postaci");
+  GTextLine(400, 55, 999, "Data zalogowania");
+  GTextLine(540, 55, 999, "Czas gry");
+
+  for(i:=LastIPs.size();i>lpEnd;i:=i-1)
+    LastIP := UnPack(LastIPs[i]);
+    GTextLine(50, 85+n*20, 1419, (n+1)+".");
+    GTextLine(70, 85+n*20, 555, LastIP[1]);
+    GTextLine(180, 85+n*20, 670, LastIP[2]);
+    GTextLine(400, 85+n*20, 1309, CUnixTime(LastIP[3]));
+    if(LastIPs[i][4])
+      GTextLine(540, 85+n*20, 550, RealTime(LastIP[4]));
+    elseif(i == LastIPs.size())
+      GTextLine(540, 85+n*20, 670, "Aktualne");
+    else
+      GTextLine(540, 85+n*20, 670, "Niedostepne");
+    endif
+    n := n + 1;
+  endfor
+
+  GButton(580, 420, 0x47B, 0x47C, 10);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifyPlayerPassword()
+
+  BuildPlayerPasswordGump("Wpisz aktualne haslo na konto.");
+  var PRes   := GSend(who);
+  var Passwd := CroppedId(PRes[5]);
+
+  if(!PRes or !PRes[0] or PRes[0] != 1 or len(Passwd) <= 2)
+    PRes := error;
+    PRes.errortext := "Nie wpisano hasla!";
+    return PRes;
+  else
+    PRes := error;
+    if(!who.acct.CheckPassword(Passwd))
+      PRes.errortext := "Wpisane haslo jest bledne!";
+      return PRes;
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPlayerPasswordGump(Text)
+
+  GInit(130, 130);
+  GNoClose();
+  GNoMove();
+  GNoDispose();
+  GResPic(0, 0, 0xA28, 280, 220);
+  GTextLine(30, 30, 670, Text);
+  GTextLine(30, 50, 550, "Wpisany tekst jest nie widoczny ze");
+  GTextLine(30, 70, 550, "wzgledow bezpieczenstwa.");
+  GResPic(34, 104, 0xa3c, 214, 32);
+  GTextEntry(39, 110, 145, 20, 0, 5, "");
+
+  GButton(50, 150, 0x47B, 0x47C, 1);
+  GButton(155, 150, 0x478, 0x479, 2);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MATextLine(x, y, w, h, Clr, byref Text, Flags, Lines := 1, Id := 0, Title := 0, Set := 1)
+
+  if(Flags & MAF_DARK)
+    GResPic(x-8, y-6, 0xa3c, w+16, (h*Lines)+12);
+  else
+    GResPic(x-8, y-4, 0x13ec, w+16, (h*Lines)+8);
+  endif
+
+  if(Title)
+    GTextLine(x-90, y, 1152, Title);
+  endif
+
+  if(Flags & MAF_EDITABLE and Id)
+    if(Text.size() or Lines > 1)
+      var i := Set-1;
+      while(Lines > 0)
+        GTextEntry(x, y, w, h, Clr, Id+i, ClStr(Text[i+1]));
+        Lines := Lines - 1;
+        y     := y + h;
+        i     := i + 1;
+      endwhile
+    elseif(Lines)
+      GTextEntry(x, y, w, h, Clr, Id, ClStr(Text));
+    endif
+  else
+    if(Text.size() or Lines > 1)
+      var i := Set-1;
+      while(Lines > 0)
+        if(Text[i+1])
+          GTextCrop(x, y, w, h, Clr, Text[i+1]);
+        endif
+        Lines := Lines - 1;
+        y     := y + h;
+        i     := i + 1;
+      endwhile
+    elseif(Lines and Text)
+      GTextCrop(x, y, w, h, Clr, Text);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveRestIPs(Res)
+
+  if(!(gFlags & MAF_RESTIPEDIT))
+    return 0;
+  endif
+
+  var i;
+  var Ip;
+  var Checked := 0;
+  var Err     := 0;
+  var RestIPs := array;
+
+  for(i:=10;i<18;i:=i+1)
+    Ip := CroppedId(Res[i]);
+    if(Ip)
+      if(!SplitIp(Ip))
+        SendSysMessage(who, "Maska IP: "+Ip+" Nr: "+(i-9)+" zostala blednie wprowadzona.", FONT_NORMAL, COLOR_RED);
+        Err := 1;
+      else
+        if(MatchIp(Ip, who.ip))
+          Checked := 1;
+        endif
+      endif
+      RestIPs.append(Ip);
+    endif
+  endfor
+
+  if(Err)
+    return 0;
+  endif
+
+  if(RestIPs.size())
+    if(!Checked)
+      SendSysMessage(who, "Zadna z wprowadzonych przez Ciebie masek IP nie odpowiada twojemu IP!", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  who.acct.SetProp("RestIP", RestIPs);
+  SendSysMessage(who, "Zapisano dozwolone maski IP.", FONT_NORMAL, COLOR_GREEN);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangePassword()
+
+  BuildPlayerPasswordGump("Wpisz nowe haslo na konto");
+  var Res     := GSend(who);
+  var NewPass := CroppedId(Res[5]);
+
+  if(Res[0] != 1 or len(NewPass) <= 1)
+    SendSysMessage(who, "Nie wpisano nowego hasla na konto.", FONT_NORMAL, COLOR_RED);
+    return 1;
+  else
+    Res := VerifyPassword(NewPass);
+    if(!Res)
+      if(Res.errortext)
+        SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      endif
+      return 1;
+    elseif(who.acctname[NewPass] or NewPass[who.acctname])
+      SendSysMessage(who, "Wprowadzone haslo jest za bardzo zblizone do nazwy konta.", FONT_NORMAL, COLOR_RED);
+      return 1;
+    endif
+  endif
+
+  BuildPlayerPasswordGump("Wpisz ponownie nowe haslo na konto");
+  Res         := GSend(who);
+  var ReType  := CroppedId(Res[5]);
+
+  if(Res[0] != 1 or len(ReType) <= 1)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return 1;
+  elseif(ReType != NewPass)
+    SendSysMessage(who, "Ponownie wpisane haslo nie zgadza sie z poprzednim.", FONT_NORMAL, COLOR_RED);
+    return 1;
+  endif
+
+  who.acct.SetPassword(NewPass);
+  SendSysMessage(who, "Zmieniono haslo na konto.", FONT_NORMAL, COLOR_GREEN);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifyPassword(Pass)
+
+  var AscPass := CAscZ(Pass);
+  var i;
+  var Err := error;
+
+  for(i:=1;i<=AscPass.size();i:=i+1)
+    if(!(AscPass[i] >= 0x21 and AscPass[i] <= 0x7A))
+      Err.errortext := "Haslo zawiera niedozwolony znak. Nie dozwolone s¹: spacja, tylda i znaki specjalne.";
+      return Err;
+    endif
+  endfor
+
+  if((len(Pass) < 4) or (len(Pass) > 10))
+    Err.errortext := "Za dlugie lub za krotkie haslo. (4-10 znakow).";
+    return Err;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdFreezeAccount()
+
+  SendSysMessage(who,"Na pewno chcesz zamrozic swoje konto? Dzieki temu nie zostanie ono skasowane, domy postaci nie zostana zniszczone, lecz nie bedzie rowniez mozliwosci grania przez "+RealTime(ACC_TBANEXPIRE)+".",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"UWAGA! Zamrazaj konto jedynie jesli nie bedziesz w stanie logowac sie dluzej niz "+RealTime(ACC_DELETE_TIME)+".",FONT_NORMAL, COLOR_STONE);
+
+  if(!YesNo(who,"Tak?"))
+    return 1;
+  endif
+
+  var Res := FreezeAccount(who.acct);
+
+  if(Res == error)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    return 1;
+  else
+    // dostal odpowiedni msg przy disconnecie w funkcji zamrozenia
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,692 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/gumps";
+include "include/player/misc";
+include "include/portals";
+include "include/finding";
+include "champions";
+
+//-----------------------------------------------------------------------------
+
+var ChampData   := array;
+var Fighters    := array;
+var FightBook   := 0;
+var FightTime   := 0;
+var TimeLamp    := struct;
+var ChGate      := 0;
+var ChGateTime  := 0;
+var ChGateLoc   := 0;
+var WaitTime    := array;
+var Champion    := 0;
+var ChFreeTime  := ReadGameClock();
+var DeathDelay  := CHFG_DEATH_DELAY;
+var entFighters := array;
+var gMainLoc;
+var Msg;
+
+TimeLamp.+light := 0;
+TimeLamp.+ball  := 0;
+TimeLamp.+prc   := 0;
+TimeLamp.+lprc  := 0;
+
+//-----------------------------------------------------------------------------
+
+program ChampionCore(Parms)
+
+  InitVars();
+  CreateData();
+  VerifyData();
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  var ev;
+
+  while(1)
+
+    CheckGate();
+    CheckFighters();
+    CheckTime();
+    CheckTimeLamp();
+    CheckChampionFight();
+    CheckMessage();
+    SaveData();
+    
+    ev := wait_for_event(4);
+
+    case(ev.type)
+      CHC_MSG_ADDFIGHTER:       AddFighter(ev.source,ev.book);
+      CHC_MSG_DELFIGHTER:       DelFighter(ev.source);
+      CHC_MSG_CHAMPDEATH:       ChampDeath(ev.corpse, ev.nr);
+      CHC_MSG_OPENGATE:         OpenGate(ev.source,ev.book);
+      CHC_MSG_RESET_DELAY:      if(ev.nr == 0)
+                                  ChampData[CHI_GTIME] := {0,0,0};
+                                elseif(ev.nr >= 1 and ev.nr <= 6)
+                                  ChampData[CHI_CHTIME][ev.nr] := 0;
+                                endif
+                                SaveData();
+      CHC_MSG_CH_DAY_ACTIV:     ChangeActivityDay(ev.nr);
+                                SaveData();
+    endcase
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMessage()
+ 
+  if(GetChampState(1) == CHST_GL_WAIT)
+    if(!msg)
+      foreach player in EnumerateOnlineCharacters()
+        SendSysMessage(player, "*Ksiegi Mistrzow niebawem zostana aktywowane*", FONT_NORMAL, COLOR_YELLOW);
+      endforeach
+      msg := 1;
+    endif
+  else
+    msg := 0; 
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddFighter(Fighter,Book)
+
+  if(Book and Fighter)
+    if(!Fighters.size())
+      StartFight(Book);
+      ChampData[CHI_FIGHTTIME] := ReadGameClock();
+    endif
+    Fighters.append(Fighter);
+    LogNotice("[ChampionCore] "+GetRealName(Fighter)+" rozpoczyna walke z mistrzem.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+    ChampData[CHI_FIGHTERS].append(Fighter.serial);
+
+    if(!RetIndex(entFighters, Fighter))
+      entFighters.append(Fighter);
+    endif
+  else
+    LogError("[ChampionCore] Nie prawidlowy gracz wchodzacy na pole walki: F: "+Fighter+" B: "+Book, LOGF_GENERAL);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelFighter(Fighter)
+
+  var Idx := RetIndex(Fighters,Fighter);
+
+  if(Idx)
+    Fighters.erase(Idx);
+    ChampData[CHI_FIGHTERS].erase(Idx);
+    LogNotice("[ChampionCore] "+GetRealName(Fighter)+" konczy walke z mistrzem.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+  endif
+
+  SetObjProperty(Fighter, PROP_CHFIGHT_DELAY, ReadGameClock()+CH_FIGHT_DELAY);
+
+  if(!Fighters.size() and !ChGate)
+    EndFight();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChampDeath(Corpse, Nr)
+
+  if(!FightBook or !Corpse or !Nr)
+    return;
+  elseif(GetObjProperty(FightBook, PROP_CHAMPNR) != Nr)
+    return;
+  elseif(Corpse.x >= gMainLoc[1] and Corpse.y >= gMainLoc[2] and Corpse.x <= gMainLoc[3] and Corpse.y <= gMainLoc[4] and Corpse.realm == gMainLoc[5])
+
+    var ChampHist := GetGlobalProperty(PROP_CHHISTORY);
+    if(!ChampHist or !ChampHist.size())
+      ChampHist := array;
+    endif
+
+    var Players := array;
+    var i;
+
+    for(i:=1;i<=entFighters.size();i:=i+1)
+      Players.append(array(entFighters[i].serial, GetRealName(entFighters[i])));
+    endfor
+
+    ChampHist.append(array(PolCore().systime, ReadGameClock(), Nr, ReadGameClock() - ChampData[CHI_FIGHTTIME], Players));
+
+    SetGlobalProperty(PROP_CHHISTORY, ChampHist);
+
+    var ChDelay := GetChampWaitTime(Nr);
+    var TimeComponents := ExtractTimeComponents(PolCore().systime);
+    var NextActivationTime := PolCore().systime - TimeComponents.daytime;
+    if(TimeComponents.daytime > CH_GL_START_TIME)
+      NextActivationTime := NextActivationTime + 86400;
+    endif
+    ChampData[CHI_GTIME] := {NextActivationTime,RandomInt(G_RANDOM_MAX)+1, RandomInt(G_RANDOM_MAX)+1}; //pierwsza liczba, to od kiedy ksiega ma byc aktywna: czyli od nastepnego dnia //losujemy 2 liczby, ktore wyznacza nam punkt na przedziale, kiedy ksiega ma byc aktywna.
+    ChampData[CHI_CHTIME][Nr] := ReadGameClock() - CInt(ChDelay*0.15)    + RandomInt(CInt(ChDelay*0.40));
+    ChampData[CHI_FIGHTTIME]  := ReadGameClock() - FightTime + CH_DEATH_WAIT;
+    LogNotice("[ChampionCore] Mistrz "+GetChampName(Nr)+" polegl.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+  else
+    LogNotice("[ChampionCore] Mistrz "+GetChampName(Nr)+" polegl poza swoja komnata!", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function OpenGate(who,Book)
+
+  if(Book and !FightBook and !ChGate)
+    var Loc     := GetObjProperty(Book,PROP_CHGATE_LOC);
+    var Nr      := GetObjProperty(Book,PROP_CHAMPNR);
+    var dLoc    := GetChampLoc(Nr);
+    var OutGate := GetChampOutGate(Nr);
+
+    if(Loc and Nr and dLoc and OutGate)
+      if(IsAdmin(who) or CanHeFight(who,Book))  //Dla admina nie wywola sie CanHeFight(nie zostanie sprawdzone, czy ma delay na otwarcie ksiegi)
+        ChGate := CreatePortal(UOBJ_CHGATE_IN, Loc[1], Loc[2], Loc[3], Loc[4]);
+        if(!ChGate)
+          LogError("[ChampionCore] OpenGate: Nie udalo sie stworzyc portalu ksiegi mistrzow: "+Book.serial, LOGF_SCRIPTS);
+          ChGate    := 0;
+          ChGateLoc := 0;
+        else
+          SetObjProperty(OutGate, PROP_DESTLOC, Loc);
+          SetObjProperty(ChGate, PROP_DESTLOC, dLoc);
+          SetObjProperty(ChGate, PROP_BOOKSER, Book.serial);
+          ChampData[CHI_OGATETIME] := ReadGameClock();
+          ChampData[CHI_OGATE]     := ChGate.serial;
+          ChGateTime := ReadGameClock();
+        endif
+      endif
+    else
+      ChGate    := 0;
+      ChGateLoc := 0;
+      LogError("[ChampionCore] OpenGate: Ksiega mistrzow nie posiada lokacji, numeru lub numer nie posiada lokacji docelowej, LUB brak portalu wyjsciowego! BOOK: "+Book.serial+" NR: "+Nr+" CHL: "+Loc+" DL: "+dLoc+" OG: "+CInt(OutGate.serial), LOGF_WORLD);
+    endif
+
+  elseif(Book and !ChGate and (IsAdmin(who) or (who in Fighters)))   // jesli event pochodzi od admina a inni gracze w tym samym czasie walcza to  brama mimo wszystko zostanie otwarta.
+                                                                 // lub event pochodzi od gracza, ktory aktualnie walczy (aby moc otwierac portale za pomoca krysztalow)
+    var Loc     := GetObjProperty(Book,PROP_CHGATE_LOC);
+    var Nr      := GetObjProperty(Book,PROP_CHAMPNR);
+    var dLoc    := GetChampLoc(Nr);
+    var OutGate := GetChampOutGate(Nr);
+
+    ChGate := CreatePortal(UOBJ_CHGATE_IN, Loc[1], Loc[2], Loc[3], Loc[4]);
+
+    ChampData[CHI_OGATETIME] := ReadGameClock();
+    ChampData[CHI_OGATE]     := ChGate.serial;
+
+    SetObjProperty(OutGate, PROP_DESTLOC, Loc);
+    SetObjProperty(ChGate, PROP_DESTLOC, dLoc);
+    SetObjProperty(ChGate, PROP_BOOKSER, Book.serial);
+    ChGateTime := ReadGameClock();
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckGate()
+
+  if(ChGate)
+    if(ChGateTime + CH_GATE_WAIT < ReadGameClock())
+      HidePortal(ChGate);
+      DestroyItem(ChGate);
+      ChampData[CHI_OGATETIME] := 0;
+      ChampData[CHI_OGATE]     := 0;
+      ChGate                   := 0;
+      ChGateTime               := 0;
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StartFight(Book)
+
+  if(Book and !FightBook)
+    var Nr := GetObjProperty(Book, PROP_CHAMPNR);
+
+    if(!Nr)
+      LogError("[ChampionCore} StartFight: Ksiega mistrzow nie posiada numeru! "+Book.serial, LOGF_WORLD);
+    endif
+
+    FightBook  := Book;
+    FightTime  := GetChampFightTime(Nr);
+    ChGateLoc  := GetObjProperty(FightBook, PROP_CHGATE_LOC);
+    entFighters := array;
+
+    ChampData[CHI_FIGHTBOOK] := FightBook.serial;
+
+    FindTimeLamp(Nr);
+    CheckTimeLamp(1);
+    FindChampion(Nr);
+
+
+    DeathDelay := CHFG_DEATH_DELAY;
+
+
+    if(Champion)
+      SetHp(Champion, GetMaxHp(Champion));
+      SetStamina(Champion, GetMaxStamina(Champion));
+      SetMana(Champion, GetMaxMana(Champion));
+    endif
+
+    LogNotice("[ChampionCore] Rozpoczela sie walka z mistrzem "+GetChampName(Nr)+".", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EndFight()
+
+  MoveFighters();
+
+  if(FightBook)
+    LogNotice("[ChampionCore] Walka z mistrzem "+GetChampName(GetObjProperty(FightBook,PROP_CHAMPNR))+" zakonczona.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+  endif
+
+  ChampData[CHI_FIGHTTIME] := 0;
+  ChampData[CHI_FIGHTBOOK] := 0;
+  ChampData[CHI_FIGHTERS]  := array;
+  Fighters                 := array;
+  FightBook                := 0;
+  FightTime                := 0;
+  TimeLamp.light           := 0;
+  TimeLamp.ball            := 0;
+  TimeLamp.prc             := 0;
+  TimeLamp.lprc            := 0;
+  Champion                 := 0;
+  entFighters              := array;
+
+  if(ChGate)
+    ChGateTime := 0;
+    CheckGate();
+  endif
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveFighters()
+
+  foreach Fighter in Fighters
+    MoveObject(Fighter,ChGateLoc[1],ChGateLoc[2],ChGateLoc[3],ChGateLoc[4],MOVECHAR_FORCELOCATION);
+    SetObjProperty(Fighter, PROP_CHFIGHT_DELAY, ReadGameClock()+CH_FIGHT_DELAY);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitVars()
+
+  var ChampCfg  := ReadConfigFile(CHAMP_CFG);
+  gMainLoc      := SplitWords(GetConfigString(ChampCfg["Places"],"Main"));
+
+  if(!gMainLoc or !ChampCfg)
+    LogError("[ChampionCore] Nie udalo sie odczytac konfiga mistrzow lub glownej lokacji! Anulowanie.", LOGF_SCRIPTS);
+    return;
+  endif
+
+  var Realm := gMainLoc[5];
+  MakeIntArray(gMainLoc);
+  gMainLoc[5] := Realm;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateData()
+
+  var ChampCfg  := ReadConfigFile(CHAMP_CFG);
+  ChampData := GetGlobalProperty(PROP_CHDATA);
+
+  if(!ChampData)
+    ChampData := array;
+    SaveData();
+  endif
+
+  var Times := ListConfigElemProps(ChampCfg["WaitTime"]);
+
+  var i := 1;
+  foreach Time in Times
+    WaitTime[i] := GetConfigInt(ChampCfg["WaitTime"],Time);
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifyData()
+
+  if(ChampData[CHI_GTIME].size() != 3)
+    ChampData[CHI_GTIME] := {PolCore().systime,0,0};
+  endif
+
+  if(!ChampData[CHI_CHTIME])
+    ChampData[CHI_CHTIME] := array;
+  endif
+
+  if(ChampData[CHI_FIGHTERS] and ChampData[CHI_FIGHTTIME] and ChampData[CHI_FIGHTBOOK])
+    StartFight(FindItemBySerial(ChampData[CHI_FIGHTBOOK]));
+    foreach FSer in (ChampData[CHI_FIGHTERS])
+      Fighters.append(FindPlayerBySerial(FSer));
+    endforeach
+    CheckFighters();
+  else
+    ChampData[CHI_FIGHTERS]    := array;
+    ChampData[CHI_FIGHTTIME]   := 0;
+    ChampData[CHI_FIGHTBOOK]   := 0;
+  endif
+
+  if(ChampData[CHI_OGATE] and ChampData[CHI_OGATETIME])
+    ChGate := FindItemBySerial(ChampData[CHI_OGATE]);
+    if(!ChGate)
+      ChampData[CHI_OGATE]     := 0;
+      ChampData[CHI_OGATETIME] := 0;
+    endif
+  else
+    ChampData[CHI_OGATE]       := 0;
+    ChampData[CHI_OGATETIME]   := 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveData()
+
+  SetGlobalProperty(PROP_CHDATA,ChampData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindTimeLamp(Nr)
+
+  var ChampCfg  := ReadConfigFile(CHAMP_CFG);
+  var TLLocs := GetConfigStringArray(ChampCfg["TimeLamp"],"Loc");
+  var TLLoc  := SplitWords(TLLocs[Nr]);
+  TLLoc[1]   := CInt(TLLoc[1]);
+  TLLoc[2]   := CInt(TLLoc[2]);
+  TLLoc[3]   := CInt(TLLoc[3]);
+
+  TimeLamp.light := GetChampTLLight(TLLoc);
+  TimeLamp.ball  := GetChampTLBall(TLLoc);
+
+  if(!TimeLamp.light or !TimeLamp.ball)
+    TimeLamp.light := 0;
+    TimeLamp.ball  := 0;
+    LogError("[ChampionCore] Nie znaleziono swiatla lub kuli lampy czasowej mistrza NR: "+Nr+" L: "+TLLoc, LOGF_WORLD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckFighters()
+
+  if(Fighters.size())
+    var i;
+
+    for(i:=1;i<=Fighters.size();i:=i+1)
+      if(!Fighters[i])
+        Fighters[i] := FindPlayerBySerial(ChampData[CHI_FIGHTERS][i]);
+      endif
+
+      if(Fighters[i])
+        if(Fighters[i].x >= gMainLoc[1] and Fighters[i].y >= gMainLoc[2] and Fighters[i].x <= gMainLoc[3] and Fighters[i].y <= gMainLoc[4] and Fighters[i].realm == gMainLoc[5])
+          if(!IsLoggedIn(Fighters[i]))
+            if(Fighters.size() == 1)
+              if(ReadGameClock() - GetObjProperty(Fighters[i], PROP_LASTLOG) > CInt(CHFG_LOGOFF_DELAY/3))
+                SetObjProperty(Fighters[i], PROP_CHFIGHT_DELAY, ReadGameClock()+CH_FIGHT_DELAY);
+                MoveObject(Fighters[i],ChGateLoc[1],ChGateLoc[2],ChGateLoc[3],ChGateLoc[4],MOVECHAR_FORCELOCATION);
+                Fighters[i] := 0;
+                LogNotice("[ChampionCore] "+GetRealName(Fighters[i])+" zostal wywalony przez nieobecnosc.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+              endif
+            else
+              if(ReadGameClock() - GetObjProperty(Fighters[i], PROP_LASTLOG) > CHFG_LOGOFF_DELAY)
+                SetObjProperty(Fighters[i], PROP_CHFIGHT_DELAY, ReadGameClock()+CH_FIGHT_DELAY);
+                MoveObject(Fighters[i],ChGateLoc[1],ChGateLoc[2],ChGateLoc[3],ChGateLoc[4],MOVECHAR_FORCELOCATION);
+                LogNotice("[ChampionCore] "+GetRealName(Fighters[i])+" zostal wywalony przez nieobecnosc.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+                Fighters[i] := 0;
+              endif
+            endif
+          elseif(Fighters[i].dead)
+            if(ReadGameClock() - GetObjProperty(Fighters[i], PROP_DEATH_TIME) > DeathDelay)
+              SetObjProperty(Fighters[i], PROP_CHFIGHT_DELAY, ReadGameClock()+CH_FIGHT_DELAY);
+              MoveObject(Fighters[i],ChGateLoc[1],ChGateLoc[2],ChGateLoc[3],ChGateLoc[4],MOVECHAR_FORCELOCATION);
+              LogNotice("[ChampionCore] "+GetRealName(Fighters[i])+" zostal wywalony przez zbyt dluga smierc.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+              Fighters[i] := 0;
+            endif
+          endif
+        else
+          Fighters[i] := 0;
+        endif
+      else
+        Fighters[i] := 0;
+      endif
+
+      if(!Fighters[i])
+        Fighters.erase(i);
+        ChampData[CHI_FIGHTERS].erase(i);
+        i := i - 1;
+      endif
+
+    endfor
+
+    if(Fighters.size())
+      i := 0;
+      foreach Fighter in Fighters
+        if(Fighter.dead)
+          i := i + 1;
+        endif
+      endforeach
+      if(Fighters.size() == i and !ChGate)
+        EndFight();
+      endif
+    elseif(!Fighters.size() and !ChGate)
+      EndFight();
+    endif
+
+  elseif(ChampData[CHI_FIGHTTIME])
+
+    EndFight();
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckChampionFight()
+
+  if(Fighters.size() and Champion)
+    if(Champion.warmode)
+      ChFreeTime := ReadGameClock();
+    elseif(ChFreeTime + CH_FREE_TIME < ReadGameClock())
+      var Fighter := Fighters[RandomInt(Fighters.size())+1];
+      if(!Fighter)
+        Fighter := Fighters[1];
+      endif
+      if(!Fighter.dead and IsLoggedIn(Fighter))
+        var Ev := struct;
+        ev.+type   := EVID_RUN;
+        ev.+source := Fighter;
+        ev.+attack := 1;
+        SendEvent(Champion, ev);
+        Fighter.hidden := 0;
+      endif
+      ChFreeTime := ReadGameClock() - CInt(CH_FREE_TIME/2);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckTime()
+                                                              
+  var i;
+
+  for(i:=1;i<=WaitTime.size();i:=i+1)
+    if(CInt(ChampData[CHI_CHTIME][i]) + WaitTime[i] < ReadGameClock())
+      ChampData[CHI_CHTIME][i] := 0;
+    endif
+  endfor
+
+  if(ChampData[CHI_FIGHTTIME])
+    if(ChampData[CHI_FIGHTTIME] + FightTime < ReadGameClock())
+      EndFight();
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckTimeLamp(Force := 0)
+
+  if(TimeLamp.light and TimeLamp.ball)
+    TimeLamp.prc := (((ReadGameClock() - ChampData[CHI_FIGHTTIME]) * 100) / FightTime) / 10;
+
+    if(TimeLamp.prc != TimeLamp.lprc or Force)
+    
+      var ChampCfg  := ReadConfigFile(CHAMP_CFG);
+      TimeLamp.light.color := GetConfigInt(ChampCfg["TimeLamp"], "Light"+TimeLamp.prc);
+      TimeLamp.ball.color  := GetConfigInt(ChampCfg["TimeLamp"], "Ball"+TimeLamp.prc);
+      TimeLamp.lprc        := TimeLamp.prc;
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindChampion(Nr)
+
+  foreach Mob in ListObjectsInBox(gMainLoc[1], gMainLoc[2], -127, gMainLoc[3], gMainLoc[4], 127, gMainLoc[5])
+    if(Mob.isa(POLCLASS_NPC))
+      if(CInt(GetNpcConfig(Mob).Champion) == Nr)
+        Champion := Mob;
+        break;
+      endif
+    endif
+  endforeach
+
+  ChFreeTime := ReadGameClock() - CH_FREE_TIME;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanHeFight(who,Book)
+ 
+  if(IsAdmin(who))
+    return 1;
+  endif
+  
+  if(IsYoung(who))
+    SendSysMessage(who, "Jeszcze jestes zbyt mlod"+ggm(who,6)+", aby otworzyc ten portal.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(CInt(GetObjProperty(who, PROP_CHFIGHT_DELAY)) > ReadGameClock())
+    SendSysMessage(who, "Nie czujesz sie na silach, by otworzyc ponownie portal.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  
+  var ChampNr := CInt(GetObjProperty(Book,PROP_CHAMPNR));
+
+  if(ChampNr == 6)
+    var Bad    := 0;
+    var Skulls := array(array,array,array,array,array);
+    var i,n,cMax;
+
+    foreach Item in EnumerateItemsInContainer(who.backpack)
+      if(Item.objtype >= UOBJ_SKULL1 and Item.objtype <= UOBJ_SKULL5)
+        if(!CInt(GetObjProperty(Item,"CrTime")) or CInt(GetObjProperty(Item,"CrTime")) + CH_SKULL_TIME < ReadGameClock())
+          Item.color := CH_BAD_SKCLR;
+          Bad        := Bad + 1;
+          continue;
+        endif
+
+        Skulls[(Item.objtype - UOBJ_SKULL1) + 1].append(Item);
+        ReserveItem(Item);
+      endif
+    endforeach
+
+    if(Bad)
+      SendSysMessage(who,"Posiadasz "+Bad+" zepsut"+Gam(Bad,GAM_YCH)+" czasz"+Gam(Bad,GAM_KE)+".",FONT_NORMAL,COLOR_RED);
+    endif
+    
+    var ChampCfg  := ReadConfigFile(CHAMP_CFG);
+
+    for(i:=1;i<=Skulls.size();i:=i+1)
+      if(Skulls[i].size() < GetConfigInt(ChampCfg["Skulls"],CStr(i)))
+        TellNeededAmt(who);
+        return 0;
+      endif
+    endfor
+
+    SendSysMessage(who,"Posiadasz pozadana ilosc czaszek, Mroczny Ojciec nadchodzi!",FONT_NORMAL,COLOR_BLUE);
+
+    for(i:=1;i<=Skulls.size();i:=i+1)
+      cMax := GetConfigInt(ChampCfg["Skulls"],CStr(i));
+      for(n:=1;n<=cMax;n:=n+1)
+        ReleaseItem(Skulls[i][n]);
+        if(!DestroyItem(Skulls[i][n]))
+          SendSysMessage(who,"Brakuje Ci czaszek.",FONT_NORMAL,COLOR_RED);
+          return 0;
+        endif
+      endfor
+    endfor
+  endif
+
+  SetObjProperty(who, PROP_CHFIGHT_DELAY, ReadGameClock()+CH_OPEN_GATE_DELAY);
+ 
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TellNeededAmt(who)
+
+  var ChampCfg  := ReadConfigFile(CHAMP_CFG);
+  var Skulls := ListConfigElemProps(ChampCfg["Skulls"]);
+  var Amt;
+
+  SendSysMessage(who,"Aby otworzyc portal potrzebujesz:",FONT_NORMAL,COLOR_BLUE);
+
+  foreach SkNr in Skulls
+    Amt := GetConfigInt(ChampCfg["Skulls"],SkNr);
+    SendSysMessage(who,Amt+" czasz"+Gam(Amt,GAM_KE)+" mistrza "+GetChampName(SkNr),FONT_NORMAL,COLOR_GREEN);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeActivityDay(nr)
+  if(!ChampData[CHI_ACTIVE_DAYS])
+    ChampData[CHI_ACTIVE_DAYS] := array;
+  endif
+  ChampData[CHI_ACTIVE_DAYS][nr] := !ChampData[CHI_ACTIVE_DAYS][nr];
+endfunction 
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,61 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/std";
+include "include/msgs";
+include "include/attributes/skills";
+
+//-----------------------------------------------------------------------------
+
+program TrainingStopGump(Params)
+
+  var who       := Params[1];
+  var SkillID   := Params[2];
+  var Type      := Params[3];
+
+  var CurGump := GetObjProperty(who, "#TrainStopGump_"+SkillID);
+
+  if(ExPid(CurGump))
+    return;
+  endif
+
+  SetObjProperty(who, "#TrainStopGump_"+SkillID, GetPid());
+
+  var Res := BuildTrainStopGump(who, SkillID, Type);
+
+  EraseObjProperty(who, "#TrainStopGump_"+SkillID);
+
+  if(Res)
+    SetObjProperty(who, "#StopTrain_"+SkillID, 1);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildTrainStopGump(who, SkillID, Type)
+
+  GInit(60, 60);
+  GNoDispose();
+  GNoClose();
+  
+  GResPic(0, 0, 2600, 320, 140);
+
+  var Elem := GetSkillConfigElem(SkillID);
+
+  if(!Elem)
+    return;
+  endif
+
+  if(Type)
+    GTextLine(30, 30, 900, Type);
+  endif
+  
+  GButton( 120, 100, 3, 4, 1);
+  GTextLine(140, 97, 900, "Przerwij");
+
+  return CInt(GSend(who)[0]);
+
+endfunction
+
+//-----------------------------------------------------------------------------

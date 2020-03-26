@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 12;
+
+//-----------------------------------------------------------------------------
+
+program CastHarm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  if (Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_HARM);
+  PlayObjectCenteredEffect( CastOn, FX_GLOW_SPIKE, 0x0a,0x1e);
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,106 @@
+use uo;
+use os;
+use cfgfile;
+
+include "include/client/fonts";
+include "include/player/target";
+
+var who;
+program gong(_who, text)
+  
+  who := _who;
+ text := splitwords(text);
+ case(text[1])
+    "cr": CreateGong(text[2]);   
+    "set":  
+            if(text[2])
+              SetLocation(text[2]);
+            else
+              SendSysMessage(who,".gmgong set [nazwa]", FONT_NORMAL, COLOR_RED);   
+            endif
+    "des":  DestroyGong();
+    default: SendSysMessage(who,".gmgong cr/set/des", FONT_NORMAL, COLOR_RED);    
+ endcase
+
+endprogram
+
+function SetLocation(text)
+
+  SendSysMessage(who, "Wskaz dzwignie:", FONT_NORMAL, COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+  var arr := GetObjProperty(Targ, "items");
+  if(!arr)
+    SendSysMessage(who, "To nie wyglada na dzwignie", FONT_NORMAL, COLOR_RED);
+  endif;
+  SetObjProperty(Targ, "location", text);
+  SendSysMessage(who, "Ustawiles lokacje na: " + text, FONT_NORMAL, COLOR_BLUE);
+endfunction
+
+
+function CreateGong(key)
+
+  var x := who.x;
+  var y := who.y;
+  var z := who.z;
+  var realm := who.realm;
+  var arr := array;
+  var ConfigElement, items,item;
+  var laver;
+  var sheald;
+  var axe;
+ 
+  var Cfg  := ReadConfigFile(":gong:gong");
+  key := CInt(key);
+  ConfigElement := FindConfigElem( cfg, key );
+  if(ConfigElement)
+    foreach PropName in ListConfigElemProps(ConfigElement)
+     items := GetConfigStringArray( ConfigElement, PropName );
+     if(items[1][1] == error)
+      items := {items};
+     endif
+     foreach it in items
+      it := splitwords(it);
+      item := CreateItemAtLocation(x + CInt(it[1]),y + CInt(it[2]), z + Cint(it[3]), Cint(it[4]),1,realm);
+      item.color := cint(it[5]);
+      item.movable := 0;
+      case (item.objtype)
+        0x1514: sheald := item.serial;
+        0x114B: axe := item.serial;
+        0xAC40: laver := item;
+      endcase
+      arr.append(item.serial);
+     endforeach
+    endforeach
+  else
+    SendSysMessage(who, "Nie ma gongu: " + key, FONT_NORMAL, COLOR_RED);
+  endif
+
+  SetObjProperty(laver, "items", arr);
+  SetObjProperty(laver, "sheald", sheald);
+  SetObjProperty(laver, "axe", axe);
+
+endfunction
+
+
+
+function DestroyGong()
+  
+  SendSysMessage(who, "Wskaz dzwignie:", FONT_NORMAL, COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+  var arr := GetObjProperty(Targ, "items");
+  if(!arr)
+    SendSysMessage(who, "Tym nie skasujesz gongu.", FONT_NORMAL, COLOR_RED);
+  endif;
+
+  foreach it in arr
+   it := SystemFindObjectBySerial(it);
+   destroyitem(it);
+  endforeach
+  
+endfunction

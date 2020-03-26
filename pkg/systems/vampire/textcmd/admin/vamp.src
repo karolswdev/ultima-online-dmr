@@ -1,0 +1,142 @@
+//-----------------------------------------------------------------------------
+
+include ":vampire:common";
+include ":vampire:vampire";
+include "include/finding";
+include "include/client/fonts";
+include "include/player/misc";
+include "include/gumpboxes";
+include "include/player/target";
+include "include/attributes/main";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program VampCmd(who, text)
+
+  if(text["?"] or !text)
+    SendSysMessage(who, ".vamp [[serial] set/era/status]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  text := SplitWords(text);
+  
+  var targ := 0;
+
+  if(CInt(text[1]))
+    targ := FindPlayerBySerial(text[1]);
+    if(!targ)
+      SendSysMessage(who, "Nie znaleziono seriala "+CInt(text[1])+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    text.erase(1);
+  else
+    SendSysMessage(who, "Wskaz osobe.", FONT_NORMAL, COLOR_GREEN);
+    targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!IsPlayer(targ))
+    SendSysMessage(who, "To nie osoba.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  case(text[1])
+    "set":      SetVamp(targ, who);
+    "era":      EraVamp(targ, who);
+    "status":   VampStatus(targ, who);
+    "debug":    VWDebug(targ, who); 
+    default:    SendSysMessage(who, ".vamp ?", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SetVamp(who, bywho)
+
+  SendSysMessage(bywho, "Chcesz zrobic z "+who.name+" wampira?", FONT_NORMAL, COLOR_GREEN);
+  if(!YesNo(bywho, "Na pewno?"))
+    SendSysMessage(bywho, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var vv := SetVampire(who);
+  if(vv == 0)
+    SendSysMessage(bywho, who.name+" jest juz wampirem.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(bywho, "Zrobiles wampira z "+who.name+".", FONT_NORMAL, COLOR_GREEN);
+  return;
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraVamp(who, bywho)
+
+  var Skill := GetBaseSkillBaseValue(who, SKILLID_VAMPIRE);
+  
+  if((Skill/10) >= VPSK_MINCURE)
+    SendSysMessage(bywho, "Chcesz usunac wampiryzm osobie "+who.name+"?", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(bywho, "Na pewno?"))
+      SendSysMessage(bywho, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+    SendSysMessage(bywho, who.name+" ma ponizej "+VPSK_MINCURE+" wampiryzmu i moze go zapomniec sam"+ggm(who, 4)+". Chcesz usunac mimo to?", FONT_NORMAL, COLOR_GREEN_LIGHT);
+    if(!YesNo(bywho, "Na pewno?"))
+      SendSysMessage(bywho, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  var vv := EraseVampire(who);
+
+  if(vv ==0)
+    SendSysMessage(bywho, who.name+" nie jest wampirem.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(bywho, "Usunales wampiryzm osobie "+who.name+".", FONT_NORMAL, COLOR_GREEN);
+  return;
+   
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VampStatus(who, bywho)
+
+  if(IsVampire(who))
+    SendSysMessage(bywho, who.name+" jest wampirem.", FONT_NORMAL, COLOR_GREEN);
+    var OldColor := CInt(GetObjProperty(who, "ColorBeforeVamp"));
+    if(OldColor)
+      SendSysMessage(bywho, "ColorBeforeVamp: "+OldColor, FONT_NORMAL, COLOR_GREEN);
+    endif
+    SendSysMessage(bywho, "IsInVampireChange: "+IsInVampireChange(who), FONT_NORMAL, COLOR_GREEN);
+    SendSysMessage(bywho, "EndedVampire: "+CInt(GetObjProperty(who,"EndedVampire")), FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(bywho, who.name+" nie jest wampirem.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VWDebug(who, bywho)
+
+  var ww := GetObjProperty(who, "VWDebug");
+
+  if(!ww)
+    SetObjProperty(who, "VWDebug", 1);
+    SendSysMessage(bywho, "Wlaczyles debug dla Wampa.", FONT_NORMAL, COLOR_GREEN);
+  else
+    EraseObjProperty(who, "VWDebug");
+    SendSysMessage(bywho, "Wylaczyles debug dla Wampa.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

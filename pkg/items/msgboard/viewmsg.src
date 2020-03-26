@@ -1,0 +1,176 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+include "include/proc";
+include "include/gumps";
+include "include/speech";
+include "include/logerror";
+include "include/gumpboxes";
+include "include/msgs";
+include "include/clock";
+include "msgboard";
+
+//-----------------------------------------------------------------------------
+
+var Board, Res, ev, bProc;
+var Post, DeleteAsk := 0;
+
+//-----------------------------------------------------------------------------
+
+program PostBoardMessage(Parms)
+
+  Board := Parms[2];
+
+  ev        := struct;
+
+  ev.+who   := Parms[1];
+  ev.+type  := GMBEVID_REPLY;
+  ev.+pId   := CInt(Parms[3]);
+  ev.+spId  := CInt(Parms[4]);
+  bProc     := GetProc(Parms[5]);
+
+  Post := GetObjProperty(Board, PROP_POSTS);
+  Post := Post[ev.pId];
+
+  while(IsLoggedIn(ev.who) and Board)
+
+    BuildViewMessage();
+    Res := GSend(ev.who);
+
+    if(Res.butid == 7)
+      if(!SendReplyRequest())
+        break;
+      endif
+    elseif(Res.butid == 6)
+      if(SendDeleteRequest())
+        break;
+      endif
+    else
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildViewMessage()
+
+  GInit(250, 250);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic( 0, 0, 0x9d8, 450, 390);
+
+  var Author, Date;
+  if(ev.spId)
+    Author := Post[6][ev.spId][1];
+    Date   := GetFullDate(Post[6][ev.spId][3]);
+  else
+    Author := Post[1];
+    Date   := GetFullDate(Post[3]);
+  endif
+    
+  GTextLine( 30, 40, 998, "Autor:");
+  GTextCrop( 80, 40, 320, 20, 1000, Author );
+  GTextLine( 30, 56, 998, "Data:");
+  GTextCrop( 80, 56, 320, 20, 1000, Date );
+
+  GTextLine( 30, 80, 998, "Temat:");
+  GTextCrop( 80, 80, 320, 20, 1000, Post[5] );
+
+  GGumpPic( 30, 100, 0x2455 );
+  GGumpPic( 30, 103, 0x245b );
+  GGumpPic( 180, 100, 0x2455 );
+  GGumpPic( 180, 103, 0x245b );
+
+  if(ev.who.cmdlevel)
+    if(DeleteAsk)
+      GButton( 50, 366, 2103, 2104, 6);
+      GTextLine( 70, 360, 1340, "Na pewno skasowac?");
+    else
+      GButton( 100, 366, 2103, 2104, 6);
+      GTextLine( 120, 360, 1340, "Kasuj");
+    endif
+  endif
+
+  GButton( 300, 366, 2103, 2104, 7);
+  GTextLine( 320, 360, 1340, "Odpowiedz");
+
+  var i;
+
+  if(ev.spId)
+    for (i:=1; i<=Post[6][ev.spId][4].size(); i:=i+1)
+      GTextCrop( 40, (100+(i*15)), 370, 20, 1000, Post[6][ev.spId][4][i]);
+    endfor
+  else
+    for (i:=1; i<=Post[4].size(); i:=i+1)
+      GTextCrop( 40, (100+(i*15)), 370, 20, 1000, Post[4][i]);
+    endfor
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendReplyRequest()
+
+  ev.type := GMBEVID_REPLY;
+
+  var Posts := GetObjProperty(Board, PROP_POSTS);
+
+  if(ev.pId)
+    if(!Posts.exists(ev.pId))
+      SendSysMessage(ev.who, "Ten temat nie istnieje.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+  
+  if(!bProc)
+    SendSysMessage(ev.who, "Oddalil"+ggm(ev.who,3)+" sie od tablicy.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  else
+    bProc.sendEvent(ev);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendDeleteRequest()
+
+  if(!ev.who.cmdlevel)
+    LogError("[Msgboard] SendDeleteRequest: ["+ev.who.serial+"/"+ev.who.acctname+"] probowal wyslac pakiet kasujacy post, B: ["+Board.serial+"] ["+ev.pId+","+ev.spId+"]", LOGF_SCRIPTS);
+    return 1;
+  elseif(!DeleteAsk)
+    DeleteAsk := 1;
+    return 0;
+  endif
+
+  ev.type := GMBEVID_DELETE;
+
+  var Posts := GetObjProperty(Board, PROP_POSTS);
+
+  if(ev.pId)
+    if(!Posts.exists(ev.pId))
+      SendSysMessage(ev.who, "Ten temat nie istnieje.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+  
+  if(ev.spId)
+    if(Posts[ev.pId].size() < ev.spId)
+      SendSysMessage(ev.who, "Ta wiadomosc nie istnieje.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  SendBoardEvent(Board, ev);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

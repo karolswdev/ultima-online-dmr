@@ -1,0 +1,27 @@
+//-----------------------------------------------------------------------------
+
+include ":npcs_ai:system";
+include "include/events";
+include "include/move";
+include "ai/include/tamed";
+
+//-----------------------------------------------------------------------------
+
+program AI_Merchant()
+
+  if(!AI_Init(AI_SYS_MOVEMENT | AI_SYS_SPEECH | AI_SYS_MERCHANT))
+    return;
+  endif
+
+  AISys_Handler_DefMercTriggers();
+  AISys_Handler_NpcGuildTriggers();
+
+  AISys_Speech_DefMercTriggers();
+  AISys_Speech_NpcGuildTriggers();
+  AISys_Speech_MiniQuestTriggers();
+
+  AI_System();
+
+endprogram
+
+//-----------------------------------------------------------------------------

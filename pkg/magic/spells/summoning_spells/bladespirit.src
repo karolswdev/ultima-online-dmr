@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/findcity";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 33;
+
+//-----------------------------------------------------------------------------
+
+program CastBladeSpirit( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var Duration        := GetSpellDur(Caster);
+  var oparms          := {};
+  oparms.+onlyone     := 1;
+  
+  if(FindCity(Caster) != error)
+	oparms.+alwayscrim  := 1;
+  endif
+  oparms.+spellparms  := SpellGlob.Parms;
+
+  PlaySoundEffect( Caster , SFX_SPELL_BLADE_SPIRITS);
+  PlayStationaryEff(CastLoc.x,CastLoc.y,CastLoc.z,FX_BLADES_EMERGE,0xa,0xf);
+  sleepms(500);
+  SummonCreature( Caster, "bladespirit", CastLoc, Duration, oparms );
+  
+endfunction
+
+//-----------------------------------------------------------------------------

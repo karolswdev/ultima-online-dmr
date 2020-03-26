@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+include "include/attributes/skills";
+include "include/mobile/npcs/utils";
+include "include/findcity";
+include "include/move";
+include "include/gumps";
+include "ai/include/citynpcs";
+include "include/items/groups";
+include ":banking:gold";
+include "include/npcs";
+
+include "craftquests";
+include ":npcguilds:guilds";
+include ":crafting:recep_gumps";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+
+program ShowCraftRecepturesHandler(Data) 
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+  
+  if(!NpcHaveFlag(Data.npc, "CanGiveCraftQuest"))
+    return 0;
+  endif
+
+  var SkillId := GetMercSkillID(Data.npc);
+
+  if(SkillId == error)
+    NpcSpeechJustSay(Data.npc, Data.source, "Przykro mi, ale nie znam sie na umiejetnosciach rzemieslniczych.");
+    return 0;
+  endif
+
+  ShowCraftReceptures(Data.source, 0, SkillId, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------

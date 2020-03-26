@@ -1,0 +1,79 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const BR_WCID                := 142;
+
+//-----------------------------------------------------------------------------
+
+program BrRegeneration(Parms)
+
+  WarCast(Parms, BR_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(GetHp(Caster) == GetMaxHp(Caster))
+    SendSysMessage(Caster, "Jestes w pelni zdrow"+ggm(Caster, 6)+".", FONT_NORMAL, COLOR_BLUE);
+    PlaySoundEffect(Caster, SFX_MEDIT_END);
+    return 0;
+  endif
+
+  var SkBarb   := GetEffectiveSkill(Caster, SKILLID_BARBARIAN);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var Time     := 1500 - CInt((SkBarb + SkTact) * 3);
+
+  GainWarcastPoints(Caster, Caster, BR_WCID, WCGAIN_DEFENSIVE);
+
+  Detach();
+  NoLongerBusy(Caster);
+  SetObjProperty(Caster, "#MedTimer", GetPid());
+
+  var lx  := Caster.x;
+  var ly  := Caster.y;
+  var lRm := Caster.realm;
+  var Cn  := 0;
+  var lHp := GetHp(Caster);
+
+  PlaySoundEffect(Caster, SFX_MEDITATION);
+
+  while(GetHp(Caster) < GetMaxHp(Caster))
+
+    if(CInt(GetObjProperty(Caster,"#MedTimer")) != GetPid() or Abs(GetHp(Caster) - lHp) > 19 or lx != Caster.x or ly != Caster.y or lRm != Caster.realm)
+      SendSysMessage(Caster,"Stracil"+ggm(Caster,3)+" koncentracje.", FONT_NORMAL, COLOR_RED);
+      break;
+    endif
+
+    HealMobile(Caster, 1, Caster);
+    lHp := GetHp(Caster);
+    Cn  := Cn + 1;
+
+    if(Cn > 5)
+      HealStamina(Caster, 1, Caster);
+      Cn := 0;
+    endif
+
+    Sleepms(Time);
+
+  endwhile
+
+  EraseObjProperty(Caster, "#MedTimer");
+  PlaySoundEffect(Caster, SFX_MEDIT_END);
+
+  if(GetHp(Caster) == GetMaxHp(Caster))
+    SendSysMessage(Caster, "Zregenerowal"+ggm(Caster, 3)+" sily.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

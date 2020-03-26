@@ -1,0 +1,46 @@
+//--------------------------------------------------------------------------
+
+include "potionkeg";
+include "include/objtypes/misc";
+
+//--------------------------------------------------------------------------
+
+program LockKegControl(Keg)
+
+  if(Keg.objtype != UOBJ_POTIONKEG)
+    return;
+  endif
+
+  var KegTime, KegDur;
+
+  while(Keg.locked)
+
+    KegTime := GetObjProperty(Keg, "LockStartTime");
+    KegDur  := GetObjProperty(Keg, "LockDuration");
+    
+    if(!KegTime or !KegDur)
+      Keg.locked := 0;
+      Keg.color  := KEG_NORMAL_COLOR;
+    elseif(KegTime + KegDur < ReadGameClock())
+      Keg.locked := 0;
+      var Chance := GetObjProperty(Keg, "LockChance");
+      if(Chance > RandomInt(100))
+        Keg.color := KEG_MATURE_COLOR;
+        SetObjProperty(Keg, "Quality", POTQUAL_MATURE);
+      else
+        Keg.color := KEG_ROTTEN_COLOR;
+        SetObjProperty(Keg, "Quality", POTQUAL_ROTTEN);
+      endif
+      EraseObjProperty(Keg, "LockStartTime");
+      EraseObjProperty(Keg, "LockDuration");
+      EraseObjProperty(Keg, "LockChance");
+      RenameKeg(Keg);
+      return;
+    endif
+
+    sleep(600 + RandomInt(300));
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------

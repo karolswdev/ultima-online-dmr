@@ -1,0 +1,14 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(":weather:startweather", "Weather");
+  StartGlobCtrlScript(":weather:startweather");
+
+endprogram
+
+//-----------------------------------------------------------------------------

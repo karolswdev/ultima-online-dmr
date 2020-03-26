@@ -1,0 +1,143 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/merc";
+include "include/findcity";
+include "../pkg/items/hairs/hairdye";
+include "include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+const WIG_PRICE := 2500;
+
+//-----------------------------------------------------------------------------
+
+program Thief_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents( EVID_DAMAGED);
+  EnableEvents( EVID_ENGAGED);
+  EnableEvents( EVID_ITEM_GIVEN);
+  EnableEvents( EVID_SPEECH, SPEECH_RANGE );
+  EnableEvents( EVID_ENTEREDAREA + EVID_LEFTAREA, 10);
+
+  while (me)
+    
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(ReadGameClock() >= NextWander)
+      DefWander();
+    endif
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_ITEM_GIVEN:         if(GetObjProperty(ev.source,"#BuyingWig") == me.serial and ev.item.objtype == UOBJ_GOLDCOIN)
+                               CheckWigBuying(ev.source,ev.item);
+                               ev := 0;
+                               return 1;
+                             endif
+  endcase
+
+  return StdCityNpcHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who,text)
+
+  text := lower(text);
+
+  if(CheckSpokenName(text) and text["przebranie"])
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      Say("Hm ?");
+      SetObjProperty(who,"#BuyingWig",me.serial);
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckWigBuying(who,gold)
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  if(gold.amount == WIG_PRICE)
+    if(GetEffectiveSkill(who,SKILLID_STEALING) >= 70 and GetEffectiveSkill(who,SKILLID_HIDING) >= 70)
+      Say("Hm, dobrze wiec...");
+      sleepms(500);
+      var Color := ChooseColor(who);
+      if(!Color)
+        MoveItemToContainer(gold,who.backpack);
+        Say("Innym razem...");
+        return;
+      endif
+      if(DestroyItem(gold))
+        var Wig := CreateItemInPack(who,UOBJ_WIG);
+        Wig.color := Color;
+        SetObjProperty(Wig,"RealOwner",who.serial);
+      endif
+    else
+      Say("Nie jestes godzien tego przedmiotu!");
+    endif
+  elseif(gold.amount > WIG_PRICE)
+    Say("Az tyle nie trzeba");
+    MoveItemToContainer(gold,who.backpack);
+  else
+    Say("Tyle nie wystarczy");
+    MoveItemToContainer(gold,who.backpack);
+  endif
+  EraseObjProperty(who,"#BuyingWig");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseColor(who)
+
+  var res := SendDialogGump(who, GetHairsDyeLayout(), GetHairsDyeData());
+  foreach key in (res.keys)
+    if(key > 1)
+      return key;
+    endif
+  endforeach
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------

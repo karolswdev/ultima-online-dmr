@@ -1,0 +1,64 @@
+use datafile;
+use uo;
+
+include ":marketplace:common";
+
+var who;
+program market(_who,text)
+  
+  who := _who;
+  text := SplitWords(lower(text));
+  
+  DataFile := GetDataFile(MP_FILE);
+  
+  case (text[1])
+    "add": Create();
+    "del": EraseMarket(who, DataFile, text[2]);
+    default: SendSysMessage(who, ".mp [add]", FONT_NORMAL, COLOR_RED);
+  endcase
+  
+  CreateDataFile(MP_FILE);
+
+endprogram
+
+function EraseMarket(who, DataFile, Ser)
+
+  if(DataFile.FindElement(CInt(Ser)))
+    if(!FindItemBySerial(CInt(Ser)))
+      DataFile.DeleteElement(CInt(Ser));
+      SendSysMessage(who, "Usuniety nieistniejacy stragan serial: "+CInt(Ser), FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Wpis istnieje, ale znak rowniez. Serial: "+CInt(Ser), FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "Wpisany stragan nie istnieje. Serial: "+CInt(Ser), FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+function Create()
+
+  SendSysmessage(who, "Wskaz miejsce znak:", FONT_NORMAL, COLOR_GREEN);
+  var Targ := LocTarget(who);
+ 
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+  var Sing := CreateItemAtLoc(Targ.x,Targ.y,Targ.z,UOBJ_MP_SING,1,Targ.realm);
+  if(!Sing)
+    SendSysMessage(who, "Nie mozna tutaj utworzyc znaku");
+  endif
+
+  var NewKey := Sing.serial;
+  var DataFileElement := DataFile.CreateElement(NewKey);
+  if(!DataFileElement)
+    DestroyItem(Sing);
+    LogError("MarketPlace: CreateNew, Key:" + NewKey + " DF Element: " + DataFileElement, LOGF_SCRIPTS);
+    return;
+  endif
+
+  SendSysMessage(who, "Utworzyles znak dla nowego stragan!", FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+

@@ -1,0 +1,119 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumps";
+include "ai/include/tamed";
+include "include/mobile/misc";
+
+//-----------------------------------------------------------------------------
+
+program ShowStatus(who, text)
+
+  SendSysMessage(who, "Wybierz zwierze.", FONT_NORMAL, COLOR_GREEN);
+  var Mob := ObjTarget(who);
+
+  if(!StandardMobCheck(who, Mob, NO_BUSY_CHECK | NO_COMBAT_CHECK | NO_USE_CHECK))
+    return;
+  endif
+    
+  if(!IsReallyTamed(Mob))
+    SendSysMessage(who, "To nie jest oswojone zwierze." ,FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetMaster(Mob) != who and !IsGm(who))
+    SendSysMessage(who, "To nie twoje zwierze.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(text == "mini")
+    start_script(":taming:status_gump", array(who, Mob));
+    return;
+  endif
+  
+  var SkID,SkElem,Abilities;
+  var i       := 0;
+  var maxSkId := GetMaxSkillId();
+  var percentmana, manadesc;
+  var manaColor := 1320;
+
+  var NpcSkIds := array;
+  var SkIds := array;
+    
+  for(SkID := 0;SkID <= maxSkId;SkID := SkID + 1)
+    if(IsNpcSkillGainOn(SkID))
+      NpcSkIds.append(SkID);
+    endif
+  endfor
+
+  while(Mob and IsLoggedIn(who)) 
+  
+    if(!IsTamed(Mob) or GetMaster(Mob) != who)
+      return;
+    endif
+
+    percentmana := 100 * GetMana(Mob) / GetMaxMana(Mob);
+    manadesc := GetMobManaDesc( percentmana );   
+
+    if(percentmana < 40)
+      manaColor := 1219;
+    elseif(percentmana < 80)
+      manaColor := 580;
+    endif
+    
+    SkIds := array;
+    
+    foreach SkID in NpcSkIDs
+      if(IsNpcSkillGainOn(SkID) and GetEffectiveSkillBaseValue(Mob,SkID))
+        SkIds.append(SkID);
+      endif
+    endforeach
+
+    var GumpHeight := Max(NPC_ABL_MAXID, SkIds.size()) * 20;
+
+    i := 0;
+    GInit(0,0);
+    GResPic(0, 20, 2520, 450, 150 + GumpHeight);
+    GResPic(28, 54, 3600, 394, 82 + GumpHeight);
+    
+    GTextLine(50,30, 999,"Stworzenie:");
+    GTextLine(120,30, 1420,GetName(Mob));
+    GTextLine(280, 30, 999,"Odswiez");
+    GButton(  260, 32, 2117,2118,9999);
+
+    GTextLine(280, 140 + GumpHeight, 997,"Mini");
+    GButton(  260, 142 + GumpHeight, 2117,2118,9998);
+    
+    GTextLine(90,70 ,550,"Twoje zwierze");
+    GTextLine(180,70 ,manaColor,manadesc);
+    GTextLine(55,90 ,550,"Zwierze jest");
+    GTextLine(135,90 ,580,GetHungry(GetHappiness(Mob)));
+
+    foreach SkID in SkIDs
+      SkElem := GetSkillConfigElem(SkID);
+      GTextLine(50, Cint(122+ (i*20)),999,SkElem.name);
+      GTextLine(180,Cint(122+ (i*20)),550,GetEffectiveSkillBaseValue(Mob,(SkID))*0.1);
+      i := i + 1;
+    endforeach
+
+    Abilities := GetSpecialAbilities(Mob);
+
+    for(SkID := 1;SkID <= NPC_ABL_MAXID;SkID := SkID + 1)
+     // if(Abilities[SkID])
+        GTextLine(240, Cint(102+ (SkID*20)),999,GetAbilityName(SkID));
+        GTextLine(370,Cint(102+ (SkID*20)),550,Abilities[SkID]*0.1);
+      //endif
+    endfor
+
+    var Res := GSend(who)[0];
+
+    if(!Res)
+      break;
+    elseif(Res == 9998)
+    start_script(":taming:status_gump", array(who, Mob));
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

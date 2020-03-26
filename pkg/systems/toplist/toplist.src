@@ -1,0 +1,94 @@
+use os;
+include "include/gumpboxes";
+include ":toplist:toplist";
+include "include/player/young";
+
+program TopList(who)
+
+  return;
+  
+  if(IsYoung(who) or IsOnDMRTest())
+    return;
+  endif
+
+  var TLParam := who.acct.GetProp(ACPROP_TOPLIST);
+  if(!TLParam)
+    TLParam := SetDefTLParam(who);
+  endif
+
+  if(TLParam[1] and TLParam[2] != StrFormatTime(TL_DATE_FS))
+    sleep(2);
+    if(SendTopListGump(who))
+      var urls := GetURLArray();
+      foreach url in urls
+        OpenURL(who, url);
+      endforeach
+      who.acct.SetProp(ACPROP_TOPLIST, {1,StrFormatTime(TL_DATE_FS)});
+    endif
+  endif
+
+endprogram
+
+function GetURLArray()
+
+  var arr := array();
+  var cf := ReadConfigFile(":toplist:toplist");
+  if(!cf)
+    return arr;
+  endif
+   foreach key in GetConfigStringKeys(cf)
+    foreach url in GetConfigStringArray(cf[key], "URL")
+      arr.append(url);
+    endforeach
+  endforeach
+
+  return arr;
+
+endfunction
+
+function SendTopListGump(who)
+  GInit(50,50);
+  var tby := 290;
+  var tbx := 0;
+  var px := 200;
+  var py := 0;
+  GGumpPic(px+0,py+0,0x7D1);
+  //GGumpPic(px+10,py+15,0xC); //cialo
+  GGumpPic(px+10,py+15,0xC504); //koszula
+  GGumpPic(px+10,py+15,0xC56F); // spodnie 0xC4FE
+  GGumpPic(px+10,py+15,0xC545); //lampa
+  GGumpPic(px+10,py+15,0xC530); //buty //C52D-wysokie
+  //GGumpPic(px+10,py+15,0xC55C); //rekawice
+ // GGumpPic(px+10,py+15,0xC521); // fartuch
+  GGumpPic(px+10,py+15,0xC5CC); // bron C5CC-widly //c716-wedka 
+  GGumpPic(px+10,py+15,0xC672); // zarost
+  GGumpPic(px+10,py+15,0xC673); // zarost
+  //GGumpPic(px+10,py+15,0xC60D); // wlosy
+  GGumpPic(px+10,py+15,0xC4E8); // czapka
+  
+  GTextLine(px+40,py+265,  1010, "Miejsce na imie postaci");
+  GGumpPic(tbx+0,tby,0x1400);
+  GGumpPic(tbx+10,tby,0x1401);
+  GGumpPic(tbx+168,tby,0x1401);
+  GGumpPic(tbx+326,tby,0x1402);
+  GGumpPic(tbx+0,tby+10,0x1403);
+  GGumpPic(tbx+10,tby+10,0x1404);
+  GGumpPic(tbx+168,tby+10,0x1404);
+  GGumpPic(tbx+326,tby+10,0x1405);
+  GGumpPic(tbx+0,tby+123,0x1406);
+  GGumpPic(tbx+10,tby+123,0x1407);
+  GGumpPic(tbx+168,tby+123,0x1407);
+  GGumpPic(tbx+326,tby+123,0x1408);
+
+
+  GTextLine(tbx+15,tby+10,  1152, "Jezeli chcesz pomoc w wypelnieniu pustego miejsca");
+  GTextLine(tbx+15,tby+30,  1152, "zaglosuj na Mysterious World");
+  GTextLine(tbx+113,tby+65,  67, "Otworzyc Toplisty?");
+  GButton(tbx+100,tby+95, 0x850, 0x851, 1);
+  GButton(tbx+180,tby+95, 0x847, 0x848, 0);
+  GTextLine(tbx+50,tby+105,  1024, "");
+ 
+
+  return GSend(who);
+
+endfunction

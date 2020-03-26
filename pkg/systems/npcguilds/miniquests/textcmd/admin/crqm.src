@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-24
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/bits";
+include "include/move";
+include "include/player/misc";
+
+include ":npcguilds:common";
+include ":mq_npcs:common";
+include ":mq_npcs:quests";
+
+//-----------------------------------------------------------------------------
+
+program CreateMiniQuestCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  if(text[1] == "?")
+    SendSysMessage(who, ".crqm", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Npc := Target(who);
+  var Quest := CreateNpcMiniQuest(Npc);
+
+  if(!Quest)
+    SendSysMessage(who, "Wystapil blad: "+Quest.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Wygenerowano miniquest npecowi!", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

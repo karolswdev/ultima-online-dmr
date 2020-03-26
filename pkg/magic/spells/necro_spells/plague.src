@@ -1,0 +1,134 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+include "include/calc";
+include "include/reputation/murderer";
+include "include/packets";
+include "../pkg/systems/tourney/tourney";
+
+include ":magic:mass_spells";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 80;
+
+//-----------------------------------------------------------------------------
+
+program CastPlague( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var CasterPoison := GetEffectiveSkill(Caster,SKILLID_POISONING);
+  var CasterSk     := GetMagicSkillValue(Caster,SpellGlob.Type);
+  var CasterSp     := GetMindSkillValue(Caster, SpellGlob.Type);
+  var plvl         := MinMax(1 + CalcSkillExponential(Caster, SKILLID_NECRO, 5) + CalcSkillExponential(Caster, SKILLID_POISONING, 2), 1, 10);
+  var Range        := Cint(CasterSk/20 + CasterSp/20);
+  var Dmg          := 0;
+  var Duration     := CInt(CasterSk / 10 + CasterSp / 10);
+  var EndClock     := ReadGameClock() + Duration;
+  var Realm        := Caster.realm;
+  var Damaged      := array;
+  var Gained       := 0;
+  var x, y, z, n, Num;
+  var lx, ly, lz;
+
+  var Factor := GetMassSpellRangeFactor(CastLoc, Range);
+  AddMassSpellGlobalArea(CastLoc, Range, CInt(Duration*1.2));
+
+  if(Factor < 1.0)
+    SendBad(Caster, "To miejsce zostalo juz zaczarowane! Twoje czary beda mialy znikomy efekt!", COLOR_ORANGE);
+  endif
+
+  if(CasterPoison >= 105 and plvl == 9)
+    plvl := 10;
+  endif
+
+  plvl := Max(CInt(plvl*Factor), 1);
+
+  lx := CastLoc.x;
+  ly := CastLoc.y;
+  lz := CastLoc.z;
+
+  while(EndClock > ReadGameClock())
+
+    Num := 0;
+
+    if(Caster.isa(POLCLASS_NPC) and CastLoc.isa(POLCLASS_NPC) and !IsTamed(CastLoc) and Caster.opponent != CastLoc)
+      CastLoc := 0;
+    endif
+
+    foreach mobile in ListMobilesNearLocationEx(lx, ly, lz, range, LISTEX_FLAG_NORMAL + LISTEX_FLAG_HIDDEN, Realm)
+
+      mobile.hidden := 0;
+
+      if(CanDamage(Caster, mobile, CAN_DAMAGE_HIDDEN, CastLoc))
+
+        PlaySoundEffect(mobile, SFX_SPELL_CURSE);
+        PlaySoundEffect(mobile, SFX_SPELL_POISON);
+        PlayPcEffect(mobile, FX_EXPLODE_3, 55, 0x7, 40, 3);
+
+        if(!(mobile in Damaged))
+          Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type) / 2);
+          Damaged.append(mobile);
+        else
+          Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type) / 5);
+        endif
+
+        Dmg := Max(CInt(Dmg * Factor), 1);
+
+        var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+
+        SendSysMessage(mobile, "Czujesz sie smiertelnie chory...",FONT_NORMAL,COLOR_RED);
+        AddMurdReport(mobile, Caster);
+        SetPoison(mobile,plvl,Caster);
+
+        Num := Num + 1;
+
+        if(Gained < 6 and DmgRes > 0)
+          Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+        endif
+
+        if(Num >= 10)
+          break;
+        endif
+
+      endif
+
+      Sleepms(1);
+    endforeach
+
+    for i := 1 to 20
+      z := error;
+      n := 1;
+
+      while(z == error and n < 5)
+        x := lx + RandomInt(Range) - RandomInt(Range);
+        y := ly + RandomInt(Range) - RandomInt(Range);
+        z := GetStandZ(x, y, Realm);
+        n := n + 1;
+      endwhile
+
+      if(z != error)
+        PlayPcStEffect(x, y, z, Realm, FX_SMOKE, 55, 0x10, 0xF, 3);
+      endif
+
+      sleepms(50+RandomInt(100));
+    endfor
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,27 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/misc";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program ShaveCmd( who )
+
+  SendSysMessage( who, "Kogo ogolic?", FONT_NORMAL, COLOR_GREEN );
+  var Targ := ObjTarget(who);
+
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  else
+    var hair  := GetEquipmentByLayer( Targ, LAYER_BEARD );
+    DestroyItem( hair );
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

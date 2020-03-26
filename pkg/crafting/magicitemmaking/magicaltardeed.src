@@ -1,0 +1,237 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/effects";
+include "include/items";
+
+include "altar";
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+var CreatedArray := {};
+
+//-----------------------------------------------------------------------------
+
+program BuildMagicAltar(who,deed)
+
+  if(!StandardItemCheck(who,deed))
+    return;
+  endif
+
+  if(HaveAltarAlready(who))
+    SendSysMessage(who,"Zbudowal"+ggm(who,3)+" juz jeden magiczny oltarz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Place := LocTarget(who);
+
+  if(!StandardLocCheck(who,Place))
+    return;
+  endif
+
+  Place.z := GetStandZ(Place.x, Place.y, who.realm, Place.z);
+  if(Place.z == error)
+    SendSysMessage(who,"Ten teren nie jest rowny.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var House := GetNearestHouseOf(place.x, place.y, place.z, who.realm, 15, GNHOF_OWNER | GNHOF_COOWNER, who);
+
+//  if(!IsGm(who))
+    if(!House)
+      SendSysMessage(who, House.errortext, FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    foreach Itm in ListItemsNearLocationOfType(Place.x,Place.y,Place.z,45,UOBJ_ALTAR_SYMBOL5,who.realm)
+      if(GetHouseSerial(Itm) == House.serial)
+        SendSysMessage(who,"Niedaleko znajduje sie inny magiczny oltarz.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endforeach
+  //endif
+
+  if(len(ListItemsNearLocation(place.x,place.y,place.z,3,who.realm)) or len(ListMobilesNearLocation(place.x,place.y,place.z,3,who.realm)))
+    SendSysMessage(who,"Tu jest za malo miejsca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var ix,iy,CheckPlace, sZ;
+  for(ix := -3;ix <= 3;ix := ix + 1)
+    for(iy := -3;iy <= 3;iy := iy + 1)
+      sZ := GetStand(place.x+ix, place.y+iy, who.realm, place.z);
+      if(sZ.z > place.z + 2 or sZ.z < place.z - 2 or sZ.z == error or sZ == error)
+        SendSysMessage(who,"Ten teren nie jest rowny.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+
+      if(!IsOutsideHouse(sZ.multi, place.x+ix, place.y+iy, sZ.z))
+        SendSysMessage(who,"Nie mozesz postawic oltarza wewnatrz domu.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endfor
+  endfor
+  
+  if(!CreateAltar(Place,who.realm))
+    DestroyAltarElements(CreatedArray);
+    SendSysMessage(who,"Tu jest za malo miejsca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Center;
+  
+  foreach Element in CreatedArray
+    if(GetObjProperty(Element,"Center"))
+      Center := Element;
+      break;
+    endif
+  endforeach
+
+  if(!Center)
+    SendSysMessage(who,"Nie udalo Ci sie postawic oltarza.",FONT_NORMAL,COLOR_RED);
+    DestroyAltarElements(CreatedArray);
+    return;
+  endif
+  
+  PlaySoundEffect(who,SFX_SPELL_LIGHTNING);
+  PlayStationaryEff(Place.x+3,Place.y+3,Place.z,FX_FLAMESTRIKE,0x10,0x1f,0,who.realm);
+  PlayStationaryEff(Place.x-3,Place.y-3,Place.z,FX_FLAMESTRIKE,0x10,0x1f,0,who.realm);
+  PlayStationaryEff(Place.x+3,Place.y-3,Place.z,FX_FLAMESTRIKE,0x10,0x1f,0,who.realm);
+  PlayStationaryEff(Place.x-3,Place.y+3,Place.z,FX_FLAMESTRIKE,0x10,0x1f,0,who.realm);
+
+  sleepms(500);
+
+  foreach Element in CreatedArray
+    Element.graphic := Element.objtype;
+    if(Element.objtype == UOBJ_ALTAR_COLUMN)
+      PlayStationaryEff( Element.x,Element.y,Element.z, FX_HEAL_EFFECT, 0x10, 0xf,0,who.realm);
+    endif
+    Element.movable := 0;
+    SetObjProperty(Element,"CenterSerial",Center.serial);
+    if(House)
+      SetHouseItem(Element,house);
+    endif
+    Element         := Element.serial;
+  endforeach
+  
+  SetObjProperty(Center,"CreatedArray",CreatedArray);
+  SetObjProperty(Center,"AltarOwner",who.serial);
+  SetAltarProperty(who,Center);
+  DestroyItem(deed);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateAltar(Place,Rlm)
+
+  var CreatedElement;
+  var ix,iy,s := 1;
+  var AltarSymbols := GetAltarSymbols();
+  
+  for(ix := -1;ix <= 1;ix := ix + 1)
+    for(iy := -1;iy <= 1;iy := iy + 1)
+      CreatedElement := CreateItemAtLoc(place.x+ix,place.y+iy,place.z,UOBJ_ALTAR_PODEST,1,Rlm);
+      if(!AddAltarElement(CreatedElement))
+        return 0;
+      endif
+      CreatedElement := CreateItemAtLoc(place.x+ix,place.y+iy,place.z+5,AltarSymbols[s],1,Rlm);
+      if(!AddAltarElement(CreatedElement))
+        return 0;
+      endif
+      if(iy == 1)
+        CreatedElement := CreateItemAtLoc(place.x+ix,place.y+2,place.z,UOBJ_ALTAR_STAIRS_LEFT,1,Rlm);
+        if(!AddAltarElement(CreatedElement))
+          return 0;
+        endif
+        CreatedElement := CreateItemAtLoc(place.x+ix,place.y-2,place.z,UOBJ_ALTAR_STAIRS_RIGHT,1,Rlm);
+        if(!AddAltarElement(CreatedElement))
+          return 0;
+        endif
+      endif
+      if(ix == 1)
+        CreatedElement := CreateItemAtLoc(place.x+2,place.y+iy,place.z,UOBJ_ALTAR_STAIRS_DOWN,1,Rlm);
+        if(!AddAltarElement(CreatedElement))
+          return 0;
+        endif
+        CreatedElement := CreateItemAtLoc(place.x-2,place.y+iy,place.z,UOBJ_ALTAR_STAIRS_UP,1,Rlm);
+        if(!AddAltarElement(CreatedElement))
+          return 0;
+        endif
+      endif
+      if(ix == 0 and iy == 0)
+        SetObjProperty(CreatedElement,"Center",1);
+      endif
+      if(ix != 0 and iy != 0)
+        CreatedElement := CreateItemAtLoc(place.x+ix,place.y+iy,place.z+5,UOBJ_ALTAR_COLUMN,1,Rlm);
+        if(!AddAltarElement(CreatedElement))
+          return 0;
+        endif
+        CreatedElement := CreateItemAtLoc(place.x+ix,place.y+iy,place.z+10,UOBJ_ALTAR_GREENLIGHTOFF,1,Rlm);
+        if(!AddAltarElement(CreatedElement))
+          return 0;
+        endif
+      endif
+      s := s + 1;
+    endfor
+  endfor
+  
+  CreatedElement := CreateItemAtLoc(place.x+3,place.y+3,place.z,UOBJ_ALTAR_OUTERCOLUMNUP,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x-3,place.y+3,place.z,UOBJ_ALTAR_OUTERCOLUMNUP,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x-3,place.y-3,place.z,UOBJ_ALTAR_OUTERCOLUMNDOWN,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x+3,place.y-3,place.z,UOBJ_ALTAR_OUTERCOLUMNDOWN,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x+2,place.y+2,place.z,UOBJ_ALTAR_CORNER_DOWNL,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x-2,place.y+2,place.z,UOBJ_ALTAR_CORNER_UPL,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x-2,place.y-2,place.z,UOBJ_ALTAR_CORNER_UPR,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+
+  CreatedElement := CreateItemAtLoc(place.x+2,place.y-2,place.z,UOBJ_ALTAR_CORNER_DOWNR,1,Rlm);
+  if(!AddAltarElement(CreatedElement))
+    return 0;
+  endif
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddAltarElement(CreatedElement)
+
+  if(!CreatedElement)
+    return 0;
+  endif
+  CreatedElement.graphic := 1;
+  CreatedElement.movable := 0;
+  CreatedArray.append(CreatedElement);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

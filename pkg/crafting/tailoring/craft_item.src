@@ -1,0 +1,303 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/buildings";
+include "include/finding";
+
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+include ":crafting:iterations";
+include ":crafting:exceptional";
+include ":artifacts:artifacts";
+
+//-----------------------------------------------------------------------------
+
+var gCurIter, gMaxIters;
+
+//-----------------------------------------------------------------------------
+
+program BlacksmithyCraftItem(Params)
+
+  var who := Params[1];
+  var SewingKit := Params[2];
+  var CraftData := Params[3];
+
+  if(!who or !CraftData or !SewingKit)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, SewingKit))
+    return;
+  endif
+  
+  var Materials;
+  var Cont := GetContForTool(who, SewingKit);
+  
+  if(!PrepareCraft(who, CraftData, Materials, Cont))
+    return;
+  endif
+  
+  var IterData := DefineCraftIterations(who, SKILLID_TAILORING, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, SewingKit, CraftData, IterData, Materials, Cont))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, byref CraftData, byref Materials, byref Cont)
+
+  var SkillCfg  := ReadConfigFile(":tailoring:tailoring");
+
+  if(SkillCfg[CraftData.objtype].PotOfOil)
+    var PotOfOil := FindItemInContainer(Cont, UOBJ_POTOFOIL);
+    if(!PotOfOil)
+      SendSysMessage(who,"By to zrobic potrzebujesz kotla z olejem tam gdzie trzymasz narzedzia.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    if(!StandardItemCheck(who, PotOfOil))
+      SendSysMessage(who,"Nie mozesz uzyc tego kotla.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  Materials := DefineCraftMaterialsFromCfg(who, SkillCfg[CraftData.objtype], "material", Cont);
+
+  if(!Materials)
+    return 0;
+  endif
+
+  if(SkillCfg[CraftData.objtype].ChooseSize and CraftData.itemSize)
+    ModifyCraftMaterialAmounts(Materials, CraftData.itemSize[1] * CraftData.itemSize[2]);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, SewingKit, byref CraftData, byref IterData, byref Materials, Cont)
+
+  var ObjType     := CraftData.objtype;
+
+  var SkillCfg    := ReadConfigFile(":tailoring:tailoring");
+  var ItemCfg     := ReadConfigFile(ITEMS_CFG);
+
+  var ChkSkill    := CInt(SkillCfg[ObjType].skill);
+  var CanExp      := SkillCfg[ObjType].exchk;
+  var ReqSkill    := CInt(ItemCfg[ObjType].Skill);
+  var HideSkill   := 0;
+  var Kind        := 0;
+  var ReqKind     := 0;
+  var HideMod     := 0;
+  var ItemName    := GetDps(Materials.mainObj, ObjType);
+  var MySkill     := GetEffectiveSkill(who,SKILLID_TAILORING);
+  var MyBSkill    := GetBaseSkill(who,SKILLID_TAILORING);
+  var Points      := GetCraftPoints(SKILLID_TAILORING, MySkill);
+  var ExpMod      := 10.0 + CDbl(GetDexterity(who)) / 3.0;
+  var CraftLevel  := CInt(SkillCfg[ObjType].CraftLevel);
+  ExpMod          := ExpMod + CheckItemQuality(SewingKit) * 1.5;
+  var ProdAmount  := 1;
+
+  if(MySkill >= ChkSkill)
+    ExpMod := ExpMod + Cint(CDbl(MySkill - ChkSkill) / 4.0);
+  endif
+
+  if(Materials.mainObj in GetLeatherObjTypes())
+    HideSkill     := CInt(ItemCfg[Materials.mainObj].Skill);
+    Kind          := CInt(ItemCfg[ObjType].Kind);
+    ReqKind       := CInt(ItemCfg[ObjType].ReqKind);
+    HideMod       := CInt(ItemCfg[Materials.mainObj].MatMod);
+  endif
+
+  ExpMod := Cint(ExpMod - HideMod);
+  
+  if(GetObjProperty(who, "Debug"))
+	SendSysMessage(who, "Kind: " + Kind);
+	SendSysMessage(who, "ReqKind: " + ReqKind);
+	SendSysMessage(who, "HideMod: " + HideMod);
+	SendSysMessage(who, "ObjType: " + ObjType);
+  endif
+
+  if((!Kind and !ReqKind) and HideMod != 1 and HideMod)
+    SendSysMessage(who,"To mozesz zrobic tylko ze zwyklej skory.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if((Kind or ReqKind) and HideMod)
+    if((HideMod > Kind and Kind) or (HideMod != ReqKind and ReqKind))
+      SendSysMessage(who,"Z tej skory nie zrobisz tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(MySkill < HideSkill or MyBSkill < ReqSkill)
+     SendSysMessage(who, "Twa wiedza jest za mala by moc cos z tego wyszyc.",FONT_NORMAL,COLOR_RED);
+     return;
+  endif
+
+  if(ItemName and !SkillCfg[ObjType].NoPrefix)
+    ItemName := ItemName + " " + GetDescForItem(ObjType);
+  else
+    ItemName := GetDescForItem(ObjType);
+  endif
+  
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, SewingKit, SKILLID_TAILORING, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+
+  if(!CheckSkill(who, SKILLID_TAILORING, ChkSkill, 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData)+" Ups! Podarl"+ggm(who,3)+" material.", FONT_NORMAL, COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+
+  var itmDesc := GetItemDescriptor(CInt(ObjType));
+
+  if(!itmDesc)
+    SendSysMessage(who, "Nie udalo sie wykonac przedmiotu!", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var ArMod := 0;
+  var Quality := 1.0;
+  var ExpData;
+
+  if(CanExp)
+    ExpData := CraftExceptional(who, SKILLID_TAILORING, ExpMod, CraftLevel);
+  endif
+
+  if(ExpData.makeExp)
+    
+    ArMod := Cint(HideMod);
+
+    if(SkillCfg[ObjType].ExQl)
+      Quality := SkillCfg[ObjType].ExQl;
+    else
+      Quality := EXP_QUALITY_MULTIPLIER;
+    endif
+
+    if(ExpData.makeNamed)
+      ItemName := EXP_ITEM_NAME + " " + itemname + " [uszyl"+ggm(who,4)+" " + GetRealName(who) + "]";
+    else
+      ItemName := EXP_ITEM_NAME + " " + itemname;
+    endif
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Uszyl"+ggm(who,3)+" " + itemname +  " i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+
+  elseif(RandomInt(100) > (MySkill))
+
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Uszyl"+ggm(who,3)+" przedmiot sredniej jakosci.",FONT_NORMAL,COLOR_RED);
+    case((RandomInt(2) + 1))
+      1: Quality := 0.7;
+      2: Quality := 0.8;
+      3: Quality := 0.9;
+    endcase
+
+  else
+
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Uszyl"+ggm(who,3)+" przedmiot i wlozyl"+ggm(who,3)+" go do plecaka." ,FONT_NORMAL,COLOR_GREEN);
+    Quality := 1.0;
+
+  endif
+
+  if(Materials.mainColor and !SkillCfg[ObjType].KeepColor)
+    itmDesc.color := Materials.mainColor;
+  endif
+  
+  if(SkillCfg[ObjType].ChooseSize)
+    itmDesc.CProps.insert("Width", CraftData.itemSize[1]);
+    itmDesc.CProps.insert("Height", CraftData.itemSize[2]);
+
+    ItemName := ItemName + " ["+CraftData.itemSize[1]+" Szerokosci, "+CraftData.itemSize[2]+" Dlugosci]";
+    HideMod := CInt(CraftData.itemSize[1] * CraftData.itemSize[2] / 8);
+  endif
+
+  var propMade := GenMade(who, MTYPE_HIDE, HideMod);
+  itmDesc.CProps.insert(PROP_MADE, propMade);
+  
+  var itemLoops := 1;
+  var doubleProduce := GetGlyphMod(who, "DoubleProduce");
+  
+  if(HaveChance(doubleProduce))
+	PrintTextAbove(who, "*cud, cud, podwojny wyrob!*", FONT_NORMAL, COLOR_GREEN);
+	itemLoops := 2;
+   endif
+   
+   while(itemLoops > 0)
+
+		var TheItem := CreateItemInCont(cont, itmDesc, 1, who);
+
+		if(!TheItem)
+			SendSysMessage(who, "Nie masz wiecej miejsca w pojemniku.",FONT_NORMAL,COLOR_RED);
+			return;
+		endif
+
+		if(IsStackableObj(ObjType))
+			ItemName := ItemName + "%%";
+		else
+			TheItem.quality  := Quality;
+			SetItemHp(TheItem, GetItemMaxHp(TheItem));
+			if(TheItem.isa(POLCLASS_ARMOR) and HideMod)
+				TheItem.ar_mod := ArMod + CInt(HideMod*2);
+			endif
+		endif
+
+	SetName(TheItem, ItemName);
+
+	AwardPoints(who, SKILLID_TAILORING, Points, GAIN_RESTRICT, ChkSkill);
+	SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_TAILORING, array(TheItem, Materials.mainObj));
+  
+	if(ExpData.inscribe)
+		PrintTextAbove(TheItem, "!");
+		start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, TheItem});
+	endif
+	
+   if(ExpData.changeColor)
+		PrintTextAbove(TheItem, "!");
+		start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, TheItem});
+   endif
+   
+	itemLoops := itemLoops - 1;
+	
+	endwhile
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

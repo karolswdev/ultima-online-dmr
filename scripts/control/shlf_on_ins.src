@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/client/fonts";
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program OnShelfInsert(who, Shelf, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    Item := existing_stack;
+  endif
+
+  if(who)
+    SetItemOwner(Item,who);
+    SetObjProperty(Item,"NoWrite",1);
+  else
+    Item.movable := 0;
+  endif
+
+  if(Shelf.graphic == 0xa9d)
+    case(RandomInt(3)+1)
+      1: Shelf.graphic := 0xa97;
+      2: Shelf.graphic := 0xa98;
+      3: Shelf.graphic := 0xa9b;
+    endcase
+  elseif(Shelf.graphic == 0xa9e)
+    case(RandomInt(3)+1)
+      1: Shelf.graphic := 0xa99;
+      2: Shelf.graphic := 0xa9a;
+      3: Shelf.graphic := 0xa9c;
+    endcase
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,579 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include ":marketplace:common";
+
+include "ai/include/ainpcs";
+include "include/player/misc";
+include ":banking:gold";
+include ":banking:common";
+include "include/effects";
+include "include/checks/objchecks";
+include "include/equipment";
+include "ai/include/smaster";
+include "ai/include/npcspeech";
+
+//-----------------------------------------------------------------------------
+
+const V_SPEECH_RANGE         := 4;
+const SEARCH_RANGE           := 3;
+const WORKING_TIME           := 86400;// 24h
+const ST_PAYMENT             := 200;
+const MIN_SOLD_GOLD          := 5000;
+const MAX_PRICE              := 10000000;
+
+//-----------------------------------------------------------------------------
+
+var me := Self();
+var waittime, _MeMaster, MyGold, Box,Stall,Enable;
+
+//-----------------------------------------------------------------------------
+
+SaveAiSerial();
+sleep(1);
+check_frozen();
+check_alignment();
+
+//-----------------------------------------------------------------------------
+
+function InitData()
+
+  waittime          := DEF_WAITTIME;
+
+
+  Stall             := GetDataFile(MP_FILE).FindElement(GetObjProperty(me,PROP_STALL));    
+  _MeMaster         := Stall.GetProp(MP_STALL_OWNER);
+  _MeMaster         := FindPlayerBySerial(_MeMaster);
+  Box               := Stall.GetProp(MP_STALL_BOX);
+  if(Box)
+    Box               := SystemFindObjectBySerial(Box);
+  endif
+
+  CheckEnable();
+  MyGold            := CInt(Stall.GetProp(MP_STALL_CASH));
+  if(box and _MeMaster)
+    Say("*rozglada sie*");
+    return 1;
+  else
+    Say("*zasypia*");
+    return 0;
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+program MPPlayerVendor_AI()
+
+  if(!InitData())
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents( EVID_SPEECH , V_SPEECH_RANGE );
+  EnableEvents( EVID_ENGAGED + EVID_DAMAGED );
+
+  while(me)
+    if(!CheckVendor())
+      KillVendor();
+    endif
+
+    ev := wait_for_event(waittime);
+
+    if(ev)
+      case(ev.type)
+        EVID_SPEECH:          CheckSpeech(ev.source,lower(ev.text));
+        EVID_ENGAGED:      
+        EVID_DAMAGED:         Say("Straz! Pomocy zostal"+ggm(me,8)+" zaatakowan"+ggm(me,6)+"!");
+        EVID_MP_MSG:         Say(CStr(ev.msg));
+      endcase
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindVendorMaster()
+
+  return FindPlayerBySerial(GetObjProperty(me,PROP_MASTER));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckVendor()
+
+  if(GetObjProperty(me,"KillMe"))
+    return 0;
+  endif
+
+  if(GetObjProperty(me,PROP_MASTER) == error)
+    return 1;
+  endif
+
+  if(!_MeMaster)
+    _MeMaster := FindVendorMaster();
+  endif
+
+  if(_MeMaster == 0)
+    return 0;
+  endif
+ 
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function KillVendor()
+
+  Say("Bywajcie");
+  sleep(3);
+
+  if(_MeMaster)
+    var BankBox := FindBankBox(_MeMaster);
+    if(MyGold > 0)
+      CreateGold(BankBox,MyGold);
+    endif
+  endif
+
+  PlayStationaryEff( me.x,me.y,me.z, FX_SMOKE, 0xa, 0xa );
+  KillNPC(me);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+
+function SetMyGold(Gold)
+
+  if(Gold >= 0)
+    MyGold := CInt(Gold);
+    Stall.SetProp(MP_STALL_CASH,MyGold);
+    return 1;
+  else
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckEnable()
+  Enable := CInt(Stall.GetProp(MP_STALL_ENABLED));
+  return Enable;
+endfunction
+
+//-----------------------------------------------------------------------------
+
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(who,text)
+  
+  var Dist := Distance(who,box);
+  TurnToward(who);
+  CheckEnable();
+  if(Dist <= 1)
+    if(enable)
+      if(text["kupi"])
+        Sell(who);
+        return;
+      endif
+    elseif(who == _MeMaster)
+        if(text["nie sprzeda"])
+          if(text["kilku"])
+            RemoveMultiSellItems(who);
+          else
+            RemoveSellItem(who);
+          endif
+          return;
+        elseif(text["sprzeda"])
+          if(text["kilka"])
+            AddSellMultiItems(who);
+          else
+            AddSellItem(who);
+          endif
+          return;
+        elseif(text["wypis"] and text["czek"])
+          WriteCheque();
+          return;
+        elseif(text["daj"] and text["zlot"])
+          CashOut();
+          return;
+        endif
+    endif
+
+    if(text["bilans"] and who == _MeMaster)
+      Say("*szepcze*");
+      if(MyGold <= 0)
+        PrintTextAbovePrivate(me,"Pani"+ggm(who,11)+", nie mam zlota przy sobie.",who);
+      else
+        PrintTextAbovePrivate(me,"Pani"+ggm(who,11)+", mam "+MyGold+" zlota.",who);
+      endif
+      return;
+    elseif(text["witaj"] or text["witam"])
+      Say("Witam");
+      
+    endif
+  endif
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+function WriteCheque()
+
+  if(!MyGold)
+    PrintTextAbovePrivate(me,"Nie mam juz zlota.",_MeMaster);
+    return 0;
+  else
+    PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+" mam " + MyGold + " zlota",_MeMaster);
+  endif
+
+  if(_MeMaster)
+
+    var Amount := CInt(MyGold);
+
+    if(Amount < CHEQUE_MIN_CASHOUT)
+      PrintTextAbovePrivate(me,"Stawka jest za mala!",_MeMaster);
+      return;
+    endif
+
+    if(Amount > CHEQUE_MAX_CASHOUT)
+      PrintTextAbovePrivate(me,"Masz calkiem sporo pieniedzy, moge wypisac ci tylko czek na " + CHEQUE_MAX_CASHOUT + ".",_MeMaster);
+      Amount := CHEQUE_MAX_CASHOUT;
+    endif
+
+    if(Amount < CHEQUE_SIGN_COST)
+      PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+", za wypisanie czeku potrzebuje "+CHEQUE_SIGN_COST+" gp na oplaty.",_MeMaster);
+      return;
+    endif
+
+    var Cheque := CreateItemInPack(_MeMaster,UOBJ_CHEQUE,1);
+
+    if(Cheque)
+      PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+", prosze tutaj czek na "+(Amount - CHEQUE_SIGN_COST)+" zlota. Zostawil"+ggm(me, 8)+" sobie "+CHEQUE_SIGN_COST+" zlota na oplaty za czek.", _MeMaster);
+      SetChequeVal(Cheque, Amount - CHEQUE_SIGN_COST);
+      SetMyGold(CInt(MyGold) - Amount);
+    else
+      PrinttextAbovePrivate(me, "Pani"+ggm(_MeMaster,11)+", nie masz miejsca w plecaku!", _MeMaster);
+    endif
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Sell(who)
+
+  Say("Co chcesz kupic?");
+  var Item := ObjTarget(who);
+  if(!Item)
+    Say("Nie jestes cos zdecydowan" + ggm(who,3));
+    return;
+  endif
+  if(!Item.isa(POLCLASS_ITEM))
+    Say("Wiele widzialem na tym swiecie, ale to nie wyglada jak przedmiot");
+    return;
+  endif
+
+  if( GetTopCont(Item) != Box)
+    Say("Niestety, ale sprzedaje przedmioty jedynie z mojej skrzyni");
+    return;
+  endif
+
+  var StackPrice := CInt(GetToolTipProp(item, MP_TTP_STACKPRICE));
+  var Price := CInt(GetToolTipProp(item, MP_TTP_PRICE));
+
+  if(!Price and !StackPrice)
+    Say("Ten przedmiot nie jest na sprzedaz.");
+    return;
+  endif
+
+  var Amount := Item.amount;
+
+  if(StackPrice)
+    Amount := SendTextEntryGump(who,"Ile sztuk chcesz kupic? Dostepnych "+Item.amount+" sztuk", TE_CANCEL_ENABLE, TE_STYLE_NUMERICAL, Item.amount, "Cena za sztuke: "+StackPrice+" gp");
+
+    if(!Amount or !CInt(Amount))
+      Say("Nie wpisal"+ggm(who,3)+" ilosci.");
+      return;
+    endif
+
+    Amount := CInt(Amount);
+    Price := Amount * StackPrice;
+  endif
+
+  if(!SpendGold(who, Price))
+    Say("Nie bede sie z Toba targowal, ten przedmiot kosztuje " + price + ", a Ty nie masz tego przy sobie.");
+    return;
+  endif
+  
+  if(Item.amount == Amount)
+    EraseSellProps(Item);
+
+    if(Item.isa(POLCLASS_CONTAINER))
+      foreach it in EnumerateItemsInContainer(Item)
+        EraseSellProps(it);
+      endforeach
+    endif
+    
+    MoveToPack(Item, who);
+  else
+  
+    var NewItem := CreateItemCopyAtLoc(CR_TEMP_ITEM_X, CR_TEMP_ITEM_Y, CR_TEMP_ITEM_Z, Item, CR_TEMP_ITEM_REALM);
+    
+    if(!NewItem)
+      Say("Ops.. cos tutaj nie gra.");
+      return;
+    endif
+    
+    if(!SubtractAmount(Item, Amount))
+      DestroyItem(NewItem);
+      Say("Ops.. cos poszlo nie tak.");
+      return;
+    endif
+
+    EraseSellProps(NewItem);
+    
+    if(!SubtractAmount(NewItem, NewItem.amount - Amount))
+      AddAmount(Item, Amount);
+      DestroyItem(NewItem);
+      Say("Ops.. Jednak jest jakis problem..");
+      return;
+    endif
+
+    var Res := MoveToPack(NewItem, who);
+
+    if(!Res)
+      LogError("MarketVendor: SellItem - blad przy przenoszeniu stacka ["+Item.serial+"/"+hex(Item.objtype)+"/"+Item.amount+"]: "+Res.errortext);
+      AddAmount(Item, Amount);
+      DestroyItem(NewItem);
+      Say("Ops.. nie udalo sie tym razem, wpadnij pozniej.");
+      return;
+    endif
+
+    SetToolTipProp(Item, MP_TTP_PRICE, StackPrice*Item.amount);
+
+  endif
+
+  SetMyGold(MyGold + Price);
+  Say("Cena twych zakupow wyniosla "+Price+" gp.");
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------
+
+function RemoveMultiSellItems(who)
+
+  Say("Jakie przedmioty chcesz usunac ze sprzedazy?");
+  
+  var Cnt := 0;
+
+  while(IsLoggedIn(who))
+    var subCnt := RemoveSellItem(who, 1);
+    if(!subCnt)
+      break;
+    endif
+
+    Cnt += subCnt;
+  endwhile
+  
+  if(Cnt)
+    Say("Usunal"+ggm(who,3)+" "+Cnt+" przedmiotow ze sprzedazy");
+  else
+    Say("*wzrusza ramionami*");
+  endif
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------
+
+function RemoveSellItem(who, Multi := 0)
+  
+  if(!Multi)
+    Say("Wskaz przedmiot.");
+  endif
+
+  var Item := ObjTarget(who);
+  if(!Item)
+    if(Multi)
+      Say("*wzrusza ramionami*");
+    endif
+    return 0;
+  endif
+
+  if(GetTopCont(Item) != Box)
+    Say("Hmm przeciez ten przedmiot nie jest w mojej skrzyni");
+    return 0;
+  endif
+
+  if(!GetToolTipProp(Item, MP_TTP_PRICE))
+    if(Item.isa(POLCLASS_CONTAINER))
+      var Items := array;
+
+      foreach SubItem in EnumerateItemsInContainer(Item)
+        if(GetToolTipProp(SubItem, MP_TTP_PRICE))
+          Items.append(SubItem);
+        endif
+      endforeach
+
+      if(Items.size())
+        Say("W tym pojemniku znajduj"+Gam(Items.size(),GAM_EA)+" sie "+Items.size()+" przedmiot"+Gam(Items.size(),GAM_OW)+".");
+        Say("Czy chcesz wszystkie usunac ze sprzedazy? tak?");
+        if(!NpcYesNo(who))
+          return 0;
+        endif
+
+        foreach SubItem in Items
+          EraseSellProps(SubItem);
+        endforeach
+
+        Say("Nie bede sprzedawal "+Items.size()+" przedmiotow");
+        
+        UnLockItems(box);
+        return Items.size();
+      else
+        Say("W tym pojemniku nie ma przedmiotow do sprzedazy.");
+        return 0;
+      endif
+      
+    else
+      Say("Ten przedmiot nie ma zadnej ceny, wiec nie sprzedaje go");
+      return 0;
+    endif
+  endif
+
+  EraseSellProps(Item);
+  UnLockItems(box);
+
+  if(!Multi)
+    Say("Nie bede juz tego sprzedawal");
+  endif
+
+  return 1;
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------
+
+function AddSellItem(who, Price := 0)
+  
+  if(Price)
+    PrintTextAbovePrivate(me, "Wskaz przedmiot, ktory chcesz sprzedac za "+Price+" gp.", who);
+  else
+    PrintTextAbovePrivate(me, "Wskaz przedmiot.", who);
+  endif
+
+  var Item := ObjTarget(who);
+  if(!Item)
+    Say("*wzdycha*");
+    return 0;
+  endif
+
+  if( GetTopCont(Item) != Box )
+    Say("Pff... Sprzedaje tylko przedmioty ze skrzyni");
+    return 0;
+  endif
+
+  if(!Price)
+    if(Item.amount > 1)
+      Price := SendTextEntryGump(who,"Za ile sprzedawac ten przedmiot?",0,TE_STYLE_NUMERICAL,MAX_PRICE,"Wpisz cene za sztuke.");
+    else
+      Price := SendTextEntryGump(who,"Za ile sprzedawac ten przedmiot?",0,TE_STYLE_NUMERICAL,MAX_PRICE);
+    endif
+    Price := CInt(Price);
+  endif
+
+  if(Price)
+    if(Item.amount > 1)
+      SetToolTipProp(Item, MP_TTP_STACKPRICE, Price);
+      SetToolTipProp(Item, MP_TTP_PRICE, Price*Item.amount);
+      PrintTextAbovePrivate(me, "Bede sprzedawal sztuke "+CutDesc(Item.desc)+" za " + Price+" gp", who);
+    else
+      SetToolTipProp(Item, MP_TTP_PRICE, Price);
+      PrintTextAbovePrivate(me, "Bede sprzedawal "+CutDesc(Item.desc)+" za " + Price+" gp", who);
+    endif
+    UnLockItems(box);
+    return 1;
+  else
+    Say("?!?");
+    return 0;
+  endif
+  
+endfunction
+
+//-------------------------------------------------------------------------------------------------------
+
+function AddSellMultiItems(who)
+  
+  var Price := SendTextEntryGump(who,"Za ile chcesz sprzedawac wybrane przedmioty?",0,TE_STYLE_NUMERICAL,MAX_PRICE, "Cena za sztuke");
+
+  Price := CInt(Price);
+
+  if(!Price)
+    Say("?!?");
+    return;
+  endif
+  
+  var Count := 0;
+
+  while(IsLoggedIn(who))
+
+    var subCnt := AddSellItem(who, Price);
+
+    if(!subCnt)
+      break;
+    endif
+
+    Count += subCnt;
+
+  endwhile
+
+  if(Count)
+    Say("Dobrze, do sprzedazy oznaczyl"+ggm(who,3)+" "+Count+" przedmiotow.");
+  endif
+  
+endfunction
+
+//-------------------------------------------------------------------------------------------------------
+
+function CashOut()
+  
+  Say("*szepcze*");
+
+  if(!MyGold)
+    PrintTextAbovePrivate(me,"Nie mam juz zlota.",_MeMaster);
+    return 0;
+  else
+    PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+" mam " + mygold + " zlota",_MeMaster);
+  endif
+
+  if(_MeMaster)
+    var Amount := CInt(MyGold);
+    if(Amount > 60000)
+      Amount := 60000;
+    endif
+
+    if(CreateItemInCont(_MeMaster.backpack,UOBJ_GOLDCOIN,Amount))
+      SetMyGold(CInt(MyGold) - Amount);
+      if(MyGold)
+        PrintTextAbovePrivate(me,"Pani"+ggm(ev.source,11)+", zostalo mi jeszcze "+MyGold+" zlota.",_MeMaster);
+      endif
+    else
+      PrintTextAbovePrivate(me,"Pani"+ggm(ev.source,11)+", brak Ci miejsca w plecaku.",_MeMaster);
+    endif
+  endif
+
+endfunction
+//-------------------------------------------------------------------------------------------------------

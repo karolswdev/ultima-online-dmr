@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/staff";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program ShowGmOnline(who)
+
+  var gmnr := 0;
+
+  foreach gm in EnumerateOnlineCharacters()
+    if(gm.cmdlevel and gm.concealed <= who.cmdlevel)
+      SendSysMessage(who,GetCmdLevelName(gm.cmdlevel) + " " + gm.name + " ["+gm.acctname+"]",FONT_NORMAL,COLOR_GREEN);
+      gmnr := gmnr + 1;
+    endif
+  endforeach
+
+  SendSysMessage(who,"GM Num : "+gmnr,FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/effects";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program WalkOnLava(who,Lava)
+
+  var Params := struct;
+    Params.+x := Lava.x;
+    Params.+y := Lava.y;
+    Params.+z := Lava.z;
+    Params.+item := Lava;
+    Params.+who := who;
+
+  var message := RandomInt(4);
+
+  case(message)
+    
+    0: SendSysMessage(who,"Czujesz jak cos cie pali w stopy!",FONT_NORMAL, COLOR_RED);
+
+    1: SendSysMessage(who,"Czujesz swad palonej skory!",FONT_NORMAL, COLOR_RED);
+
+    2: SendSysMessage(who,"Ogien trawi ci stopy!",FONT_NORMAL, COLOR_RED);
+
+    3: SendSysMessage(who,"Zaczynasz plonac!",FONT_NORMAL, COLOR_RED);
+
+  endcase
+  
+  start_script(":darkfires:damage_lava",Params);
+  
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+

@@ -1,0 +1,36 @@
+use uo;
+use os;
+
+include ":housing:housing";
+include "include/items/creation";
+include "include/msgs";
+
+program placemailbox(who, deed)
+
+  SendSysMessage(who, "Wskaz miejsce, w ktorym chcesz postawic skrzynke pocztowa",FONT_NORMAL,COLOR_GREEN);
+  var Place := TargetCoordinates(who);
+  if(!Place)
+    return;
+  endif
+  
+  
+  
+    var skrz := CreateItemAtLoc(Place.x,Place.y,GetStandingHeight(Place.x,Place.y,Place.z,who.realm).z,"0xfb46",1);
+    if(skrz)
+	SetObjProperty(skrz, "mail", 1);
+	SetObjProperty(who, "mailbox", skrz.serial);
+    var zwojex := CreateItemInBackpack(who, 0x0e34, 1);
+    zwojex.color := 1100;
+    zwojex.newbie := 1;
+	SetName(zwojex, "Twoj nr skrzynki: " + skrz.serial + " zapamietaj go. [blessed]");
+    else
+	SendSysMessage(who, "Nie mozesz postawic tu skrzyni.",FONT_NORMAL,COLOR_RED);
+	return;
+    endif
+
+DestroyItem(deed);
+
+endprogram
+
+  
+ 

@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "hairdye";
+
+//-----------------------------------------------------------------------------
+
+var layout := GetHairsDyeLayout();
+var data   := GetHairsDyeData();
+
+//-----------------------------------------------------------------------------
+
+program haircolor(who, item)
+
+  if(!StandardItemCheck(who,item))
+    return;
+  endif
+
+  if(item.objtype == UOBJ_HAIRDYE and !CanMod(who, MOD_HAIRS))
+    SendSysMessage(who, "Nie mozesz teraz przefarbowac wlosow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var res       := SendDialogGump( who, layout, data );
+  var haircolor := 0;
+
+  foreach key in (res.keys)
+    if (key > 1 )
+      haircolor := key;
+    endif
+  endforeach
+
+  if(!haircolor)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var oldhair;
+
+  if(item.objtype == UOBJ_HAIRDYE)
+    oldhair := GetEquipmentByLayer(who, LAYER_HAIR);
+  elseif(item.objtype == UOBJ_BEARDDYE)
+    oldhair := GetEquipmentByLayer(who, LAYER_BEARD);
+  endif
+  
+  if(GetObjProperty(item, "CustomColor"))
+	oldhair.color := CInt(GetObjProperty(item, "CustomColor"));
+  else
+	if(oldhair)
+		oldhair.color := haircolor;
+	endif
+  endif
+
+  DestroyItem(item);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

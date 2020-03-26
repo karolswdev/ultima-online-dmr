@@ -1,0 +1,413 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumpboxes";
+include "powerstone";
+include ":magic:magicatt";
+include "include/move";
+include "include/npcs";
+include "include/logerror";
+
+//-----------------------------------------------------------------------------
+
+var Stones,Track,LinksLeft := {},LinksUp := {},LSTrack,GemsAmt := 0,Traps := {},Circle;
+var PSCfg   := ReadConfigFile("powerstone");
+
+//-----------------------------------------------------------------------------
+
+program PowerStone(who,stone)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  Circle := CInt(ItemCfg[stone.objtype].Lvl);
+
+  if(!Circle)
+    DestroyItem(stone);
+  endif
+
+  if(GetObjProperty(stone,"Completed"))
+    if(CInt(GetObjProperty(stone,"Completed")) + (PS_DISCH_TIME * Circle) < ReadGameClock())
+      EraseStoneData(stone);
+    endif
+  endif
+  
+  if(!StandardItemCheck(who,Stone,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  GetTrack(stone);
+  GetLinks(stone);
+  GemsAmt := CInt(GetObjProperty(stone,"GemAmount"));
+  
+  while(stone and who and IsLoggedIn(who) and !who.dead)
+  
+    GetStones(stone);
+  
+    GInit(50,50);
+    GResPic(50 ,0 ,BKGND_BLACKSLAB,600,400);
+    GResPic(213,66,BKGND_GOLDTRIM,27+(MAX_W*35),32+(MAX_H*35));
+  
+    GGumpPic(80 ,17,0x28D3);
+    GGumpPic(550,17,0x28D3);
+    GGumpPic(260,17,0x28D4);
+    GGumpPic(0  ,0 ,0x28C8);
+    GGumpPic(617,0 ,0x28C9);
+    
+    GGumpPic(130,190,0x28DE);
+    GGumpPic(80, 140,0x28E1);
+
+    GGumpPic(500,190,0x28DE);
+    GGumpPic(545,140,0x28E1);
+    
+    if(GetObjProperty(stone,"Completed"))
+      GGumpPic(560,185,0xA53);
+    else
+      GGumpPic(560,185,0xA52);
+    endif
+
+    var i;
+    
+    for(i:=0;i<5;i:=i+1)
+      GGumpPic(185,70 + (i*54), 0x28E0);
+      GGumpPic(485,70 + (i*54), 0x28E0);
+    endfor
+    if(IsAdmin(who))
+      GButton( 68, 362,2714, 2715,10000);
+    endif
+    
+    GButton(  490, 352,2714, 2715,11000);
+    GTextLine(510, 352, 550, "Wloz Diamenty");
+    
+    for(i:=1;i<=MAX_GEMS;i:=i+1)
+      if(i <= GemsAmt)
+        GGumpPic(195+(i*35),350,PUSHED_STONE);
+      else
+        GGumpPic(195+(i*35),350,DEF_STONE);
+      endif
+    endfor
+    var h,w,num := 1;
+
+    for(h:=1;h<=MAX_H;h:=h+1)
+      for(w:=1;w<=MAX_W;w:=w+1)
+        if(LinksUp[num])
+          GGumpPic(207+(w*35),74+(h*35),0x2391);
+        endif
+        if(LinksLeft[num])
+          GGumpPic(219+(w*35),64+(h*35),0x2393);
+        endif
+        if(CInt(GetObjProperty(stone,"StNum")) == num)
+          GGumpPic(219,64+(h*35),0x2393);
+        endif
+        if(CInt(GetObjProperty(stone,"EndNum")) == num)
+          GGumpPic(219+((MAX_W)*35),64+(h*35),0x2393);
+        endif
+        num := num + 1;
+      endfor
+    endfor
+
+    num := 1;
+    for(h:=1;h<=MAX_H;h:=h+1)
+      for(w:=1;w<=MAX_W;w:=w+1)
+        if(Stones[num] == PUSHED_STONE)
+          GGumpPic(195+(w*35),50+(h*35),Stones[num]);
+        elseif(GetObjProperty(stone,"Completed"))
+          GGumpPic(195+(w*35),50+(h*35),PUSH_STONE);
+        else
+          GButton(195+(w*35),50+(h*35),Stones[num],Stones[num]+1,num);
+        endif
+        num := num + 1;
+      endfor
+    endfor
+  
+    var Res := GSend(who);
+    
+    if(!Res[0])
+      break;
+    endif
+
+    if(Res[0] == 10000)
+      EraseStoneData(stone);
+      return;
+    endif
+    
+    if(Res[0] == 11000)
+      AddGems(who,stone);
+      GemsAmt := GetObjProperty(stone,"GemAmount");
+    endif
+
+    if(CheckTrap(who,Res,stone))
+      return;
+    endif
+
+    if(SubGem(Res,stone))
+      Stones[Res[0]] := PUSHED_STONE;
+      UpdateLinks(stone,LSTrack,Res[0]);
+      LSTrack := Res[0];
+      SetObjProperty(stone,"LSTrack",LSTrack);
+      Track.erase(retindex(Track,Res[0]));
+      SetObjProperty(stone,"Track",Track);
+      if(!Track.size())
+        CompleteTask(stone,who);
+      endif
+    else
+      case(Stones[Res[0]])
+        DEF_STONE:  Stones[Res[0]] := PUSH_STONE;
+        PUSH_STONE: Stones[Res[0]] := DEF_STONE;
+      endcase
+    endif
+    SetObjProperty(stone,"Stones",Stones);
+  
+    sleepms(100);
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetStones(stone)
+
+  Stones := GetObjProperty(stone,"Stones");
+  if(!Stones or Stones.size() != (MAX_H * MAX_W))
+    Stones := {};
+    var i;
+    for(i:=1;i<=(MAX_H * MAX_W);i:=i+1)
+      Stones[i] := DEF_STONE;
+    endfor
+    SetObjProperty(stone,"Stones",Stones);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTrack(stone)
+
+  Track := GetObjProperty(stone,"Track");
+  if(!Track)
+    Track := GenerateTrack(stone);
+    SetObjProperty(stone,"Track",Track);
+    SetObjProperty(stone,"LinksUp",{});
+    SetObjProperty(stone,"LinksLeft",{});
+    SetObjProperty(stone,"Stones",{});
+    EraseObjProperty(stone,"StNum");
+    EraseObjProperty(stone,"EndNum");
+    EraseObjProperty(stone,"LSTrack");
+    EraseObjProperty(stone,"Completed");
+  endif
+  
+  LSTrack := GetObjProperty(stone,"LSTrack");
+  Traps   := GetObjProperty(stone,"Traps");
+  
+  if(!LSTrack)
+    LSTrack := Track[1];
+    SetObjProperty(stone,"LSTrack",LSTrack);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GenerateTrack(stone)
+
+  var num := RandomInt(MAX_H),lastnum;
+  var NewTrack := {};
+  var i := 1;
+  NewTrack.append(num * MAX_W + i);
+
+  while(i < MAX_W)
+    lastnum := num;
+    if(num == 0)
+      case(RandomDiceRoll("1d2"))
+        1:  num := num + 1;
+        2:  i   := i   + 1;
+      endcase
+    elseif(num == MAX_H-1)
+      case(RandomDiceRoll("1d2"))
+        1:  num := num - 1;
+        2:  i   := i   + 1;
+      endcase
+    else
+      case(RandomDiceRoll("1d3"))
+        1:  num := num - 1;
+        2:  num := num + 1;
+        3:  i   := i   + 1;
+      endcase
+    endif
+    if(!((num * MAX_W + i) in NewTrack))
+      NewTrack.append(num * MAX_W + i);
+    else
+      num := lastnum;
+    endif
+  endwhile
+  
+  Traps := {};
+
+  var Cnt := 0;
+
+  for(i:=1;i<=MAX_H;i:=i+1)
+    num := (RandomInt(MAX_W)+1) * i;
+    while(((num in NewTrack) or (num in Traps)) and Cnt < 100)
+      num := (RandomDiceRoll("1d"+MAX_W)) * i;
+      Cnt := Cnt + 1;
+    endwhile
+
+    if(Cnt < 100)
+      Traps.append(num);
+    endif
+  endfor
+  SetObjProperty(stone,"Traps",Traps);
+
+  return NewTrack;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompleteTask(stone,who)
+
+  SetObjProperty(stone,"Completed",ReadGameClock());
+  SetObjProperty(stone,"EndNum",LSTrack);
+  start_script(":powerstone:taskcomp",{stone,who});
+  SetObjProperty(stone,"Stones",Stones);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UpdateLinks(stone,n,tn)
+
+  if(!GetObjProperty(stone,"StNum"))
+    SetObjProperty(stone,"StNum",LSTrack);
+  elseif(n + 1 == tn or n - 1 == tn)
+    LinksLeft[n] := 1;
+    SetObjProperty(stone,"LinksLeft",LinksLeft);
+  elseif(n + 7 == tn)
+    LinksUp[n]   := 1;
+    SetObjProperty(stone,"LinksUp",LinksUp);
+  elseif(n - 7 == tn)
+    LinksUp[n-7]   := 1;
+    SetObjProperty(stone,"LinksUp",LinksUp);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetLinks(stone)
+
+  LinksUp   := GetObjProperty(stone,"LinksUp");
+  LinksLeft := GetObjProperty(stone,"LinksLeft");
+
+  var i;
+
+  if(!LinksUp)
+    LinksUp := {};
+
+    for(i:=1;i<=(MAX_H * MAX_W);i:=i+1)
+      LinksUp[i] := 0;
+    endfor
+    SetObjProperty(stone,"LinksUp",LinksUp);
+  endif
+  
+  if(!LinksLeft)
+    LinksLeft := {};
+    for(i:=1;i<=(MAX_H * MAX_W);i:=i+1)
+      LinksLeft[i] := 0;
+    endfor
+    SetObjProperty(stone,"LinksLeft",LinksLeft);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SubGem(Res,stone)
+
+  if(GemsAmt > 0 and Res[0] == Track[1])
+    GemsAmt := GemsAmt - 1;
+    SetObjProperty(stone,"GemAmount",GemsAmt);
+    return 1;
+  endif
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckTrap(who,Res,stone)
+
+  if(Res[0] in Traps)
+    SendSysMessage(who,"Uruchomil"+ggm(who,3)+" pulapke!",FONT_NORMAL,COLOR_RED);
+    RunTrap(who,Res,stone);
+    return 1;
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RunTrap(who,Res,stone)
+
+  Traps.erase(retindex(Traps,Res[0]));
+  SetObjProperty(stone,"Traps",Traps);
+
+  case(RandomDiceRoll("1d5"))
+    1:       PlaySoundEffect(who, SFX_SPELL_LIGHTNING);
+             PlayLightningBoltEffect(who);
+             DoMagicDamage(who, stone, RandomDiceRoll(Circle+"d"+PSDMG_M), Circle, DMGTYPE_ELECTRIC);
+    2:       PlaySoundEffect( who, SFX_SPELL_EXPLOSION );
+             PlayStationaryEff( who.x,who.y,who.z, FX_EXPLODE_3, 7, 0x10, 0, who.realm );
+             DoMagicDamage(who, stone, RandomDiceRoll(Circle+"d"+PSDMG_M), Circle, DMGTYPE_FIRE);
+    3:       PlayObjectCenteredEffect(who, FX_FLAMESTRIKE, 0x0a, 0x1e );
+             PlaySoundEffect( who, SFX_SPELL_FLAME_STRIKE );
+             DoMagicDamage(who, stone, RandomDiceRoll(Circle+"d"+PSDMG_M), Circle, DMGTYPE_FIRE);
+    4:       CreateMonster(who,stone);
+    default: PlaySoundEffect(who, 0x1DD);
+             PlayStationaryEff( who.x,who.y,who.z+3, FX_STATIC, 7, 0x10, 0, who.realm );
+             DoMagicDamage(who, stone, RandomDiceRoll(Circle+"d"+PSDMG_M), Circle, DMGTYPE_ELECTRIC);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateMonster(who,stone)
+
+  var Monsters := GetConfigStringArray(PSCfg[Circle],"Monster");
+  var Monster  := Monsters[RandomInt(len(Monsters))+1];
+  if(!Monster)
+    Monster := Monsters[1];
+  endif
+
+  Monsters := CreateNpc(Monster,stone.x+1,stone.y,stone.z,stone.realm);
+  if(!Monsters)
+    LogError("[Powerstone] CreateMonster: ["+stone.serial+"] nie mozna bylo stworzyc potwora - "+Monster, LOGF_SCRIPTS);
+    return;
+  endif
+  
+  if(who.hidden)
+    who.hidden := 0;
+  endif
+
+  Detach();
+  sleep(1);
+  SendChEvent(Monsters,who,EVID_ENGAGED);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseStoneData(stone)
+
+  EraseObjProperty(stone,"Track");
+  EraseObjProperty(stone,"Stones");
+  foreach item in ListItemsAtLocation(stone.x,stone.y+1,stone.z)
+    if(item.objtype == UOBJ_PS_CONT)
+      DestroyItem(item);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

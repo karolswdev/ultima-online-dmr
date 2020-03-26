@@ -1,0 +1,85 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 68;
+
+//-----------------------------------------------------------------------------
+
+program DkNegation(Parms)
+
+  WarCast(Parms, DK_WCID, 0, TRGT_MOB, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  var Duration := CInt(GetWarCastDuration(Caster, WCT_DARKKNIGHT) / 2);
+
+  GainWarcastPoints(Caster, CastOn, DK_WCID, WCGAIN_OFFENSIVE);
+
+  PlaySoundEffect(CastOn, SFX_BLADEWEAVE);
+  PlayPcEffect(CastOn, FX_SPARK_EFFECT, 999, 0xF, 0x10, 5);
+
+  if(GetModAmount(CastOn, MOD_STR) < 0)
+    UndoMod(CastOn, MOD_STR, UMDF_WAIT);
+  endif
+  if(GetModAmount(CastOn, MOD_DEX) < 0)
+    UndoMod(CastOn, MOD_DEX, UMDF_WAIT);
+  endif
+  if(GetModAmount(CastOn, MOD_INT) < 0)
+    UndoMod(CastOn, MOD_INT, UMDF_WAIT);
+  endif
+
+  if(GetSkillModAmount(CastOn, SKILLID_SWORDSMANSHIP) < 0)
+    UndoSkillMod(CastOn, SKILLID_SWORDSMANSHIP);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_MACEFIGHTING) < 0)
+    UndoSkillMod(CastOn, SKILLID_MACEFIGHTING);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_WRESTLING) < 0)
+    UndoSkillMod(CastOn, SKILLID_WRESTLING);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_FENCING) < 0)
+    UndoSkillMod(CastOn, SKILLID_FENCING);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_TACTICS) < 0)
+    UndoSkillMod(CastOn, SKILLID_TACTICS);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_PARRY) < 0)
+    UndoSkillMod(CastOn, SKILLID_PARRY);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_ARCHERY) < 0)
+    UndoSkillMod(CastOn, SKILLID_ARCHERY);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_AXESMANSHIP) < 0)
+    UndoSkillMod(CastOn, SKILLID_AXESMANSHIP);
+  endif
+  if(GetSkillModAmount(CastOn, SKILLID_MAGICRESISTANCE) < 0)
+    UndoSkillMod(CastOn, SKILLID_MAGICRESISTANCE);
+  endif
+
+  if(GetTempModAmount(CastOn, MOD_LIFE) < 0)
+    UndoMod(CastOn, MOD_LIFE, UMDF_WAIT);
+  endif
+  if(GetTempModAmount(CastOn, MOD_MANA) < 0)
+    UndoMod(CastOn, MOD_MANA, UMDF_WAIT);
+  endif
+  if(GetTempModAmount(CastOn, MOD_STAMINA) < 0)
+    UndoMod(CastOn, MOD_STAMINA, UMDF_WAIT);
+  endif
+  
+
+  UndoMod(CastOn, MOD_LIGHT, UMDF_WAIT);
+
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

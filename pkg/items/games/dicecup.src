@@ -1,0 +1,33 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//--------------------------------------------------------------------------------
+
+program UseDiceCup(who, Dice)
+
+  if(!ReserveItem(Dice))
+    SendSysMessage(who, "Ktos uzywa teraz kosci.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Distance(who, Dice) > 1)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  PlaySoundEffect(who, 0x248);
+  PrintTextAbove(Dice, "*"+who.name+" rzuca koscmi*");
+  sleepms(1500);
+  PrintTextAbove(Dice, "*"+RandomDiceRoll("1d6")+"*", FONT_NORMAL, COLOR_YELLOW);
+  sleepms(300);
+  PrintTextAbove(Dice, "*"+RandomDiceRoll("1d6")+"*", FONT_NORMAL, COLOR_GREEN_LIGHT);
+  sleep(1);
+
+endprogram
+
+//--------------------------------------------------------------------------------

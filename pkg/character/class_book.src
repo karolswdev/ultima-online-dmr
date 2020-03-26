@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/const/cfgs";
+include ":character:common";
+
+//-----------------------------------------------------------------------------
+
+program ClassBook(who, Book)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var Class := ItemCfg[Book.objtype].Class;
+  var cfgClass := GetCharClassConfig(Class);
+  
+  if(!cfgClass)
+    SendSysMessage(who, "Ta ksiazka jest bezuzyteczna...", FONT_NORMAL, COLOR_BAD);
+    return;
+  endif
+
+  var limitData := struct;
+  limitData.ClassId := Class;
+
+  start_script(":character:choose", array(who, limitData));
+
+endprogram
+
+//-----------------------------------------------------------------------------

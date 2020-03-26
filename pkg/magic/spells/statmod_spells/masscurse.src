@@ -1,0 +1,98 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 46;
+
+//-----------------------------------------------------------------------------
+
+program CastMassCurse( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  PlaySoundEffect(Caster, SFX_SPELL_MASS_CURSE);
+  
+  var Range       := GetMagicSkillValue(Caster, SpellGlob.Type) / 20;
+  var Duration    := CalcDecModDuration( Caster );
+  var ModAmount;
+  var ResVal;
+  var TempDuration;
+  var Gained := 0;
+  Detach();
+
+  if(!CastOn)
+    Fizzle(Caster, "Cel nie istnieje...");
+    return;
+  endif
+  
+  foreach Mob in ListMobilesNearLocation(CastOn.x, CastOn.y, CastOn.z, Range, CastOn.realm);
+
+    if(CanDamage(Caster, Mob, 0, CastOn))
+   
+      if(Dispersed(Caster, Mob))
+        continue;
+      endif
+
+      if(!CanGetMagicStatMod(Mob))
+        continue;
+      endif
+   
+      if(Reflected(Mob, Caster))
+        Mob := Caster;
+      endif
+      
+      if(!CheckCurseDelay(CastOn))
+        Fizzle(Caster, "Ta osoba jest chwilowo niewrazliwa na ten czar.");
+        return;
+      endif
+    
+      PlaySoundEffect(Mob, SFX_SPELL_MASS_CURSE);
+
+      if(CanMod(Mob, MOD_DEFENSE) == 0)
+        var Mod := GetTempModAmount(Mob, MOD_DEFENSE);
+        if(RandomInt(100) < Mod)
+          PlayPcEffect(Mob, FX_HEAL_EFFECT, 50,0xF, 0x10, 3);
+          return;
+        endif
+      endif
+
+      if(CanGetCriminal(Caster, Mob, TGTOPT_HARMFUL))
+        SetCriminal(Caster, 1, "SpellAction", "Uzycie czaru Mass Curse, Cel: "+CastOn.name+" ["+CastOn.serial+"], Krim za Moba: "+Mob.name+" ["+Mob.serial+"].");
+      endif
+
+      PlayObjectCenteredEffect( Mob, FX_CURSE_EFFECT, 10,10);
+
+      if(CanMod(Mob,MOD_STR) and CanMod(Mob,MOD_DEX) and CanMod(Mob,MOD_INT))
+
+        ResVal    := ResistedExtended(Mob, Caster, CalcModAmount( Caster ), SpellGlob.Circle, SpellGlob.Type);
+        ModAmount := ResVal.value;
+        if( ResVal.resisted )
+          TempDuration := CInt(Duration / 3);
+        else
+          TempDuration := Duration;
+        endif
+        DoMod(Mob, MOD_STR, 0 - ModAmount, TempDuration);
+        DoMod(Mob, MOD_DEX, 0 - ModAmount, TempDuration);
+        DoMod(Mob, MOD_INT, 0 - ModAmount, TempDuration);
+
+        if(Gained < 3)
+          Gained += GainSpellPoints(Caster, Mob, MAGICGAIN_OFFENSIVE);
+        endif
+      endif
+
+      Sleepms(1);
+    endif
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,992 @@
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/npcs";
+include "include/items";
+include ":banking:common";
+include ":banking:gold";
+include "include/gumps";
+include "include/noto";
+include "include/objtypes/magic";
+include "include/poison";
+include "include/player/notes";
+include "include/player/young";
+include "include/attributes/max_skills";
+include "include/clock";
+include "include/reputation/murderer";
+
+include ":housing:housing";
+include ":bulks:bulks";
+include ":wmtools:common";
+include "../pkg/items/baseitems/baseitems";
+include "../pkg/systems/npcguilds/guilds";
+include "../pkg/items/guildstone/guild";
+include "../pkg/items/artifacts/artifacts";
+include "../pkg/systems/combat/combat";
+
+include ":crafting:mat_groups";
+include ":character:race_validation";
+include ":magicitems:magicitems";
+
+//-----------------------------------------------------------------------------
+
+var who;
+var cItm   := 0;
+var aItm   := 0;
+var cNpc   := 0;
+var aNpc   := 0;
+var cChar  := 0;
+var aChar  := 0;
+var cMulti := 0;
+var aMulti := 0;
+var cGld   := 0;
+var aGld   := 0;
+var cAcc   := 0;
+var aAcc   := 0;
+var cGold  := 0;
+var aGold  := 0;
+var cCheque := 0;
+var aCheque := 0;
+
+var chkNpc := 0;
+var chkItm := 0;
+var chkChr := 0;
+var chkMlt := 0;
+var chkSto := 0;
+var chkGld := 0;
+var chkMap := 0;
+var chkAcc := 0;
+var chkGold := 0;
+
+var gItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+var AutoItm     := 0;
+var AutoNpc     := 0;
+var SeekObjects := array;
+var AllMultis   := dictionary;
+var ShowNpcGump := 0;
+var ShowItmGump := 0;
+
+//-----------------------------------------------------------------------------
+
+program SeekCmd(_who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  who := _who;
+
+  var x,y,i,Eqp;
+  var Rlms  := Realms();
+  var stext := SplitWords(text);
+
+  if(stext[1] == "itm")
+
+    chkItm  := 1;
+    chkSto  := 1;
+    chkChr  := 1;
+    chkMap  := 1;
+
+    AutoItm := array(stext[2], stext[3]);
+
+    case(AutoItm[1])
+      "desc":  if(!AutoItm[2])
+                 SendSysMessage(who, "Bledny Desc.", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+               var w := 4;
+               while(stext[w])
+                 AutoItm[2] := AutoItm[2] + " "+stext[w];
+                 w := w + 1;
+               endwhile
+
+               AutoItm[2] := lower(AutoItm[2]);
+
+      "color":
+      "grap":
+      "obj":   AutoItm[2] := CInt(AutoItm[2]);
+               if(!AutoItm[2])
+                 SendSysMessage(who, "Bledny " + AutoItm[1] + ".", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+      "stacks": ;
+      default: SendSysMessage(who, "Bledny typ szukania, [desc/color/grap/obj/stacks]", FONT_NORMAL, COLOR_RED);
+               return;
+    endcase
+
+  elseif(stext[1] == "npc")
+
+    chkNpc := 1;
+    chkMap := 1;
+    AutoNpc := array(stext[2], stext[3]);
+
+    case(AutoNpc[1])
+      "temp":  if(!AutoNpc[2])
+                 SendSysMessage(who, "Bledny Template.", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+      "name":  if(!AutoNpc[2])
+                 SendSysMessage(who, "Bledny Name.", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+               var w := 4;
+               while(stext[w])
+                 AutoNpc[2] := AutoNpc[2] + " "+stext[w];
+                 w := w + 1;
+               endwhile
+
+               AutoNpc[2] := lower(AutoNpc[2]);
+
+      "grap":  AutoNpc[2] := CInt(AutoNpc[2]);
+               if(!AutoNpc[2])
+                 SendSysMessage(who, "Bledna Grafika.", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+      "pid":   AutoNpc[2] := CInt(AutoNpc[2]);
+               if(!AutoNpc[2])
+                 SendSysMessage(who, "Bledny Pid.", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+      default: SendSysMessage(who, "Bledny typ szukania, [temp/name/grap/pid]", FONT_NORMAL, COLOR_RED);
+               return;
+    endcase
+
+  elseif(stext[1] == "code")
+
+    ProcessGlobal();
+
+    chkNpc := text["npc"] or text["all"];
+    chkItm := text["itm"] or text["all"];
+    chkChr := text["chr"] or text["all"];
+    chkMlt := text["mlt"] or text["all"];
+    chkGld := text["gld"] or text["all"];
+    chkSto := text["sto"] or text["all"];
+    chkMap := text["map"] or text["all"];
+    chkAcc := text["acc"] or text["all"];
+    chkGold := text["gold"];
+
+  else
+
+    SendSysMessage(who, ".seek [itm/npc/code]", FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  var Prc := 0, lPrc := 25;
+  var tox, toy;
+
+  if(chkMap)
+
+    foreach Realm in Rlms
+      Prc := 0;
+      lPrc := 0;
+      SendSysMessage(who, "Realm: "+_Realm_iter, FONT_NORMAL, COLOR_BLUE);
+      for(y:=0;y<Realm.height;y:=y+64)
+        if(y+63 > Realm.height)
+          toy := Realm.height;
+        else
+          toy := y + 63;
+        endif
+
+        for(x:=0;x<Realm.width;x:=x+64)
+          if(x+63 > Realm.width)
+            tox := Realm.width;
+          else
+            tox := x + 63;
+          endif
+
+          foreach Item in ListObjectsInBox(x, y, -127, tox, toy,127, _Realm_iter)
+            if(Item.isa(POLCLASS_CONTAINER) and (chkItm or chkGold))
+              CheckCont(Item);
+            elseif(Item.isa(POLCLASS_ITEM) and (chkItm or chkGold))
+              CheckItem(Item);
+            elseif(Item.isa(POLCLASS_NPC))
+              if(chkItm)
+                for(i:=0;i<25;i:=i+1)
+                  if(i != LAYER_PACK)
+                    Eqp := GetEquipmentByLayer(Item,i);
+                    if(Eqp)
+                      CheckItem(Eqp);
+                    endif
+                  endif
+                endfor
+                CheckCont(GetNpcBackpack(Item));
+              endif
+
+              if(chkNpc)
+                CheckNpc(Item);
+              endif
+            endif
+
+            if(chkMlt)
+              if(Item.objtype >= UOBJ_HSIGN_START and Item.objtype <= UOBJ_HSIGN_END)
+                CheckMulti(GetHouse(Item));
+              endif
+            endif
+
+          endforeach
+
+          if(chkMlt)
+            foreach Multi in ListMultisInBox(x, y, -127, tox, toy, 127, _Realm_iter)
+              CheckMulti(Multi);
+            endforeach
+          endif
+
+        endfor
+
+        Prc := CInt(((y+32) * 100) / Realm.height);
+        if(abs(Prc - lPrc) >= 25 or Prc == 100)
+          SendSysMessage(who,Prc+"%", FONT_NORMAL, COLOR_STONE);
+          lPrc := Prc;
+        endif
+
+      endfor
+
+      SendSysMessage(who,"Itm: ["+cItm+"/"+aItm+"] Npc: ["+cNpc+"/"+aNpc+"] Mlt: ["+cMulti+"/"+aMulti+"]",FONT_NORMAL,COLOR_GREEN);
+    endforeach
+
+  endif
+
+  var Chr;
+
+  if(chkChr or chkAcc)
+    var Accs := ListAccounts();
+    var c    := 1;
+    SendSysMessage(who,"Checking Characters & Accs...", FONT_NORMAL, COLOR_BLUE);
+
+    foreach Acc in Accs
+      Acc := FindAccount(Acc);
+      if(chkAcc)
+        CheckAcc(Acc);
+      endif
+
+      for(x:=1;x<=5;x:=x+1)
+        Chr   := Acc.GetCharacter(x);
+        if(Chr)
+          if(chkItm or chkGold)
+            CheckCont(Chr.backpack);
+            CheckCont(FindBankBox(Chr));
+
+            for(i:=0;i<=25;i:=i+1)
+              if(i != LAYER_PACK)
+                Eqp := GetEquipmentByLayer(Chr,i);
+                if(Eqp)
+                  CheckItem(Eqp);
+                endif
+              endif
+            endfor
+          endif
+
+          if(chkChr)
+            CheckChar(Chr);
+          endif
+        endif
+      endfor
+
+      Prc := CInt((c * 100) / Accs.size());
+      if(abs(Prc - lPrc) >= 20 or Prc == 100)
+        SendSysMessage(who,Prc+"%", FONT_NORMAL, COLOR_STONE);
+        lPrc := Prc;
+      endif
+      c := c + 1;
+
+    endforeach
+
+  endif
+
+  if(chkSto and (chkItm or chkGold))
+    var Storage := StorageAreas()[ VENDOR_STORAGE ];
+    if(Storage)
+      SendSysMessage(who,"Checking Vendor Storage...", FONT_NORMAL, COLOR_BLUE);
+      foreach Item in Storage
+        CheckCont(Item);
+      endforeach
+    endif
+    
+    Storage := StorageAreas()[ ESCROW_STORAGE ];
+
+    if(Storage)
+      SendSysMessage(who,"Checking Escrow Storage...", FONT_NORMAL, COLOR_BLUE);
+      foreach Item in Storage
+        CheckCont(Item);
+      endforeach
+    endif
+  endif
+
+  if(chkGld)
+    SendSysMessage(who,"Checking Guilds...", FONT_NORMAL, COLOR_BLUE);
+    foreach Guild in ListGuilds()
+      CheckGuild(Guild);
+    endforeach
+  endif
+
+  SendSysMessage(who,"Itm: ["+cItm+"/"+aItm+"]",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"Npc: ["+cNpc+"/"+aNpc+"]",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"Chr: ["+cChar+"/"+aChar+"]",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"Mlt: ["+cMulti+"/"+aMulti+"]",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"Gld: ["+cGld+"/"+aGld+"]",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"Acc: ["+cAcc+"/"+aAcc+"]",FONT_NORMAL,COLOR_BLUE);
+
+  if(chkGold)
+    SendSysMessage(who,"Gold: ["+cGold+" Suma: "+FormatSize(aGold, ".")+"]",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,"Czeki: ["+cCheque+" Suma: "+FormatSize(aCheque, ".")+"]",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,"Razem: ["+(cGold+cCheque)+" Suma: "+FormatSize(aGold+aCheque,".")+"]",FONT_NORMAL,COLOR_BLUE);
+  endif
+
+  if(SeekObjects.size())
+    if(AutoItm or ShowItmGump or (stext[1] == "code" and chkItm))
+      ShowSeekItems();
+      if(CInt(stext[3]) in {0xEED, 0xA298})
+        var count := 0;
+        foreach item in SeekObjects
+          if(item.objtype == 0xEED)
+            count := count + item.amount;
+          else
+            count := count + GetChequeVal(item);
+          endif
+        endforeach
+        SendSysMessage(who, "Itm stack: " + count, FONT_NORMAL, COLOR_BLUE);
+      endif
+    elseif(AutoNpc or ShowNpcGump)
+      ShowSeekNpcs();
+    else
+      ShowObjects();
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ShowSeekItems()
+
+  GInit(30, 30);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 750, 460);
+  GAddPageData(718,16,2650,2651,718,428,2648,2647);
+  GMultiPage();
+
+  var SeekDict := dictionary;
+
+  foreach Item in SeekObjects
+    SeekDict[Item.serial] := Item;
+  endforeach
+
+  var i := 1;
+
+  foreach Item in SeekDict
+    GCheckNextPage(20);
+    GTextLine(20, 30+GNPCount()*20, 550, i);
+    GTextLine(80, 30+GNPCount()*20, 550, Item.objtype+"/"+hex(Item.objtype));
+    GTextLine(200, 30+GNPCount()*20, 670, Item.graphic+"/"+hex(Item.graphic));
+    GTextLine(310, 30+GNPCount()*20, 1153, Item.serial);
+    GTextLine(400, 30+GNPCount()*20, 995, Item.x+" " +Item.y+" "+Item.z+" "+Item.realm);
+    GTextLine(560, 30+GNPCount()*20, 995, Item.desc);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowSeekNpcs()
+
+  GInit(30, 30);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 750, 460);
+  GAddPageData(718,16,2650,2651,718,428,2648,2647);
+  GMultiPage();
+
+  var i := 1;
+
+  foreach Npc in SeekObjects
+    GCheckNextPage(20);
+    GTextLine(20, 30+GNPCount()*20, 550, i);
+    GTextLine(80, 30+GNPCount()*20, 550, Npc.npctemplate);
+    GTextLine(200, 30+GNPCount()*20, 670, Npc.graphic+"/"+hex(Npc.graphic));
+    GTextLine(310, 30+GNPCount()*20, 1153, Npc.serial);
+    GTextLine(400, 30+GNPCount()*20, 995, Npc.name);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowObjects()
+
+  GInit(30, 30);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 750, 460);
+  GAddPageData(718,16,2650,2651,718,428,2648,2647);
+  GMultiPage();
+
+  var i := 1;
+
+  foreach Obj in SeekObjects
+
+    var ObjDesc := "";
+
+    if(Obj.isa(POLCLASS_ITEM))
+      ObjDesc := Obj.desc;
+    else
+      ObjDesc := GetRealName(Obj);
+    endif
+
+    GCheckNextPage(20);
+    GTextLine(20, 30+GNPCount()*20, 550, i);
+    if(Obj.isa(POLCLASS_NPC))
+      GTextLine(80, 30+GNPCount()*20, 550, Obj.npctemplate);
+    else
+      GTextLine(80, 30+GNPCount()*20, 550, Obj.objtype+"/"+hex(Obj.objtype));
+    endif
+    GTextLine(200, 30+GNPCount()*20, 670, Obj.graphic+"/"+hex(Obj.graphic));
+    GTextLine(310, 30+GNPCount()*20, 1153, Obj.serial);
+    GTextLine(400, 30+GNPCount()*20, 1420, ObjDesc);
+    GTextLine(580, 30+GNPCount()*20, 995, Obj.x+","+Obj.y+","+Obj.z+" "+Obj.realm);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckCont(Cont)
+
+  CheckItem(Cont);
+
+  foreach Item in EnumerateItemsInContainer(Cont)
+    if(Item.container == Cont)
+      if(Item.isa(POLCLASS_CONTAINER))
+        CheckCont(Item);
+      else
+        CheckItem(Item);
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItem(Item)
+
+  aItm := aItm + 1;
+
+  if(AutoItm)
+    case(AutoItm[1])
+      "desc":  if(lower(Item.desc)[AutoItm[2]])
+                 SeekObjects.append(Item);
+                 cItm := cItm + 1;
+               endif
+
+      "color": if(Item.color == AutoItm[2])
+                 SeekObjects.append(Item);
+                 cItm := cItm + 1;
+               endif
+
+      "obj":   if(Item.objtype == AutoItm[2])
+                 SeekObjects.append(Item);
+                 cItm := cItm + 1;
+               endif
+
+      "grap":  if(Item.graphic == AutoItm[2])
+                 SeekObjects.append(Item);
+                 cItm := cItm + 1;
+               endif
+
+      "stacks": if(Item.amount > 1)
+                  if(!IsStackableObj(Item.objtype))
+                    cItm := cItm + 1;
+                    var Amt   := Item.amount;
+                    var Cont  := Item.container;
+                    var Props := dictionary;
+                    var Obj   := Item.objtype;
+                    var Itm;
+
+                    foreach Prop in GetObjPropertyNames(Item)
+                      Props[Prop] := GetObjProperty(Item, Prop);
+                    endforeach
+
+                    if(DestroyItem(Item))
+                      for i := 1 to Amt
+                        Itm := CreateItemInCont(Cont, Obj);
+                        if(!Itm)
+                          break;
+                        endif
+
+                        foreach Prop in Props
+                          SetObjProperty(Itm, _Prop_iter, Prop);
+                        endforeach
+                      endfor
+                    endif
+                  endif
+                endif
+    endcase
+  else
+    if(chkItm and IsSeekItem(Item))
+      ShowItmGump := 1;
+      if(cItm < 500)
+        SeekObjects.append(Item);
+      endif
+      cItm := cItm + 1;
+      ProcessItem(Item);
+    endif
+
+    if(chkGold)
+      if(Item.objtype == UOBJ_GOLDCOIN)
+        cGold += 1;
+        aGold += Item.amount;
+      elseif(Item.objtype == UOBJ_CHEQUE)
+        cCheque += 1;
+        aCheque += GetChequeVal(Item);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckNpc(Npc)
+
+  aNpc := aNpc + 1;
+
+  if(AutoNpc)
+    case(AutoNpc[1])
+      "name":  if(lower(Npc.name)[AutoNpc[2]])
+                 SeekObjects.append(Npc);
+                 cNpc := cNpc + 1;
+               endif
+
+      "temp":  if(Npc.npctemplate == AutoNpc[2])
+                 SeekObjects.append(Npc);
+                 cNpc := cNpc + 1;
+               endif
+
+      "grap":  if(Npc.graphic == AutoNpc[2])
+                 SeekObjects.append(Npc);
+                 cNpc := cNpc + 1;
+               endif
+
+      "pid":   if(Npc.process.pid == AutoNpc[2])
+                 SeekObjects.append(Npc);
+                 cNpc := cNpc + 1;
+               endif
+    endcase
+  else
+    if(IsSeekNpc(Npc))
+      ShowNpcGump := 1;
+      SeekObjects.append(Npc);
+      cNpc := cNpc + 1;
+      ProcessNpc(Npc);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckChar(Char)
+
+  aChar := aChar + 1;
+
+  if(IsSeekChar(Char))
+    SeekObjects.append(Char);
+    cChar := cChar + 1;
+    ProcessChar(Char);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckAcc(Acc)
+
+  aAcc := aAcc + 1;
+
+  if(IsSeekAcc(Acc))
+    SeekObjects.append(Acc);
+    cAcc := cAcc + 1;
+    ProcessAcc(Acc);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMulti(Multi)
+
+  if(Multi)
+    if(!AllMultis.exists(Multi.serial))
+      AllMultis[Multi.serial] := aMulti;
+      aMulti := aMulti + 1;
+      if(IsSeekMulti(Multi))
+        SeekObjects.append(Multi);
+        cMulti := cMulti + 1;
+        ProcessMulti(Multi);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckGuild(Guild)
+
+  aGld := aGld + 1;
+
+  if(IsSeekGuild(Guild))
+    SeekObjects.append(Guild);
+    cGld := cGld + 1;
+    ProcessGuild(Guild);
+  endif
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Process Funcs
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function ProcessGlobal()
+
+endfunction
+
+//=============================================================================
+
+function IsSeekItem(Item)
+
+  __ParamUnused(Item);
+
+
+/* ====================================================
+Szukanie statikow podwojonych na mapie w itemach
+
+
+  if(Item.container)
+        return 0;
+   endif
+
+  var Stc := ListStaticsInBox(Item.x, Item.y, -127, Item.x, Item.y, 127, ITEMS_IGNORE_MULTIS, Item.realm);
+
+  if(Stc.size() > 0)
+    foreach sItem in Stc
+      if(sItem.x == Item.x and Item.y == sItem.y  and Item.graphic == sItem.objtype)// and sItem.z == Item.z)
+        if(!GetItemBINr(Item))
+          return 1;
+        endif
+      endif
+    endforeach
+  endif
+====================================================
+
+  if(IsMagicItem(Item))
+  
+    var Mods := GetMagicMods(Item);
+
+    if(Mods[2] == MAGICMOD_SKILLMOD+SKILLID_INSIGHT or Mods[2] == MAGICMOD_SKILLMOD+SKILLID_HUNTER)
+    return 1;
+    endif
+  endif
+==================================================== */
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessItem(Item)
+
+/*  if(IsMagicItem(Item))
+  
+    var Mods := GetMagicMods(Item);
+
+    if(Mods[2] == MAGICMOD_SKILLMOD+SKILLID_INSIGHT or Mods[2] == MAGICMOD_SKILLMOD+SKILLID_HUNTER)
+      Mods[2] := MAGICMOD_SKILLMOD+SKILLID_TRACKING;
+      SeekObjects.append(Item);
+      SetMagicMods(Item, Mods);
+      
+      ResetMagicItemName(Item);
+    endif
+
+    return;
+  endif*/
+  
+  __ParamUnused(Item);
+
+endfunction
+
+//=============================================================================
+
+function IsSeekNpc(Npc)
+
+  __ParamUnused(Npc);
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessNpc(Npc)
+
+  __ParamUnused(Npc);
+
+endfunction
+
+//=============================================================================
+
+function IsSeekChar(Char)
+
+  __ParamUnused(Char);
+  return 0;
+
+  /*
+  var OldCamp := GetObjProperty(Char, "At_Camping");
+  var OldRem  := GetObjProperty(Char, "At_RemoveTrap");
+
+  if((OldCamp and OldCamp[1]) or (OldRem and OldRem[1]))
+    return 1 ;
+  endif
+
+
+
+
+
+  var PlayerData := GetObjProperty(Char, PROP_NGDDATA);
+
+  if(!PlayerData)
+  return 0;
+  endif
+
+  var IdBest := 0;
+  var Level := 0;
+  var Count := 0;
+
+  foreach GdData in  (PlayerData.Guilds)
+      if(GDData.Flags & NGPF_MEMBER)
+    if(GdData.Flags & NGPF_MAXSK_CHOOSEN)
+      Count += 1;
+      if(Level < GDData.Level)
+        Level := GdData.Level;
+        IdBest := _GDData_iter;
+      endif
+    endif
+    endif
+  endforeach
+
+  if(Count > 1)
+    SendGood(who, "postac "+GetRealName(Char)+" dwie lub wiecej gildii.");
+    return 1;
+  endif
+
+  var MaxSk := GetMaxSkills(Char);
+  var FoundMax := 0;
+
+  foreach AtData in MaxSk
+    if(AtData[1] == MSKT_NPCGUILD)
+      FoundMax += 1;
+    endif
+  endforeach
+
+  if(FoundMax > 1)
+    SendBad(who, "ACHGTUUUUNGN! "+GetRealName(Char)+" ma dwa umy gildiynjne!");
+    return 1;
+  elseif(FoundMax == 0 and Count == 1)
+    SendBad(who, GetRealName(Char)+" ma przypisany um w gildii, ale nie jest ustawiony");
+    return 1;
+  elseif(FoundMax == 1 and Count == 0)
+    SendBad(who, GetRealName(Char)+" ma uma gildii, ale nie ma przypisania do gildii");
+    return 1;
+  endif
+*/
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessChar(Char)
+/*
+  var OldCamp := GetObjProperty(Char, "At_Camping");
+  var OldRem  := GetObjProperty(Char, "At_RemoveTrap");
+
+  if((OldCamp and OldCamp[1]) or (OldRem and OldRem[1]))
+    var Track := GetBaseSkillBaseValue(Char, SKILLID_TRACKING);
+    var Camp := RawToBaseSkill(OldCamp[1]);
+    var Rem := RawToBaseSkill(OldRem[1]);
+
+    var MaxSk := Max(Track, Max(Camp, Rem));
+
+    syslog("Char: "+GetRealName(Char)+"/"+Char.serial+" MaxSk: "+MaXSk+" (T: "+Track+", C: "+Camp+", R: "+Rem+")");
+
+    SetBaseSkillBaseValue(Char, SKILLID_TRACKING, MaxSk);
+  endif
+
+  EraseObjProperty(Char, "At_Camping");
+  EraseObjProperty(Char, "At_RemoveTrap");
+
+  __ParamUnused(Char);
+  var PlayerData := GetObjProperty(Char, PROP_NGDDATA);
+
+  foreach GDId in  (PlayerData.Guilds)
+    if(PlayerData.Guilds[GdId].Flags & NGPF_MAXSK_CHOOSEN)
+      if(GetSkillMaxValue(Char, PlayerData.MaxSkID) != DEF_SK_MAX_VALUE + PlayerData.Guilds[GdId].Level*10)
+        SetMaxSkillValue(Char, PlayerData.MaxSkID, DEF_SK_MAX_VALUE + PlayerData.Guilds[GdId].Level*10, MSKT_NPCGUILD);
+      endif
+    endif
+  endforeach*/
+/*
+  var PlayerData := GetObjProperty(Char, PROP_NGDDATA);
+
+  var IdBest := 0;
+  var Level := 0;
+  var Count := 0;
+
+  foreach GdData in  (PlayerData.Guilds)
+      if(GDData.Flags & NGPF_MEMBER)
+    if(GdData.Flags & NGPF_MAXSK_CHOOSEN)
+      Count += 1;
+      if(Level < GDData.Level)
+        Level := GdData.Level;
+        IdBest := _GDData_iter;
+      endif
+    endif
+    endif
+  endforeach
+
+  if(Count > 1)
+    foreach GdData in  (PlayerData.Guilds)
+      if(_GDData_iter == IdBest)
+        SetBitOn(PlayerData.Guilds[_GdData_iter].Flags, NGPF_MAXSK_CHOOSEN);
+      else
+        SetBitOff(PlayerData.Guilds[_GdData_iter].Flags, NGPF_MAXSK_CHOOSEN);
+      endif
+    endforeach
+    SetObjProperty(Char, PROP_NGDDATA,PlayerData);
+    
+    if(IdBest)
+      SetMaxSkillValue(Char, PlayerData.MaxSkID, DEF_SK_MAX_VALUE + PlayerData.Guilds[IdBest].Level*10, MSKT_NPCGUILD);
+    endif
+
+    return 1;
+  endif
+
+  var MaxSk := GetMaxSkills(Char);
+  var FoundMax := 0;
+
+  foreach AtData in MaxSk
+    if(AtData[1] == MSKT_NPCGUILD)
+      FoundMax += 1;
+    endif
+  endforeach
+
+  if(FoundMax > 1)
+    SendBad(who, "ACHGTUUUUNGN! "+GetRealName(Char)+" ma dwa umy gildiynjne!");
+  elseif(FoundMax == 0 and Count == 1)
+    
+    if(IdBest)
+      SetBitOff(PlayerData.Guilds[IdBest].Flags, NGPF_MAXSK_CHOOSEN);
+      
+        PlayerData.MaxSkID := error;
+        PlayerData.SkChTime := 0;
+
+    SetObjProperty(Char, PROP_NGDDATA,PlayerData);
+    endif
+
+    SendBad(who, GetRealName(Char)+" ma przypisany um w gildii, ale nie jest ustawiony");
+  elseif(FoundMax == 1 and Count == 0)
+    
+    IdBest := 0;
+    Level := 0;
+  
+    foreach GdData in  (PlayerData.Guilds)
+      if(GDData.Flags & NGPF_MEMBER)
+      if(Level < GDData.Level)
+        Level := GdData.Level;
+        IdBest := _GDData_iter;
+      endif
+      endif
+    endforeach
+
+    if(IdBest)
+        SetBitOn(PlayerData.Guilds[IdBest].Flags, NGPF_MAXSK_CHOOSEN);
+    SetObjProperty(Char, PROP_NGDDATA,PlayerData);
+      SetMaxSkillValue(Char, PlayerData.MaxSkID, DEF_SK_MAX_VALUE + PlayerData.Guilds[IdBest].Level*10, MSKT_NPCGUILD);
+    endif
+    SendBad(who, GetRealName(Char)+" ma uma gildii, ale nie ma przypisania do gildii");
+  endif
+*/
+
+endfunction
+
+//=============================================================================
+
+function IsSeekMulti(Multi)
+
+  __ParamUnused(Multi);
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessMulti(Multi)
+
+  __ParamUnused(Multi);
+
+endfunction
+
+//=============================================================================
+
+function IsSeekAcc(Acc)
+
+  __ParamUnused(Acc);
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessAcc(Acc)
+
+  __ParamUnused(Acc);
+
+endfunction
+
+//=============================================================================
+
+function IsSeekGuild(Guild)
+
+  __ParamUnused(Guild);
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessGuild(Guild)
+
+  __ParamUnused(Guild);
+
+endfunction
+
+//=============================================================================

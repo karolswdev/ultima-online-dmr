@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "ai/main/sleepmode";
+include "ai/main/loot";
+include "ai/setup/killpcssetup";
+include "ai/include/cdist";
+include "ai/main/killanyloop";
+include "ai/combat/defaultcombatevent";
+include "ai/combat/fight";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 10;
+
+//-----------------------------------------------------------------------------
+
+program KillAny_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  SetWarMode( 0 );
+  main_AI_loop();
+
+endprogram
+
+//-----------------------------------------------------------------------------

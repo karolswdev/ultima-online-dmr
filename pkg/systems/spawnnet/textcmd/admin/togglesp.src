@@ -1,0 +1,43 @@
+use uo;
+use os;
+
+include ":spawnnet:spawnnet";
+
+program textcmd_toggleSp(who, state)
+
+	if(!state)
+		SendSysMessage(who, "Uzycie: .togglesp [on/off]. Zatrzymuje albo wznawia runy 10 kratek naokolo", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(state != "on")
+		if(state != "off")
+			SendSysMessage(who, "Dostepne wartosci to tylko on albo off.", FONT_NORMAL, COLOR_RED);
+			return;
+		endif
+	endif
+	
+	var i := 0;
+	
+	foreach item in ListItemsNearLocation(who.x, who.y, who.z, 10, who.realm)
+		if(item.objtype == UOBJ_SRUNE)
+			if(state == "on")
+				SetRunning(item);
+				i := i + 1;
+			else
+				SetStopped(item);
+				i := i + 1;
+			endif
+		endif
+	endforeach
+	
+	var word := "wlaczonych";
+	
+	if(state == "off")
+		word := "wylaczonych";
+	endif
+	
+	SendSysMessage(who, i + " run zostalo " + word, FONT_NORMAL, COLOR_GREEN);
+	
+endprogram
+			

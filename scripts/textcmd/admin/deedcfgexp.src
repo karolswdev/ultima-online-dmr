@@ -1,0 +1,141 @@
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cmds";
+
+
+//-----------------------------------------------------------------------------
+
+UnloadConfigFile(MDEEDS_CFG);
+var DCfg := ReadConfigFile(MDEEDS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program DeedCfgExport(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(text == "?")
+    SendSysMessage(who, ".deedcfgexp name [range/coords/trg]", FONT_NORMAL, COLOR_GREEN);
+    return 0;
+  endif
+
+  text := SplitWords(text);
+  
+  if(!DCfg)
+    SendSysMessage(who,"Konfig nie istnieje!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Name  := Text[1];
+  var Range := CInt(Text[2]);
+
+  if(DCfg[Name])
+    SendSysMessage(who, "Nazwa "+Name+" juz istnieje w configu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  
+  var Coords := {},Loc := {};
+  
+  if(CInt(Text[2]) and CInt(Text[3]) and CInt(Text[4]) and CInt(Text[5]))
+    Coords := {CInt(Text[2]),CInt(Text[3]),CInt(Text[4]),CInt(Text[5])};
+    Range  := 1;
+    Loc.+x := Coords[1];
+    Loc.+y := Coords[2];
+    Loc.+z := 0;
+  elseif(Text[2] == "trg")
+    var Targ := LocTarget(who);
+    
+    if(!Targ)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    Coords.append(Targ.x);
+    Coords.append(Targ.y);
+
+    Targ := LocTarget(who);
+
+    if(!Targ)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    Coords.append(Targ.x);
+    Coords.append(Targ.y);
+
+    Range  := 1;
+    Loc.+x := Coords[1];
+    Loc.+y := Coords[2];
+    Loc.+z := 0;
+  endif
+  
+  if(!Name or !Range)
+    SendSysMessage(who,".deedcfgexp name range",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!Coords.size())
+    SendSysMessage(who,"Wybierz srodek.",FONT_NORMAL,COLOR_GREEN);
+    Loc := LocTarget(who);
+    if(!Loc)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    Coords := {Loc.x-Range,Loc.y-Range,Loc.x+Range,Loc.y+Range};
+  endif
+
+  var MainElem := array;
+  var Elem     := array;
+  var Num      := 0;
+  var Desc;
+  
+  Elem.+pname  := "Realm";
+  Elem.+pvalue := who.realm;
+  MainElem.append(Elem);
+  
+  foreach Item In ListObjectsInBox(Coords[1],Coords[2],-127,Coords[3],Coords[4],127,who.realm)
+    if(Item.isa(POLCLASS_ITEM))
+      Desc := MakeDesc(Item);
+      Elem.pname  := "Item";
+      Elem.pvalue := hex(Item.objtype)+" "+hex(item.color)+" "+hex(item.graphic)+" "+Desc+" "+CInt(Item.x-Loc.x)+" "+CInt(Item.y-Loc.y)+" "+CInt(Item.z-Loc.z);
+      MainElem.append(Elem);
+      Num := Num + 1;
+    endif
+  endforeach
+  
+  var Multis := 0;
+
+  foreach Multi In ListMultisInBox(Coords[1],Coords[2],-127,Coords[3],Coords[4],127,who.realm)
+    if(Multi.isa(POLCLASS_MULTI))
+      Elem.pname  := "Multi";
+      Elem.pvalue := hex(Multi.objtype)+" "+CInt(Multi.x-Loc.x)+" "+CInt(Multi.y-Loc.y)+" "+CInt(Multi.z-Loc.z);
+      MainElem.append(Elem);
+      Multis := Multis + 1;
+    endif
+  endforeach
+
+  if(Num)
+    AppendConfigFileElem(MDEEDS_CFG,"DeedParts",Name,MainElem);
+    SendSysMessage(who,"Dodano "+num+" przedmiotow, "+Multis+" multi, Nazwa - "+Name+".",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie ma przedmiotow w poblizu.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MakeDesc(Item)
+
+  var Desc := CutDesc(item.desc);
+  
+  while(Desc[" "])
+    Desc[" "] := "_";
+  endwhile
+  
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------

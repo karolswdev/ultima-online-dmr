@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use http;
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include ":weather:weather";
+
+//-----------------------------------------------------------------------------
+
+WriteMain();
+
+//-----------------------------------------------------------------------------
+
+function WriteMain()
+
+  var Time   := PolCore().uptime;
+  var Status := GetServerStatus();
+  var Online := GetOnlineNum();
+
+  var tDay  := CInt(Time / 86400);
+  var tHour := CInt((Time - (tDay * 86400)) / 3600);
+  var tMin  := CInt((Time - (tDay * 86400) - (tHour * 3600)) / 60);
+  var tSec  := CInt((Time - (tDay * 86400) - (tHour * 3600) - (tMin * 60)));
+
+  if(tHour < 10)
+    tHour := "0"+tHour;
+  endif
+
+  if(tMin < 10)
+    tMin := "0"+tMin;
+  endif
+
+  if(tSec < 10)
+    tSec := "0"+tSec;
+  endif
+
+  case(Status)
+    1:       WriteHtml("UP");
+    2:       WriteHtml("RESTART");
+    default: WriteHtml("DOWN");
+  endcase
+
+  WriteHtml(tDay+" "+tHour+" "+tMin+" "+tSec);
+  WriteHtml(CStr("Nie wiadomo"));
+  WriteHtml(CStr(GetCurrentSeason()));
+  WriteHtml(CStr(IsNightLight()));
+
+endfunction

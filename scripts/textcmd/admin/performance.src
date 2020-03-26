@@ -1,0 +1,21 @@
+use uo;
+use os;
+
+program textcmd_performance(who)
+
+	var result := PerformanceMeasure();
+	var scripts := result.scripts;
+	
+	SendSysMessage(who, "Total number observed: " + result.total_number_observed);
+	
+	SendSysMessage(who, "Scripts running at high level...");
+
+	SendSysMessage(who, "POLCore uptime is: " + POLCore().uptime);
+		
+	foreach res in scripts
+		syslog(res.name + " - " + res.percent + "% of all instructions");
+		print(res.name + " - " + res.percent + "% of all instructions");
+	endforeach	
+	
+
+endprogram

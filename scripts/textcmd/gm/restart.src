@@ -1,0 +1,66 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+include "include/gumpboxes";
+include "include/cmds/cancmd";
+include "include/msgs";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program RestartNpcScriptCmd(who, Range)
+
+  if(!CanUseCmd(who, "restart"))
+    return;
+  endif
+
+  Range := CInt(Range);
+
+  if(!Range)
+
+    SendSysMessage(who, "Wskaz npeca.", FONT_NORMAL, COLOR_GREEN);
+
+    var Npc := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+    if(!Npc.isa(POLCLASS_NPC))
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    var Res := RestartScript(Npc);
+    if(!Res)
+      SendSysMessage( who, "Blad: " + res.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who, "Zrestartowal"+ggm(who,3)+" skrypt npeca "+Npc.name+".", FONT_NORMAL, COLOR_GREEN);
+    endif
+  
+  else
+    var Res,n := 0;
+
+    if(Range > 50)
+      SendSysMessage(who, "Zasieg wiekszy od 50: "+Range+".", FONT_NORMAL, COLOR_GREEN);
+      if(!YesNo(who, "Na pewno?"))
+        return;
+      endif
+    endif
+
+    foreach Npc in ListObjectsInBox(who.x - Range, who.y - Range, -127, who.x + Range, who.y + Range, 127, who.realm)
+      if(Npc.isa(POLCLASS_NPC))
+        Res := RestartScript(Npc);
+        if(!Res)
+          SendSysMessage( who, Npc.name+" Blad: " + res.errortext, FONT_NORMAL, COLOR_RED);
+        else
+          n := n + 1;
+        endif
+      endif
+    endforeach
+
+    SendSysMessage(who, "Zrestartowal"+ggm(who,3)+" skrypty "+n+" npecom.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

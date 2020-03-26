@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 38;
+
+//-----------------------------------------------------------------------------
+
+program PdHeavenFavor(Parms)
+
+  WarCast(Parms, PD_WCID, 0, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  var Amt := CInt(GetMana(Caster));
+
+  if(CastOn.criminal or CastOn.murderer)
+    WcFizzleId(Caster, "Nie uda Ci sie wyleczyc tego!", PD_WCID);
+    return 0;
+  endif
+
+  if(GetHp(CastOn) < GetMaxHp(CastOn))
+    GainWarcastPoints(Caster, CastOn, PD_WCID, WCGAIN_DEFENSIVE);
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_HEAL);
+  PlayPcEffect(CastOn, FX_HEAL_EFFECT, 85, 0xf, 0x12, 3);
+  HealMobile(CastOn, Amt, Caster);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

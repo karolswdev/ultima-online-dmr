@@ -1,0 +1,13 @@
+use uo;
+use os;
+
+include "include/attributes/main";
+include "include/attributes/stats";
+include "include/attributes/skills";
+
+program TextCmd_Attr(who)
+
+    SendSysMessage(who, "BASE STRENGTH: " + GetBaseStrength(who));
+    SendSysMessage(who, "BASE Skill: " + GetBaseSkillBaseValue(who, 2));
+
+endprogram

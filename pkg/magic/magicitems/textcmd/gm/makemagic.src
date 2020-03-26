@@ -1,0 +1,173 @@
+//-----------------------------------------------------------------------------
+
+include "../../magicitems";
+include "include/gumps";
+include "include/checks/objchecks";
+include "include/client/fonts";
+include "include/cmds/cancmd";
+
+include ":character:creation_gumps";
+
+//-----------------------------------------------------------------------------
+
+program TextCmdMakeItemMagic(who)
+
+  if(!CanUseCmd(who, "makemagic"))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var Item := LocTarget(who);
+
+  Item := Item.item;
+  if(!StandardItemCheck(who,item,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  if(!CanBeMagicItem(Item))
+    SendSysMessage(who,"Ten przedmiot nie moze byc magiczny!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(IsMagicItem(item))
+    SendSysMessage(who,"Ten przedmiot jest juz magiczny!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var MagicMods := GetMagicModsType(item);
+
+  if(ItemCfg[item.objtype].CanBeMagicWeapon)
+    MagicMods.suffix.append(MAGICMOD_SKILLMOD + FindSkillidByIdentifier(ItemCfg[item.objtype].Attribute));
+  elseif(ItemCfg[item.objtype].CanBeMagicArmor)
+    MagicMods.suffix.append(MAGICMOD_SKILLMOD + SKILLID_PARRY);
+  elseif((ItemCfg[item.objtype].CanBeMagicCloth or ItemCfg[item.objtype].CanBeMagicJews))
+    if(!(MAGICMOD_SK_RAND_ALL in (MagicMods.suffix)))
+      MagicMods.suffix.append(MAGICMOD_SK_RAND_ALL);
+    endif
+  else
+    SendSysMessage(who, "Ten przedmiot nie moze byc magiczny.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!MagicMods)
+    SendSysMessage(who,"Nie mozna bylo znalezc magicznych modow dla tego przedmiotu!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Rad := 2;
+  var Res := 0;
+  var SkID := error;
+
+  while(IsLoggedIn(who) and !Res)
+
+    GInit(30,30);
+    GResPic(0,0,3600,500,350);
+    GTextLine(100,30,650,"Tworzenie magicznego przedmiotu");
+    GTextLine(100, 300, 540, "Magic Lvl");
+    GResPic(174,297, 0xBB8, 50,25);
+    GTextEntry(180,300, 20, 20, 550, 30, "");
+    GButton( 330, 305, 2129, 2130, 1 );
+    GButton( 390, 305, 2120, 2121, 2 );
+    
+    var i := 1;
+
+    GSetRadioGroup(1);
+    foreach Mod in (MagicMods.prefix)
+      GRadioButton(50, (30+(i*30)), 2714, 2715, Rad);
+      GTextLine(70,  (30+(i*30)), 640, GetPrefixName(item,Mod));
+      i := i + 1;
+      Rad := Rad + 1;
+    endforeach
+
+    i := 1;
+    GSetRadioGroup(2);
+    foreach Mod in (MagicMods.suffix)
+      GRadioButton(250, (30+(i*30)), 2714, 2715, Rad);
+      GTextLine(270,  (30+(i*30)), 640, GetSuffixName(Mod));
+      i := i + 1;
+      Rad := Rad + 1;
+    endforeach
+
+    if(ItemCfg[item.objtype].CanBeMagicCloth or ItemCfg[item.objtype].CanBeMagicJews)
+      GRadioButton(250, (30+(i*30)), 2714, 2715, 1000);
+      if(SkID != error)
+        GTextLine(270,  (30+(i*30)), 640, "Umiejetnosc "+GetSkillConfigElem(SkID).Name);
+      else
+        GTextLine(270,  (30+(i*30)), 640, "Wybierz umiejetnosc");
+      endif
+    endif
+
+    res := GSend(who);
+
+    if(!res[0] or res[0] == 2)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+  endwhile
+
+  
+  var Pref,Suff,i;
+  for(i:=2;i<=len(MagicMods.prefix)+1;i:=i+1)
+    if(res[i])
+      Pref := MagicMods.prefix;
+      Pref := Pref[i-1];
+      SendSysMessage(who,"Prefix : "+GetPrefixName(item,Pref),FONT_NORMAL,COLOR_GREEN);
+      break;
+    endif
+  endfor
+
+  if(res[1000])
+    var SkID := ChooseSkillForMagic(who);
+
+    if(SkID == error)
+      SendSysMessage(who,"Nie wybral"+ggm(who,3)+" umiejetnosci!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    Suff := MAGICMOD_SKILLMOD + SkID;
+
+  else
+    for(i:=(len(MagicMods.prefix)+2);i<=(len(MagicMods.prefix)+len(MagicMods.suffix)+2);i:=i+1)
+      if(res[i])
+        Suff := MagicMods.suffix;
+        Suff := Suff[i-len(MagicMods.prefix)-1];
+        SendSysMessage(who,"Suffix : "+GetSuffixName(Suff),FONT_NORMAL,COLOR_GREEN);
+        break;
+      endif
+    endfor
+  endif  
+  MagicMods.prefix := Pref;
+  MagicMods.suffix := Suff;
+
+  var MagicLvl := CInt(CroppedId(res[30]));
+  if(!MagicLvl)
+    SendSysMessage(who,"Nie wpisales magicznego lvlu!",FONT_NORMAL,COLOR_RED);
+    return;
+
+  elseif(MagicLvl >= 1 and MagicLvl <= CInt(MAX_MAGIC_LVL-5))
+    SendSysMessage(who,"Magiczny Level : "+MagicLvl,FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Za duzy/maly magiczny lvl [1-"+(MAX_MAGIC_LVL-5)+"]!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  MakeItemMagic(item,MagicLvl,MagicMods);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ChooseSkillForMagic(who)
+
+  var Data := struct;
+  Data.cfgClass := 0;
+  Data.ClassId := 0;
+
+  var SkID  := SelectClassSkillGump(who, Data, 0, 1);
+
+  return SkID;
+
+endfunction
+
+//-----------------------------------------------------------------------------

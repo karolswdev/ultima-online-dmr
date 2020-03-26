@@ -1,0 +1,16 @@
+use uo;
+use os;
+use storage;
+
+include "include/items";
+include ":goqauction:auction";
+include ":poczta:mailextensions";
+
+program performAuctionDecay()
+
+    while(1)
+        sleep(120);
+        AuctionDecay();
+    endwhile
+    
+endprogram

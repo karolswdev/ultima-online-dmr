@@ -1,0 +1,98 @@
+//--------------------------------------------------------------------
+
+include "include/gumps";
+include "include/cmds/misc";
+include "include/items";
+
+//--------------------------------------------------------------------
+
+program Stats(who,text)
+
+  var select := SelectStatsKind(who);
+  var stats;
+  var data;
+  
+  case(select)
+    
+    1: stats := GetGlobalProperty("DonationStatsItems");
+       SetItemsStats(stats,data);
+       break;
+         
+    2: stats := GetGlobalProperty("DonationStatsPlayers");
+       SetPlayersStats(stats,data);
+       break;
+         
+    default: 
+       SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+       return;
+  endcase
+  if (!data or !stats)
+    SendSysMessage(who,"Te statystyki sa puste!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  ShowStats(who,data);
+  return;
+      
+    
+endprogram
+
+//--------------------------------------------------------------------
+
+function SelectStatsKind(who)
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,200,170);
+  GTextLine(20,30,1150,"Wybierz rodzaj statystyk:");
+  GButton(20,60, 2714, 2715, 1);
+  GTextLine(50,60, 1152, "Przedmioty");
+  GButton(20, 90, 2714, 2715, 2);
+  GTextLine(50,90, 1152, "Gracze");
+  
+  return GSend( who )[0];
+endfunction
+
+//--------------------------------------------------------------------
+
+function SetItemsStats(stats,byref data);
+  data := array;
+  var keys := stats.keys();
+  foreach key in keys
+    var name := GetDescForItem(key);
+    var amount := stats[key];
+    var item := {name,amount};
+    data.append(item);
+  endforeach
+endfunction
+
+//--------------------------------------------------------------------
+
+function SetPlayersStats(stats,byref data);
+  data := array;
+  var keys := stats.keys();
+  foreach key in keys
+    var name := key;
+    var amount := stats[key];
+    var object := {name,amount};
+    data.append(object);
+  endforeach
+endfunction
+
+//--------------------------------------------------------------------
+
+function ShowStats(who,data)
+  
+  GInit(30,30);
+  GResPic(0,0,3600,340,400);
+  GPage();
+  GAddPageData(305,16,2650,2651,305,365,2648,2647);
+  GTextLine(20,30,1150,"Statystyki dotacji:");
+  foreach object in data
+    GCheckNextPage(20);
+    GTextLine(20,60+GNPCount()*15, 1152, object[1]+" Liczba wystapien: "+object[2]);
+  endforeach
+  GSend( who );
+  return;
+endfunction
+ 
+    
+  

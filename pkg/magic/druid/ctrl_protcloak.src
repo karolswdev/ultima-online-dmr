@@ -1,0 +1,22 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+program DruidCloakControl (cloak)
+
+  sleep (10);
+  var duration := 300;
+
+  if (GetObjProperty (cloak, "duration"))
+    duration := GetObjProperty (cloak, "duration");
+  endif
+
+  sleep (duration);
+  DestroyItem (cloak);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,22 @@
+
+include "include/client/fonts";
+include "include/tempmods";
+
+//--------------------------------
+
+
+program fastwalk(who)
+
+  if(CanMod(who, MOD_RUN_SPEED))
+    if(GetEquipmentByLayer(who, LAYER_MOUNT))
+      SendSysMessage(who, "Jestes na mountcie, musisz zejsc z niego!", FONT_NORMAL, COLOR_RED);
+    else
+      DoMod(who, MOD_RUN_SPEED, RUNSPEED_FAST, 259200); //3 dni 
+      SendSysMessage(who, "Od teraz bedziesz poruszac sie z predkoscia konia.", FONT_NORMAL, COLOR_BLUE);
+    endif
+  else
+    UndoMod(who, MOD_RUN_SPEED);
+    SendSysMessage(who, "Od teraz nie bedziesz poruszac sie z predkoscia konia.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endprogram

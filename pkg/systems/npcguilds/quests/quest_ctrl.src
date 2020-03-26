@@ -1,0 +1,1617 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-24
+//-----------------------------------------------------------------------------
+
+include "include/loots";
+include "include/unicode";
+include "include/bits";
+include "include/coords";
+include "include/npcs";
+include "include/dirs";
+include "include/portals";
+
+include ":crafting:common";
+include ":quests:quests";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+// Create Quest Item Flags
+//-----------------------------------------------------------------------------
+
+const QCRIF_EXPTIME_LONGER   := 0x00000001;
+const QCRIF_CR_CONT          := 0x00000002;
+const QCRIF_CHK_LOCKPICK     := 0x00000004;
+const QCRIF_CONT_OBJTYPE     := 0x00000008;
+const QCRIF_NO_NAME          := 0x00000010;
+const QCRIF_NO_COLOR         := 0x00000020;
+
+const QUEST_SKILL_GAIN       := 500;
+
+//-----------------------------------------------------------------------------
+
+var QCrData, Ticket, Source, _Player, User, ev;
+var Targ   := 0;
+var Guards := array;
+var TicketSer;
+var gQuester := 0;
+
+//-----------------------------------------------------------------------------
+
+program QuestControl(_Ticket)
+
+  sleepms(500+RandomInt(1000));
+
+  Ticket    := _Ticket;
+  TicketSer := Ticket.serial;
+  gQuester  := FindPlayerBySerial(GetObjProperty(Ticket, QTPROP_QUESTER_SERIAL));
+
+  if(!Ticket)
+    LogError("QuestControl: Bledny bilet: "+Ticket, LOGF_SCRIPTS);
+    return;
+  endif
+
+  QCrData := GetObjProperty(Ticket, QGPROP_QCRINFO);
+
+  if(!QCrData)
+    LogError("QuestControl: Bilet "+Ticket.serial+" nie posiada info o Quescie: "+QCrData, LOGF_SCRIPTS);
+    return;
+  endif
+
+  CheckQuestWithNoTargCreation();
+
+  SetObjProperty(Ticket, QTPROP_CTRLPID, GetPid());
+
+  var NextCheck := ReadGameClock();
+
+  while(Ticket)
+    if(GetObjProperty(Ticket, QTPROP_CTRLPID) != GetPid())
+      return;
+    endif
+
+    if(QCrData.Player)
+      if(!_Player)
+        _Player := FindPlayerBySerial(QCrData.Player);
+        if(!_Player)
+          QCrData.Player := 0;
+          SaveQCrData();
+        endif
+      endif
+    endif
+
+    if(QCrData.Source)
+      if(!Source)
+        Source := FindPlayerBySerial(QCrData.Source);
+        if(!Source)
+          QCrData.Source := 0;
+          SaveQCrData();
+        endif
+      endif
+    endif
+
+    if(!CheckExpire())
+      QuestExpire();
+      break;
+    endif
+
+    if(GetObjProperty(Ticket, QTPROP_TRUN))
+      if(!(QCrData.Flags & QF_COMPLETED) and !(QCrData.Stages[QCrData.CurStage].Flags & QSTF_FAILED))
+        User := GetTopCont(Ticket).container;
+        if(IsPlayer(User))
+          ShowQuestArrow(User);
+          if(!ProcessQuestEvent())
+            if(!User.dead)
+              CheckQuestMovement();
+            endif
+          endif
+        else
+          CloseQuestArrow();
+        endif
+      else
+        CloseQuestArrow();
+      endif
+    else
+      CloseQuestArrow();
+    endif
+
+    ev := wait_for_event(5);
+    if(!ProcessOtherEvents())
+      break;
+    endif
+
+    if(NextCheck <= ReadGameClock())
+      // to specjalny drut dla LOOTNPC, poniewaz ten etap konczy sie dopiero jak item zostanie zebrany. 
+      // Nie chce tutaj hookowac akcji onRemove z containera, wiec po prostu co 15s dla tego typu sprawdza, czy gosc ma item czy nie
+      if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_TAKE and QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_LOOTNPC)
+        CheckQuestCompletion();
+      endif
+      NextCheck := ReadGameClock() + 15;      
+    endif
+  endwhile
+
+  if(!Ticket)
+    if(User)
+      RemoveQuestTicketSerial(User, TicketSer);
+    endif
+    FailQuest();
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckExpire()
+
+  return (QCrData.CrGTime + QCrData.MaxTime > ReadGameClock());
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function QuestExpire()
+
+  if(!(QCrData.Flags & QF_COMPLETED) and !(QCrData.Flags & QF_FAILED))
+    if(!User)
+      User := GetTopCont(Ticket).container;
+    endif
+
+    if(IsPlayer(User))
+      SendSysMessage(User, "Czas zadania minal...", FONT_NORMAL, COLOR_RED+1);
+    endif
+  endif
+
+  DestroyItem(Ticket);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitValues()
+ 
+  Targ   := 0;
+  Guards := array;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessQuestEvent()
+
+  if(ev.eId)
+
+    case(ev.eId)
+      EVQID_NPC_SPEECH:      CheckQuestNpcSpeech();
+      EVQID_ITEM_USE:        CheckItemUse();
+      EVQID_PLAYER_DEATH:    CheckPlayerDeath();
+      EVQID_ITEM_CREATE:     CheckItemCreation();
+      EVQID_HARVEST:         CheckItemHarvest();
+      EVQID_SKILL:           CheckQuestSkill();
+      EVQID_SET_NPCNAME:     SetQuestStageNpcName();
+      EVQID_NPC_DEATH:       CheckNpcDeath();
+      EVQID_QUEST_ARROW:     VerifyQuestArrow();
+      default:               return 0;
+    endcase
+  
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessOtherEvents()
+
+  if(ev.eId)
+
+    case(ev.eId)
+      EVQID_STOP:            return 0;
+      EVQID_FINISH:          FinishQuest();
+      EVQID_RESET:           ResetQuest();
+    endcase
+
+  endif
+
+  return 1;
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quest Checking
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function CheckQuestMovement()
+
+  if(!QCrData.CurStage)
+    return;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Flags & QSTF_COMPLETED)
+    return;
+  endif
+
+  if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_TARG_CREATED))
+    if(CloseQuestDistance())
+      if(CrQuestGuards())
+        CrQuestTarget();
+      endif
+    endif
+  else
+    CheckQuestCompletion();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestWithNoTargCreation()
+
+  if(!QCrData.CurStage)
+    return;
+  endif
+
+  case(QCrData.Stages[QCrData.CurStage].Type)
+    QTYPE_CREATE:
+    QTYPE_HARVEST:  SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+                    SaveQCrData();
+                    return;
+  endcase
+
+  case(QCrData.Stages[QCrData.CurStage].SubType)
+    QSTYPE_EXNPC:
+    QSTYPE_PLAYER:
+    QSTYPE_HOUSE:   SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+                    SaveQCrData();
+                    return;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestCompletion()
+
+  if(_Player and _Player != User)
+    return 0;
+  endif
+
+  if(IsBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED))
+    FailQuest();
+    return 0;
+  endif
+
+  if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_TARG_COMPLETED))
+    case(QCrData.Stages[QCrData.CurStage].Type)
+      QTYPE_KILL:        if(CheckQuestTargetNpc())
+                           SendBad(User, "Stworzenie, ktore mial"+ggm(User,3)+" zabic, zostalo juz zabite przez kogos innego!");
+                           SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                         endif
+
+      QTYPE_TAKE:        case(QCrData.Stages[QCrData.CurStage].SubType)
+                           QSTYPE_LOOTNPC:   if(QCrData.Stages[QCrData.CurStage].Targ.ItemSerial)
+                                               var Item := FindItemBySerial(QCrData.Stages[QCrData.CurStage].Targ.ItemSerial);
+
+                                               if(!Item)
+                                                 SendBad(User, "Przedmiot, ktory byl do zabrania nie istnieje juz!");
+                                                 SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                                               elseif(GetTopCont(Item) != User.backpack)
+                                                 return 0;
+                                               else
+                                                 SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+                                               endif
+                                             endif
+
+                           QSTYPE_ITEM:
+                           QSTYPE_LOCKTAKE:  if(CheckQuestTargetItem())
+                                               SendBad(User, "Przedmiot, ktory byl do zabrania nie istnieje juz!");
+                                               SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                                             endif
+                         endcase
+
+      QTYPE_DESTROY:     if(CheckQuestTargetItem())
+                           SendBad(User, "Przedmiot, ktory byl do zniszczenia nie istnieje juz!");
+                           SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                         endif
+
+      QTYPE_RESCUE:      if(CheckQuestTargetNpc())
+                           SendBad(User, "Osoba, ktora mial"+ggm(User,3)+" uratowac, nie zyje!!");
+                           SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                         else
+                           if(!Targ)
+                             Targ := FindNpcBySerial(QCrData.Stages[QCrData.CurStage].Targ.Serial);
+                           endif
+                           CompQuestRescueNpc(Targ);
+                         endif
+
+      QTYPE_LOCKPICK:    if(CheckQuestTargetItem())
+                           SendBad(User, "Przedmiot, do ktorego mial"+ggm(User,3)+" sie wlamac, nie istnieje!");
+                           SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                         endif
+
+      QTYPE_TAME:        if(CheckQuestTargetNpc())
+                           SendBad(User, "Zwierze, ktore mial"+ggm(User,3)+" oswoic, nie zyje!");
+                           SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+                         endif
+    endcase
+  endif
+
+  if(IsBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED))
+    FailQuest();
+    return 0;
+  endif
+
+  if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_TARG_COMPLETED))
+    return 0;
+  endif
+
+  if(!CheckQuestGuardsKilled())
+    return 0;
+  endif
+
+  CompleteQuestStage();
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CloseQuestDistance()
+  
+  case(QCrData.Stages[QCrData.CurStage].SubType)
+    QSTYPE_NPC:   
+    QSTYPE_ITEM:  
+    QSTYPE_LOOTNPC:
+    QSTYPE_LOC:  
+    QSTYPE_LOCKTAKE:  return IsCloseDistance();
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifyQuestArrow()
+
+  if(!GetObjProperty(Ticket, QTPROP_QUEST_ARROW))
+    CloseQuestArrow();
+    return;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuestArrow(Player)
+
+  if(!GetObjProperty(Ticket, QTPROP_QUEST_ARROW))
+    CloseQuestArrow();
+    return;
+  endif
+
+  if(!Player)
+    return;
+  endif
+
+  var dstLoc := GetDestinationLoc();
+
+  if(!CanShowQuestArrow(Player, dstLoc))
+    CloseQuestArrow();
+    return;
+  endif
+
+  gQuester := Player;
+  SetObjProperty(Ticket, QTPROP_QUESTER_SERIAL, gQuester.serial);
+  SendQuestArrow(gQuester, dstLoc.x, dstLoc.y);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetDestinationLoc()
+
+  var dstLoc := QCrData.Stages[QCrData.CurStage].Loc;
+  var Npc := 0;
+
+  case(QCrData.Stages[QCrData.CurStage].SubType)
+    QSTYPE_ITEM:  
+    QSTYPE_LOOTNPC:
+    QSTYPE_LOC:
+    QSTYPE_LOCKTAKE:  ;
+
+    QSTYPE_NPC:
+    QSTYPE_EXNPC:     Npc := FindNpcBySerial(QCrData.Stages[QCrData.CurStage].Targ.Serial);
+    QSTYPE_FROMNPC:   Npc := FindNpcBySerial(QCrData.Stages[QCrData.CurStage].Targ.NpcSerial);
+  endcase
+
+  if(Npc)
+    dstLoc := Npc;
+  endif
+
+  return dstLoc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanShowQuestArrow(who, Loc)
+
+  if(who.realm != Loc.realm)
+    return 0;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Flags & QSTF_TARG_COMPLETED)
+    return 0;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Flags & QSTF_GUARDS_CREATED)
+    return 0;
+  endif
+
+  case(QCrData.Stages[QCrData.CurStage].SubType)
+    QSTYPE_NPC:   
+    QSTYPE_EXNPC:
+    QSTYPE_FROMNPC:
+    QSTYPE_ITEM:  
+    QSTYPE_LOOTNPC:
+    QSTYPE_LOC:
+    QSTYPE_LOCKTAKE:  return 1;
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CloseQuestArrow()
+
+  if(gQuester)
+    SendQuestArrow(gQuester);
+    gQuester := 0;
+    EraseObjProperty(Ticket, QTPROP_QUESTER_SERIAL);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsCloseDistance()
+
+  if(coordist(QCrData.Stages[QCrData.CurStage].Loc.x, QCrData.Stages[QCrData.CurStage].Loc.y, User.x, User.y) < QUEST_MIN_CRRANGE)
+    if(User.realm == QCrData.Stages[QCrData.CurStage].Loc.realm)
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestTargetNpc()
+
+  if(!Targ)
+    Targ := FindNpcBySerial(QCrData.Stages[QCrData.CurStage].Targ.Serial);
+    if(!Targ)
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestTargetItem()
+
+  if(!Targ)
+    Targ := FindItemBySerial(QCrData.Stages[QCrData.CurStage].Targ.Serial);
+    if(!Targ)
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestNpcSpeech()
+
+  if(QCrData.Flags & QF_COMPLETED or !QCrData.CurStage)
+    return;
+  endif
+
+  case(QCrData.Stages[QCrData.CurStage].Type)
+
+    QTYPE_TAKE:    if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_FROMNPC)
+                     if(ev.Object.serial == QCrData.Stages[QCrData.CurStage].Targ.NpcSerial)
+                       CompQuestFromNpc();
+                     endif
+                   endif
+
+    QTYPE_RESCUE:  if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_NPC)
+                     if(ev.Object.serial == QCrData.Stages[QCrData.CurStage].Targ.Serial)
+                       TurnCharToward(ev.Object, ev.source);
+
+                       if(_Player and _Player != ev.source)
+                         PrintTextAbove(ev.Object, "*hmm*");
+                       else
+                         CompQuestRescueNpc(ev.Object);
+                       endif
+                     endif
+                   endif
+
+    QTYPE_GOTO:    if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_EXNPC)
+                     if(ev.Object.serial == QCrData.Stages[QCrData.CurStage].Targ.Serial)
+                       CompQuestGotoNpc();
+                     endif
+                   endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckNpcDeath()
+
+  if(!ev.Object.isa(POLCLASS_CORPSE))
+    return;
+  endif
+
+  if(IsNpcKilledByPlayer())
+    if(IsNpcDeathStage())
+      if(!IsSetFlag(ev.Object, NPCF_GUARD_KILL))
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+        SaveQCrData();
+        CheckQuestCompletion();
+        return;
+      endif
+    endif
+  endif
+
+  var AiSerial := GetObjProperty(ev.Object, PROP_AISERIAL);
+
+  if(!AiSerial)
+    return;
+  endif
+
+  foreach Guard in (QCrData.Stages[QCrData.CurStage].Guards)
+    if(Guard.Serial == AiSerial)
+      if(IsNpcKilledByPlayer())
+        Guard.Serial := 0;
+        SaveQCrData();
+      else
+        SendSysMessage(User, "Nie udalo Ci sie zakonczyc zadania. Jeden ze straznikow zostal zgladzony przez kogos innego...", FONT_NORMAL, COLOR_RED+1);
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+        SaveQCrData();
+        FailQuest();
+      endif
+      break;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsNpcKilledByPlayer()
+
+  var Killer := GetLastHitter(ev.Object);
+
+  if(!Killer or Killer == ev.Object)
+    return 1;
+  endif
+
+  if(IsTamed(Killer))
+    if(!IsPlayer(GetMaster(Killer)))
+      return 0;
+    endif
+  elseif(!WasTamed(Killer) and !IsPlayer(Killer)) // jak mob byl juz tamowany to moze zabic - aby gracze nie mieli mozliwosci psucia zadan uwalniajac moby.
+    if(Killer.script != "killany") //ostrza lub wir energii moga zabic moba.
+      return 0;
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsNpcDeathStage()
+
+  case(QCrData.Stages[QCrData.CurStage].Type)
+    QTYPE_KILL: if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_NPC)
+                  return GetObjProperty(ev.Object, PROP_AISERIAL) == QCrData.Stages[QCrData.CurStage].Targ.Serial;
+                endif
+
+    /*QTYPE_TAKE: if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_LOOTNPC)
+                  return GetObjProperty(ev.Object, PROP_AISERIAL) == QCrData.Stages[QCrData.CurStage].Targ.NpcSerial;
+                endif*/
+  endcase
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPlayerDeath()
+
+  if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_KILL and QCrData.Stages[QCrData.CurStage].Type == QSTYPE_PLAYER)
+    if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.serial)
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+      QCrData.Stages[QCrData.CurStage].Targ.Serial := 0;
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItemUse()
+
+  case(QCrData.Stages[QCrData.CurStage].Type)
+    QTYPE_DESTROY:   CheckItemDestroyed();
+
+    QTYPE_TAKE:      CheckItemTaken();
+
+    QTYPE_LOCKPICK:  if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.serial)
+                       if(QCrData.Stages[QCrData.CurStage].Flags & QSTF_TARG_COMPLETED)
+                         PrintTextAbove(ev.Object,"*otwarte*", FONT_NORMAL, COLOR_GREEN);
+                       else
+                         PrintTextAbove(ev.Object,"*zamkniete*", FONT_NORMAL, COLOR_RED);
+                       endif
+                     endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItemDestroyed()
+
+  if(_Player and User != _Player)
+    SendSysMessage(User, "Nie wydaje sie bys byl"+ggm(User,4)+" odpowiednia osoba by zniszczyc ten przedmiot.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_DESTROY and QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_ITEM)
+    if(ev.Object.serial == QCrData.Stages[QCrData.CurStage].Targ.Serial)
+      var ObjName := GetName(ev.Object);
+      var iX      := ev.Object.x;
+      var iY      := ev.Object.y;
+      var iZ      := ev.Object.z;
+      var iRlm    := ev.Object.realm;
+
+      if(!CheckQuestGuardsKilled())
+        SendSysMessage(User, "Ktos zdaje sie nadal strzeze tego przedmiotu!", FONT_NORMAL, COLOR_RED);
+      elseif(DestroyItem(ev.Object))
+        PlayStationaryEff( iX, iY, iZ, FX_EXPLODE_3, 7, 0x10, 0, iRlm );
+        PlaySoundEffect( User, SFX_SPELL_EXPLOSION );
+        SendSysMessage(User, "Zniszczyl"+ggm(User,3)+" przedmiot "+ObjName+".", FONT_NORMAL, COLOR_BLUE);
+        SetObjProperty(Ticket, QTPROP_LASTCOMP, ReadGameClock());
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+        CompleteQuestStage();
+      else
+        LogError("CheckItemDestroyed: Nie udalo sie zniszczyc przedmiotu Questa: "+QCrData.Id+", Bilet: "+Ticket.serial+" Obj: "+CStr(ev.Object)+"/"+CInt(ev.Object.serial)+" User: "+User.serial, LOGF_SCRIPTS);
+        SendSysMessage(User,"Jakas magiczna sila nie pozwala zniszczyc przedmiotu!", FONT_NORMAL, COLOR_RED);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItemTaken()
+
+  if(_Player and User != _Player)
+    SendSysMessage(User, "Nie wydaje sie byl"+ggm(User,4)+" odpowiednia osoba by wziac ten przedmiot.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_TAKE and QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_ITEM)
+    if(ev.Object.serial == QCrData.Stages[QCrData.CurStage].Targ.Serial)
+      if(!CheckQuestGuardsKilled())
+        SendSysMessage(User, "Ktos zdaje sie nadal strzeze tego przedmiotu!", FONT_NORMAL, COLOR_RED);
+      else
+        ev.Object.movable := 1;
+        if(MoveToPack(ev.Object, User))
+          PlaySoundEffect( User, 0x58 );
+          SendSysMessage(User, "Podniosl"+ggm(User,3)+" przedmiot "+GetName(ev.Object)+".", FONT_NORMAL, COLOR_BLUE);
+          SetObjProperty(Ticket, QTPROP_LASTCOMP, ReadGameClock());
+          SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+          CompleteQuestStage();
+        else
+          LogError("CheckItemTaken: Nie udalo sie wziac przedmiotu Questa: "+QCrData.Id+", Bilet: "+Ticket.serial+" Obj: "+CStr(ev.Object)+"/"+CInt(ev.Object.serial)+" User: "+User.serial, LOGF_SCRIPTS);
+          SendSysMessage(User,"Jakas magiczna sila nie pozwala wziac tego przedmiotu!", FONT_NORMAL, COLOR_RED);
+        endif
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetQuestSkillGain(byref Targ)
+
+  var Perc := GetMaterialModPercent(Targ.MatObjType);
+  var Gain := QUEST_SKILL_GAIN;
+
+  Gain += CInt(Gain * Perc);
+
+  if(Targ.Exp)
+    Gain += QUEST_SKILL_GAIN;
+  endif
+
+  return Gain;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItemCreation()
+
+  if(_Player and User != _Player)
+    return;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_CREATE and QCrData.Stages[QCrData.CurStage].SubType == GetQuestSubTypeFromSkID(ev.Type))
+    if(ev.Object[1].objtype == QCrData.Stages[QCrData.CurStage].Targ.ObjType)
+      if(!ev.Object[2] or ev.Object[2] == QCrData.Stages[QCrData.CurStage].Targ.MatObjType or !QCrData.Stages[QCrData.CurStage].Targ.MatObjType)
+        if((QCrData.Stages[QCrData.CurStage].Targ.Exp and ev.Object[1].desc[EXP_ITEM_NAME]) or !QCrData.Stages[QCrData.CurStage].Targ.Exp)
+          QCrData.Stages[QCrData.CurStage].Targ.Serial := ev.Object[1].serial;
+          SetObjProperty(Ticket, QTPROP_LASTCOMP, ReadGameClock());
+          SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+          SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+          var SkGain := GetQuestSkillGain(QCrData.Stages[QCrData.CurStage].Targ);
+          AwardPoints(User, ev.Type, SkGain, STAT_GAIN_ENHANCED | STAT_ALWAYS_GAIN, MinMax(CInt(SkGain/20), 5, 20));
+          CompleteQuestStage();
+        endif
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItemHarvest()
+
+  if(!ev.Object)
+    return;
+  endif
+
+  if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_HARVEST and QCrData.Stages[QCrData.CurStage].SubType == GetQuestSubTypeFromSkID(ev.Type))
+    if(ev.Object.objtype == QCrData.Stages[QCrData.CurStage].Targ.ObjType)
+      if(IsCloseDistance())
+        QCrData.Stages[QCrData.CurStage].Targ.Serial := ev.Object.serial;
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+        CompleteQuestTarget();
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompleteQuestTarget()
+ 
+  SetObjProperty(Ticket, QTPROP_LASTCOMP, ReadGameClock());
+  SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+  SaveQCrData();
+  CrQuestGuards();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestSkill()
+
+  if(!ev.Object)
+    return;
+  endif
+
+  case(QCrData.Stages[QCrData.CurStage].Type)
+
+    QTYPE_STEAL:           if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_PLAYER and ev.Type == SKILLID_STEALING)
+                             if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.serial)
+                               CompleteQuestTarget();
+                               QCrData.Stages[QCrData.CurStage].Targ.Serial := 0;
+                               return;
+                             endif
+                           endif
+
+    QTYPE_TAME:            if(QCrData.Stages[QCrData.CurStage].SubType == QSTYPE_NPC and ev.Type == SKILLID_TAMING)
+                             if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.serial)
+                               CompleteQuestTarget();
+                               return;
+                             endif
+                           endif
+
+    QTYPE_TAKE:            if(ev.Type == SKILLID_LOCKPICKING and ev.Object)
+                             case(QCrData.Stages[QCrData.CurStage].SubType)
+                               QSTYPE_LOCKTAKE: if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.serial)
+                                                  CompleteQuestTarget();
+                                                  return;
+                                                endif
+                             endcase
+                           endif
+
+    QTYPE_LOCKPICK:        if(ev.Type == SKILLID_LOCKPICKING and ev.Object)
+                             case(QCrData.Stages[QCrData.CurStage].SubType)
+                               QSTYPE_ITEM:     if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.serial)
+                                                  CompleteQuestTarget();
+                                                  return;
+                                                endif
+
+                               QSTYPE_HOUSE:    if(ev.Object.isa(POLCLASS_DOOR) and ev.Object.multi)
+                                                  if(QCrData.Stages[QCrData.CurStage].Targ.Serial == ev.Object.multi.serial)
+                                                    CompleteQuestTarget();
+                                                    return;
+                                                  endif
+                                                endif
+                             endcase
+                           endif
+
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckQuestGuardsKilled()
+
+  if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_GUARDS_KILLED))
+    if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_GUARDS))
+      return 1;
+    endif
+
+    if(QCrData.Stages[QCrData.CurStage].Flags & QSTF_GUARDS_CREATED)
+      var n;
+      for(n:=1;n<=QCrData.Stages[QCrData.CurStage].Guards.size();n:=n+1)
+        if(QCrData.Stages[QCrData.CurStage].Guards[n].Serial)
+
+          if(!Guards[n])
+            Guards[n] := FindNpcBySerial(QCrData.Stages[QCrData.CurStage].Guards[n].Serial);
+            if(!Guards[n])
+              QCrData.Stages[QCrData.CurStage].Guards[n].Serial := 0;
+            endif
+          endif
+
+          if(Guards[n])
+            return 0;
+          endif
+        endif
+      endfor
+
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_GUARDS_KILLED);
+      SaveQCrData();
+      return 1;
+    endif
+  else
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quest Creation
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function CrQuestTarget()
+
+  case(QCrData.Stages[QCrData.CurStage].SubType)
+    QSTYPE_NPC:      CrQuestTargetNpc();
+
+    QSTYPE_LOOTNPC:  CrQuestTargetLootNpc();
+
+    QSTYPE_ITEM:     case(QCrData.Stages[QCrData.CurStage].Type)
+                       QTYPE_LOCKPICK:  CrQuestTargetItem(QCRIF_CR_CONT | QCRIF_CHK_LOCKPICK);
+                       default:         CrQuestTargetItem();
+                     endcase
+
+    QSTYPE_LOC:      CrQuestTargetLoc();
+
+    QSTYPE_LOCKTAKE: CrQuestTargetLockTake();
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestTargetNpc()
+
+  Targ := CrQuestNpc();
+  if(Targ)
+    if(QCrData.Stages[QCrData.CurStage].Type == QTYPE_RESCUE)
+      Targ.frozen := 1;
+    endif
+
+    if(!MoveObject(Targ, QCrData.Stages[QCrData.CurStage].Loc.x, QCrData.Stages[QCrData.CurStage].Loc.y, QCrData.Stages[QCrData.CurStage].Loc.z, QCrData.Stages[QCrData.CurStage].Loc.realm, MOVEITEM_FORCELOCATION))
+      KillNPC(Targ);
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+      FailQuest();
+    else
+      if(QCrData.Stages[QCrData.CurStage].Type != QTYPE_RESCUE)
+        SendChEvent(Targ, User, EVID_ENGAGED);
+      endif
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+      QCrData.Stages[QCrData.CurStage].Targ.Serial := Targ.serial;
+      SaveQCrData();
+    endif
+  else
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+    FailQuest();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestTargetItem(Flags := 0)
+
+  Targ := CrQuestItem(Flags);
+
+  if(Targ)
+    if(!MoveObject(Targ, QCrData.Stages[QCrData.CurStage].Loc.x, QCrData.Stages[QCrData.CurStage].Loc.y, QCrData.Stages[QCrData.CurStage].Loc.z, QCrData.Stages[QCrData.CurStage].Loc.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE))
+      DestroyItem(Targ);
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+      FailQuest();
+    else
+      Targ.movable := 0;      
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+      QCrData.Stages[QCrData.CurStage].Targ.Serial := Targ.serial;
+      SaveQCrData();
+    endif
+  else
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+    FailQuest();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestTargetLockTake()
+
+  Targ := CrQuestItem(QCRIF_CR_CONT | QCRIF_CONT_OBJTYPE | QCRIF_NO_NAME | QCRIF_NO_COLOR | QCRIF_CHK_LOCKPICK);
+
+  if(Targ)
+    if(!MoveObject(Targ, QCrData.Stages[QCrData.CurStage].Loc.x, QCrData.Stages[QCrData.CurStage].Loc.y, QCrData.Stages[QCrData.CurStage].Loc.z, QCrData.Stages[QCrData.CurStage].Loc.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE))
+      DestroyItem(Targ);
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+      FailQuest();
+    else
+      Targ.movable := 0;
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+
+      var TargItem := CrQuestItem(QCRIF_EXPTIME_LONGER);
+
+      if(!TargItem)
+        DestroyItem(Targ);
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+        FailQuest();
+      elseif(!MoveItemToContainer(TargItem, Targ))
+        DestroyItem(TargItem);
+        DestroyItem(Targ);
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+        FailQuest();
+      else
+        QCrData.Stages[QCrData.CurStage].Targ.Serial     := Targ.serial;
+        QCrData.Stages[QCrData.CurStage].Targ.ItemSerial := TargItem.serial;
+        SaveQCrData();
+      endif
+    endif
+  else
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+    FailQuest();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestTargetLootNpc()
+
+  Targ := CrQuestNpc();
+
+  if(Targ)
+    if(!MoveObject(Targ, QCrData.Stages[QCrData.CurStage].Loc.x, QCrData.Stages[QCrData.CurStage].Loc.y, QCrData.Stages[QCrData.CurStage].Loc.z, QCrData.Stages[QCrData.CurStage].Loc.realm, MOVEITEM_FORCELOCATION))
+      KillNPC(Targ);
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+      FailQuest();
+      return;
+    endif
+
+    var Item := CrQuestItem(QCRIF_EXPTIME_LONGER);
+
+    if(Item)
+      Item.movable := 1;
+      Item.newbie  := 0;
+
+      if(!MoveToPack(Item, Targ))
+        LogError("CrQuestTargetLootNpc: Nie udalo sie przeniesc przedmiotu "+Item.objtype+"/"+Item.name+" do plecaka npeca "+Targ.name+"/"+Targ.serial, LOGF_SCRIPTS);
+        DestroyItem(Item);
+        SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+        FailQuest();
+        return;
+      endif
+    else
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+      FailQuest();
+    endif
+
+    SendChEvent(Targ, User, EVID_ENGAGED);
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+    QCrData.Stages[QCrData.CurStage].Targ.NpcSerial  := Targ.serial;
+    QCrData.Stages[QCrData.CurStage].Targ.ItemSerial := Item.serial;
+    SaveQCrData();
+
+  else
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+    FailQuest();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestTargetLoc()
+
+  if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_TARG_CREATED))
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestItem(Flags := 0)
+
+  var ObjType, Name, Color, Item, Graphic;
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  
+  if(Flags & QCRIF_CONT_OBJTYPE)
+    ObjType := QCrData.Stages[QCrData.CurStage].Targ.ContObjType;
+  else
+    ObjType := QCrData.Stages[QCrData.CurStage].Targ.ObjType;
+  endif
+
+  if(!ObjType)
+    LogError("CrQuestItem: Blednie wywolana komenda tworzenia przedmiotu, QuestID: "+QCrData.Id+" Bilet: "+Ticket.serial+" Targ: "+QCrData.Stages[QCrData.CurStage].Targ, LOGF_SCRIPTS);
+    return 0;
+  endif
+
+  if(Flags & QCRIF_NO_NAME)
+    Name := 0;
+  else
+    Name := QCrData.Stages[QCrData.CurStage].Targ.Name;
+  endif
+
+  if(Flags & QCRIF_NO_COLOR)
+    Color := 0;
+  else
+    Color := QCrData.Stages[QCrData.CurStage].Targ.Color;
+  endif
+
+  Graphic := ItemCfg[ObjType].Graphic;
+
+  if(Flags & QCRIF_CR_CONT)
+    Item := CreateItemAtTempLoc(UOBJ_QUESTCONT);
+  else
+    Item := CreateItemAtTempLoc(UOBJ_QUESTITEM);
+  endif
+
+  if(!Item)
+    LogError("CrQuestItem: Nie udalo sie stworzyc przedmiotu, QuestID: "+QCrData.Id+" Bilet: "+Ticket.serial, LOGF_SCRIPTS);
+    return Item;
+  endif
+
+  if(Flags & QCRIF_CHK_LOCKPICK)
+    var LockDiff := CInt(ItemCfg[ObjType].LockPickDiff);
+    if(!LockDiff)
+      LogError("CrQuestItem: Przedmiot ObjType: "+ObjType+" nie posiada LockPickDiff, QsID: "+QCrData.Stages[QCrData.CurStage].Id+" Bilet: "+Ticket.serial, LOGF_SCRIPTS);
+      DestroyItem(Item);
+      return 0;
+    else
+      SetObjProperty(Item, PROP_LOCKPICKDIFF, LockDiff);
+      Item.locked := 1;
+    endif
+  endif
+
+  if(Flags & QCRIF_EXPTIME_LONGER)
+    SetObjProperty(Item, QTPROP_ITEMEXPTIME, GetQuestItemExpTime(QCrData.Level) * 5);
+  else
+    SetObjProperty(Item, QTPROP_ITEMEXPTIME, GetQuestItemExpTime(QCrData.Level));
+  endif
+
+  if(!Name)
+    Name := GetDescForItem(ObjType);
+  endif
+
+  if(!Color)
+    Color := CInt(ItemCfg[ObjType].Color);
+  endif
+
+  if(!Graphic)
+    Graphic := ObjType;
+  endif
+
+  Item.graphic   := Graphic;
+  Item.color     := Color;
+  Item.invisible := 0;
+
+  if(Name)
+    SetName(Item, Name);
+  endif
+
+  return Item;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestNpc()
+
+  var Template := QCrData.Stages[QCrData.CurStage].Targ.Template;
+
+  if(!Template)
+    LogError("CrQuestNpc: Blednie wywolana komenda tworzenia npeca, QuestID: "+QCrData.Id+" Bilet: "+Ticket.serial+" Targ: "+QCrData.Stages[QCrData.CurStage].Targ, LOGF_SCRIPTS);
+    return 0;
+  endif
+
+  var Name     := QCrData.Stages[QCrData.CurStage].Targ.NpcName;
+  var Color    := QCrData.Stages[QCrData.CurStage].Targ.Color;
+  var Npc      := CreateNpcAtTempLoc(Template);
+
+  if(!Npc)
+    LogError("CrQuestNpc: Nie udalo sie stworzyc npeca, QuestID: "+QCrData.Id+" Bilet: "+Ticket.serial+" Npc: "+Npc, LOGF_SCRIPTS);
+    return Npc;
+  endif
+
+  if(!Name and Name != "" and Name != 0)
+    Name := QCrData.Stages[QCrData.CurStage].Targ.Name;
+  endif
+
+  if(Name)
+    SetName(Npc, Name);
+  endif
+
+  if(Color)
+    Npc.color := Color;
+  endif
+
+  SaveSkillSum(Npc);
+  SetObjProperty(Npc, QTPROP_QTSER, Ticket.serial);
+
+  return Npc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrQuestGuards()
+
+  if(QCrData.Stages[QCrData.CurStage].Flags & QSTF_GUARDS)
+    if(!(QCrData.Stages[QCrData.CurStage].Flags & QSTF_GUARDS_CREATED))
+      Guards := array;
+      var NewGuard;
+      var Loc;
+
+      if(GetStandZ(QCrData.Stages[QCrData.CurStage].Loc.x, QCrData.Stages[QCrData.CurStage].Loc.y, QCrData.Stages[QCrData.CurStage].Loc.realm, QCrData.Stages[QCrData.CurStage].Loc.z) == error)
+        Loc := User;
+      else
+        Loc := QCrData.Stages[QCrData.CurStage].Loc;
+      endif
+
+      foreach Guard in (QCrData.Stages[QCrData.CurStage].Guards)
+        NewGuard := CreateRpNpc(Guard.Template, Loc, Loc.realm, NPCF_MIN_LOOT, CRNPCF_NOMULTI);
+        if(!NewGuard)
+          LogError("CrQuestGuards: Nie udalo sie stworzyc straznika questu ID: "+QCrData.Id+", Loc: "+QCrData.Stages[QCrData.CurStage].Loc+", Temp: "+Guard.Template+", Bilet: "+Ticket.serial, LOGF_WORLD);
+          return 0;
+        endif
+
+        SendChEvent(NewGuard, User, EVID_ENGAGED);  
+        SaveSkillSum(NewGuard);
+        SetObjProperty(NewGuard, QTPROP_QTSER, Ticket.serial);
+        Guards.append(NewGuard);
+        Guard.Serial := NewGuard.serial;
+      endforeach
+
+      SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_GUARDS_CREATED);
+      CloseQuestArrow();
+      SaveQCrData();
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quest Completion
+//-----------------------------------------------------------------------------
+//=============================================================================
+ 
+function CompQuestRescueNpc(Npc)
+
+
+  if(!CheckQuestGuardsKilled())
+    if(IsHuman(Npc) and !Npc.murderer and !Npc.criminal)
+      PrintTextAbove(Npc, GetQuestNpcText(QNT_RESCUE_GUARDS, Npc, ev.source));
+    endif
+    CrQuestGuards();
+    return;
+  endif
+
+  if(Npc.murderer)
+    PrintTextAbove(Npc, "*agrhh*");
+  elseif(ev.Object.criminal)
+    PrintTextAbove(Npc, "*zadowolon"+ggm(Npc,6)+"*");
+  else
+    PrintTextAbove(Npc, "*uradowan"+ggm(Npc,6)+"*");
+  endif
+
+  CompleteQuestStage();
+
+  var Gate := CreatePortal(UOBJ_BLUEGATE, Npc.x, Npc.y, Npc.z, Npc.realm,1);
+
+  sleep(2);
+  KillNpc(Npc);
+  sleep(1);
+  HidePortal(Gate);
+  DestroyItem(Gate);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompQuestFromNpc()
+
+  TurnCharToward(ev.Object, ev.source);
+
+  if(_Player and _Player != ev.source)
+    PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_BADUSER, ev.Object, ev.source));
+    return;
+  endif
+
+  if(!CheckQuestGuardsKilled())
+    CrQuestGuards();
+    return;
+  endif
+
+  var Item := CrQuestItem(QCRIF_EXPTIME_LONGER);
+
+  if(!Item)
+    PrintTextAbove(ev.Object, "Hm.. gdzies sie ten przedmiot zawieruszyl...");
+    return;
+  else
+    Item.movable := 1;
+    MoveToPack(Item, ev.source);
+    QCrData.Stages[QCrData.CurStage].Targ.ItemSerial := Item.serial;
+    PrintTextAbove(ev.Object, "Prosze, tylko uwazaj i nie zgub tego przedmiotu.");
+    CompleteQuestStage();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompQuestGotoNpc()
+
+  TurnCharToward(ev.Object, ev.source);
+
+  if(_Player and _Player != ev.source)
+    PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_BADUSER, ev.Object, ev.source));
+    return;
+  endif
+
+  if(!CheckQuestGuardsKilled())
+    CrQuestGuards();
+    return;
+  endif
+
+  if(QCrData.CurStage == 1 or QCrData.Stages[QCrData.CurStage].Flags & QSTF_PREV_INDEPENDENT)
+    PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_NORMCOMP, ev.Object, ev.source));
+  else
+    case(QCrData.Stages[QCrData.CurStage-1].Type)
+      QTYPE_KILL:       PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_KILL, ev.Object, ev.source));
+
+      QTYPE_DESTROY:    PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_DESTROY, ev.Object, ev.source));
+
+      QTYPE_TAKE:       var Item;
+
+                        case(QCrData.Stages[QCrData.CurStage-1].SubType)
+                          QSTYPE_ITEM:     Item := FindItemBySerial(QCrData.Stages[QCrData.CurStage-1].Targ.Serial);
+                          QSTYPE_LOOTNPC:
+                          QSTYPE_LOCKTAKE:
+                          QSTYPE_FROMNPC:  Item := FindItemBySerial(QCrData.Stages[QCrData.CurStage-1].Targ.ItemSerial);
+                        endcase
+
+                        if(!CompQuestGotoNpcItem(Item))
+                          return;
+                        endif
+                        
+      QTYPE_RESCUE:     PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_RESCUE, ev.Object, ev.source));
+
+      QTYPE_GOTO:       case(QCrData.Stages[QCrData.CurStage-1].Type)
+                          QSTYPE_LOC:    PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_GLOC, ev.Object, ev.source));
+                          QSTYPE_EXNPC:  PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_GEXNPC, ev.Object, ev.source));
+                        endcase
+
+      QTYPE_STEAL:      PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_STEAL, ev.Object, ev.source));
+
+      QTYPE_CREATE:     var Item := FindItemBySerial(QCrData.Stages[QCrData.CurStage-1].Targ.Serial);
+                        if(!CompQuestGotoNpcItem(Item))
+                          return;
+                        endif
+
+      QTYPE_HARVEST:    var Item := FindItemBySerial(QCrData.Stages[QCrData.CurStage-1].Targ.Serial);
+                        if(!CompQuestGotoNpcItem(Item))
+                          return;
+                        endif
+
+      QTYPE_LOCKPICK:   PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_LOCKPICK, ev.Object, ev.source));
+
+      QTYPE_TAME:       var Npc := FindNpcBySerial(QCrData.Stages[QCrData.CurStage-1].Targ.Serial);
+
+                        if(!Npc)
+                          PrintTextAbove(ev.Object, "Nie widze tu zadnego zwierzaka.");
+                          return;
+                        elseif(Distance(Npc, ev.Object) > 5 or !CheckLineOfSight(Npc, ev.Object))
+                          PrintTextAbove(ev.Object, "Cos nie widac by zwierzak byl w poblizu.");
+                          return;
+                        elseif(Npc.master.serial != ev.source.serial)
+                          PrintTextAbove(ev.Object, "Nie wyglada no to, by ten zwierzak byl oswojony przez Ciebie.");
+                          return;
+                        elseif(!KillNpc(Npc))
+                          PrintTextAbove(ev.Object, "Oj.. cos sie nie slucha.");
+                          return;
+                        else
+                          PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_TAME, ev.Object, ev.source));
+                        endif
+
+      default:          PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_DEFAULT, ev.Object, ev.source));
+                        return;
+    endcase
+
+  endif
+
+  CompleteQuestStage();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompQuestGotoNpcItem(Item)
+
+  if(!Item)
+    PrintTextAbove(ev.Object, "A co zrobil"+ggm(ev.source,3)+" z przedmiotem?");
+    return 0;
+  elseif(GetTopCont(Item) != ev.source.backpack and Item.container != ev.source)
+    PrintTextAbove(ev.Object, "Nie widze bys mial"+ggm(ev.source,4)+" przy sobie przedmiot, ktory jest mi potrzebny.");
+    return 0;
+  elseif(!DestroyItem(Item))
+    PrintTextAbove(ev.Object, "Czemu nie chcesz mi oddac tego przedmiotu?");
+    return 0;
+  else
+    PrintTextAbove(ev.Object, GetQuestNpcText(QNT_GOTO_ITEM, ev.Object, ev.source));
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompleteQuestStage()
+
+  CloseQuestArrow();
+  SetObjProperty(Ticket, QTPROP_LASTCOMP, ReadGameClock());
+
+  SetBitOn (QCrData.Stages[QCrData.CurStage].Flags, QSTF_COMPLETED);
+  SetBitOff(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+  SetBitOn (QCrData.Stages[QCrData.CurStage].Flags, QSTF_GUARDS_KILLED);
+  SetBitOn (QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+  SetBitOn (QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_COMPLETED);
+
+  var QuestData := GetQuestData(QCrData.QuestGroup);
+  var QStage    := QuestData.FindElement(QSTAGE_TITLE+QCrData.Stages[QCrData.CurStage].Id);
+  var Title     := QStage.GetProp(QSTPROP_TITLE);
+  if(!Title)
+    Title := "";
+  endif
+
+  ConvToUnicode(Title);
+
+  UniSendSysMessage(User, CAscZ("Udalo Ci sie zakonczyc etap zadania ")+Title+CAscZ("."), FONT_NORMAL, COLOR_BLUE);
+
+  if(QCrData.CurStage + 1 > QcrData.Stages.size())
+    CompleteQuest();
+  else
+    QCrData.CurStage := QCrData.CurStage + 1;
+    CheckQuestWithNoTargCreation();
+  endif
+
+  SaveQCrData();
+  InitValues();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompleteQuest()
+
+  var QuestData := GetQuestData(QCrData.QuestGroup);
+  var Quest     := QuestData.FindElement(QUEST_TITLE+QCrData.Id);
+  var Title     := Quest.GetProp(QPROP_TITLE);
+  if(!Title)
+    Title := "";
+  endif
+
+  ConvToUnicode(Title);
+
+  SetObjProperty(Ticket, QTPROP_LASTCOMP, ReadGameClock());
+  SetBitOn(QCrData.Flags, QF_COMPLETED);
+  QCrData.CurStage := 0;
+
+  if(IsPlayer(Source))
+    if(Source.cmdlevel)
+      SendSysMessage(Source, GetRealName(User)+" ukonczyl Quest ["+QCrData.Id+"]", FONT_NORMAL, COLOR_BLUE);
+    endif
+  endif
+
+  UniSendSysMessage(User, CAscZ("Ukonczyl"+ggm(User,3)+" zadanie ")+Title+CAscZ("!"), FONT_NORMAL, COLOR_BLUE);
+  Ticket.color := QT_COMP_COLOR;
+  SaveQCrData();
+  InitValues();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FailQuest()
+
+  if(!(QCrData.Flags & QF_FINISHED) and !(QCrData.Flags & QF_COMPLETED) and !(QCrData.Flags & QF_FAILED))
+    var QuestData := GetQuestData(QCrData.QuestGroup);
+    var Quest     := QuestData.FindElement(QUEST_TITLE+QCrData.Id);
+    var Title     := Quest.GetProp(QPROP_TITLE);
+    if(!Title)
+      Title := "";
+    endif
+    ConvToUnicode(Title);
+
+    SetBitOn(QCrData.Flags, QF_FAILED);
+    SetBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+    SaveQCrData();
+    Ticket.color := QT_FAIL_COLOR;
+    InitValues();
+
+    var Person := User;
+    if(_Player)
+      Person := _Player;
+      if(!Person)
+        return;
+      endif
+    endif
+
+    if(Source.isa(POLCLASS_NPC))
+ 
+      var sEv      := struct;
+      sEv.+type    := EVID_QUEST_MSG;
+      sEv.+_Player  := Person;
+      sEv.+QPlayer := _Player;
+      sEv.+QId     := QCrData.Id;
+      sEv.+QLvl    := QCrData.Level;
+      sEv.+QStNum  := QCrData.Stages.size();
+
+      SendEvent(Source, sEv);
+
+    elseif(IsPlayer(Source) and Source.cmdlevel)
+      SendSysMessage(Source, GetRealName(Person)+" nie wykonal zadania ID: "+QCrData.Id, FONT_NORMAL, COLOR_RED);
+    endif
+
+    UniSendSysMessage(Person, CAscZ("Nie udalo Ci sie wykonac zadania ")+Title+CAscZ("."), FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FinishQuest()
+
+  if(!(QCrData.Flags & QF_FINISHED) and (QCrData.Flags & QF_COMPLETED))
+    User := GetTopCont(Ticket).container;
+    if(!User)
+      return;
+    endif
+    if((_Player and _Player == User) or !_Player)
+      Ticket.color := QT_FINISH_COLOR;
+      CreateQuestPrice(User, QCrData.QuestGroup, QCrData.Id);
+      SetBitOn(QCrData.Flags, QF_FINISHED);
+      SaveQCrData();
+
+      var QuestData := GetQuestData(QCrData.QuestGroup);
+      var Quest     := QuestData.FindElement(QUEST_TITLE+QCrData.Id);
+      var Title     := Quest.GetProp(QPROP_TITLE);
+      if(!Title)
+        Title := "";
+      endif
+      ConvToUnicode(Title);
+      UniSendSysMessage(User, CAscZ("Zakonczyl"+ggm(User,3)+" zadanie ")+Title+CAscZ("."), FONT_NORMAL, COLOR_GREEN+20);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResetQuest()
+
+  if(!(QCrData.Flags & QF_FINISHED) and !(QCrData.Flags & QF_COMPLETED))
+  
+    if(IsBitOn(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED))
+      Ticket.color := QT_NORMAL_COLOR;
+      SetBitOff(QCrData.Flags, QF_FAILED);
+      SetBitOff(QCrData.Stages[QCrData.CurStage].Flags, QSTF_FAILED);
+    endif
+
+    SetBitOff(QCrData.Stages[QCrData.CurStage].Flags, QSTF_TARG_CREATED);
+    
+    SaveQCrData();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQCrData()
+
+  SetObjProperty(Ticket, QGPROP_QCRINFO, QCrData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetQuestStageNpcName()
+
+  if(ev.Object and ev.Type)
+    foreach Stage in (QCrData.Stages)
+      if(Stage.Id == ev.Type)
+        if(!(Stage.Flags & QSTF_COMPLETED) and !(Stage.Flags & QSTF_FAILED))
+          case(Stage.SubType)
+            QSTYPE_NPC:      Stage.Targ.Name    := ev.Object;
+                             SaveQCrData();
+            QSTYPE_LOOTNPC:  Stage.Targ.NpcName := ev.Object;
+                             SaveQCrData();
+          endcase
+        endif
+        break;
+      endif
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

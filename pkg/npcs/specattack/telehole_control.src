@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-24
+//-----------------------------------------------------------------------------
+
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program TeleHoleControl(Hole)
+  
+  var List := array;
+  var Holes := array;
+
+  foreach Item in ListObjectsInBox(Hole.x-50, Hole.y-50, -127, Hole.x+50, Hole.y+50, 127, Hole.realm)
+    if(Item.isa(POLCLASS_ITEM) and Item.objtype == Hole.objtype) // niech zbierze tez siebie, bo lista bedzie zapisywana na wszystkich 
+      List.append(Item.serial);
+      Holes.append(Item);
+    endif
+  endforeach
+
+  foreach Item in Holes
+    SetObjProperty(Item, "Holes", List);
+  endforeach
+
+  sleep(900 + RandomInt(300));
+  DestroyItem(Hole);
+
+endprogram
+
+//-----------------------------------------------------------------------------

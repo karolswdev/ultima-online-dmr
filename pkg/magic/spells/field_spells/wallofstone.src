@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":magic:fields";
+include "include/buildings";
+include "include/mobile/npcs/city_funcs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 24;
+
+//-----------------------------------------------------------------------------
+
+program CastWallOfStone( nSpellParms )
+
+  if(!CheckCityWallSpell(nSpellParms[1], nSpellParms[1]))
+    return;
+  endif
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  if(!CheckCityWallSpell(Caster, CastLoc))
+    return;
+  endif
+  
+  if(IsInBuilding(CastLoc.x,CastLoc.y,Caster.realm))/* __NONPVP__ DELETED OR IsInNonPvPArea(CastLoc.x,CastLoc.y,Caster.realm))*/
+    Fizzle(Caster,"Nie uda ci sie postawic w tym miejscu sciany.");
+    return;
+  endif
+
+  var CasterMagery := GetEffectiveSkill(Caster,SKILLID_MAGERY);
+  var Duration     := CInt(10 + CasterMagery/2);
+
+  CreateField(Caster, CastLoc.x,CastLoc.y,CastLoc.z, MFIELDT_STONE, Duration, DIR_NONE, 0);
+
+endfunction
+
+//-----------------------------------------------------------------------------

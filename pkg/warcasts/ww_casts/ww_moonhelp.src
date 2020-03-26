@@ -1,0 +1,56 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+include "include/equipment";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 4;
+
+//-----------------------------------------------------------------------------
+
+program WwJump(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(FindItemBySerial(GetObjProperty(Caster,"#WWTekagi")))
+    WcFizzleId(Caster, "Juz posiadal"+ggm(Caster, GGM_AS)+" Szpony Ksiezyca!", WW_WCID);
+    return 0;
+  endif
+
+  var WWSkill  := GetEffectiveSkill(Caster,SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+
+  var Duration := (WWSkill + ALSkill) * 2;
+
+  var Item := CreateItemInBackPack(caster,UOBJ_MOONCLAW,1);
+  SetObjProperty(Item,PROP_BOUND,Caster.serial);
+  SetObjProperty(Caster,"#WWTekagi",Item.serial);
+  EquipItem(Caster,item);
+  Item.movable := 0;
+
+  Detach();
+  var clockEnd := ReadGameClock() + Duration;
+
+  while(Caster and !Caster.dead and Item and clockEnd > ReadGameClock())
+    sleep(1);
+  endwhile
+
+  if(Item)
+    DestroyItem(Item);
+    EraseObjProperty(Caster,"#WWTekagi");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

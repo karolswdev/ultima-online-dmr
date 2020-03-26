@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "ai/main/sleepmode";
+include "ai/main/loot";
+include "ai/setup/archersetup";
+include "ai/main/killpcsloop";
+include "ai/combat/explosioncombatevent";
+include "ai/combat/fight";
+include "ai/include/acdist";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 10;
+
+//-----------------------------------------------------------------------------
+
+program ExplosionKillPlayers_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  SetWarMode( 0 );
+  main_AI_loop();
+
+endprogram
+
+//-----------------------------------------------------------------------------

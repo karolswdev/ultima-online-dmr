@@ -1,0 +1,241 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use boat;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/objtypes/misc";
+include "include/player/target";
+include "include/msgs";
+include "include/proc";
+
+include ":carrier:const";
+
+//-----------------------------------------------------------------------------
+
+program SetPrzewoznikCmd(who, text)
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "loc":         SetMobLoc(who);
+    "pay":         SetPayment(who, CInt(text[2]));
+    "shiploc":     SetShipLoc(who);
+    "shipdestloc": SetShipDestLoc(who);
+    "ship":        SetShip(who);
+    "restart":     RestartShip(who, text[2] == "force");
+    default:       SendSysMessage(who, ".setprz [loc/begin/pay]", FONT_NORMAL, COLOR_GREEN);
+  endcase 
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SelectNpc(who)
+
+  SendSysMessage(who,"Wskaz przewoznika",FONT_NORMAL,COLOR_GOOD);
+
+  var Targ := ObjTarget(who);
+  if(!Targ or !Targ.isa(POLCLASS_NPC))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL,COLOR_BAD);
+    return 0;
+  endif
+
+  if(Targ.script != "przewoznik")
+    SendSysMessage(who,"To nie przewoznik!",FONT_NORMAL,COLOR_BAD);
+    return 0;
+  endif
+
+  return Targ;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RestartShip(who, Force)
+
+  var Targ := SelectNpc(who);
+
+  if(!Targ)
+    return;
+  endif
+
+  var Tillerman := FindItemBySerial(GetObjProperty(Targ, "Tillerman"));
+
+  if(!Tillerman)
+    SendBad(who, "Ten przewoznik nie ma ustawionego statku.");
+    return;
+  endif
+
+  var Proc := GetProc(GetObjProperty(Tillerman, "#ControlPid"));
+
+  if(Proc)
+    var ev := struct;
+    ev.+type := EVTYPE_SHUTDOWN;
+
+    Proc.sendevent(ev);
+    var Count := 0;
+
+    while(Proc.pid and Count < 5)
+      SendGood(who, "Oczekiwanie na zamkniecie procesu ["+Proc.pid+"] ["+Proc.name+"]...");
+      sleep(1);
+      Count += 1;
+    endwhile
+
+    if(Proc.pid and !Force)
+      SendBad(who, "Nie udalo sie zamknac procesu.");
+      return;
+    endif
+
+  endif
+
+  SendGood(who, "Zrestartowano skrypt lodzi przewoznika.");
+  start_script(":carrier:boat", Tillerman.multi);
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function SetMobLoc(who)
+
+  var Targ := SelectNpc(who);
+
+  if(!Targ)
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz miejsce docelowe.",FONT_NORMAL,COLOR_GOOD);
+
+  var place := LocTarget(who);
+
+  if(!place)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Ustawiono coordy docelowe przewoznika na x: "+place.x+" y: "+place.y+" z: "+place.z+" R: "+who.realm+".",FONT_NORMAL,COLOR_GOOD);
+  SetObjProperty(Targ,"DestPos",{place.x,place.y,place.z,who.realm});
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetShipDestLoc(who)
+
+  var Targ := SelectNpc(who);
+
+  if(!Targ)
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz miejsce docelowe.",FONT_NORMAL,COLOR_GOOD);
+
+  var place := LocTarget(who);
+
+  if(!place)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Ustawiono coordy docelowe statku przewoznika na x: "+place.x+" y: "+place.y+" z: "+place.z+" R: "+who.realm+".",FONT_NORMAL,COLOR_GOOD);
+  SetObjProperty(Targ,"ShipDestLoc",{place.x,place.y,place.z,who.realm});
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetPayment(who, Payment)
+
+  var Targ := SelectNpc(who);
+
+  if(!Targ)
+    return;
+  endif
+
+  if(Payment)
+    SetObjProperty(Targ, "Payment", Payment);
+    SendSysMessage(who,"Ustawiono zaplate na "+Payment+" gp.",FONT_NORMAL,COLOR_BLUE);
+  else
+    EraseObjProperty(Targ, "Payment");
+    SendSysMessage(who,"Ustawiono zaplate na domyslna.",FONT_NORMAL,COLOR_GOOD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetShipLoc(who)
+
+  var Targ := SelectNpc(who);
+
+  if(!Targ)
+    return;
+  endif
+
+  var place := LocTarget(who);
+
+  if(!place)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Ustawiono coordy statku na x: "+place.x+" y: "+place.y+" z: "+place.z+" R: "+Targ.realm+".",FONT_NORMAL,COLOR_GOOD);
+  SetObjProperty(Targ,"ShipLoc",{place.x,place.y,place.z,Targ.realm});
+
+  var Tillerman := FindItemBySerial(GetObjProperty(Targ, "Tillerman"));
+
+  if(!Tillerman)
+    var ship := CreateMultiAtLocation(place.x, place.y, place.z, "smallboat", CRMULTI_FACING_NORTH, Targ.realm);
+
+    if(ship)
+      ship.starboardplank.locked := 1;
+      ship.portplank.locked := 1;
+      ship.hold.locked := 1;
+
+      SetObjProperty(ship, "Carrier", 1);
+      SetObjProperty(Targ, "Tillerman", ship.tillerman.serial);
+    else
+      SendBad(who, "Nie udalo sie stworzyc statku.");
+    endif
+
+  else
+    MoveBoatXY(Tillerman.multi, place.x, place.y);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetShip(who)
+
+  var Targ := SelectNpc(who);
+
+  if(!Targ)
+    return;
+  endif
+
+  var Item := Target(who);
+
+  if(!Item.isa(POLCLASS_ITEM) or Item.objtype != UOBJ_TILLERMAN)
+    SendBad(who, "To nie sternik.");
+    return;
+  endif
+  
+  SetObjProperty(Targ, "Tillerman", Item.serial);
+
+  var place := LocTarget(who);
+
+  if(!place)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Ustawiono sternika statku.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------

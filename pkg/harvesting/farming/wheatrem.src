@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program WheatRemove(who,Mill)
+
+  if(!StandardItemCheck(who,Mill,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  var InAmount, ObjType, Msg, PropName;
+
+  if(GetObjProperty(Mill,"WheatAmount"))
+    InAmount := CInt(GetObjProperty(Mill,"WheatAmount"));
+    ObjType  := UOBJ_WHEAT;
+    Msg      := "pszenicy";
+    PropName := "WheatAmount";
+  else
+    InAmount := CInt(GetObjProperty(Mill,"CornAmount"));
+    ObjType  := UOBJ_CORN;
+    Msg      := "kukurydzy";
+    PropName := "CornAmount";
+  endif
+  
+  if(InAmount <= 0)
+    SendSysMessage(who,"Ten mlyn jest pusty.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Amt := CInt(InAmount / 2);
+
+  if(Amt < 1)
+    Amt := 1;
+  endif
+  
+  if(CreateItemInPack(who, ObjType, Amt))
+    InAmount := InAmount - Amt;
+    if(InAmount <= 1)
+      Mill.graphic := Mill.objtype;
+    else
+      Mill.graphic := CInt(Itemcfg[Mill.objtype].GraphicHalf);
+    endif
+    
+    SendSysMessage(who,"Wyj"+ggm(who,5)+" "+Amt+" "+Msg+" z mlyna.",FONT_NORMAL,COLOR_GREEN);
+    SetObjProperty(Mill, PropName, InAmount);
+  else
+    SendSysMessage(who,"Masz za malo miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

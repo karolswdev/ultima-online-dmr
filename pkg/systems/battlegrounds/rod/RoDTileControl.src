@@ -1,0 +1,90 @@
+use uo;
+use os;
+use util;
+use vitals;
+
+include "include/client/fonts";
+include "include/client/effects";
+include "include/const/misc";
+include "include/attributes/vitals";
+include "include/staff";
+include "include/const/attributes";
+include ":rod:RingOfDeath";
+
+program rodtile_Control( theTile )
+
+//    syslog("Ring Of Death - tile stworzona o " + ReadGameClock());
+    
+    if(!GetGlobalProperty("#RodInProgress"))
+		PrintTextAbove(theTile, "Nie teraz...");
+		DestroyItem(theTile);
+		return;
+    endif
+    
+
+	var i := 6;
+	
+	for(i; i > 0; i := i - 1)
+	
+	    PrintTextAbove(theTile, "" + i + "...", FONT_NORMAL, COLOR_RED);
+	    sleep(1);
+	
+	endfor
+	
+	if(theTile.serial)
+	    ExplodeTile(theTile);
+	endif
+	
+/*	var i := 7;
+	
+	while(i > 0)
+	
+	i := i - 1;
+	
+	sleepms(800);
+	
+	PrintTextAbove(theTile, i);
+	
+	if(i <= 0)
+
+*/	
+	//    ExplodeTile(theTile);
+	    
+	    /*
+	
+	endif
+	    	
+        endwhile
+	*/
+    
+endprogram
+
+function ExplodeTile(theTile)
+
+    PlayStationaryEffect(theTile.x, theTile.y, theTile.z, theTile.realm,  FX_EXPLODE_3, 7, 0x10);
+    
+    sleepms(120);
+    
+    PlayStationaryEffect(theTile.x+1, theTile.y-1, theTile.z, theTile.realm,  FX_EXPLODE_3, 7, 0x10);
+    
+    PlayStationaryEffect(theTile.x-1, theTile.y+1, theTile.z, theTile.realm,  FX_EXPLODE_3, 7, 0x10);
+    
+    PlayStationaryEffect(theTile.x+1, theTile.y+1, theTile.z, theTile.realm,  FX_EXPLODE_3, 7, 0x10);
+    
+    PlayStationaryEffect(theTile.x-1, theTile.y-1, theTile.z, theTile.realm,  FX_EXPLODE_3, 7, 0x10);
+    
+    foreach person in ListMobilesNearLocation(theTile.x, theTile.y, theTile.z, theTile.realm,  3)
+    
+	if(person.ip && !person.cmdlevel)
+	    ApplyRawDamage(person, 21);
+	    PrintTextAbove(person, "-21", FONT_NORMAL, COLOR_RED);
+	endif
+	
+    endforeach
+    
+    DestroyItem(theTile);
+    
+    CreateNewTile();
+	
+endfunction
+	    

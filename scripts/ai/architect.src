@@ -1,0 +1,150 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/merc";
+include "include/gumps";
+include "include/mspeech";
+include "include/buildings";
+include "include/smartrun";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+const HOUSE_SEL_WAIT_TIME    := 360;
+
+//-----------------------------------------------------------------------------
+
+program Architect_AI()
+
+  SetLogRunCycles(LST_AI);
+  
+  EnableEvents(EVID_DAMAGED);
+  EnableEvents(EVID_ENGAGED);
+  EnableEvents(EVID_DOUBLECLICKED);
+  EnableEvents(EVID_ITEM_GIVEN);
+  EnableEvents(EVID_SPEECH, SPEECH_RANGE );
+  
+  sleepms(RandomInt(2000));
+  
+  MerchantInit();
+  
+  while (me)
+    if(!ev)
+      ev := os::wait_for_event(waittime);
+    endif
+
+    StdMercHandleEvent(ev);
+    StdMercEventLoop();
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Buy(who)
+
+  Say("Jaki deed chcial"+ggm(who, 1)+" kupic?");
+  
+  var Res := struct;
+
+  Res.+type   := EVID_NH_HOUSE_GUMP;
+  Res.+source := who;
+  Res.+npc    := me;
+  
+  start_script("::handle_npc", Res);
+  
+  Res := -100;
+  
+  var Delay := ReadGameClock() + HOUSE_SEL_WAIT_TIME;
+
+  while(Delay > ReadGameClock())
+    ev := wait_for_event(10);
+    case(ev.type)
+      EVID_SPEECH:         if(lower(ev.text)["kupi"])
+                             if(who == ev.source)
+                               Say("Czekam az wybierzesz dom...");
+                             else
+                               Say("Czekaj cierpliwie na swoja kolej.");
+                             endif
+                           endif
+
+      EVID_NH_HOUSE_GUMP:  if(who == ev.source)
+                             Res := ev.res;
+                           endif
+
+      EVID_ITEM_GIVEN:     MoveToPack(ev.item, ev.source);
+
+      EVID_QUEST_MSG:      var Data := struct;
+                           Data.+npc := me;
+                           Data.+param := ev;
+                           
+                           start_script(":ngd_npcs:quest_msg", Data);
+    endcase
+    
+	if(Res != -100)
+		break;
+	endif
+	sleepms(10);
+  endwhile
+  
+  if(!IsLoggedIn(who))
+    return 0;
+  endif
+
+  if(Res == -100)
+    Say("Widze, ze nie mozesz sie zdecydowac, wiec moze innym razem.");
+    return;
+  endif
+  
+  sleepms(100);
+  TurnToward(who);
+  
+  if(!CanTrade(who))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(Res > 0)
+
+    var HousePrice := GetObjTypePrice(who, City, Res, 1);
+    var HouseName  := ItemCfg[Res].desc;
+
+    Say("Chcesz kupic "+HouseName+" za "+HousePrice+", tak?");
+
+    if(!NpcYesNo(who))
+      Say("No to sie zdecyduj w koncu!");
+      return 0;
+    endif
+
+    if(!SpendGold(who, HousePrice))
+      Say("Nie masz "+HousePrice+" gp.");
+      return 0;
+    endif
+
+    var Deed := CreateItemInPack(who, Res);
+
+    if(Deed)
+      Say("Prosze, to twoj deed.");
+    else
+      Say("Ekhm.. przyjdz pozniej, cos mi sie tu pogubilo...");
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Sell(who)
+
+  return MercSendSell(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

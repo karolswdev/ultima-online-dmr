@@ -1,0 +1,107 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/dirs";
+
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+program MakeArrowsHarvest(Params)
+
+  var who := Params[1];
+  var Shafts := Params[2];
+  var ObjType := Params[3];
+
+  if(!StandardItemCheck(who, Shafts))
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareHarvest(Shafts, who.backpack, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_BOWCRAFT, CRAFT_MAX_ITERATIONS, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!MakeArrows(who, ObjType, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareHarvest(Shafts, Cont, byref Materials)
+
+  Materials := DefineCraftMaterials();
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+  AddCraftMaterial(Materials, Cont, Shafts.objtype, 1);
+  AddCraftMaterial(Materials, Cont, __IfElse(Shafts.objtype == UOBJ_SHAFTS, UOBJ_FEATHER, UOBJ_SHAFTS), 1);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeArrows(who, ObjType, byref IterData, byref Materials)
+
+  var Diff         := -1;
+  var ProdAmount   := GetHarvestAmount(who, SKILLID_BOWCRAFT);
+  var Points       := GetHarvestProcessPoints(SKILLID_BOWCRAFT, Diff);
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, 0x2B2))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who, SKILLID_BOWCRAFT, Diff, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Zniszczyl"+ggm(who,3)+" troche materialu!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  /* speed up the process
+  if(!CraftPostDelay(who, Materials, ProdAmount, 0x2B2))
+    return 0;
+  endif
+  */
+  
+  var Arrows := CreateItemInPack(who, ObjType, ProdAmount);
+
+  if(Arrows)
+    AwardPoints(who, SKILLID_BOWCRAFT, Points, NO_STAT_AWARD | GAIN_RESTRICT, Diff);
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" "+ProdAmount+" ostrych strzal.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

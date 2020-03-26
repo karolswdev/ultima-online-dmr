@@ -1,0 +1,29 @@
+use uo;
+use os;
+
+include "include/gumps";
+
+program showGumps(parms)
+
+	var who := parms[1];
+	var Minutes := parms[2];
+	var logoffTime := parms[3];
+	
+	var sleepTime := 10;
+	
+	while(sleepTime > 0)
+		SendSysMessage(who, "Za " + sleepTime + " minut otrzymasz bonus za czas offline.", FONT_NORMAL, COLOR_GREEN);
+		sleepms(60000);
+		sleepTime := sleepTime - 1;
+	endwhile
+	
+	if(!who.ip)
+		print("Postac " + who.serial + " wylogowala sie zanim mozna bylo jej nadac happy gain.");
+		SetObjProperty(who, "LogoffTime", logoffTime);
+		return;
+	endif
+	
+	SendSysMessage(who, "Bonus aktywny!", FONT_NORMAL, COLOR_GREEN);
+	SetObjProperty(who, "OfflineGain", ReadGameClock() + (Minutes * 60));
+	
+endprogram

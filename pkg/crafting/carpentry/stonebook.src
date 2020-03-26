@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program StoneBook(who, book)
+
+  if(!StandardItemCheck(who,book))
+    return;
+  endif
+ 
+  if(GetObjProperty(who, "stonecrafting"))
+    SendSysMessage(who, "Juz znasz tajniki kamieniarstwa.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  if(GetBaseSkill(who,SKILLID_CARPENTRY) >= 100)
+    if(DestroyItem(book))
+      SendSysMessage(who,"Udalo Ci sie zrozumiec tajniki kamieniarstwa.",FONT_NORMAL,COLOR_GREEN);
+      SetObjProperty(who,"stonecrafting",1);
+    else
+      SendSysMessage(who,"Ta ksiazka wydaje sie byc nie czytelna.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    Sendsysmessage(who, "Nie jestes w stanie zrozumiec o czym jest ta ksiazka.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

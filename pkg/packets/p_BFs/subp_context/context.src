@@ -1,0 +1,74 @@
+use uo;
+use polsys;        
+                                                
+program Install()
+  Print("[0xBF::0x13]: PopupMenus system handler..");
+  Print("[0xBF::0x15]: PopupMenus system handler..");
+  return 1;
+endprogram
+                        
+exported function HandlePopupRequest(Who, byref Packet)
+  var WhatSerial := Packet.GetInt32(5);
+  var WhatObject := SystemFindObjectBySerial(WhatSerial, SYSFIND_SEARCH_OFFLINE_MOBILES);
+  // Define the target for the context menu
+
+  if(WhatObject == Who)
+    ShowMenuSelf(Who, Packet, WhatSerial);  
+  endif
+  return 0;                 
+endfunction                   
+
+exported function HandlePopupResponse(Who, byref Packet)
+  var WhatSerial   := Packet.GetInt32(5);
+  var WhatObject   := SystemFindObjectBySerial(WhatSerial, SYSFIND_SEARCH_OFFLINE_MOBILES);
+  var ResultPrefix := Packet.GetInt8(9);
+  var ResultSuffix := Packet.GetInt8(10);
+  case(ResultPrefix)                              
+    0x00: ReceiveMenuSelf(Who, WhatObject, ResultSuffix);
+  endcase
+  return 0;
+endfunction
+
+function ShowMenuSelf(Who, byref Packet, AboveObject)
+  var Menu := CreateNewMenu();
+  MenuAddItem(Menu, 0x0001, 6124); 
+  SendContextMenu(Who, Menu, AboveObject, Packet);
+endfunction 
+
+function ReceiveMenuSelf(Who, Object, Result)
+  case(Result)             
+    0x01: OpenPaperdoll(Who, Who);
+  endcase          
+endfunction
+
+function CreateNewMenu()  
+  return array;     
+endfunction      
+
+function MenuAddItem(byref Menu, Result, Text, Flags := 0x20, Color := 0xFFFF)
+  Menu.append({Result, Text, Flags, Color}); 
+endfunction  
+
+function SendContextMenu(Who, byref Menu, AboveObject, byref Packet)
+  if(!Len(Menu))
+    return;                
+  endif
+  Packet.SetSize(12 + (Len(Menu) * 8));
+  Packet.SetInt16(03, 0x14);
+  Packet.SetInt8(05, 0x00);
+  Packet.SetInt8(06, 0x01);
+  Packet.SetInt32(07, AboveObject); 
+  Packet.SetInt8(11, Len(Menu));
+  var Index := 12;
+  foreach Item in Menu                                    
+    Packet.SetInt16(Index, Item[1]);
+    Index := Index + 2;             
+    Packet.SetInt16(Index, Item[2]);
+    Index := Index + 2;               
+    Packet.SetInt16(Index, Item[3]);
+    Index := Index + 2;             
+    Packet.SetInt16(Index, Item[4]);
+    Index := Index + 2;             
+  endforeach
+  Packet.SendPacket(Who);
+endfunction

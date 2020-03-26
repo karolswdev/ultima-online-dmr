@@ -1,0 +1,39 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "guild";
+include "include/objtypes/misc";
+include "include/items";
+include "include/tempmods";
+
+include ":housing:payments";
+
+//--------------------------------------------------------------------------------
+
+program GuildDestroy(Stone)
+  if(ExPid(GetObjProperty(Stone,"#Destroying")))
+    return 0;
+  endif
+  SetObjProperty(Stone,"#Destroying",GetPid());
+
+  var Guild := FindGuild(GetGuildId(Stone));
+  
+  if(Guild)
+    ClearGuildData(Guild);
+    if(DestroyGuild(Guild))
+//      CreateItemAtLoc(Stone.x,Stone.y,Stone.z,UOBJ_GUILD_STONE_DEED,1,Stone.realm);
+      return 1;
+    endif
+  else
+    return 1;
+  endif
+  
+  return 0;
+  
+endprogram
+
+//--------------------------------------------------------------------------------

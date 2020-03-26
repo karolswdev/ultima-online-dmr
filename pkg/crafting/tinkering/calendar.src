@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumpboxes";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+program Calendar(who,Cal)
+
+  if(!StandardItemCheck(who,Cal,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(!Cal.container)
+    if(Distance(who, Cal) > 1)
+      SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  Detach();
+  NoLongerBusy(who);
+
+  var DCfg     := ReadConfigFile(DAYS_CFG);
+  var Month    := GetMonth();
+  var Months   := GetMonths();
+  var Days     := GetDays();
+  var DayName  := GetDayNameByTime();
+  var MonthDay := GetMonthDay();
+  var MaxDays  := CInt(DCfg[Months[Month]].Days);
+  var h,i;
+
+  var WDay     := 1;
+
+  i := 1;
+  foreach D in Days
+    if(D == DayName)
+      WDay := i;
+    endif
+    i := i + 1;
+  endforeach
+
+  var Dict := dictionary,s := WDay;
+
+  for(i:=MonthDay;i>=1;i:=i-1)
+    Dict[i] := s;
+    s := s - 1;
+    if(s == 0)
+      s := 7;
+    endif
+  endfor
+
+  var FirstDay := Dict[1];
+
+  var D := 1,Color := 560;
+
+  GInit(50,50);
+  GResPic(0,0,0x9D8,315,240);
+
+  GTextLine(140,10,500,GetYear() + " rok");
+  GTextLine(50,35,510,ClStr(DCfg[Months[Month]].Desc));
+
+  for(h:=1;h<=6;h:=h+1)
+    for(i:=FirstDay;i<=7;i:=i+1)
+      if(D == MonthDay)
+        Color := 500;
+      elseif(i == 7)
+        Color := 1239;
+      else
+        Color := 560;
+      endif
+      GTextLine(30+(30*i),45+(20*h),Color,D);
+      D := D + 1;
+      if(D > MaxDays)
+        break;
+      endif
+    endfor
+
+    if(D > MaxDays)
+      break;
+    endif
+    FirstDay := 1;
+  endfor
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

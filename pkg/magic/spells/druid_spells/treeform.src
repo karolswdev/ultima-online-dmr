@@ -1,0 +1,137 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/items";
+include "include/buildings";
+include "include/items/temp_storage";
+include ":wearwolf:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 86;
+
+//-----------------------------------------------------------------------------
+
+program CastTreeForm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(IsWearWolfMorphed(Caster))
+    Fizzle(Caster, "Nie mozesz w tej formie rzucic tego czaru.");
+    return;
+  endif
+
+  if(len(ListHostiles(Caster, 3, LH_FLAG_LOS )) > 0)
+    Fizzle(Caster, "Wrogowie sa za blisko!");
+    return;
+  endif
+  
+  if(IsInBuilding(Caster.x,Caster.y,Caster.realm))
+    Fizzle(Caster, "Ciezko Ci bedzie zmienic sie tutaj w drzewo.");
+    return;
+  endif
+
+  var trunk_objtype;
+  var leaves_objtype;
+  case (RandomInt(15))
+    0:  trunk_objtype := 0xccd;
+        leaves_objtype := 0xcce;
+    1:  trunk_objtype := 0xcd0;
+        leaves_objtype := 0xcd1;
+    2:  trunk_objtype := 0xcd3;
+        leaves_objtype := 0xcd4;
+    3:  trunk_objtype := 0xcd6;
+        leaves_objtype := 0xcd7;
+    4:  trunk_objtype := 0xcda;
+        leaves_objtype := 0xcdb;
+    5:  trunk_objtype := 0xcdd;
+        leaves_objtype := 0xcde;
+    6:  trunk_objtype := 0xce0;
+        leaves_objtype := 0xce1;
+    7:  trunk_objtype := 0xce3;
+        leaves_objtype := 0xce4;
+    8:  trunk_objtype := 0xce6;
+        leaves_objtype := 0xce7;
+    9:  trunk_objtype := 0xd94;
+        leaves_objtype := 0xd96;
+    10: trunk_objtype := 0xd98;
+        leaves_objtype := 0xd9a;
+    11: trunk_objtype := 0xd9c;
+        leaves_objtype := 0xd9e;
+    12: trunk_objtype := 0xda0;
+        leaves_objtype := 0xda2;
+    13: trunk_objtype := 0xda4;
+        leaves_objtype := 0xda6;
+    14: trunk_objtype := 0xda8;
+        leaves_objtype := 0xdaa;
+  endcase
+
+  var casterx       := Caster.x;
+  var castery       := Caster.y;
+  var casterz       := Caster.z;
+
+  var Duration := GetDruidSpellDur( Caster );
+  sleepms(250);
+
+  var CasterGrap := Caster.graphic;
+  DoMod(Caster, MOD_GRAPHIC, INVIS_MOB_GRAP, Duration);
+  var c := 1;
+  while(CanMod(Caster, MOD_GRAPHIC) and c < 100)
+    sleepms(50);
+    c := c + 1;
+  endwhile
+        
+  sleepms(100);
+  if(CasterGrap == Caster.graphic)
+    return;
+  endif
+
+  var item_trunk  := PullTempItemAtLoc(Caster.x, Caster.y, Caster.z, trunk_objtype, Caster.realm);
+  var item_leaves := PullTempItemAtLoc(Caster.x, Caster.y, Caster.z, leaves_objtype, Caster.realm);
+  Caster.hidden   := 1;
+
+  Duration := Duration + ReadGameClock();
+
+  var done := 0;
+  repeat
+    sleepms(250);
+    if(len(ListHostiles(Caster, 3)))
+      done := 1;
+    endif
+
+    if(Duration < ReadGameClock())
+      done:= 1;
+    endif
+  until (casterx != Caster.x or castery != Caster.y or done or !Caster or !Caster.hidden or Caster.dead or CanMod(Caster, MOD_GRAPHIC) or !item_trunk or !item_leaves);
+
+  SendSysMessage(Caster, "Stracil"+ggm(Caster,3)+" koncentracje.", FONT_NORMAL, COLOR_RED);
+  PlayStationaryEff(casterx, castery, casterz, FX_SMOKE, 0xA, 0xA);
+  ReturnTempItem(item_trunk);
+  ReturnTempItem(item_leaves);
+  Caster.hidden := 0;
+
+  if(!Caster)
+    Caster := FindPlayerBySerial(Caster.serial);
+  endif
+  UndoMod(Caster, MOD_GRAPHIC);
+
+  foreach mobile in ListMobilesNearLocationEx(Caster.x, Caster.y, Caster.z, 15, LISTEX_FLAG_NORMAL, Caster.realm)
+    SendChEvent(mobile, Caster, EVID_ENTEREDAREA);
+  endforeach
+
+  foreach mobile in ListMobilesNearLocationEx(Caster.x, Caster.y, Caster.z, 9, LISTEX_FLAG_HIDDEN, Caster.realm)
+    SendChEvent(mobile, Caster, EVID_ENTEREDAREA);
+  endforeach
+
+
+endfunction
+
+//-----------------------------------------------------------------------------

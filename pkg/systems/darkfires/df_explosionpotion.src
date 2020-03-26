@@ -1,0 +1,95 @@
+//-----------------------------------------------------------------------------
+
+include ":crafting:alchemy/potion";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+program UseDfExplosionPotion(who, potion)
+
+  var cfg      := ReadConfigFile(ITEMS_CFG);
+  var ThrowRange := cfg[potion.objtype].ThrowRange;
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(CInt(GetObjProperty(who,"#ThrowTime")) > ReadGameClock())
+    SendSysMessage(who,"Musisz chwile odczekac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Loc := LocTarget( who );
+
+  if(Loc.item.isa(POLCLASS_ITEM))
+    var Dir := GetDirFromObjToObj(who, Loc.item);
+    var Mods := GetDirLocMods(Dir);
+    var Item := Loc.item;
+    Loc := BuildLocStruct(item.x-Mods[1], item.y-Mods[2], item.z, who.realm);
+  endif
+
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK | NEW_DIST_CHECK, ThrowRange))
+    return;
+  endif
+
+  SetObjProperty(who,"#ThrowTime",ReadGameClock() + 7);
+
+  ThrowDfExplosionPotion(who,Loc,potion);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ThrowDfExplosionPotion(who,Targ,Potion)
+
+  var cfg      := ReadConfigFile(ITEMS_CFG);
+  var Strength := cfg[potion.objtype].Strength;
+  var Mx       := Targ.x;
+  var My       := Targ.y;
+  var Mz       := Targ.z;
+  var MRlm     := who.realm;
+  var Range    := cfg[potion.objtype].Range;
+  var ThrowRange := cfg[potion.objtype].ThrowRange;
+  var PotObj   := potion.objtype;
+
+  if(!ThrowPotion(who,Targ,Potion))
+    return;
+  endif
+
+  Strength := Strength + RandomInt(Cint(Strength / 2));
+  
+  var Circle := 1 + (Strength / 3);
+  if(Circle > 10)
+    Circle := 10;
+  endif
+  
+  var x,y;
+
+  
+
+  for(x:=mx-2;x<=mx+2;x+=1)
+    for(y:=my-2;y<=my+2;y+=1)
+      PlayPcStEffect(x, y, GetStandZ(x, y, mRlm, mz)+1, mRlm, FX_EXPLODE_3, 0, 16, 0x10, 0x10);
+    endfor
+  endfor
+ 
+
+  foreach Mob in ListMobilesNearLocationEx(Mx, My, Mz, Range, LISTEX_FLAG_NORMAL + LISTEX_FLAG_HIDDEN, MRlm)
+
+    if(!CheckLosAt(Mob, Mx, My, Mz))
+      continue;
+    endif
+
+    
+    PlayObjectCenteredEffect(Mob, FX_EXPLODE_3, 7, 0x10);
+    
+
+    PlaySoundEffect(Mob, SOUND_EFFECT_EXPLOSION);
+
+    DoMagicDamage(Mob, who, Strength, Circle, DMGTYPE_FIRE, SPTYPE_NONE, NO_RESIST_GAIN);
+
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------

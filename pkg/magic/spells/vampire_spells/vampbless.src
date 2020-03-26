@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 107;
+
+//-----------------------------------------------------------------------------
+
+program CastVampBless( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!CanGetMagicStatMod(CastOn))
+    Fizzle(Caster, "Czar nie daje efektu na tej osobie.");
+    return;
+  elseif(!CanModAny(CastOn, array(MOD_LIFE, MOD_MANA, MOD_STAMINA)))
+    Fizzle(Caster, "Ta osoba jest juz pod wplywem czarow.");
+    return;
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_BLESS);
+  PlayPcEffect( CastOn, FX_BLESS_EFFECT, 37, 0xF, 0xF, 1);
+  var ModAmount := CInt(GetEffectiveSkill(Caster,SKILLID_VAMPIRE) / 20) + CInt(GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK) / 20) + RandomInt(3) + 3;
+  var Duration  := GetVampireSpellDur(Caster);
+  var ModFlags := __IfElse(IsDungeonSpellCasted(SPELL_ID), MODF_CHECK_VAMPIRE, 0);
+  DoMod(CastOn, MOD_LIFE, ModAmount, Duration, 0, ModFlags);
+  DoMod(CastOn, MOD_MANA, ModAmount, Duration, 0, ModFlags);
+  DoMod(CastOn, MOD_STAMINA, ModAmount, Duration, 0, ModFlags);
+  
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

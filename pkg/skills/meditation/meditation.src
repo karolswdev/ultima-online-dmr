@@ -1,0 +1,27 @@
+//--------------------------------------------------------------------------------
+
+
+include "include/poison";
+include "include/skills/std";
+include ":magic:magic";
+include ":vampire:common";
+include ":housing:common";
+
+include "meditation";
+
+//--------------------------------------------------------------------------------
+
+program Meditation( who )
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  Detach();
+  NoLongerBusy(who);
+
+  Meditate(who);
+  
+endprogram
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 30;
+
+//-----------------------------------------------------------------------------
+
+program CastLightning( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_OBJECT, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  PlaySoundEffect(CastOn, SFX_SPELL_LIGHTNING);
+  PlayLightningBoltEffect( CastOn);
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+    PlaySoundEffect(CastOn, SFX_SPELL_LIGHTNING);
+    PlayLightningBoltEffect( CastOn );
+  endif
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

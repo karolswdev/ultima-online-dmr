@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/checks/stdchecks";
+include "include/misc";
+include "include/msgs";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program SquelchCmd( who, Duration )
+
+  if(Duration == "")
+    Duration := 60;
+  else
+    Duration := CInt(Duration);
+  endif
+
+  SendSysMessage(who, "Wybierz osobe, ktora chcesz zamknac na "+Duration+"s.", FONT_NORMAL, COLOR_GREEN);
+  var Targ := ObjTarget( who, TGTOPT_NOCHECK_LOS );
+  if(IsPlayer(Targ))
+    Targ.squelch(Duration);
+    if(!Duration)
+      SendSysMessage(who,"Osoba "+Targ.name+" moze mowic.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who,"Zamknal"+ggm(who,3)+" osobe "+Targ.name+" na "+Duration+"s.", FONT_NORMAL, COLOR_GREEN);
+    endif
+  else
+    SendSysMessage(who,"To nie gracz.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,133 @@
+use basic;
+use uo;
+use util;
+
+include "include/gumps";
+include "include/attributes/caps";
+include "include/msgs";
+include "include/clock";
+
+
+program claimPrize(who, parm)
+
+    var theAcct;
+
+    if(parm == "mlodydauddddeb")
+    	theAcct := who.acctname;
+        theAcct := FindAccount(theAcct);
+        SendSysMessage(who, "Gratulacje " + who.name + ". Zasluzyl" + GGM(who, 3) + " na 2. slot.", FONT_NORMAL, COLOR_BLUE);
+	theAcct.setprop("SlotUnlocked", 1);
+    endif
+	
+	
+	
+    if(GetObjProperty(who, "BlockedBonus"))
+	return;
+    endif
+
+    if(who.dead)
+	return;
+    endif
+    
+    if(GetObjProperty(who, "#OnIgrzyska"))
+	return;
+    endif
+    
+    if(GetObjProperty(who, "AddAge"))
+	return;
+    endif
+	
+	/*
+    
+	
+    if(GetAge(who) > 55)
+	if(YesNo(who, "Czy chcial" + GGm(who, 1) + " odblokowac 2. slot?"))
+	    theAcct := who.acctname;
+	    theAcct := FindAccount(theAcct);
+	    var ageSum := 0;
+	    var thChar;
+	    var i := 1;
+	    for(i; i <= 5; i := i + 1)
+		
+		thChar := theAcct.GetCharacter(i);
+		if(who.cmdlevel)
+		    SendSysMessage(who, thChar.name);
+		endif
+		if(thChar)
+		    ageSum := ageSum + GetAge(thChar);
+		endif
+		sleepms(40);
+	    endfor
+	    
+	    
+		SendSysMessage(who, "Gratulacje " + who.name + ". Zasluzyl" + GGM(who, 3) + " na 4. slot.", FONT_NORMAL, BLUE_COLOR);
+		theAcct.setprop("SlotUnlocked", 1);
+	    
+	endif
+    endif
+	
+	*/
+		
+
+var offset, diff;
+var success;
+
+
+
+	if(!GetObjProperty(who, "NumberOfPrizes"))
+		SetObjProperty(who, "NumberOfPrizes", 1);
+	endif
+	
+	var prizeNumber := CInt(GetObjProperty(who, "NumberOfPrizes"));
+	var OnlineTimer := CInt(GetObjProperty(who, "onlinetimer"));
+
+	SendSysMessage(who, "Jestes z nami juz od " + RealTime(OnlineTimer), FONT_NORMAL, COLOR_BLUE);
+	
+	// to tak zrobimy
+	offset := prizeNumber * 86400;
+	    
+	    if(offset == 0)
+		offset := 86400;
+	    endif
+
+	
+	
+	diff := OnlineTimer - offset;	
+	while(diff >= 0)
+		    foreach itm in EnumerateItemsInContainer(who.backpack)
+			if(itm.graphic == 3636 && itm.color == 0)
+			    SendSysMessage(who, "Odkrylismy u Ciebie puste zwoje, niszczymy je", FONT_NORMAL, RED_COLOR);
+			    DestroyItem(itm);
+			endif
+		    endforeach
+	
+		var scroll := CreateItemInContainer(who.backpack, "blankscroll", 1);
+			if(scroll)
+			success := 1;	
+			SetObjProperty(scroll, "lolek", 1);
+			SetObjProperty(scroll, "NoStack", RandomInt(9933)+1);
+			SetObjProperty(scroll, "CreatedBy", who.serial);
+			
+			
+			SetObjProperty(who, "NumberOfPrizes", CInt(GetObjProperty(who, "NumberOfPrizes"))+1);
+			scroll.color := 1158;
+			SetName(scroll, "Zwoj zaslugi");
+			var LogText := "Postac " + who.name + " odebrala zwoj zaslugi o serialu " + scroll.serial;
+			//start_script(":cmdlogger:cmdlogger", {who, LogText, ":cmdlogger:zwojezaslugi.txt"});
+				// zapetlone
+				prizeNumber := CInt(GetObjProperty(who, "NumberOfPrizes"));
+				offset := prizeNumber * 86400;
+				diff := OnlineTimer - offset;	
+			else
+			 SetObjProperty(who,"ZwojZaslugiFAILED",1);
+			 SendSysMessage(who,"Zglos sie po zwoj do ekipy.",FONT_NORMAL,RED_COLOR);
+			endif
+	endwhile
+	
+	if(success)
+		SendSysMessage(who, "Dziekujemy za Twoj wklad w Nasz swiat", FONT_NORMAL, GREEN_COLOR);
+	else
+		SendSysMessage(who, "Widocznie jeszcze nie mozesz dostac swojej doli...", FONT_NORMAL, RED_COLOR);
+	endif
+	
+endprogram

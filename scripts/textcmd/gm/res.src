@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/client/fonts";
+
+include "include/resurrect";
+include "include/misc";
+include "include/player/target";
+include "include/msgs";
+
+//-----------------------------------------------------------------------------
+
+program ResurrectCmd(who)
+
+  var Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!Targ.dead)
+    SendSysMessage(who, "Ta osoba zyje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  ResurrectPlayer(Targ);
+  SendSysMessage(who, "Wskrzesil"+ggm(who,3)+" osobe "+Targ.name+".", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

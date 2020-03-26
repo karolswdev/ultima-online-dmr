@@ -1,0 +1,38 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use cfgfile;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/player/basic";
+include ":banking:common";
+include ":banking:gold";
+
+//--------------------------------------------------------------------------------
+
+program HouseOldDeed(who, item)
+
+  SendSysMessage(who, "Nie mozna juz zbudowac tego domu... deed jest bezuzyteczny.", FONT_NORMAL, COLOR_GREEN);
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var Price := CInt(ItemCfg[item.objtype].VendorSellsFor);
+
+  if(Price)
+    var Box := FindBankBox(who);
+    var ItemObj := item.objtype;
+
+    if(DestroyItem(item))
+      if(CreateGold(Box, Price))
+        SendSysMessage(who, "Zloto za dom zostalo zwrocone i znajduje sie w twoim banku. Deed zostal zniszczony.", FONT_NORMAL, COLOR_BLUE);
+      else
+        SendSysMessage(who, "Nie udalo sie zwrocic zlota za dom, czyzbys nie mial miejsca w banku?", FONT_NORMAL, COLOR_RED);
+        CreateItemInPack(who, ItemObj);
+      endif
+    endif
+  endif
+  
+endprogram
+
+//--------------------------------------------------------------------------------

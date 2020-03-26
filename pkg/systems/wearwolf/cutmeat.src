@@ -1,0 +1,81 @@
+//-----------------------------------------------------------------------------
+
+include "wearwolf";
+
+include ":blades:corpse";
+
+//-----------------------------------------------------------------------------
+
+program CutMeat(who)
+
+  if(!IsWearWolf(who))
+    SendSysMessage(who,"Nie jestes wilkolakiem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsWearWolfMorphed(who))
+    SendSysMessage(who,"Nie jestes teraz wilkolakiem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Wybierz zwloki.",FONT_NORMAL,COLOR_GREEN);
+  var Item := ObjTarget(who);
+  
+  if(!Item)
+    var WWSkill     := GetEffectiveSkill(who,SKILLID_WEARWOLF);
+    var ALSkill     := GetEffectiveSkill(who,SKILLID_ANIMALLORE);
+    var Range       := CInt(WWSkill / 10) + CInt(ALSkill / 5);
+    var Success     := 0;
+    var x           := who.x;
+    var y           := who.y;
+    var Anims       := {0x10,0x11,0x10,0x11};
+    var i;
+  
+    for(i:=1;i<=4;i:=i+1)
+      PerformAction(who,Anims[i]);
+      sleep(1);
+      if(x != who.x or y != who.y)
+        SendSysMessage(who,"Oddalil"+ggm(who,3)+" sie.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endfor
+    PlaySoundEffect(who, 0x20A);
+
+    foreach Mob in ListMobilesNearLocation(who.x,who.y,who.z,Range,who.realm)
+      if(CheckLineOfSight(who,Mob))
+        if(Mob.isa(POLCLASS_NPC))
+          if(GetNpcConfig(Mob).STR <= FAMILY_MAXSTR)
+            if(!IsTamed(Mob) and IsNpcElemental(Mob, NPCELEM_WOLF))
+              if(CheckSkill(who,SKILLID_WEARWOLF,25,0))
+                Success := 1;
+                SendChEvent(Mob,who, EVID_RUN);
+              endif
+            endif
+          endif
+        endif
+      endif
+    endforeach
+
+    if(Success and WWSkill <= 40)
+      AwardPoints(who,SKILLID_WEARWOLF,10);
+    endif
+  
+  else
+  
+    if(!StandardItemCheck(who,item,NO_MOVABLE_CHECK))
+      return;
+    endif
+  
+    if(!Item.isa(POLCLASS_CORPSE))
+      SendSysMessage(who,"To nie sa zwloki.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    PerformAction(who,4);
+
+    CarveCorpse(who, Item);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

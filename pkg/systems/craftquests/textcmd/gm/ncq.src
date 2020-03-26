@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-09-17
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/clock";
+include "include/tempmods";
+include "include/items";
+include "include/finding";
+include "include/items/groups";
+include "include/dirs";
+include "include/client/fonts";
+include "include/player/misc";
+
+include ":craftquests:craftquests";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+program CraftQuestNpcCmd(who, text)
+
+  if(text == "cfg")
+    var Res := UnloadConfigFile(":mcfg:itemgroups");
+    Res += UnloadConfigFile(":craftquests:craftorders");
+
+    SendSysMessage(who, "Reload: "+Res, FONT_NORMAL, COLOR_BLUE);
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz Npc.", FONT_NORMAL, COLOR_GREEN);
+
+  var Npc    := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  var cfgElem := GetNpcConfig(Npc);
+
+  if(!Npc.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie Npc.", FONT_NORMAL, COLOR_RED);
+    return; 
+  elseif(!cfgElem.CityNpc)
+    SendSysMessage(who, "To nie miastowy Npc.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!cfgElem.CanGiveCraftQuest)
+    SendSysMessage(who, "Ten Npc nie ma zamowien.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Res := ShowCraftQuests(who, Npc);
+  if(Res)
+    AcceptCraftOrder(who, Npc, Res.Idx, Res.Level, Res.Harvest);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,79 @@
+include "include/client/fonts";
+include "include/dirs";
+include "include/checks/objchecks";
+include "include/gumps";
+
+const PROP_LIMIT := "limit";
+
+const GRAPH_NS      := 0x2AFD;
+const GRAPH_NS_PLAY := 0x2AFE;
+
+const GRAPH_WE      := 0x2AF9;
+const GRAPH_WE_PLAY := 0x2AFA;
+
+program LotteryMachine(who,machine)
+
+  if(!StandardItemCheck(who, machine, NO_OWNER_CHECK | NO_MOVABLE_CHECK | NEW_DIST_CHECK, 1))
+    return;
+  endif
+
+  if(!(machine.graphic in {GRAPH_NS,GRAPH_WE}))
+    SendSysMessage(who, "Popsute." , FONT_NORMAL, COLOR_RED);
+    sleep(2);
+    return;
+  endif
+  
+  var limit := CInt(GetObjProperty(machine, PROP_LIMIT));
+  if(!limit)
+    limit := 100;
+  endif
+
+  if(IsGM(who))
+    var res;
+    while( 1 == 1 )
+      GInit(100,100);
+      GResPic(0,0,3600,200,100);
+      GButton(20,24,2117,2118,1);
+      GTextLine(40, 20,999,"Losuj");
+      GButton(20,44,2117,2118,2);
+      GTextLine(40, 40,999,"Limit: " + limit);
+      GButton(20,64,2117,2118,0);
+      GTextLine(40, 60,999,"Wyjdz");
+      res := CInt(GSend(who)[0]);
+      if(!res)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      elseif(res == 2)
+        res := CInt(SendTextEntryGump( who, "Podaj limit:", TE_CANCEL_ENABLE, TE_STYLE_NUMERICAL, 10000000));
+        if(res > 0)
+          limit := res;
+          SetObjProperty(machine, PROP_LIMIT, limit);
+        endif
+      else
+        break;
+      endif
+
+    endwhile
+  endif
+
+
+  var score := RandomInt(limit) + 1;
+  
+  case(machine.graphic)
+    GRAPH_NS: machine.graphic := GRAPH_NS_PLAY;
+    GRAPH_WE: machine.graphic := GRAPH_WE_PLAY;
+  endcase
+  
+  for i:= 1 to 4
+    PlaySoundEffect(machine, 0x0F1);
+    sleep(1);
+  endfor
+
+  case(machine.graphic)
+    GRAPH_NS_PLAY: machine.graphic := GRAPH_NS;
+    GRAPH_WE_PLAY: machine.graphic := GRAPH_WE;
+  endcase
+  PlaySoundEffect(machine, 0x04B);
+  PrintTextAbove(machine, "*" + score + "*", FONT_NORMAL, RandomInt(1000)+1);
+
+endprogram

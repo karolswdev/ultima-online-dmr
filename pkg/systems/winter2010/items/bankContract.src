@@ -1,0 +1,35 @@
+use uo;
+use os;
+
+include "include/msgs";
+include "include/npcs";
+include "include/gumps";
+include "include/gumpboxes";
+
+program use_BankContract(who, theContract)
+
+	SendSysMessage(who, "Wskaz miejsce w ktorym chcesz uzyskac dostep bankiera:", FONT_NORMAL, GREEN_COLOR);
+	
+	var t := TargetCoordinates(who);
+	
+	if(!t)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+
+	if(!YesNo(who, "Na pewno?"))
+		return;
+	else
+		var banker := CreateNPC("banker", t.x, t.y, t.z, t.realm);
+			if(banker)
+				if(DestroyItem(theContract))
+					SetObjProperty(banker, "UsesRemaining", 90+RandomInt(10));
+					SetName(banker, "Bankier " + who.name);
+				else
+					KillNpc(banker);
+					SendSysMessage(who, "Blad.", FONT_NORMAL, RED_COLOR);
+				endif
+			endif
+	endif
+	
+endprogram

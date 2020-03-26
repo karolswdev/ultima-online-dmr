@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/move";
+
+include ":guildstone:guild";
+
+//-----------------------------------------------------------------------------
+
+var Icon;
+var Guilds := ListGuilds();
+
+//-----------------------------------------------------------------------------
+
+program Guilds(who)
+
+  GInit(50,50);
+  GPage();
+  GResPic(0,0,BKGND_BLACKSLAB,480,400);
+  GResPic(16,18,BKGND_GOLDTRIM,446,366);
+
+  GAddPageData(437,27,2650,2651,437,354,2646,2647);
+
+  GTextLine(50,35,570,"Gildie :");
+
+  var i := 1;
+
+  foreach CGuild in Guilds
+    Icon := GetGuildIcon(CGuild);
+    GCheckNextPage(4);
+    GTextLine(35 ,80+(GNPCount()*80),590,i+".");
+    GTextLine(125,70+(GNPCount()*80),590,GetGuildName(CGuild) + " ["+GetGuildAbv(CGuild)+"]" );
+    GTextLine(125,90+(GNPCount()*80),550,"Mistrz : "+CLStr(FindGuildGm(CGuild).name) );
+    GTextLine(375,90+(GNPCount()*80),550,"ID :"+CGuild.guildid );
+    GButton(60,60+(GNPCount()*80),Icon,Icon+1,CGuild.guildid);
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+  if(Res)
+    var Guild := FindGuild(Res);
+    if(Guild)
+      var Stone := GetStoneFromGuild(Guild);
+      if(Stone)
+        MoveObject(who,Stone.x,Stone.y,Stone.z,Stone.realm,MOVECHAR_FORCELOCATION);
+      else
+        SendSysMessage(who,"Gildia nie posiada kamienia.",FONT_NORMAL,COLOR_RED);
+      endif
+    endif
+  endif
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

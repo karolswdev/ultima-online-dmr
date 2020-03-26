@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+
+//-----------------------------------------------------------------------------
+
+program PaintMaterial(who,material)
+
+  if(!StandardItemCheck(who,material))
+    return;
+  endif
+  
+  SendSysMessage(who,"Wybierz sztaluge.",FONT_NORMAL,COLOR_GREEN);
+  var Easel := ObjTarget(who);
+  if(!StandardItemCheck(who,Easel,NO_MOVABLE_CHECK))
+    return;
+  endif
+  if(Easel.graphic != UOBJ_EASEL)
+    SendSysMessage(who,"To nie sztaluga.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(Distance(who,Easel) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(Easel.graphic == UOBJ_MATEASEL)
+    SendSysMessage(who,"Na tej sztaludze jest juz plotno.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  if(SubtractAmount(material,1))
+    Easel.graphic := UOBJ_MATEASEL;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

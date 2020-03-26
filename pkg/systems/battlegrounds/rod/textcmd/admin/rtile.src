@@ -1,0 +1,17 @@
+use uo;
+use util;
+use vitals;
+
+include "include/client/fonts";
+include "include/client/effects";
+include "include/const/misc";
+include "include/attributes/vitals";
+include "include/staff";
+include "include/const/attributes";
+include ":rod:RingOfDeath";
+
+program tile(who)
+
+    CreateNewTile();
+    
+endprogram

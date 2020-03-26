@@ -1,0 +1,32 @@
+use uo;
+include "include/client/fonts";
+include "include/checks/objchecks";
+
+program onclick2destroy(who, item)
+
+  if(!StandardItemCheck(who, item))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(ItemCfg[item.objtype].ReplaceObjType)
+    var RepItem := CreateItemInPack(who, ItemCfg[item.objtype].ReplaceObjType, item.amount);
+
+    if(!RepItem)
+      SendSysMessage(who, "Nie masz miejsca w plecaku!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(!DestroyItem(item))
+      DestroyItem(RepItem);
+      SendSysMessage(who, "Ten przedmiot jest przestarzaly! Pomodl sie do walarow.", FONT_NORMAL, COLOR_RED);
+    endif
+
+  else
+    if(DestroyItem(item))
+      SendSysMessage(who, "Przedmiot rozpadl sie na twoich oczach!", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+endprogram

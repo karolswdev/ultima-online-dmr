@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseWhitePotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  var ExpMod   := GetExpPotionMod(Potion);
+
+  if(ExpMod and !CanMod(who, MOD_STR))
+    SendBad(who, "Ponowne wypicie mikstury nie przyniesie efektu.");
+    return;
+  endif
+  
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var QualMod  := GetPotionQualMod(Potion);
+
+  Strength := CalcPotStrength(Strength,ExpMod, CInt(GetEffectiveSkill(who, SKILLID_ANATOMY) / 2));
+
+  if(potion.objtype == UOBJ_GREATER_STRENGTH_POTION)
+    if(Strength < 26)
+      // 20 + random(6)
+      Strength := 20 + GetStatRandomStrengthMod(who);
+    endif
+  endif
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  DoMod(who,MOD_STR,Strength, STANDARD_POTION_MOD_DUR * QualMod + (ExpMod * 30));
+
+endprogram
+
+//-----------------------------------------------------------------------------

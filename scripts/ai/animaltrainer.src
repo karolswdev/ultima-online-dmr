@@ -1,0 +1,127 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+include "ai/include/mspeech";
+include "include/smaster";
+include "include/findcity";
+include "include/buildings";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include "ai/include/tamed";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program AnimalTrainer_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_ITEM_GIVEN);
+  EnableEvents(EVID_SPEECH, SPEECH_RANGE);
+  EnableEvents(EVID_ENGAGED);
+  EnableEvents(EVID_DAMAGED);
+
+  MerchantInit();
+
+  while (me)
+    if(!ev)
+      ev := os::wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+    StdMercEventLoop();
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_SPEECH:             if(CheckNpcSpeech(ev.source, ev.text) == 0)
+                               if(CheckTrainerSpeech(ev.source, ev.text))
+                                 if(IsWalking())
+                                   SetWalkPause();
+                                 endif
+                                 ev := 0;
+                                 return 1;
+                               endif
+                             else
+                               ev := 0;
+                               return 1;
+                             endif
+
+                             ev := 0;
+                             return 0;
+
+    EVID_ITEM_GIVEN:         if(ev.item.objtype == UOBJ_TICKET)
+                               TurnToward(ev.source);
+                               if(!Load_Ticket_Data(ev.source, ev.item))
+                                 MoveToPack(ev.item,ev.source);
+                               endif
+                               ev := 0;
+                               return 1;
+                             endif
+  endcase
+
+  return StdMercHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Buy(who)
+
+  return MercSendBuy(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Sell(who)
+
+  TurnToward(who);
+  if(CanTrade(who))
+    SellAnimal(who);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckTrainerSpeech(who, text)
+
+  text := lower(text);
+
+  if(text["przechowa"])
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      stable(who);
+    endif
+  elseif(text["ocen"])
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      AppraiseAnimal(who);
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

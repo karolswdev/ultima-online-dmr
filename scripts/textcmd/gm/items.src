@@ -1,0 +1,459 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use math;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumpboxes";
+include "include/log";
+include "include/items";
+include "include/cmds/cancmd";
+include "include/coords";
+include "include/objtypes/misc";
+include "include/command_func";
+include "include/tempmods";
+
+include ":crafting:common";
+
+//--------------------------------------------------------------------------------
+
+var _Props, gQuestItem;
+
+//--------------------------------------------------------------------------------
+
+program CreateItem(who,text)
+
+  _Props := struct;
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  var ModZ, Loc, Width := 0,Length := 0;
+  var Loop := 0;
+  gQuestItem := 0;
+  var Items;
+
+  SetLogRunCycles(LST_CMD);
+
+  if(text == "?")
+    SendSysMessage(who,".items Param [objtype] [amt] Opt [value]",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,"Parametry: [all/torn/torw/c/t/b/sb/tl/d/n/f/fe/set]",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,"Opcje: [col/grap/fac/z/ib/name]",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(text == "torw")
+    if(CreateItemAtLoc(who.x,who.y,who.z+15,2567,1,who.realm))
+      SendSysMessage(who,"Pochodnia W",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie udalo sie stworzyc pochodni W.",FONT_NORMAL,COLOR_RED);
+    endif
+    return;
+  elseif(text == "torn")
+    if(CreateItemAtLoc(who.x,who.y,who.z+15,2572,1,who.realm))
+      SendSysMessage(who,"Pochodnia N",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie udalo sie stworzyc pochodni N.",FONT_NORMAL,COLOR_RED);
+    endif
+    return;
+  endif
+
+  text := SplitWords(text);
+  var CmdType := text[1];
+
+  if(CmdType == "crnear" and IsAdmin(who))
+    SetCreatedNear(who, text[2], text[3]);
+    return;
+  endif
+
+  var n := 1;
+
+  while(n != error)
+
+    case(CmdType[n]) 
+      "m":     Loop := 1;
+      "q":     if(!CanUseCmd(who, "items qq"))
+                 SendSysMessage(who, "Nie masz dostepu do tworzenia przedmiotow questowych.", FONT_NORMAL, COLOR_RED);
+                 return;
+               endif
+
+               gQuestItem := 1;
+               ClearScriptObjCreator();
+               SendSysMessage(who, "Tryb tworzenia przedmiotow questowych. Wszystkie zostana zalogowane.", FONT_NORMAL, COLOR_ORANGE);
+
+      default: n := error;
+    endcase
+
+    if(n != error)
+      CmdType[n] := "";
+    endif
+
+  endwhile
+
+  var rItem := 0;
+
+  repeat
+    case(CmdType)
+      "ist":    if(IsStackableObj(CInt(text[2])))
+                  SendSysMessage(who, "I: "+CInt(text[2])+" H: "+hex(text[2])+" jest stack.", FONT_NORMAL, COLOR_GREEN);
+                else
+                  SendSysMessage(who, "I: "+CInt(text[2])+" H: "+hex(text[2])+" nie jest stack.", FONT_NORMAL, COLOR_RED);
+                endif
+                return;
+
+      "c":      Items := text[2];
+                Loc   := who;
+                Loop  := 0;
+
+      "r":      if(text[3])
+                  Items := CInt(text[2]) + RandomInt(CInt(text[3])-CInt(text[2])+1);
+                else
+                  Items := text[2];
+                endif
+                text[3] := 1;
+                Loc   := who;
+                Loop  := 0;
+      "t":      Items := text[2];
+                Loc   := LocTarget(who);
+
+      "b":      Items := text[2];
+                Loc   := who.backpack;
+                Loop  := 0;
+
+      "sb":     Items := text[2];
+                Loc   := LocTarget(who).item;
+                if(!Loc.isa(POLCLASS_CONTAINER) and !Loc.isa(POLCLASS_SPELLBOOK))
+                  SendSysMessage(who,"To nie pojemnik.",FONT_NORMAL,COLOR_RED);
+                endif
+
+      "d":      Items := SearchItemBy("Desc",text[2]);
+                Loc   := who;
+                Loop  := 0;
+
+      "n":      Items := SearchItemBy("Name",text[2]);
+                Loc   := who;
+                Loop  := 0;
+
+      "tl":     var Loc1 := LocTarget(who);
+                if(!Loc1)
+                  SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+
+                sleepms(100);
+
+                var Loc2 := LocTarget(who);
+                if(!Loc2)
+                  SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+
+                Items  := text[2];
+
+                if(CInt(text[3]) and CInt(text[3]) > CInt(Items))
+                  rItem  := CInt(text[3]) - CInt(Items) + 1;
+                endif
+
+                Width  := Loc1.x - Loc2.x;
+                Length := Loc1.y - Loc2.y;
+                ModZ   := Loc1.z - Loc2.z;
+                Loc    := Loc2;
+
+      "set":    if(gQuestItem)
+                  SendSysMessage(who, "Nie mozesz tworzyc setow z flaga q.", FONT_NORMAL, COLOR_RED);
+                else
+                  ShowSets(who,text);
+                endif
+                return;
+
+      "f":      Items  := text[2];
+                Loc    := -1;
+                Loop   := 0;
+      "fe":     EraseObjProperty(who,"#FollowCreatePid");
+                return;
+                Loop  := 0;
+      "all":    Items := GetConfigStringKeys(ItemCfg);
+                Loc   := who;
+                Loop  := 0;
+
+      default:  SendSysMessage(who, ".items ?", FONT_NORMAL, COLOR_RED);
+                return;
+    endcase
+
+    var cObj := CInt(Items);
+
+    if(!Items.size())
+      if(!cObj and Items)
+        cObj := GetObjTypeByName(Items);
+      endif
+
+      if(!cObj)
+        SendSysMessage(who, "Bledny ObjType.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+      if((cObj == UOBJ_SRUNE or cObj == UOBJ_TELE) and who.cmdlevel != 5)
+        return 0;
+      endif
+    endif
+
+    if(!Loc)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(Items.size() >= 1)
+      Items := ShowItems(who,Items, __IfElse(text[3] == "cq", SIF_SHOW_CRAFT, 0));
+    elseif(!Items)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    elseif(Items.size())
+      Items := Items[1];
+    endif
+
+    if(!Items)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if((Items == UOBJ_SRUNE or Items == UOBJ_TELE) and who.cmdlevel != 5)
+      return;
+    endif
+
+    _Props.+Amt := CInt(text[3]);
+
+    if(!_Props.Amt or rItem)
+      _Props.Amt := 1;
+    endif
+
+    var i := 1;
+
+    foreach Sp in text
+      case(Sp)
+        "col":   _Props.+Color := CInt(text[i+1]);
+        "grap":  _Props.+Grap  := CInt(text[i+1]);
+        "name":  _Props.+Name  := text[i+1];
+                 while(_Props.Name["_"])
+                   _Props.Name["_"] := " ";
+                 endwhile
+        "fac":   _Props.+Fac   := CInt(text[i+1]);
+        "z":     ModZ  := CInt(text[i+1]);
+        "ib":    Loc   := who.backpack;
+      endcase
+      i := i + 1;
+    endforeach
+
+    var Item;
+
+    if(Width or Length)
+
+      if(Width > 50 or Length > 50)
+        SendSysMessage(who, "Szerokosc ("+Width+") lub dlugosc ("+Length+") jest za duza! Maksymalnie 50.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+      var w,l,pw,pl;
+      for(w:=0;w<=Abs(Width);w:=w+1)
+        for(l:=0;l<=Abs(Length);l:=l+1)
+          if(Width < 0)
+            pw := 0 - w;
+          else
+            pw := w;
+          endif
+          if(Length < 0)
+            pl := 0 - l;
+          else
+            pl := l;
+          endif
+
+          var ObjType := Items;
+          if(rItem)
+            ObjType := CInt(ObjType) + RandomInt(rItem);
+          endif
+
+          Item := CreateItemAtLoc(Loc.x+pw,Loc.y+pl,Loc.z+ModZ,ObjType,_Props.Amt,who.realm);
+          SetItemProps(Item,who);
+        endfor
+      endfor
+      ShowPropsMsg(Item,who);
+    else
+      if(Loc.isa(POLCLASS_CONTAINER) or Loc.isa(POLCLASS_SPELLBOOK))
+        if(!CInt(Items))
+          Items := GetObjTypeByName(Items);
+        endif
+
+        if(IsStackableObj(Items) or _Props.Amt == 1)
+          Item := CreateItemInCont(Loc,Items,_Props.Amt);
+          SetItemProps(Item, who);
+        elseif(_Props.Amt > 1)
+          for(i:=1; i<=_Props.Amt; i+=1)
+            Item := CreateItemInCont(Loc, Items, 1);
+            SetItemProps(Item, who);
+          endfor
+        endif
+        ShowPropsMsg(Item,who);
+      elseif(Loc == -1)
+        var x := who.x-1,y := who.y-1,n := 0;
+        SetObjProperty(who,"#FollowCreatePid",GetPid());
+        while(GetObjProperty(who,"#FollowCreatePid") == GetPid())
+          if(coordist(who.x,who.y,x,y) > 20)
+            break;
+          endif
+          if(who.x != x or who.y != y)
+            x := who.x;
+            y := who.y;
+            Item := CreateItemAtLoc(who.x,who.y,who.z+ModZ,Items,_Props.Amt,who.realm);
+            SetItemProps(Item, who);
+            ShowPropsMsg(Item, who);
+
+            if(ModZ)
+              SendSysMessage(who,"ItemModZ: "+ModZ,FONT_NORMAL,COLOR_GREEN);
+            endif
+            n := n + 1;
+            if(n >= 30)
+              break;
+            endif
+          endif
+          sleepms(200);
+        endwhile
+        SendSysMessage(who,"Stworzonych "+n+" przedmiotow.",FONT_NORMAL,COLOR_GREEN);
+        SendSysMessage(who,"FC zakonczone.",FONT_NORMAL,COLOR_GREEN);
+      else
+        Item := CreateItemAtLoc(Loc.x,Loc.y,Loc.z+ModZ,Items,_Props.Amt,who.realm);
+        SetItemProps(Item, who);
+        ShowPropsMsg(Item, who);
+
+        if(ModZ)
+          SendSysMessage(who,"ItemModZ: "+ModZ,FONT_NORMAL,COLOR_GREEN);
+        endif
+      endif
+    endif
+
+  until(!Loop);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function SetItemProps(byref Item, who)
+
+  if(Item)
+    if(_Props.Color)
+      Item.color := _Props.Color;
+    endif
+
+    if(_Props.Grap)
+      Item.graphic := _Props.Grap;
+    endif
+
+    if(_Props.Fac)
+      Item.facing := _Props.Fac;
+    endif
+
+    if(_Props.Name)
+      SetName(Item, _Props.Name);
+    endif
+    
+    var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+    if(Item.container)
+      Item.movable := 1;
+    elseif(!ItemCfg[Item.objtype].movable and !ItemCfg[Item.objtype].name)
+      Item.movable := 0;
+    endif
+
+    if(gQuestItem)
+      LogMsg(QSITEMS_LOG,who,item);
+    endif
+
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ShowPropsMsg(Item, who)
+
+  if(Item)
+
+    SendSysMessage(who,"Item: "+Cint(Item.objtype)+"/"+Hex(Item.objtype)+" A: "+_Props.Amt,FONT_NORMAL,COLOR_GREEN);
+
+    if(_Props.Color)
+      SendSysMessage(who,"ItemColor: "+Cint(_Props.Color)+"/"+Hex(_Props.Color),FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    if(_Props.Grap)
+      SendSysMessage(who,"ItemGraphic: "+Cint(_Props.Grap)+"/"+Hex(_Props.Grap),FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    if(_Props.Fac)
+      SendSysMessage(who,"ItemFacing: "+Cint(_Props.Fac)+"/"+Hex(_Props.Fac),FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    if(_Props.Name)
+      SendSysMessage(who,"ItemName: "+CStr(_Props.Name),FONT_NORMAL,COLOR_GREEN);
+    endif
+
+  else
+    SendSysMessage(who,"error: "+Item,FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SetCreatedNear(who, range, Serial)
+
+  range := CInt(range);
+  serial := CInt(serial);
+
+  if(range > 20)
+    SendSysMessage(who, "Taki duzy zasieg ["+range+"]?!", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+  if(!Serial)
+    SendSysMessage(who, "Czy usunac serial itemom w zasiegu "+range+"?", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Czy nadac serial ["+Serial+"] stworzyciela itemom w zasiegu "+range+"?", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Creator := FindPlayerBySerial(Serial);
+
+  if(Serial)
+    if(!Creator or !Creator.cmdlevel)
+      SendSysMessage(who, "Wpisany serial to nie GM (lub zaden obiekt).", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  var Count := 0;
+
+  foreach Item in ListObjectsInBox(who.x-range, who.y-range, -127, who.x+range, who.y+range, 127)
+
+    if(Item.isa(POLCLASS_ITEM))
+      if(Serial)
+        if(!IsGmCreated(Item))
+          SetPropCreated(Creator, Item);
+          Count := Count + 1;
+        endif
+      elseif(IsGmCreated(Item))
+        RemoveObjCreator(Item);
+        Count := Count + 1;
+      endif
+    endif
+
+  endforeach
+
+  if(!Serial)
+    SendSysMessage(who, "Usunieto serial ["+COunt+"] itemom w zasiegu "+range+".", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Nadano serial ["+Serial+"] stworzyciela ["+COunt+"] itemom w zasiegu "+range+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

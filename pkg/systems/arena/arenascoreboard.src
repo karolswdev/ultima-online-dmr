@@ -1,0 +1,613 @@
+//-----------------------------------------------------------------------------
+
+include "arena";
+include "include/finding";
+include "include/items";
+include "include/move";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const PAGE_COUNT := 10;
+
+//-----------------------------------------------------------------------------
+
+var slayout := array;
+var sdata   := array;
+var res,stone,who,board,keeprun := 1;
+
+//-----------------------------------------------------------------------------
+
+program ArenaScoreBoard(who1,board1)
+
+  who   := who1;
+  board := board1;
+  stone := FindBoardArena(board);
+  CheckScores(stone);
+
+  BuildNormalScoreGump();
+  while(who and board and keeprun)
+    res := SendDialogGump(who,slayout,sdata)[0];
+
+    if(!res)
+      keeprun := 0;
+    endif
+    
+    case(res)
+      1:        BuildNormalScoreGump();
+      2:        BuildPlayerScoreGump();
+                continue;
+      3:        ShowTourFighters();
+                continue;
+      4:        ShowLastTour();
+                continue;
+      100:      SetBoardArena(board,who);
+      101:      RotateBoard();
+      102:      ShowTourGump();
+                continue;
+                stone := FindBoardArena(board);
+      103:      UnLinkArenaWithBoard(stone,board);
+      104:      BuildOrDestroyLegs(board);
+      105:      MoveBoardToLoc(board,who);
+      106:      DestroyBoard(stone,board);
+      199:      ShowBoardSettings();
+                continue;
+      9999:     keeprun := 1;
+    endcase
+    if(res > 200 and res < 2000)
+      if(ShowPlayerScore(res-200))
+        continue;
+      endif
+    elseif(res > 2000 and res <= (2000+FINAL_LVL))
+      ShowLastTourGump(res-2000);
+      continue;
+    endif
+    BuildNormalScoreGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildNormalScoreGump()
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+  
+  var Scores := GetObjProperty(stone,"Scores"),i;
+  var Player,Name,Score;
+
+  slayout.append("text  200 210 550 "+(len(sdata)));
+  slayout.append("text  390 210 540 "+(len(sdata)+1));
+  sdata.append("Imie");
+  sdata.append("Punkty");
+  FillLines();
+
+  for(i:=1;i<=PAGE_COUNT;i:=i+1)
+    Score := Scores[i];
+    Player := FindPlayerBySerial(CInt(Score[1]));
+    if(!Player)
+      continue;
+    endif
+    Name   := Player.name;
+    if(!Name)
+      Name := "nieznany";
+    endif
+    
+    slayout.append("text  180 "+(210+(i*20))+" 560 "+(len(sdata)));
+    slayout.append("text  200 "+(210+(i*20))+" 550 "+(len(sdata)+1));
+    slayout.append("text  400 "+(210+(i*20))+" 540 "+(len(sdata)+2));
+    sdata.append(i);
+    sdata.append(Name);
+    sdata.append(Score[2]);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPlayerScoreGump()
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+  
+  slayout.append("text  200 210 550 "+(len(sdata)));
+  slayout.append("text  390 210 540 "+(len(sdata)+1));
+  sdata.append("Imie");
+  sdata.append("Zabitych");
+  FillLines();
+  
+  var Scores := GetObjProperty(stone,"PlayerScores");
+
+  var Player,Name,Score,w := PAGE_COUNT,p := 1,i;
+  for(i:=1;i<=len(Scores);i:=i+1)
+    if(w >= PAGE_COUNT)
+      slayout.append("page "+p);
+      if(p > 1)
+        slayout.append("button 615 206 2650 2651 0 "+cint(p-1));
+      endif
+      if(i <= (len(Scores)-PAGE_COUNT))
+        slayout.append("button 615 410 2648 2647 0 "+cint(p+1));
+      endif
+      p := p + 1;
+      w := 0;
+    endif
+      
+    Score := Scores[i];
+    Player := FindPlayerBySerial(CInt(Score[1]));
+    if(!Player)
+      continue;
+    endif
+    Name   := Player.name;
+    if(!Name)
+      Name := "nieznany";
+    endif
+
+    slayout.append("button 180 "+(230+(w*20))+" 2714 2715 1 0 "+(200+i));
+    slayout.append("text   200 "+(230+(w*20))+" 560 "+(len(sdata)));
+    slayout.append("text   220 "+(230+(w*20))+" 550 "+(len(sdata)+1));
+    slayout.append("text   400 "+(230+(w*20))+" 540 "+(len(sdata)+2));
+    sdata.append(i);
+    sdata.append(Name);
+    sdata.append(len(Score[2]));
+    w := w + 1;
+
+    Sleepms(1);
+  endfor
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildBoardGump()
+
+  slayout := array;
+  sdata   := array;
+  slayout.append("resizepic 150 100 3600 500 400");
+  slayout.append("gumppic 100 110 10440");
+  slayout.append("gumppic 615 110 10441");
+  slayout.append("text    220 120 550 "+len(sdata));
+  sdata.append("Tablica Wynikow Areny "+GetArenaName(stone));
+  if(IsGm(who) and stone)
+    slayout.append("text    570 120 550 "+len(sdata));
+    sdata.append("Nr "+CInt(GetObjProperty(stone,"ArenaNr")));
+  else
+    slayout.append("text    570 120 550 "+len(sdata));
+    sdata.append("N/L");
+  endif
+
+  slayout.append("button 180 160 2714 2715 1 0 1");
+  slayout.append("text   200 160 660 "+len(sdata));
+  sdata.append("Wyniki Walk z potworami");
+
+  slayout.append("button 410 160 2714 2715 1 0 2");
+  slayout.append("text   430 160 660 "+len(sdata));
+  sdata.append("Wyniki Walk z graczami");
+
+  if(IsAdmin(who))
+    slayout.append("button 180 455 2714 2715 1 0 199");
+    slayout.append("text   200 455 660 "+len(sdata));
+    sdata.append("Ustawienia");
+  endif
+  
+  slayout.append("button 380 455 2714 2715 1 0 102");
+  slayout.append("text   400 455 660 "+len(sdata));
+  sdata.append("Turniej");
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RotateBoard()
+  
+  var ItemCfg := ReadConfigFile(":arena:itemdesc");
+  if(board.graphic == BOARD_CHANGE_GRAPH)
+    board.graphic := ItemCfg[board.objtype].graphic;
+  else
+    board.graphic := BOARD_CHANGE_GRAPH;
+  endif
+  ChangeLegs(board);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildOrDestroyLegs(board)
+
+  if(GetObjProperty(board,"Legs"))
+    DestroyLegs(board);
+  else
+    ChangeLegs(board);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeLegs(board)
+
+  DestroyLegs(board);
+  var Leg,Legs := {};
+  if(board.graphic == BOARD_CHANGE_GRAPH)
+    Leg := CreateItemAtLoc(board.x-1,board.y,board.z,UOBJ_BOARDLEG,1,board.realm);
+    if(!Leg)
+      return 0;
+    endif
+    Legs.append(Leg.serial);
+  else
+    Leg := CreateItemAtLoc(board.x,board.y-1,board.z,UOBJ_BOARDLEG,1,board.realm);
+    if(!Leg)
+      return 0;
+    endif
+    Legs.append(Leg.serial);
+    Leg := CreateItemAtLoc(board.x-1,board.y-1,board.z,UOBJ_BOARDLEG,1,board.realm);
+    if(!Leg)
+      DestroyItem(SystemFindObjectBySerial(CInt(Legs[1])));
+      return 0;
+    endif
+    Legs.append(Leg.serial);
+  endif
+  SetObjProperty(board,"Legs",Legs);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyLegs(board)
+
+  var Legs := GetObjProperty(board,"Legs");
+  foreach Leg in Legs
+    Leg := SystemFindObjectBySerial(CInt(Leg));
+    if(Leg)
+      DestroyItem(Leg);
+    endif
+  endforeach
+  EraseObjProperty(board,"Legs");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerScore(Nr)
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+
+  slayout.append("text  200 210 540 "+(len(sdata)));
+  FillLines();
+
+  var Scores := GetObjProperty(stone,"PlayerScores");
+  Scores := Scores[Nr];
+  var Player := FindPlayerBySerial(CInt(Scores[1]));
+  if(!Player.name)
+    sdata.append("Lista zabitych przez nieznanego");
+  else
+    sdata.append("Lista zabitych przez "+Player.name);
+  endif
+
+  Scores := Scores[2];
+  if(!Scores)
+    return 0;
+  endif
+
+  var Name,Score,w := PAGE_COUNT,p := 1,i;
+  for(i:=1;i<=len(Scores);i:=i+1)
+    if(w >= PAGE_COUNT)
+      slayout.append("page "+p);
+      if(p > 1)
+        slayout.append("button 615 206 2650 2651 0 "+cint(p-1));
+      endif
+      if(i <= (len(Scores)-PAGE_COUNT))
+        slayout.append("button 615 410 2648 2647 0 "+cint(p+1));
+      endif
+      p := p + 1;
+      w := 0;
+    endif
+
+    Player := FindPlayerBySerial(CInt(Scores[i]));
+    if(!Player)
+      continue;
+    endif
+    Name   := Player.name;
+    if(!Name)
+      Name := "nieznany";
+    endif
+
+    slayout.append("text   180 "+(230+(w*20))+" 560 "+(len(sdata)));
+    slayout.append("text   200 "+(230+(w*20))+" 550 "+(len(sdata)+1));
+    sdata.append(i);
+    sdata.append(Name);
+    w := w + 1;
+  endfor
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillLines()
+
+  slayout.append("gumppic 160 190 3601");
+  slayout.append("gumppic 260 190 3601");
+  slayout.append("gumppic 360 190 3601");
+  slayout.append("gumppic 460 190 3601");
+  slayout.append("gumppic 513 190 3601");
+
+  slayout.append("gumppic 160 430 3601");
+  slayout.append("gumppic 260 430 3601");
+  slayout.append("gumppic 360 430 3601");
+  slayout.append("gumppic 460 430 3601");
+  slayout.append("gumppic 513 430 3601");
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTourGump()
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+  
+  slayout.append("text  200 210 540 "+(len(sdata)));
+  FillLines();
+
+  if(IsTour(stone))
+    if(!StartedTour(stone))
+      sdata.append("Uczestnicy Turnieju");
+      slayout.append("button 480 210 2714 2715 1 0 4");
+      slayout.append("text  500 210 540 "+(len(sdata)));
+      sdata.append("Ostatniego Turniej");
+      FillInTourFighters();
+    else
+      sdata.append("Walki                                        Etap "+GetTourLvl(stone));
+      FillInFights(GetTourFights(stone));
+    endif
+  else
+    FillInLastTour();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowLastTour()
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+
+  slayout.append("text  200 210 540 "+(len(sdata)));
+  FillLines();
+  sdata.append("Ostatni Turniej");
+  
+  FillInLastTour();
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTourFighters()
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+
+  slayout.append("text  200 210 540 "+(len(sdata)));
+  sdata.append("Uczestnicy Turnieju");
+  FillLines();
+  FillInTourFighters();
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillInLastTour()
+
+    var Name,Player,w := PAGE_COUNT,p := 1,i,TourWinners := GetTourWinners(stone);
+    sdata.append("Zwyciezcy Turnieji");
+    slayout.append("text   430 210 670 "+len(sdata));
+    sdata.append("Etap");
+    for(i:=1;i<=FINAL_LVL;i:=i+1)
+      slayout.append("button "+(460+(i*35))+" 210 2714 2715 1 0 "+(2000+i));
+      slayout.append("text   "+(450+(i*35))+" 210 660 "+len(sdata));
+      sdata.append(i);
+    endfor
+
+    for(i:=1;i<=len(TourWinners);i:=i+1)
+      if(w >= PAGE_COUNT)
+        slayout.append("page "+p);
+        if(p > 1)
+          slayout.append("button 615 206 2650 2651 0 "+cint(p-1));
+        endif
+        if(i <= (len(TourWinners)-PAGE_COUNT))
+          slayout.append("button 615 410 2648 2647 0 "+cint(p+1));
+        endif
+        p := p + 1;
+        w := 0;
+      endif
+
+      Player := FindPlayerBySerial(CInt(TourWinners[i]));
+      Name   := Player.name;
+      if(!Name)
+        Name := "nieznany";
+      endif
+
+      slayout.append("text   180 "+(230+(w*20))+" 560 "+(len(sdata)));
+      slayout.append("text   270 "+(230+(w*20))+" 550 "+(len(sdata)+1));
+      sdata.append("Turniej "+i);
+      sdata.append(Name);
+      w := w + 1;
+    endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillInTourFighters()
+
+    var TourFighters := GetTourFighters(stone);
+
+    var Name,Data,Player,w := PAGE_COUNT,p := 1,i;
+    for(i:=1;i<=len(TourFighters);i:=i+1)
+      if(w >= PAGE_COUNT)
+        slayout.append("page "+p);
+        if(p > 1)
+          slayout.append("button 615 206 2650 2651 0 "+cint(p-1));
+        endif
+        if(i <= (len(TourFighters)-PAGE_COUNT))
+          slayout.append("button 615 410 2648 2647 0 "+cint(p+1));
+        endif
+        p := p + 1;
+        w := 0;
+      endif
+      Data := TourFighters[i];
+      Player := FindPlayerBySerial(CInt(Data[2]));
+      if(!Player)
+        continue;
+      endif
+      Name   := Player.name;
+      if(!Name)
+        Name := "nieznany";
+      endif
+
+      slayout.append("text   180 "+(230+(w*20))+" 560 "+(len(sdata)));
+      slayout.append("text   200 "+(230+(w*20))+" 550 "+(len(sdata)+1));
+      sdata.append(i);
+      sdata.append(Name);
+      w := w + 1;
+    endfor
+    
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillInFights(TourFights)
+
+      if(!TourFights)
+        return;
+      endif
+      var i,c := 1;
+      var Fighter1,Fighter2,Data1,Data2;
+      for(i:=1;i<=len(TourFights);i:=i+2)
+        Data1 := TourFights[i];
+        Data2 := TourFights[i+1];
+        Fighter1 := FindPlayerBySerial(CInt(Data1[2]));
+        Fighter2 := FindPlayerBySerial(CInt(Data2[2]));
+
+        slayout.append("text   180 "+(230+(i*10))+" 560 "+(len(sdata)));
+        slayout.append("text   200 "+(230+(i*10))+" 550 "+(len(sdata)+1));
+        slayout.append("text   340 "+(230+(i*10))+" 540 "+(len(sdata)+2));
+        slayout.append("text   420 "+(230+(i*10))+" 550 "+(len(sdata)+3));
+        slayout.append("text   560 "+(230+(i*10))+" 540 "+(len(sdata)+4));
+        sdata.append(c);
+        c := c + 1;
+        if(Fighter1.name)
+          sdata.append(Fighter1.name);
+        else
+          sdata.append("Nieznany");
+        endif
+        case(Data1[3])
+          "Won":    sdata.append("Wygral");
+          "Lost":   sdata.append("Przegral");
+          default:  sdata.append("");
+        endcase
+        if(Fighter2.name)
+          sdata.append(Fighter2.name);
+        else
+         sdata.append("Nieznany");
+        endif
+        case(Data2[3])
+          "Won":    sdata.append("Wygral");
+          "Lost":   sdata.append("Przegral");
+          default:  sdata.append("");
+        endcase
+      endfor
+      
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowLastTourGump(Lvl)
+
+  BuildBoardGump();
+  if(!stone)
+    return;
+  endif
+
+  var TourFights := GetObjProperty(stone,"LastTourFightLvl_"+Lvl);
+  slayout.append("text  200 210 540 "+(len(sdata)));
+  sdata.append("Wyniki Ostatniego Turnieju  Etap "+Lvl);
+  FillLines();
+  FillInFights(TourFights);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowBoardSettings()
+
+  BuildBoardGump();
+  FillLines();
+
+  slayout.append("button 180 210 2714 2715 1 0 100");
+  slayout.append("text   200 210 660 "+len(sdata));
+  sdata.append("Zlinkuj Tablice");
+  slayout.append("button 180 240 2714 2715 1 0 103");
+  slayout.append("text   200 240 660 "+len(sdata));
+  sdata.append("Odlinkuj");
+  slayout.append("button 180 270 2714 2715 1 0 101");
+  slayout.append("text   200 270 660 "+len(sdata));
+  sdata.append("Obroc");
+  slayout.append("button 180 300 2714 2715 1 0 104");
+  slayout.append("text   200 300 660 "+len(sdata));
+  sdata.append("Nogi");
+  slayout.append("button 180 330 2714 2715 1 0 105");
+  slayout.append("text   200 330 660 "+len(sdata));
+  sdata.append("Przenies Tablice");
+  slayout.append("button 180 360 2714 2715 1 0 106");
+  slayout.append("text   200 360 660 "+len(sdata));
+  sdata.append("Zniszcz Tablice");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveBoardToLoc(board,who)
+
+  SendSysMessage(who,"Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var NewPlace := LocTarget(who);
+  if(!NewPlace)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  SendSysMessage(who,"Przenoszenie Tablicy Wynikow areny z miejsca x: "+stone.x+" y: "+stone.y+" z: "+stone.z+" na x: "+NewPlace.x+" y: "+NewPlace.y+" z: "+NewPlace.z+".",FONT_NORMAL,COLOR_GREEN);
+  MoveObject(board,NewPlace.x,NewPlace.y,NewPlace.z,who.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+  board.movable := 0;
+  ChangeLegs(board);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyBoard(stone,board)
+
+  DestroyLegs(board);
+  UnLinkArenaWithBoard(stone,board);
+  DestroyItem(board);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

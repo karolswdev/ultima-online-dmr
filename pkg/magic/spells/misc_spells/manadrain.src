@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 31;
+
+//-----------------------------------------------------------------------------
+
+program CastMagicUnTrap( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if (Reflected(CastOn, Caster))
+    CastOn := caster;
+  endif
+  
+  var Dmg := Resisted(CastOn, Caster, CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type), SpellGlob.Circle, SpellGlob.Type);
+  
+  if(Dmg)
+    SetModDelay(CastOn, MOD_PARA, 2);
+    PlaySoundEffect( Caster, SFX_SPELL_MANA_DRAIN );
+    PlayObjectCenteredEffect( CastOn, FX_HEAL_EFFECT, 7,0x10 );
+    DealManaDamage(CastOn,Dmg,Caster);
+    PlayObjectCenteredEffect(CastOn, FX_GLOW, 7,0x10);
+
+    CagNpcDamaged(CastOn, Max(CInt(Dmg/2), 2), Caster);
+    SendChEvent(CastOn,Caster,EVID_DAMAGED);
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,147 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+include "include/player/young";
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":npcguilds:ngd_ctrl";
+include ":ngd_npcs:common";
+include ":ngd_npcs:membership";
+include ":ngd_npcs:quests";
+
+//-----------------------------------------------------------------------------
+
+program GuildNpcSignIn(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!IsGuildNpc(Data.npc))
+    return -1;
+  endif
+
+  var NpcData  := GetObjProperty(Data.npc, PROP_NGDDATA);
+  var NpcGuild := GetNpcGuild(Data.npc);
+
+  var Flags := NpcGuild.GetProp(GDAPROP_FLAGS);
+
+  if(IsBitOn(Flags, NGF_EXPIRED))
+    NpcSpeechJustSay(Data.npc, Data.source, "Przykro mi, ale nie prowadzimy juz naboru do gildii. Gildia prawdopodobnie zostanie rozwiazana!");
+    return 0;
+  endif
+  
+  var PlayerData := GetObjProperty(Data.source, PROP_NGDDATA);
+
+  if(PlayerData.Guilds.exists(NpcData.GuildId))
+    if(PlayerData.Guilds[NpcData.GuildId].Delay + NGD_PLAYER_DELAY > ReadGameClock())
+      NpcSpeechJustSay(Data.npc, Data.source, "Ostatnim razem nie sprawdzil"+ggm(Data.source,3)+" sie, przyjdz pozniej to sie zastanowimy czy dac Ci nastepna szanse.");
+      return 0;
+    elseif(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_MEMBER)
+      NpcSpeechJustSay(Data.npc, Data.source, "Przeciez nalezysz juz do naszej Gildii.");
+      return 0;
+    elseif(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_TEST_QUEST)
+
+      var Ticket := FindItemBySerial(PlayerData.Guilds[NpcData.GuildId].LastQuest.Ticket);
+
+      if(!Ticket)
+        NpcSpeechJustSay(Data.npc, Data.source, "Widze ze nie wykonal"+ggm(Data.source,3)+" ostatniego zadania.. nie dobrze! Mozesz sprobowac drugi raz, ale lepiej sie postaraj!");
+        if(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_TEST_QUEST)
+          FailTestQuest(Data.npc, Data.source);
+          return 0;
+        endif
+      endif
+      NpcSpeechJustSay(Data.npc, Data.source, "Juz dostal"+ggm(Data.source,3)+" zadanie na probe, lepiej postaraj sie wykonac je jak najszybciej.");
+      return 0;
+
+    elseif(PlayerData.Guilds[NpcData.GuildId].LastQuest.Time + GetNgdQuestDelay(PlayerData.Guilds[NpcData.GuildId].Level+1) > ReadGameClock())
+      NpcSpeechJustSay(Data.npc, Data.source, "Przyjdz pozniej, a znajde jakies zadanie dla Ciebie.");
+      return 0;
+    endif
+  endif
+
+  if(CountGuildsMembership(Data.source) >= NGD_MAX_GUILD_MSHIP)
+    NpcSpeechJustSay(Data.npc, Data.source, "Nalezysz lub probujesz dolaczyc juz do zbyt wielu Gildii...");
+    return 0;
+  endif
+
+  if(NpcData.Level != 5)
+    NpcSpeechJustSay(Data.npc, Data.source, "Ja nie moge przyjac Cie do naszej Gildii, porozmawiaj z Mistrzem.");
+    return 0;
+  endif
+
+  var AgeReq := GetNpcGuildAgeReq(0);
+
+  if((AgeReq and AgeReq > GetRealAge(Data.source)))
+    NpcSpeechJustSay(Data.npc, Data.source, "Jestes za mlod"+ggm(Data.source,6)+" by moc dolaczyc do naszej Gildii, przykro mi.");
+    return;
+  endif
+
+  var Result := IsPlayerMeetGuildReqs(Data.source, NpcGuild);
+
+  if(!Result)
+    if(Result.errortext)
+      NpcSpeechJustSay(Data.npc, Data.source, Result.errortext);
+    else
+      NpcSpeechJustSay(Data.npc, Data.source, "Nie pasujesz do naszej Gildii, przykro mi.");
+    endif
+    return 0;
+  endif
+
+  var Question;
+
+  if(PlayerData.Guilds[NpcData.GuildId].Exp > 0)
+    NpcSpeechJustSay(Data.npc, Data.source, "Oooo prosze, kogo my tu widzimy!");
+    Question := "Chcesz dolaczyc ponownie do Gildii "+ClStr(NpcGuild.GetProp(GDPROP_NAME))+", tak?";
+  else
+    Question := "Chcesz dolaczyc do Gildii "+ClStr(NpcGuild.GetProp(GDPROP_NAME))+", tak?";
+  endif
+  
+  NpcSpeechJustSay(Data.npc, Data.source, Question);
+
+  if(!NpcAskYesNo(Data.npc, Data.source, Question))
+    NpcSpeechJustSay(Data.npc, Data.source, "*wzdycha*");
+    NpcSpeechJustSay(Data.npc, Data.source, "Badz bardziej zdecydowan"+ggm(Data.source,6)+" nastepnym razem...");
+    return 0;
+  endif
+
+  PlayerData := GetObjProperty(Data.source, PROP_NGDDATA);
+
+  AddGuildToPlayerData(PlayerData, NpcData.GuildId);
+
+  var Ticket := CreateQuestForPlayer(Data.npc, Data.source);
+
+  if(!Ticket)
+    NpcSpeechJustSay(Data.npc, Data.source, "Nie mam aktualnie dla Ciebie zadnego zadania.");
+    PlayerData.Guilds[NpcData.GuildId].LastQuest.Time := ReadGameClock() - GetNgdQuestDelay(PlayerData.Guilds[NpcData.GuildId].Level+1) + 600;
+  else
+    var TicketData := GetObjProperty(Ticket, QGPROP_QCRINFO);
+
+    NpcSpeechJustSay(Data.npc, Data.source, "Prosze, instrukcje sa na tym liscie, przeczytaj je.");
+    NpcSpeechJustSay(Data.npc, Data.source, "Jesli Ci sie uda wykonac to zadanie, zostaniesz przyjety do naszej Gildii.");
+
+    if(PlayerData.Guilds[NpcData.GuildId].Exp > 0)
+      NpcSpeechJustSay(Data.npc, Data.source, "Tylko uwazaj, bys nas nie zawiodl"+ggm(Data.source,4)+" ponownie!");
+    endif
+
+    SetBitOn(PlayerData.Guilds[NpcData.GuildId].Flags, NGPF_TEST_QUEST);
+    PlayerData.Guilds[NpcData.GuildId].LastQuest.Ticket := Ticket.serial;
+    PlayerData.Guilds[NpcData.GuildId].LastQuest.QuestGroup := TicketData.QuestGroup;
+    PlayerData.Guilds[NpcData.GuildId].LastQuest.QId    := TicketData.Id;
+    PlayerData.Guilds[NpcData.GuildId].LastQuest.From   := Data.npc.serial;
+    PlayerData.Guilds[NpcData.GuildId].LastQuest.Time   := ReadGameClock();
+  endif
+  
+  SetObjProperty(Data.source, PROP_NGDDATA, PlayerData);
+
+  return Result;
+
+endprogram
+
+//-----------------------------------------------------------------------------

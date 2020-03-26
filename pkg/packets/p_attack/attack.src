@@ -1,0 +1,118 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/packets";
+include "include/finding";
+include "include/client/effects";
+include "include/player/target";
+include "include/bits";
+include "include/logerror";
+include "include/reputation/murderer";
+include "include/reputation/pvparea";
+include "include/reputation/penalty";
+
+//--------------------------------------------------------------------------------
+
+program AttackPackets()
+
+  print("[0x05]: Attack");
+  print("[0x6C]: Target");
+  return 1;
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+exported function AttackPacket(who,byref Packet)
+
+  var Victim := FindPlayerBySerial(Packet.GetInt32(1));
+
+  if(Distance(who, Victim) < 15)
+    AddMurdReport(Victim, who);
+  endif
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckConcealTarget(who, Targ)
+
+  if(!who.cmdlevel)
+    if(Targ.cmdlevel and Targ.concealed)
+      LogError("[TargetPacket] "+who.name+"/"+who.acctname+" celowal w ukrytego "+Targ.name+"/"+Targ.acctname+"!", LOGF_SCRIPTS);
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction 
+
+//--------------------------------------------------------------------------------
+
+exported function TargetPacket(who,byref Packet)
+
+  if(!IsSetTempFlag(who, PCF_TARGETING))
+    return 1;
+  endif
+
+  UnSetTempFlag(who, PCF_TARGETING);
+
+  if(Packet.GetInt32(7))
+    var Targ := FindPlayerBySerial(Packet.GetInt32(7));
+
+    if(CheckConcealTarget(who, Targ))
+
+      Packet.SetInt32(7, who.serial); // reflektujemy target, nie moze tak byc ze celuje w ukrytego.
+
+    elseif(Distance(who, Targ) < 15) // nic nie robimy, jak jest za daleko. Jednakze pakiet zwracamy - w koncu jakis result jest i skrypt na niego czeka
+
+      if(CInt(GetObjProperty(who, "#TargFlags")) == 0x01)
+        AddMurdReport(Targ, who);
+      endif
+    endif
+  endif
+
+  if(GetObjProperty(who, "#TargPid"))
+    var Proc := GetProc(GetObjProperty(who, "#TargPid"));
+    if(Proc)
+      var ev := struct;
+      ev.+Packet := Packet;
+      Proc.sendevent(ev);
+    else
+      EraseObjProperty(who, "#TargPid");
+    endif
+
+    return 1;
+  endif
+
+  EraseObjProperty(who, "#TargFlags");
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+exported function SendTargetPacket(who,byref Packet)
+
+  if(IsSetTempFlag(who, PCF_TARGETING))
+    if(Packet.GetInt8(6) != 0x03)
+      LogError("Double targeting by ["+who.name+"/"+who.serial+"]", LOGF_SCRIPTS);
+      return 1;
+    endif
+  endif
+
+  SetObjProperty(who, "#TargFlags", Packet.GetInt8(6));
+
+  SetTempFlag(who, PCF_TARGETING);
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,155 @@
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/magic";
+include "include/client/effects";
+include "include/checks/objchecks";
+include "runebook";
+
+//-----------------------------------------------------------------------------
+
+program OnInsertRune(who, book, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    Item := existing_stack;
+  endif
+
+  if(who)
+    if(!StandardItemCheck(who,book,NO_OWNER_CHECK))
+      EndInsert(who,item);
+      return 0;
+    endif
+
+    if(!StandardItemCheck(who,item))
+      EndInsert(who,item);
+      return 0;
+    endif
+  endif
+
+  if(item.objtype == UOBJ_RUNE)
+    if(AddRune(who, book, item))
+      return 1;
+    endif
+  elseif(item.objtype == UOBJ_RECALLSCROLL)
+    if(RechargeBook(who, book, item))
+      return 1;
+    endif
+  elseif(item.objtype == UOBJ_RUNEBOOK)
+    MoveRunes(who,item, book);
+    EndInsert(who,item);
+    return 1;
+  else
+    SendSysMessage(who, "Nie mozesz tego wlozyc do runebooka.",FONT_NORMAL,COLOR_RED);
+  endif
+  EndInsert(who,item);
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function RechargeBook(who, book, scrolls)
+  var charges    := CInt(GetObjProperty(book, "charges"));
+  var maxcharges := CInt(GetObjProperty(book, "maxcharges"));
+  var maxamount  := CInt(maxcharges - charges);
+  var amount     := CInt(scrolls.amount);
+  if(maxamount <= 0)
+    SendSysMessage(who, "Ten runebook jest pelny.",FONT_NORMAL,COLOR_BLUE);
+    return 0;
+  elseif(amount >= maxamount)
+    var to_substract := maxamount;
+    if(SubtractAmount(scrolls, to_substract))
+      charges := maxcharges;
+    endif
+  else
+    ReleaseItem(scrolls);
+    if(DestroyItem(scrolls))
+      charges := charges + amount;
+    endif
+  endif
+  PlaySoundEffect(who, 0x1F1);
+  PlayObjectCenteredEffect(who, FX_SPARK_EFFECT, 7, 0x10);
+  SetObjProperty(book, "charges", charges);
+  case(charges)
+  1: SendSysMessage(who, "Teraz jest " + charges + " ladunek w runebooku.",FONT_NORMAL,COLOR_GREEN);
+  2:
+  3:
+  4: SendSysMessage(who, "Teraz sa " + charges + " ladunki w runebooku.",FONT_NORMAL,COLOR_GREEN);
+  5:
+  6:
+  7:
+  8:
+  9:
+  10:SendSysMessage(who, "Teraz jest " + charges + " ladunkow w runebooku.",FONT_NORMAL,COLOR_GREEN);
+  endcase
+  UpdateBookName(book);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddRune(who, book, rune)
+  var runedefs := GetObjProperty(book, "runedefs");
+  if(!runedefs)
+    runedefs := {};
+  endif
+  if(runedefs.size() >= 16)
+    SendSysMessage(who,"Ten runebook nie zmiesci juz wiecej run.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  if(!GetObjProperty(rune, "x"))
+    SendSysMessage(who,"Dodac mozesz tylko zaznaczone runa.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var x := GetObjProperty(rune, "x");
+  var y := GetObjProperty(rune, "y");
+  var z := GetObjProperty(rune, "z");
+  var Rlm := GetObjProperty(rune, "Rlm");
+
+  var rname := rune.desc;
+  if(rname[1,2] == "a ")
+    rname := rname - "a ";
+  endif
+  
+  runedefs.append({rname,x,y,z,Rlm});
+  SetObjProperty(book, "runedefs", runedefs);
+  SendSysMessage(who, "Dodal"+ggm(who,3)+" runo do runebooka.",FONT_NORMAL,COLOR_GREEN);
+  ReleaseItem(rune);
+  return DestroyItem(rune);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EndInsert(who,item)
+
+  MoveItemToContainer(item,who.backpack);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveRunes(who,FromBook, ToBook)
+
+  var ToBookRunes := GetObjProperty(ToBook, "runedefs");
+  var FromBookRunes;
+  if(ToBookRunes and ToBookRunes.size())
+    SendSysMessage(who,"Runy mozna przelozyc tylko do pustego runebooka.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  FromBookRunes := GetObjProperty(FromBook, "runedefs");
+  if(!FromBookRunes or !FromBookRunes.size())
+    SendSysMessage(who,"W tym runebooku nie ma zadnych run do przelozenia.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  SetObjProperty(ToBook,"runedefs",FromBookRunes);
+  FromBookRunes := {};
+  SetObjProperty(FromBook,"runedefs",FromBookRunes);
+  SendSysMessage(who, "Przelozyl"+ggm(who,3)+" runa.",FONT_NORMAL,COLOR_GREEN);
+  return 1;
+endfunction
+
+//-----------------------------------------------------------------------------

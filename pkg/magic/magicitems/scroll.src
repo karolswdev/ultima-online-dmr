@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/checks/objchecks";
+include ":magic:magicatt";
+include "include/objtypes/magic";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program UseScroll(who, Scroll)
+
+  if(!StandardItemCheck(who, Scroll, NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(!Scroll.amount)
+    return;
+  endif
+  
+  var SpellID     := ItemCfg[Scroll.objtype].SpellID;
+  var SpellScript := GetSpellValue(SpellID, "script", STRING_ID);
+  
+  if(SpellID > 64 and SpellID <= 80)
+    if(!IsEquippedStaff(who))
+      SendSysMessage (who, "Musisz zalozyc hebanowa laske by moc czarowac.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  var Parms := {};
+  Parms[1]  := who;
+  Parms[2]  := CAST_SCROLL;
+  Parms[3]  := Scroll;
+  Parms[4]  := SPF_NOREGS;
+
+  start_script(SpellScript, Parms);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function IsEquippedStaff (who)
+
+  if(who.weapon.objtype == UOBJ_NECRO_STAFF or GetEquipmentByLayer(who,LAYER_RING).objtype == UOBJ_NECRO_RING)
+    return 1;
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

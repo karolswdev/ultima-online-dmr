@@ -1,0 +1,86 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "../pkg/systems/wearwolf/common";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_BASE;
+const WW_WCID                := 1;
+
+//-----------------------------------------------------------------------------
+
+program WwWolfMorph(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Duration := CInt(GetEffectiveSkill(Caster,SKILLID_WEARWOLF) / 10) * 60 + CInt(GetEffectiveSkill(Caster,SKILLID_ANIMALLORE) / 20) * 60;
+
+  if(IsWearWolfAffected(caster))
+    WcFizzleId(Caster, "Podczas klatwy sie nie zamienisz", WW_WCID);
+    return 0;
+  endif
+
+  if(!CanMod(Caster, MOD_GRAPHIC))
+
+    if(Caster.graphic == CID_WOLF)
+      UndoMod(CastOn,MOD_COLOR);
+      UndoMod(Caster,MOD_GRAPHIC);
+      UndoMod(Caster,MOD_INCO);
+      UndoMod(Caster,MOD_TPREFIX);
+      UndoMod(Caster,MOD_TSUFFIX);
+      UndoMod(Caster,MOD_TGUILD);
+      UndoMod(Caster,MOD_TRACE);
+      UndoMod(Caster,MOD_RUN_SPEED);
+      UndoMod(Caster,MOD_DEX);
+      UndoMod(Caster, MOD_STATUS);
+
+      EraseObjProperty(Caster,"WolfMorphDelay");
+      SetCriminal(Caster, 1, "WolfMorph", "Odmiana z postaci wilka.");
+
+    elseif(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+      WcFizzleId(Caster, "Na wierzchowcu ciezko Ci bedzie zmienic ksztalt!", WW_WCID);
+      return 0;
+    elseif(IsWearWolfMorphed(Caster))
+      WcFizzleId(Caster, "Jestes w formie wilkolaka!", WW_WCID);
+      return 0;
+    else
+      WcFizzleId(Caster, "Jestes juz pod wplywem zaklecia!", WW_WCID);
+      return 0;
+    endif
+
+  else
+    var Mod := CInt(GetEffectiveSkill(Caster,SKILLID_WEARWOLF) * 0.3);
+    var name := GetObjProperty(caster, "WolfName");
+    
+    if(!name)
+      name := "wilk";
+    endif
+  
+    DoMod(Caster,MOD_GRAPHIC, CID_WOLF, Duration);
+    DoMod(Caster, MOD_COLOR, GetMorphColor(Caster), Duration);
+    DoMod(Caster,MOD_INCO,name,Duration);
+    DoMod(Caster,MOD_TPREFIX,"",Duration);
+    DoMod(Caster,MOD_TSUFFIX,"",Duration);
+    DoMod(Caster,MOD_TGUILD,"",Duration);
+    DoMod(Caster,MOD_TRACE,"",Duration);
+    DoMod(Caster,MOD_RUN_SPEED,RUNSPEED_FAST,Duration);
+    DoMod(Caster,MOD_DEX,MOD,Duration);
+    DoMod(Caster,MOD_STATUS, 3,Duration);
+
+    SetObjProperty(Caster,"WolfMorphDelay",ReadGameClock() + Duration);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,88 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/sounds";
+include "include/attributes/main";
+include "include/npcs";
+include "include/checks/stdchecks";
+include "include/log";
+include "include/std";
+include "include/gumpboxes";
+
+//-----------------------------------------------------------------------------
+
+program MassKillCmd(who, text)
+ 
+  SetLogRunCycles(LST_CMD);
+
+  var Range := CInt(text);
+  
+  if(!Range)
+     Range := 1;
+  endif
+  
+  if(Range > 50)
+    SendBad(who, "Za duzy zasieg!");
+    return;
+  elseif(Range > 15)
+    if(!YesNoEx(who, "Ustawiles zasieg "+Range+".|Na pewno taki duzy?"))
+      return;
+    endif
+  endif
+
+  var n := 0;
+  foreach Npc in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    if(Npc.isa(POLCLASS_NPC))
+      if(text["light"])
+        PlayLightningBoltEffect(Npc);
+        PlaySoundEffect(Npc, SFX_SPELL_LIGHTNING);
+      endif
+
+      if(IsPlayerVendor(Npc))
+        continue;
+      endif
+
+      if(IsTamed(Npc) and !text["tamed"])
+        continue;
+      endif
+
+      if(!IsGmCreated(Npc))
+        if(GetNpcConfig(Npc).CityNpc)
+          if(!text["city"] or !IsAdmin(who))
+            SendSysMessage(who, "Nie mozesz zabic miastowego npeca. Gromadzi on wazne dane dla graczy. W razie potrzeby skontaktuj sie z adminem.", FONT_NORMAL, COLOR_RED);
+            continue;
+          endif
+        elseif(IsPlayerVendor(Npc))
+          if(!text["pv"] or !IsGm(who))
+            SendSysMessage(who, "Nie mozesz zabic kupca.", FONT_NORMAL, COLOR_RED);
+            continue;
+          else
+            LogMsg(KILL_LOG,who,Npc);
+            SetObjProperty(Npc, "KillMe", 1);
+            SendSysMessage(who, "Kupiec za chwile umrze.", FONT_NORMAL, COLOR_GREEN);
+            continue;
+          endif
+        endif
+       
+        LogMsg(KILL_LOG,who,Npc);
+      endif
+
+      if(text["norm"])
+        n += DealDamage(Npc, GetMaxHp(Npc) + 1);
+      else
+        n += KillNPC(Npc);
+      endif
+
+      if(text["delay"])
+        sleepms(500);
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,"Zabito "+n+" NPC w zasiegu "+Range+".",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

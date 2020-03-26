@@ -1,0 +1,43 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/checks/stdchecks";
+include "include/finding";
+include "include/packets";
+
+//--------------------------------------------------------------------------------
+
+program ShowSend(Parms)
+
+  var who    := Parms[1];
+  var Packet := Parms[2];
+//  print("SEND ["+hex(Packet.GetInt8(0))+","+Packet.GetSize()+"]: "+Packet);
+
+  if(Packet.GetInt8(0) == 0x25)
+    var Cont := FindItemBySerial(Packet.GetInt32(14));
+    if(Cont.objtype == UOBJ_TRADECONT)
+      var Item := FindItemBySerial(Packet.GetInt32(1));
+      var ClilocPc := CreatePacket(0xD6,MSGLEN_VARIABLE);
+      ClilocPc.SetInt16(3,0x0001);
+      ClilocPc.SetInt32(5,Item.serial);
+      ClilocPc.SetInt16(9,0x0000);
+      ClilocPc.SetInt32(11,0x00000001);
+      ClilocPc.SetInt32(15,0x000fea1b);
+      ClilocPc.SetUnicodeString(20,CAscZ(Item.desc),0);
+      ClilocPc.SetInt32(ClilocPc.GetSize(),0x00000000);
+      ClilocPc.SetInt16(19,len(Item.desc)*2);
+      foreach Mob in ListMobilesNearLocation(who.x,who.y,who.z,4)
+        if(Mob != who and IsPlayer(Mob))
+          ClilocPc.SendPacket(Mob);
+        endif
+      endforeach
+    endif
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------

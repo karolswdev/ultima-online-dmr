@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include "include/items/containers";
+
+//-----------------------------------------------------------------------------
+
+program CanInsertMagicBag(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(!Item.newbie)
+    SendSysMessage(who, "Nie mozesz tego tutaj wlozyc.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  return StdCanContainerInsert(who, backpack, item);
+
+endprogram
+
+//-----------------------------------------------------------------------------

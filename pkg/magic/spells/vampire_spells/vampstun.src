@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include "include/calc";
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 105;
+
+//-----------------------------------------------------------------------------
+
+program CastVampireStun( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  SetScriptController ( caster );
+  Detach ();
+
+  var Dmg     := CInt(CalcSpellDamage(SpellGlob.Circle,Caster,CastOn,SpellGlob.Type) / 8) + RandomInt(2);
+  var ParaDur := CInt(1 + CalcSkillExponential(Caster, SKILLID_VAMPIRE, 5));
+
+  PlaySoundEffect (Caster, SFX_SPELL_EXPLOSION);
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  PlayHitAnim(CastOn);
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+  
+  SendChEvent(CastOn,Caster,EVID_ENGAGED);
+  PlayPcEffect(CastOn, FX_CURSE_EFFECT, 35, 0x10, 0x10, 3);
+  sleepms(250);
+  DoMod(CastOn, MOD_PARA, 1, ParaDur);
+
+endfunction
+
+//-----------------------------------------------------------------------------

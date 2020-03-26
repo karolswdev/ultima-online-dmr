@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "powerstone";
+include "include/const/props";
+
+//-----------------------------------------------------------------------------
+
+program PowerContCtrl(Chest)
+
+  while(!GetObjProperty(Chest, PROP_CHEST_LVL))
+    sleep(1);
+  endwhile
+
+  var i;
+  var Lvl  := GetObjProperty(Chest, PROP_CHEST_LVL);
+  var Time := PS_CHEST_D_TIME;
+  
+  for(i:=1;i<=Lvl;i:=i+1)
+    Time := Time * 2;
+  endfor
+
+  sleep(Time);
+  DestroyItem(Chest);
+
+endprogram
+
+//-----------------------------------------------------------------------------

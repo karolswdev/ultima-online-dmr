@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include ":wmtools:common";
+include ":baseitems:common";
+
+//-----------------------------------------------------------------------------
+
+const PROP_DONTDESTROY := "DontDestroy";
+
+//-----------------------------------------------------------------------------
+
+program BloodControl(Blood)
+
+  if(IsWms(Blood) or GetItemBINr(Blood) or CInt(GetObjProperty(Blood, PROP_DONTDESTROY)))
+    return;
+  endif
+
+  sleep(300);
+
+  if(IsWms(Blood) or GetItemBINr(Blood) or CInt(GetObjProperty(Blood, PROP_DONTDESTROY)))
+    return;
+  endif
+
+  DestroyItem(Blood);
+
+endprogram
+
+//-----------------------------------------------------------------------------

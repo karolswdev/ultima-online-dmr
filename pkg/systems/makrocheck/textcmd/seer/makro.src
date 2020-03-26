@@ -1,0 +1,56 @@
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/cmds/cmds";
+include "include/gumps";
+include "include/clock";
+include "include/log";
+
+include ":makrocheck:makro";
+
+//-----------------------------------------------------------------------------
+
+program MakroGump(who)
+
+  GInit(10,10);
+  GPage();
+  GResPic(20,20,2620,650,380);
+  GTextLine(120,32,650,"Makrownicy :");
+  GButton(27,30,2117,2118,10000);
+  GAddPageData(645,30,2650,2651,645,371,2648,2647);
+  
+  var LL,LGP;
+  var i := 1;
+  var MakroCheckSers := GetMakroSers();
+
+  foreach Ser in MakroCheckSers
+    Ser := FindPlayerBySerial(Ser);
+    GCheckNextPage(8);
+    GButton(30,(63+(GNPCount()*36)),2117,2118,i);
+    GButton(310,(63+(GNPCount()*36)),2117,2118,1000+i);
+    GTextLine(50,(60+(GNPCount()*36)),500,Ser.name + "/" + Ser.acctname);
+    GTextLine(330,(60+(GNPCount()*36)),560,"NP "+CInt(GetObjProperty(Ser,"MakroGumpNotPressed")));
+    LL  := GetObjProperty(Ser,"MakroLastLetterPressed");
+    LGP := GetObjProperty(who,"MakroGumpPressedAfterTime");
+    GTextLine(400,(60+(GNPCount()*36)),570,"LL "+ClStr(LL[1])+"/"+Upper(ClStr(LL[2])));
+    GTextLine(510,(60+(GNPCount()*36)),550,RealTime(ReadGameClock() - CInt(GetObjProperty(Ser,"MakroCheckTimer"))));
+    if(LGP)
+      GTextLine(330,(80+(GNPCount()*36)),560,"LGP "+RealTime(CInt(LGP[1]) - ReadGameClock())+" AT "+RealTime(LGP[2]));
+    endif
+    i := i + 1;
+  endforeach
+
+  var res := GSend(who)[0];
+  if(res == 10000)
+    SendSysMessage(who,"Kasowanie danych.",FONT_NORMAL,COLOR_GREEN);
+    EraseMakroData();
+  elseif(res > 1000)
+    SendSysMessage(who,"Skasowano "+MakroCheckSers[res-1000].name+" z makrodanych.",FONT_NORMAL,COLOR_GREEN);
+    EraseFromMakro(MakroCheckSers[res-1000]);
+  elseif(res)
+    GoToPlayerBySerial(who,CInt(MakroCheckSers[res].serial));
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

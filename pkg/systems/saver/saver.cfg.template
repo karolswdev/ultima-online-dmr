@@ -1,0 +1,6 @@
+Saver Conf
+{
+  MinsSave   30
+  SecDelay   30
+  AutoSdMins 4320
+}

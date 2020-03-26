@@ -1,0 +1,212 @@
+//-----------------------------------------------------------------------------
+// Modified: 2006-11-22
+//-----------------------------------------------------------------------------
+
+include ":tips:tips";
+include ":tips:tip_data";
+include ":tips:tip_gump";
+
+include "include/player/misc";
+include "include/names";
+
+//-----------------------------------------------------------------------------
+
+program TipCmd(who, text)
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "show":        ShowTip(who, text);
+
+    "pending":     ShowPending(who);
+    
+    "showed":      ShowShowed(who);
+
+    "clear":       ClearTips(who);
+
+    "trigger":     CmdTriggerTipEvent(who);
+
+    default:       SendSysMessage(who, ".tip [show/pending/showed/clear/trigger]", FONT_NORMAL, COLOR_RED);
+
+  endcase 
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CmdTriggerTipEvent(who)
+
+  var Targ := Target(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Events := GetTipEventNames();
+  var evIdx := BQSelectEntry(who, Events);
+
+  if(!evIdx)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  TriggerTipEvent(Targ, evIdx);
+  SendSysMessage(who, "Wywolano zdarzenie wskazowek '"+Events[evIdx]+"' na osobie: "+GetRealName(Targ), FONT_NORMAL, COLOR_WHITE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearTips(who)
+
+  var Targ := Target(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var TipsData := GetObjProperty(Targ, PROP_TIPS_DATA);
+  var Watcher  := GetProc(GetObjProperty(Targ, "#TipWatcherPid"));
+
+  if(Watcher)
+    Watcher.kill();
+    SendSysMessage(who, "Zabito Tip Watchera.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Tip Watcher nie istnial.", FONT_NORMAL, COLOR_ORANGE);
+  endif
+
+  EraseObjProperty(Targ, PROP_TIPS_EVENTS);
+
+  if(TipsData != error)
+    EraseObjProperty(Targ, PROP_TIPS_DATA);
+    SendSysMessage(who, "Usunieto dane o tipsach.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Dane o tipsach nie istnialy.", FONT_NORMAL, COLOR_ORANGE);
+  endif
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function ShowPending(who)
+
+  var Targ := Target(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var pData := GetTipPlayerData(Targ);
+
+  if(pData.Pending.size() == 0)
+    SendSysMessage(who, "Gracz "+GetRealName(Targ)+" nie posiada oczekujacych tipsow.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  BQGInit("Oczekujace wskazowki: "+pData.Pending.size(), 650, 300, 0, 1);
+  GAddPageData(615,18,2650,2651,615,267,2648,2647);
+
+  GTextLine(20,  40, 999, "Id");
+  GTextLine(60, 40, 999, "Nazwa");
+  GTextLine(280, 40, 999, "Opoznienie");
+  GTextLine(340, 40, 999, "Czas online");
+  GTextLine(430, 40, 999, "Data pokazania");
+  GTextLine(530, 40, 999, "Quest stworzony");
+  GMultiPage();
+
+  foreach Tip in (pData.Pending)
+    GCheckNextPage(10);
+    GTextLine(20,60+GNPCount()*20, 550, Tip.Id);
+    GTextLine(60,60+GNPCount()*20, 550, GetTipName(Tip.Id));
+    GTextLine(280,60+GNPCount()*20, 550, RealTime(Tip.Delay));
+    GTextLine(340,60+GNPCount()*20, 550, RealTime(Tip.startTime));
+
+    if(Tip.sysTime)
+      GTextLine(430,60+GNPCount()*20, COLOR_GREEN, CUnixTime(Tip.sysTime));
+    else
+      GTextLine(430,60+GNPCount()*20, COLOR_RED, "Brak");
+    endif
+    
+    if(Tip.tFlags & TWPTF_QUEST_CREATED)
+      GTextLine(570,60+GNPCount()*20, COLOR_GREEN, "Tak");
+    else
+      GTextLine(570,60+GNPCount()*20, COLOR_ORANGE, "Nie");
+    endif
+  endforeach
+  
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowShowed(who)
+
+  var Targ := Target(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var pData := GetTipPlayerData(Targ);
+
+  if(pData.Showed.size() == 0)
+    SendSysMessage(who, "Gracz "+GetRealName(Targ)+" nie posiada pokazanych tipsow.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  BQGInit("Pokazane wskazowki: "+pData.Showed.size(), 650, 300, 0, 1);
+  GAddPageData(615,18,2650,2651,615,267,2648,2647);
+
+  GTextLine(20,  40, 999, "Id");
+  GTextLine(60, 40, 999, "Nazwa");
+  GTextLine(280, 40, 999, "Opoznienie");
+  GTextLine(340, 40, 999, "Czas online");
+  GTextLine(430, 40, 999, "Data pokazania");
+  GTextLine(530, 40, 999, "Quest stworzony");
+  GMultiPage();
+
+  foreach Tip in (pData.Showed)
+    GCheckNextPage(10);
+    GTextLine(20,60+GNPCount()*20, 550, Tip.Id);
+    GTextLine(60,60+GNPCount()*20, 550, GetTipName(Tip.Id));
+    GTextLine(280,60+GNPCount()*20, 550, RealTime(Tip.Delay));
+    GTextLine(340,60+GNPCount()*20, 550, RealTime(Tip.startTime));
+
+    if(Tip.sysTime)
+      GTextLine(430,60+GNPCount()*20, COLOR_GREEN, CUnixTime(Tip.sysTime));
+    else
+      GTextLine(430,60+GNPCount()*20, COLOR_RED, "Brak");
+    endif
+    
+    if(Tip.tFlags & TWPTF_QUEST_CREATED)
+      GTextLine(570,60+GNPCount()*20, COLOR_GREEN, "Tak");
+    else
+      GTextLine(570,60+GNPCount()*20, COLOR_ORANGE, "Nie");
+    endif
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTip(who, text)
+
+  var Targ := Target(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  TriggerTip(Targ, text[2], TWPTF_FORCE | TWPTF_IMMED);
+
+endfunction
+
+//-----------------------------------------------------------------------------

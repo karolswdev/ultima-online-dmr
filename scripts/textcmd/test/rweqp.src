@@ -1,0 +1,228 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/objtypes/misc";
+
+//-----------------------------------------------------------------------------
+
+UnloadConfigFile(EQUIP_CFG);
+UnloadConfigFile(CLOTHS_CFG);
+var ItemCfg   := ReadConfigFile(ITEMS_CFG);
+var ClothsCfg := ReadConfigFile(CLOTHS_CFG);
+var EquipCfg  := ReadConfigFile(EQUIP_CFG);
+
+var Elem := {};
+var Elems := array;
+var Group;
+var who;
+var n := 0;
+Elem.+pname;
+Elem.+pvalue;
+
+//-----------------------------------------------------------------------------
+
+program RwEqp(_who, text)
+
+  SetLogRunCycles(LST_CMD);
+ 
+  who := _who;
+
+  var sptext := SplitWords(text);
+
+  case(sptext[1])
+    "cloth":    ConvClothCfg();
+
+    "addequip": AddEquipCfg(sptext[2]);
+                return;
+                
+    default:    ConvEquipCfg();
+  endcase
+
+  SendSysMessage(who,"Przepisano "+n+" grup.", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ConvClothCfg()  
+
+  foreach Cloth in GetConfigStringKeys(ClothsCfg)
+    Group := Cloth;
+    Elems := array;
+    foreach Prop in GetConfigStringArray(ClothsCfg[Cloth], "Item")
+      AddToClothElem(Prop);
+    endforeach
+    if(Elems.size())
+      AppendConfigFileElem(CLOTHS_CFG+"_new", "ClothGroup", Cloth, Elems);
+      n := n + 1;
+    else
+      SendSysMessage(who, "Pusta grupa ["+Group+"]", FONT_NORMAL, COLOR_RED);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddToClothElem(iString)
+
+  iString := SplitWords(iString);
+  var Obj;
+  if(!CInt(iString[1]))
+    Obj := GetObjTypeByName(iString[1]);
+  else
+    Obj := CInt(iString[1]);
+  endif
+
+  var iElem := ItemCfg[Obj];
+
+  if(iElem)
+    if(!ItemCfg[Obj].EquipScript and !ItemCfg[Obj].FaceLoc)
+      SendSysMessage(who, "["+Group+ "] NE:"+iString, FONT_NORMAL, COLOR_RED);
+    endif
+    Elem.pname  := "Item";
+    Elem.pvalue := iElem.Name;
+    Elems.append(Elem);
+  else
+    SendSysMessage(who, "Blad ["+Group+"]: "+iString, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ConvEquipCfg()
+
+  foreach Equip in GetConfigStringKeys(EquipCfg)
+    Group := Equip;
+    Elems := array;
+    foreach Prop in GetConfigStringArray(EquipCfg[Equip], "Armor")
+      AddToEqpElem(Prop);
+    endforeach
+    foreach Prop in GetConfigStringArray(EquipCfg[Equip], "Weapon")
+      AddToEqpElem(Prop);
+    endforeach
+    foreach Prop in GetConfigStringArray(EquipCfg[Equip], "Equip")
+      AddToEqpElem(Prop);
+    endforeach
+    if(Elems.size())
+      AppendConfigFileElem(EQUIP_CFG+"_new", "Equipment", Equip, Elems);
+      n := n + 1;
+    else
+      SendSysMessage(who, "Pusta grupa ["+Group+"]", FONT_NORMAL, COLOR_RED);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddEquipCfg(name)
+
+  if(!name)
+    SendSysMessage(who, "Brak nazwy elementu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Elems := array;
+  
+  var targ := Target(who);
+  if(!targ.isa(POLCLASS_MOBILE))
+    return;
+  endif
+
+  foreach Item in ListEquippedItems(targ)
+    if(!Item.isa(POLCLASS_CONTAINER) and Item.objtype != UOBJ_MOUNT)
+      var str := Item.objtype+" "+item.color+" 100 0";
+      AddToEqpElem(str);
+    endif
+  endforeach
+
+  AppendConfigFileElem(EQUIP_CFG, "Equipment", name, Elems);
+
+  SendSysMessage(who, "Dodano elem "+EQUIP_CFG+": "+name, FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddToEqpElem(iString)
+
+  iString := SplitWords(iString);
+  var Obj;
+  if(!CInt(iString[1]))
+    Obj := GetObjTypeByName(iString[1]);
+  else
+    Obj := CInt(iString[1]);
+  endif
+
+  var iElem := ItemCfg[Obj];
+
+  if(iElem or ClothsCfg[iString[1]])
+    if(!ClothsCfg[iString[1]])
+      var Desc  := GetItemDescriptor(Obj);
+      if(!ItemCfg[Obj].equipscript and !ItemCfg[Obj].FaceLoc and ItemCfg[Obj].graphic != 0x0EFA and ItemCfg[Obj].objtype != 0x0EFA and Obj != 0xa22)
+        SendSysMessage(who, "["+Group+ "] NE:"+iString, FONT_NORMAL, COLOR_RED);
+      endif
+      if(Desc.ObjClass == "Weapon")
+        Elem.pname := "Weapon";
+      elseif(Desc.ObjClass == "Armor")
+        Elem.pname := "Armor";
+      else
+        Elem.pname := "Equip";
+      endif
+      iString[1] := iElem.Name;
+    endif
+
+    iString[3] := CInt(iString[3]);
+    iString[4] := CInt(iString[4]);
+    Elem.pvalue := CombEqpWords(iString);
+    Elems.append(Elem);
+  else
+    SendSysMessage(who, "Blad ["+Group+"]: "+iString, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CombEqpWords(byref Arr)
+
+  var Str := "", i;
+
+  Str := Arr[1];
+  if(len(Str) == 30)
+    Str := Str + " ";
+  endif
+  for(i:=len(Str);i<=30;i:=i+1)
+    Str := Str + " ";
+  endfor
+
+  if(!Arr[2])
+    Arr[2] := 0;
+  endif
+  Str := Str + Arr[2];
+  if(len(CStr(Arr[2])) == 15)
+    Str := Str + " ";
+  endif
+  for(i:=len(CStr(Arr[2]));i<=15;i:=i+1)
+    Str := Str + " ";
+  endfor
+
+  Str := Str + Arr[3];
+  for(i:=len(CStr(Arr[3]));i<=4;i:=i+1)
+    Str := Str + " ";
+  endfor
+
+  Str := Str + Arr[4];
+  return Str;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,103 @@
+//-----------------------------------------------------------------------------
+
+include ":quests:quest_ctrl";
+include "include/skills/std";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+
+//-----------------------------------------------------------------------------
+
+var MainCfg:= ReadConfigFile("complex");
+
+//-----------------------------------------------------------------------------
+
+program MakeComplexItems(who, item)
+
+  if(!StandardItemCheck(who,item))
+    return;
+  endif
+  
+  var Product  := MainCfg[item.objtype].cprod;
+  var Part     := MainCfg[item.objtype].cpart;
+  var Skill    := MainCfg[item.objtype].skill;
+  var exchk    := MainCfg[item.objtype].exchk;
+  var exNewbie := CInt(MainCfg[item.objtype].exNewbie);
+  var itemname := GetDescForItem(Product);
+  
+  if(!Product)
+    SendSysMessage(who,"Nie wiesz jak to zlozyc.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+  
+  var TrgPart,theitem;
+  
+  if(Part)
+    SendSysMessage(who,"Wskaz przedmiot "+GetDescForItem(Part)+" by polaczyc go z przedmiotem "+GetDescForItem(item.objtype)+".",FONT_NORMAL,COLOR_GREEN);
+    TrgPart := ObjTarget(who);
+    if(TrgPart.objtype != Part)
+      SendSysMessage(who,"Nie wiesz jak to polaczyc.",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+    if(!StandardItemCheck(who,TrgPart))
+      return;
+    endif
+  endif
+
+  SendsysMessage(who,"Probujesz zlozyc czesci...",FONT_NORMAL,COLOR_GOOD);
+  
+  if(!MakeNoise(who,0x22D))
+    return;
+  endif
+
+  var Color := TrgPart.color;
+  
+  if((!SubtractAmount(TrgPart,1) and Part) or !SubtractAmount(item,1))
+    SendSysMessage(who,"Nie masz materialu.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(CheckSkill(who,SKILLID_TINKERING,skill,skill))
+    theitem := CreateItemInPack(who,Product);
+    theitem.color := Color;
+
+    if(!theitem)
+      SendSysMessage(who,"Masz za malo miejsca w plecaku.",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+
+    var ExpMod := cint(GetDexterity(who)/5 + GetEffectiveSkill(who,SKILLID_TINKERING)/10);
+    ExpMod     := ExpMod + CheckItemQuality(item);
+    ModifyGainByNutr(who, ExpMod, ATTRIBUTEID_TINKERING);
+   
+    if(FindCity(who))
+      if(IsInBuilding(who.x, who.y, who.realm))
+        if(IsNpcNear(who.x, who.y, who.realm, 10, "tinker", 1))
+          ExpMod := ExpMod + 15;
+        endif
+      endif
+    endif
+    
+    if(exchk and RandomInt(1000) < ExpMod and GetBaseSkill(who,SKILLID_TINKERING) >= SKILL_TO_MAKE_EXP)
+      theitem.quality := EXP_QUALITY_MULTIPLIER;
+      SendSysMessage(who, "Stworzyl"+ggm(who,3)+" Wyjatkowej Jakosci przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+      if(GetBaseSkill(who, SKILLID_TINKERING) >= SKILL_TO_NAMED_EXP)
+        itemname := "Wyjatkowej jakosci " + itemname + " [Wykonal"+ggm(who,4)+" " + who.name + "]";
+      else
+        itemname := "Wyjatkowej jakosci " + itemname;
+      endif
+      theitem.newbie := exNewbie;
+    else
+      SendSysMessage(who,"Zlozyl"+ggm(who,3)+" czesci i wlozyl"+ggm(who,3)+" przedmiot do plecaka.",FONT_NORMAL,COLOR_GOOD);
+    endif
+    SetItemHp(TheItem, GetItemMaxHp(TheItem));
+    SetName(theitem,itemname);
+    SetMade(who, TheItem);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_TINKERING, array(TheItem, 0));
+  else
+    SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" czesci.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

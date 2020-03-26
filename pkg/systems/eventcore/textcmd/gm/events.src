@@ -1,0 +1,1068 @@
+//-----------------------------------------------------------------------------
+// Modified: 2006-11-22
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/clock";
+include "include/getobj";
+include "include/std";
+include "include/move";
+include "include/coords";
+include "include/player/misc";
+
+include ":eventcore:event_data";
+include ":eventcore:event_gump";
+include ":eventcore:common";
+include ":eventcore:proc_events";
+
+//-----------------------------------------------------------------------------
+
+var QData, gRes, gWho, EventID, tData, etData, textIdx, gVarIdx;
+
+InitEventData(tData);
+InitEventData(etData);
+
+//-----------------------------------------------------------------------------
+
+program EventsToolCmd(_who, text)
+
+  gWho  := _who;
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+  gRes := 0;
+
+  var Started := 0;
+
+  case(text[1])
+    "ae":     ProcAddEvent();
+
+    "e":      ProcEvents(CInt(text[2]), CInt(text[3]));
+              if(!gRes)
+                return;
+              endif
+
+    "go":     GotoEventArea(gWho, text[2], text[3]);
+              return;
+
+    "loc":    GotoEventLoc(gWho, text[2], text[3]);
+              return;
+
+    default:  if(text[1])
+                SendSysMessage(gWho, ".events [ae/e/go]", FONT_NORMAL, COLOR_RED);
+                return;
+              endif
+  endcase
+
+  if(!Started)
+    BuildMainEventGump();
+  endif
+
+  while(IsLoggedIn(gWho))
+    
+    gRes := GSend(gWho);
+
+    if(!gRes or !gRes.butid)
+      break;
+    endif
+
+    case(gRes.butid)
+      1:      ProcEvents();
+
+      2:      ProcAddEvent();
+
+      3:      ProcEventsControl();
+    endcase
+
+    BuildMainEventGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GotoEventArea(who, EvId, AreaId)
+
+  var Event := GetEventElement(EvID);
+
+  if(!Event)
+    SendBad(who, "Nie znaleziono eventa ID: "+EvID);
+    return;
+  endif
+
+  var Areas := Event.GetProp("Areas");
+  AreaId := CInt(AreaId); 
+
+  if(AreaId < 1)
+    AreaId := 1;
+  endif
+
+  if(!Areas or !Areas.size())
+    SendBad(who, "Event ID: "+EvID+" nie posiada zdefiniowanego zadnego pola.");
+    return;
+  elseif(AreaId > Areas.size())
+    SendBad(who, "Event ID: "+EvID+" nie posiada pola ID: "+AreaID+".");
+    return;
+  endif
+
+  var Area := Areas[AreaId];
+
+  var Loc := LocStruct();
+  Loc.x := Area[1] + CInt((Area[3] - Area[1]) / 2);
+  Loc.y := Area[2] + CInt((Area[4] - Area[2]) / 2);
+  Loc.realm := GetRealmById(Area[5]);
+  var dstLoc := FindStandableLocNear(Loc, 10);
+
+  MoveObject(who, dstLoc.x, dstLoc.y, dstLoc.z, dstLoc.realm, MOVEOBJECT_FORCELOCATION);
+  SendGood(who, "Przenoszenie do eventu ["+EvId+"/"+AreaId+"]: "+GetLocString(dstLoc));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GotoEventLoc(who, EvId, LocId)
+
+  if(!GetEventElement(EvId))
+    SendBad(who, "Nie znaleziono eventa ID: "+EvID+".");
+    return;
+  endif
+
+  if(LocId)
+    LocId := Upper(LocId);
+  else
+    SendBad(who, "Nie podano lokalizacji!");
+    return;
+  endif
+
+  if(!HaveEventVariable(EvID, "LOC_"+LocId))
+    SendBad(who, "Nie znaleziono lokalizacji '"+ClStr(LocId)+"' dla eventa ID: "+EvID+". Sprawdz, czy istnieje zmienna 'LOC_"+ClStr(LocId)+"'!");
+    return;
+  endif
+
+  var strLoc := GetEventVariable(EvID, "LOC_"+LocId);
+
+  if(!strLoc)
+    SendBad(who, "Nie znaleziono lokalizacji '"+LocId+"' dla eventa ID: "+EvID+". Sprawdz, czy istnieje zmienna 'LOC_"+LocId+"'!");
+    return;
+  endif
+
+  var dstLoc := GetLocFromString(strLoc);
+  MoveObject(who, dstLoc.x, dstLoc.y, dstLoc.z, dstLoc.realm, MOVEOBJECT_FORCELOCATION);
+  SendGood(who, "Przenoszenie do lokalizacji eventu ["+EvId+"/"+LocId+"]: "+GetLocString(dstLoc));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainEventGump()
+
+  GInit(20, 20);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GResPic(0, 0, 3600, 500, 320);
+  GTextLine(210, 20, 680, "Events Menu");
+
+  GButton(80,  63, 2117, 2118, 1);
+  GTextLine(100,  60, 550, "Lista eventow");
+  GButton(240, 63, 2117, 2118, 2);
+  GTextLine(260, 60, 550, "Dodawanie eventa");
+  
+  GButton(80,  93, 2117, 2118, 3);
+  GTextLine(100,  90, 550, "Kontrola eventow");
+
+  var GProps  := GetEventsGlobalProps();
+  var QCrInfo := GProps.GetProp(EVGPROP_CRINFO);
+
+  BuildEventElemModSegInfo(QCrInfo,   "Ostatnio stworzony Event:",        40, 250);
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quest Events
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function ProcEvents(tId := 0, tRange := 0)
+
+  var Modif := 0;
+  
+  if(!tId or tRange > tId)
+    ShowEvents(0, tId, tRange);
+    if(!EventID)
+      return 0;
+    endif
+  else
+    EventID := tId;
+  endif
+
+  gRes := AssignEventData(EventID, etData);
+  if(!gRes)
+    SendSysMessage(gWho, gRes.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  textIdx := 1;
+  gVarIdx := 1;
+  BuildShowEvent();
+
+  while(IsLoggedIn(gWho))
+    gRes := GSend(gWho);
+    if(Modif)
+      SaveEventData(etData);
+    endif
+
+    if(gRes.butid >= 20 and gRes.butid <= 52)
+
+      ChangeEventFlag(etData, gRes.butid-20);
+
+    elseif(gRes.butid > 1000 and gRes.butid < 1199)
+      
+      textIdx := gRes.butid - 1000;
+      
+    elseif(gRes.butid > 3000 and gRes.butid < 3199)
+      
+      gVarIdx := gRes.butid - 3000;
+
+    else
+
+      case(gRes.butid)
+        5:        ShowEvents();
+                  if(!EventID)
+                    return;
+                  endif
+                  
+                  var Res := AssignEventData(EventID, etData);
+                  if(!Res)
+                    SendSysMessage(gWho, Res.errortext, FONT_NORMAL, COLOR_RED);
+                    return;
+                  endif
+                  Modif   := 0;
+                  textIdx := 1;
+                  gVarIdx := 1;
+
+        6:        Modif   := 0;
+ 
+        7:        Modif   := 1;
+        
+        15:       var Res := SetEvent(EventID, etData, gWho);
+                  if(Res)
+                    SendSysMessage(gWho, "Zmieniono Event ID: "+EventID, FONT_NORMAL, COLOR_GREEN);
+                    Modif := 0;
+                  else
+                    SendSysMessage(gWho, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyEvent(etData);
+                  if(Check)
+                    SendSysMessage(gWho, "Event zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(gWho, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        19:       SendSysMessage(gWho, "Chcesz skasowac Event ID: "+EventID+"?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(gWho, "Tak?"))
+                    var Res := DeleteEvent(EventID, gwho);
+                    if(Res)
+                      SendSysMessage(gWho, "Skasowano Event ID: "+EventID+".", FONT_NORMAL, COLOR_GREEN);
+                      EventID := 0;
+                      InitEventData(etData);
+                      return;
+                    else
+                    SendSysMessage(gWho, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        1199:     var i;
+                  for(i:=1;i<=10;i:=i+1)
+                    etData.Text.erase(textIdx);
+                  endfor
+                  
+
+        default:  return;
+      endcase
+    endif
+
+    if(Modif)
+      BuildModifyEvent();
+    else
+      BuildShowEvent();
+    endif
+
+  endwhile
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ProcEventsControl(tId := 0, tRange := 0)
+  
+  if(!tId or tRange > tId)
+    ShowEvents(0, tId, tRange);
+    if(!EventID)
+      return 0;
+    endif
+  else
+    EventID := tId;
+  endif
+
+  gRes := AssignEventData(EventID, etData);
+  
+  if(!gRes)
+    SendSysMessage(gWho, gRes.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Data := GetEventsData();
+  var Event := Data.FindElement(EVENT_TITLE+EventID);
+
+  BuildEventControl(Event);
+  
+  while(IsLoggedIn(gWho))
+    gRes := GSend(gWho);
+
+    if(!gRes.butid)
+      break;
+    endif
+
+    case(gRes.butid)
+      11:  
+        EnableAutoEvent(gWho, Event);
+
+      12:
+        BuildEventPlayers(gWho, EventID, Event, BQG_EDITABLE | BQG_SHOWEXTRA);
+
+      13:
+        CreateInfoBoard(gWho, EventID, Event);
+
+      14:
+        if(IsAdmin(gWho))
+          DoStopEvent(gWho, EventID);
+        endif
+        sleepms(500);
+        
+      15:
+        DoStartEvent(gWho, EventID);
+        sleepms(500);
+        
+      16:
+        DoRestartEvent(gWho, EventID);
+        sleepms(500);
+
+      18:
+        DoForceNext(gWho, EventID);
+        sleepms(500);
+        
+      17:
+        BuildEventActivePlayers(gWho, EventID, Event, BQG_EDITABLE | BQG_SHOWEXTRA);
+
+      2: ;
+
+      default:
+        return 0;
+    endcase
+
+    BuildEventControl(Event);
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnableAutoEvent(who, byref Data)
+
+  if(Data.GetProp("Disabled"))
+    SendGood(who, "Wlaczyl"+ggm(who,3)+" event "+ToAscii(Data.GetProp("Name")));
+  elseif(!Data.GetProp("ProcData"))
+    SendBad(who, "Wylaczyl"+ggm(who,3)+" event "+ToAscii(Data.GetProp("Name")));
+  else
+    SendBad(who, "Event jest w trakcie, nie mozesz teraz wylaczyc!");
+    return;
+  endif
+
+  Data.SetProp("Disabled", !CInt(Data.GetProp("Disabled")) );
+  SendGlobalMessage(MSGID_RELOAD_EVENTS, 0, who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoForceNext(who, EventId)
+
+  if(SendEventMessage(EventId, MSGID_FORCE_NEXT, 0))
+    SendGood(who, "Wyslano zdarzenie przejscia dalej.");
+  else
+    SendBad(who, "Nie udalo sie wyslac zdarzenia przejscia dalej.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateInfoBoard(who, EventID, Event)
+
+  var Loc := LocTarget(who);
+
+  if(!Loc)
+    SendBad(who, "Anulowano.");
+  endif
+
+  var Board := CreateItemAtLoc(Loc.x, Loc.y, Loc.z, 0xA261, 1, Loc.realm);
+  SetObjProperty(Board, "EventId", EventID);
+  SetTooltipProp(Board, "Wydarzenie", ToAscii(Event.GetProp("Name")));
+  SendGood(who, "Stworzono tablice.");
+  RemoveObjCreator(Board);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildEventControl(Event)
+
+  BQGInit(ToUnicode("Event: "), 600, 500);
+  GTextLine(70, 20, 1320, Event.GetProp("Name"));
+  GButton(380, 20, 2714, 2715, 2);
+  GTextLine(400, 20, 560, "Odswie¿");
+
+  GTextLine(40, 50, 999, "Status:");
+  GTextLine(40, 70, 999, "Proces:");
+  GTextLine(40, 90, 999, "Czas do:");
+
+  var Status := Event.GetProp("Status");
+  var Proc := GetProc(Event.GetProp("ProcessId"));
+
+  case(Status)
+    EVENT_STATUS_STARTED:
+      GTextLine(100, 50, 1420, "Trwa!");
+    EVENT_STATUS_STOPING:
+      GTextLine(100, 50, 1211, "Zatrzymywanie...");
+    default:
+      GTextLine(100, 50, 550, "Nieaktywny");
+  endcase
+
+  var Info := Event.GetProp("ProcInfo");
+
+  if(Info and Info.Lines)
+    var n := 1;
+    foreach Line in (Info.Lines)
+      GTextLine(40, 100+n*20, 999, _Line_iter);
+      GTextLine(120, 100+n*20, 560, Line);
+      n += 1;
+    endforeach
+  endif
+  
+  var LeftTime := GetTimeLeftForEvent(Event);
+
+  if(!Event.GetProp("Disabled"))
+    if(LeftTime != error)
+      GTextLine(100, 90, 1321, DescRealTime(LeftTime[1]));
+      GTextLine(300, 90, 560, GetDayName(LeftTime[2]));
+      GTextLine(380, 90, 1421, LeftTime[3]);
+    else
+      GTextLine(100, 90, 1211, "Brak zdefiniowanych dni.");
+    endif
+  else
+    GTextLine(100, 90, 560, "Brak.");
+  endif
+
+  if(Proc)    
+    GTextLine(100, 70, 1320, "Istnieje: "+Proc.name+" ("+Proc.pid+")");
+  else
+    GTextLine(100, 70, 560, "Brak");
+  endif
+
+  if(Status == EVENT_STATUS_STARTED and Proc)
+    if(IsAdmin(gWho))
+      GButton(340, 360, 0x25FE, 0x25FF, 14);
+      GTextLine(375, 365, 560, "Zatrzymaj");
+      
+      GButton(40, 360, 0x25FE, 0x25FF, 18);
+      GTextLine(75, 365, 1422, "Etap dalej");
+    endif
+  elseif(Status == EVENT_STATUS_STOPING)
+    if(IsAdmin(gWho))
+      GButton(340, 360, 0x25FE, 0x25FF, 14);
+      GTextLine(375, 365, 1211, "Zabij");
+    endif
+  elseif(Status != EVENT_STATUS_STARTED)
+    GButton(340, 360, 0x25FE, 0x25FF, 15);
+    GTextLine(375, 365, 1422, "Uruchom");
+  elseif(!Proc)
+    GButton(340, 360, 0x25FE, 0x25FF, 16);
+    GTextLine(375, 365, 1211, "Zrestartuj");
+  endif
+
+  GButton(40, 400, 0x25FE, 0x25FF, 11);
+
+  if(Event.GetProp("Disabled"))
+    GTextLine(75, 405, 1321, "W³¹cz");
+  else
+    GTextLine(75, 405, 1211, "Wy³¹cz");
+  endif
+
+  GButton(340, 400, 0x25FE, 0x25FF, 17);
+  GTextLine(375, 405, 670, "Lista aktywnych graczy");
+  
+  GButton(340, 440, 0x25FE, 0x25FF, 12);
+  GTextLine(375, 445, 670, "Lista zapisanych graczy");
+  
+  GButton(40, 440, 0x25FE, 0x25FF, 13);
+  GTextLine(75, 445, 670, "Stwórz tablice informacyjn¹");
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShowEvent()
+
+  BQGInit("Event ID: "+EventID, 830, 550, 5);
+
+  GButton(90, 513, 2117, 2118, 7);
+  GTextLine(110, 510, 999, "Modyfikuj");
+
+  if(IsAdmin(gWho))
+    GButton(390, 513, 2117, 2118, 19);
+    GTextLine(410, 510, 999, "Usun");
+  endif
+
+  BuildEventInfo(etData, BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModifyEvent()
+
+  BQGInit("Modyfikowanie Event ID: "+EventID, 830, 550, 6);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Zmien");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  BuildEventInfo(etData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEvents(Flags := 0, QsSet := 0, QsEnd := 0)
+
+  var Data := GetEventsData();
+  var Keys := GetDataKeys(Data, EVENT_TITLE, BQG_ZEROFILL, QsSet, QsEnd);
+  Keys.sort();
+  Keys.reverse();
+
+  BuildEvents(Keys, Data);
+
+  while(IsLoggedIn(gWho))
+    gRes := CInt(GSend(gWho).butid);
+
+    if(gRes != 100000)
+      if(gRes > 10000)
+        BuildEventModInfo(Data, CInt(UnZeroFill(Keys[gRes-10000])));
+        continue;
+      elseif(gRes > 0)
+        if(Flags & BQG_RETVAL)
+          return CInt(UnZeroFill(Keys[gRes]));
+        else
+          EventID := CInt(UnZeroFill(Keys[gRes]));
+        endif
+        return;
+      elseif(!(Flags & BQG_RETVAL))
+        EventID := 0;
+        return;
+      else
+        return;
+      endif
+    endif
+
+    BuildEvents(Keys, Data);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildEvents(byref Keys, byref Data)
+
+  BQGInit("Event: "+Keys.size(), 600, 500, 0, 1);
+  GAddPageData(565,18,2650,2651,565,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Tytul");
+  GTextLine(400, 40, 999, "Dni");
+  GTextLine(558, 40, 999, "Info");
+  GMultiPage();
+
+  var Event, i := 1;
+  var days_pl := {"pn", "wt", "sr", "cz", "pn", "sb", "nd"};
+
+  foreach Key in Keys
+    GCheckNextPage(20);
+    Event := Data.FindElement(EVENT_TITLE+UnZeroFill(Key));
+    GTextLine(30, 60+GNPCount()*20, 1419, Key);
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GButton(560, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(100,60+GNPCount()*20, 550, Event.GetProp("Name"));
+    
+    var Flags := CInt(Event.GetProp("Flags"));
+    var Disabled := Event.GetProp("Disabled");
+
+    if(!Disabled)
+      for j := 1 to 7
+        var Mask := Shl(1, j);
+        if(IsBitOn(Flags , Mask))
+          if(Modulo(j, 2))
+            GTextLine(340 + j*20, 60+GNPCount()*20, 1321, days_pl[j]);
+          else
+            GTextLine(340 + j*20, 60+GNPCount()*20, 1421, days_pl[j]);
+          endif
+        endif
+      endfor
+    else
+      GTextLine(340, 60+GNPCount()*20, 1211, "Wylaczony");
+    endif
+
+    GTextLine(510,60+GNPCount()*20, 550, GetStringFromTime(Event.GetProp("Hour")));
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildEventModInfo(byref Data, tId)
+
+  var Event := Data.FindElement(EVENT_TITLE+tId);
+
+  BQGInit("Info: Event ID: "+tId, 440, 330, 100000);
+  GTextLine(30, 40, 999, "Nazwa:");
+  GTextLine(80, 40, 550, Event.GetProp("Name"));
+
+  BuildEventElemModInfo(Event, 30, 80);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcAddEvent()
+
+  textIdx := 1;
+  gVarIdx := 1;
+  BuildAddEvent();
+
+  while(IsLoggedIn(gWho))
+
+    gRes := GSend(gWho);
+    SaveEventData(tData);
+
+    if(gRes.butid >= 20 and gRes.butid <= 52)
+      ChangeEventFlag(tData, gRes.butid-20);
+
+    elseif(gRes.butid > 1000 and gRes.butid < 1199)
+
+      textIdx := gRes.butid - 1000;
+
+    elseif(gRes.butid > 3000 and gRes.butid < 3199)
+
+      gVarIdx := gRes.butid - 3000;
+
+    else
+
+      case(gRes.butid)
+        
+        15:       var nId := AddEvent(tData, gWho);
+                  if(nId)
+                    SendSysMessage(gWho, "Dodano nowy Event ID: "+nId, FONT_NORMAL, COLOR_GREEN);
+                    InitEventData(tData);
+                    textIdx := 1;
+                    gVarIdx := 1;
+                  else
+                    SendSysMessage(gWho, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyEvent(tData);
+                  if(Check)
+                    SendSysMessage(gWho, "Event zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(gWho, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        19:       SendSysMessage(gWho, "Chcesz wyczyscic aktualny szablon wskazowki?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(gWho, "Tak?"))
+                    InitEventData(tData);
+                  endif
+
+        1199:     var i;
+                  for(i:=1;i<=10;i:=i+1)
+                    tData.Text.erase(textIdx);
+                  endfor
+                  
+
+        default:  return;
+      endcase
+    endif
+
+    BuildAddEvent();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeEventFlag(byref Data, Bit)
+
+  Bit := Shl(1, Bit);
+
+  if(Data.Flags & Bit)
+    SetBitOff(Data.Flags, Bit);
+  else
+    SetBitOn(Data.Flags, Bit);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveEventData(byref Data)
+
+  Data.EventScript := gRes.text[6];
+  Data.GlobalMsg := gRes.unitext[4];
+  Data.BeforeInterval := CInt(gRes.text[7]);
+  Data.Hour   := GetTimeFromString(gRes.text[8]);
+  Data.Delay   := CInt(gRes.text[9]);
+
+  if(gRes.unitext[5])
+    Data.Name := gRes.unitext[5];
+  else
+    Data.Name := "";
+  endif
+
+  var i;
+
+  if(!Data.Text)
+    Data.Text := array;
+  endif
+
+  for(i:=textIdx;i<textIdx+10;i:=i+1)
+    Data.Text[i] := gRes.unitext[i+9];
+  endfor
+
+  Data.Areas := array;
+
+  for(i:=0;i<5;i:=i+1)
+    var Area := gRes.text[i+40];
+    if(Area)
+      Area := SplitWords(Area);
+      Data.Areas.append(Area);
+    endif
+  endfor
+
+  if(TypeOf(Data.Variables) != VAR_DICTIONARY)
+    Data.Variables := dictionary;
+  endif
+
+  var Keys := Data.Variables.keys();
+
+  for(i:=0;i<5;i:=i+1)
+    Data.Variables.erase(Keys[gVarIdx+i]);
+  endfor
+
+  for(i:=gVarIdx;i<=gVarIdx+5;i:=i+1)
+    var Loc := gRes.text[i+59];
+    if(Loc)
+      Loc := SplitWords(Loc);
+
+      if(!Loc.size())
+        continue;
+      endif
+
+      var Name := Loc[1];
+      Loc.erase(1);
+
+      if(Loc.size())
+        Data.Variables[Upper(Name)] := CombineWords(Loc);
+      else
+        Data.Variables[Upper(Name)] := "";
+      endif
+    endif
+  endfor
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddEvent()
+
+  BQGInit("Dodawanie wskazowki", 850, 550);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Dodaj");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  GButton(490, 513, 2117, 2118, 19);
+  GTextLine(510, 510, 999, "Wyczysc");
+
+  BuildEventInfo(tData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestEventGump(byref Data, Flags)
+
+  if(Flags & BQG_NOTIPSCROLL)
+    BQGAddTextBox(100, 80, 500, 20, FCLR_TEBOX, Data.Text, Flags, 10, 10, "Tekst:");
+  else
+    if(!(Flags & BQG_EDITABLE))
+      while(textIdx > Data.Text.size() and textIdx > 1)
+        textIdx := textIdx - 10;
+      endwhile
+    endif
+
+    BQGAddTextBox(100, 80, 400, 20, FCLR_TEBOX, Data.Text, Flags, 10, 10, "Tekst:", textIdx);
+
+    if(textIdx == 1 or (textIdx > 10 and textIdx < 30))
+      if(Flags & BQG_EDITABLE or textIdx+10 <= Data.Text.size())
+        GButton(507, 260, 2648, 2647, 1000+textIdx+10);
+      endif
+    endif
+
+    if(textIdx > 10)
+      GButton(507, 80, 2650, 2651, 1000+textIdx-10);
+    endif
+
+    if(Flags & BQG_EDITABLE)
+      GButton(509, 103, 2117, 2118, 1199);
+    endif
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildEventInfo(byref Data, Flags := 0)
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Name, Flags, 1, 5, "Tytul:");
+  BuildQuestEventGump(Data, Flags);
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+
+  BQGAddTextBox(100, 290, 120, 20, FCLR_TEBOX, Data.EventScript, Flags, 1, 6, "Skrypt:");
+  BQGAddTextBox(350, 290, 120, 20, FCLR_TEBOX, GetStringFromTime(Data.Hour), Flags, 1, 8, "Godzina:");
+  BQGAddTextBox(350, 320, 120, 20, FCLR_TEBOX, Data.Delay, Flags, 1, 9, "Opoznienie:");
+  
+  BQGAddTextBox(100, 320, 120, 20, FCLR_TEBOX, Data.BeforeInterval, Flags, 1, 7, "Ile przed:");
+  BQGAddTextBox(100, 350, 600, 20, FCLR_TEBOX, Data.GlobalMsg, Flags, 1, 4, "Wiadomosc:");
+
+  var days_pl := {"pn", "wt", "sr", "cz", "pn", "sb", "nd"};
+  for j := 1 to 7
+    GTextLine(550, 40+j*30, 999, days_pl[j]);
+    var Mask := Shl(1, j);
+    BQGCheckBox(570, 40+j*30, Flags, Data.Flags & Mask, 20+j);
+  endfor
+    
+  GTextLine(100, 370, 999, "xSet");
+  GTextLine(150, 370, 999, "ySet");
+  GTextLine(200, 370, 999, "xEnd");
+  GTextLine(250, 370, 999, "yEnd");
+  GTextLine(300, 370, 999, "Realm");
+  
+  GTextLine(400, 370, 999, "Nazwa");
+  GTextLine(500, 370, 999, "Wartoœæ");
+
+  if(Flags & BQG_EDITABLE)
+    var Builds := array;
+    foreach Area in (Data.Areas)
+      Builds.append(CombineWords(Area));
+    endforeach
+
+    BQGAddTextBox(100, 390, 270, 21, FCLR_TEBOX, Builds, Flags, 5, 40, "Areas:");
+    
+    Builds := array;
+
+    var Keys := Data.Variables.keys();
+    var i;
+        
+    for(i:=gVarIdx; i<=gVarIdx+5; i+=1)
+      if(i > Keys.size())
+        break;
+      endif
+      Builds.append(Keys[i]+" "+Data.Variables[Keys[i]]);
+    endfor
+
+    BQGAddTextBox(400, 390, 370, 21, FCLR_TEBOX, Builds, Flags, 5, 59+gVarIdx);
+  else
+    GTextLine(20, 390, 560, "Areas:");
+    GTextLine(20, 430, 560, "Zmienne:");
+    GResPic(90, 387, 0xBB8, 290, 111);
+    var n := 0;
+
+    foreach Area in (Data.Areas)
+      GTextLine(100, 390+n*20, FCLR_TEBOX, Area[1]);
+      GTextLine(150, 390+n*20, FCLR_TEBOX, Area[2]);
+      GTextLine(200, 390+n*20, FCLR_TEBOX, Area[3]);
+      GTextLine(250, 390+n*20, FCLR_TEBOX, Area[4]);
+      GTextLine(300, 390+n*20, FCLR_TEBOX, GetRealmById(Area[5]));
+      n := n + 1;
+    endforeach
+
+    GResPic(390, 387, 0xBB8, 390, 111);
+    n := 0;
+
+    if(!(Flags & BQG_EDITABLE))
+      while(gVarIdx > Data.Variables.size() and gVarIdx > 1)
+        gVarIdx := gVarIdx - 5;
+      endwhile
+    endif
+
+    var Keys := Data.Variables.keys();
+    var i;
+        
+    for(i:=gVarIdx; i<gVarIdx+5; i+=1)
+      if(i > Keys.size())
+        break;
+      endif
+      GTextLine(400, 390+n*20, FCLR_TEBOX, Keys[i]);
+      GTextLine(500, 390+n*20, FCLR_TEBOX, Data.Variables[Keys[i]]);
+      n := n + 1;
+    endfor
+  endif
+  
+  if(gVarIdx == 1 or (gVarIdx > 5 and gVarIdx < 30))
+    if(Flags & BQG_EDITABLE or gVarIdx+5 <= Data.Variables.size())
+      GButton(780, 475, 2648, 2647, 3000+gVarIdx+5);
+    endif
+  endif
+
+  if(gVarIdx > 5)
+    GButton(780, 385, 2650, 2651, 3000+gVarIdx-5);
+  endif
+
+
+    /*
+    BQGAddTextBox(470, 320, 125, 20, FCLR_TEBOX, "Wszystkie klasy", Flags);
+    BQGCheckBox(595, 317, Flags, (Data.Flags & TPF_ALL_CLASSES) == TPF_ALL_CLASSES, 20);
+    BQGAddTextBox(470, 350, 125, 20, FCLR_TEBOX, "Lucznik", Flags);
+    BQGCheckBox(595, 347, Flags, Data.Flags & TPF_ARCHER, 21);
+    BQGAddTextBox(470, 380, 125, 20, FCLR_TEBOX, "Wojownik", Flags);
+    BQGCheckBox(595, 377, Flags, Data.Flags & TPF_WARRIOR, 22);
+    BQGAddTextBox(470, 410, 125, 20, FCLR_TEBOX, "Mag", Flags);
+    BQGCheckBox(595, 407, Flags, Data.Flags & TPF_MAGE, 23);
+  endif*/
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoStartEvent(who, EventID)
+
+  if(SendGlobalMessage(MSGID_START_EVENT, EventID, who))
+    SendGood(who, "Wyslano uruchomienie wydarzenia!");
+  else
+    SendBad(who, "Blad w komunikacji, globalny proces kontroli eventow zapewne umarl.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoRestartEvent(who, EventID)
+
+  if(SendGlobalMessage(MSGID_START_EVENT, EventID))
+    SendGood(who, "Wyslano uruchomienie wydarzenia!");
+  else
+    SendBad(who, "Blad w komunikacji, globalny proces kontroli eventow zapewne umarl.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoStopEvent(who, EventID)
+
+  if(SendGlobalMessage(MSGID_STOP_EVENT, EventID))
+    SendGood(who, "Wyslano zatrzymanie wydarzenia!");
+  else
+    SendBad(who, "Blad w komunikacji, globalny proces kontroli eventow zapewne umarl.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetEventActivePlayersListSorted(EvId, DataElem, byref Members)
+
+  var dSort := dictionary;
+  Members := array;
+  var Member;
+
+  foreach MembSer in (DataElem.GetProp("ActivePlayers"))
+    GCheckNextPage(15);
+    Member := FindPlayerBySerial(MembSer);
+    if(Member)
+      var PlayerData := GetObjProperty(Member, PROP_EVENTS_DATA);
+      var Points := CInt(PlayerData.Events[EvId].Points);
+
+      dSort[Member.title_guild+"_"+ZeroFill(Points, 10)+"_"+Member.serial] := Member;
+    endif
+  endforeach
+
+  foreach Memb in dSort
+    Members.append(Memb);
+  endforeach
+
+  Members.reverse();
+
+  return Members;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildEventActivePlayers(who, EvId, DataElem, Flags := 0)
+
+  var Members, Res;
+
+  GetEventActivePlayersListSorted(EvId, DataElem, Members);
+  BuildEventPlayersShowGump(who, EvId, DataElem, Members, Flags | BEPSG_SHOW_TITLE_GUILD);
+
+  while(IsLoggedIn(who))
+    Res := GSend(who).butid;
+
+    if(Res > 100)
+      if(IsGm(who))
+        MoveObject(who, Members[Res-100].x, Members[Res-100].y, Members[Res-100].z, Members[Res-100].realm, MOVECHAR_FORCELOCATION);
+      endif
+    elseif(Res > 1000)
+      if(IsAdmin(who))
+        if(YesNo(who,"Wyrzucic?"))  
+          var evData := struct;
+          evData.+member := Members[Res-1000];
+          evData.+source := who;
+          SendEventMessage(EvId, MSGID_PLAYER_KICK, evData);
+          SendGood(who, "Wyslano prosbe o wyrzucenie gracza "+ GetRealName(Members[Res-1000]));
+        endif
+      endif
+    elseif(Res != 1)
+      return;
+    endif
+
+    GetEventPlayersListSorted(EvId, DataElem, Members);
+    BuildEventPlayersShowGump(who, EvId, DataElem, Members, Flags | BEPSG_SHOW_TITLE_GUILD);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------

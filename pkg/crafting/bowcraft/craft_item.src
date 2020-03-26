@@ -1,0 +1,227 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/buildings";
+
+include ":crafting:common";
+include ":lumberjacking:trees";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:exceptional";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program BowCraftItem(Params)
+
+  var who := Params[1];
+  var Tool := Params[2];
+  var CraftData := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, tool))
+    return;
+  endif
+  
+  var Materials;
+  var Cont := GetContForTool(who, tool);
+  
+  if(!PrepareCraft(who, CraftData.objtype, Cont, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_BOWCRAFT, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Tool, CraftData.objtype, IterData, Materials, Cont))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, ObjType, byref Cont, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":bowcraft:bowcraft");
+  Materials := DefineCraftMaterialsFromCfg(who, SkillCfg[ObjType], "Material", Cont);
+
+  if(!Materials)
+    return 0;
+  endif
+
+  return 1;
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, tool, ObjType, byref IterData, byref Materials, Cont)
+
+  var SkillCfg         := ReadConfigFile(":bowcraft:bowcraft");
+  var ItemCfg          := ReadConfigFile(ITEMS_CFG);
+  var Diff             := SkillCfg[ObjType].Skill;
+  var Points           := GetCraftPoints(SKILLID_BOWCRAFT, Diff);
+
+  // bo logsy moga zostac zniszczone, jesli ilosc = material_amount.
+  var Item;
+ 
+  var LogSkill         := ItemCfg[Materials.mainObj].Skill;
+  var LogReqSkill      := ItemCfg[Materials.mainObj].ReqSkill;
+
+  var Kind             := GetKindOfLog(Materials.mainObj);
+  var BaseSkill        := GetBaseSkill(who, SKILLID_BOWCRAFT);
+  var EffSkill         := GetEffectiveSkill(who, SKILLID_BOWCRAFT);
+  var WhoStr           := GetStrength(who);
+  var WhoDex           := GetDexterity(who);
+  var CraftLevel       := CInt(SkillCfg[ObjType].CraftLevel);
+  var ExpMod           := (WhoDex/5) + (WhoStr/5) + ((100-LogSkill)/5) + ((100-Diff)/5);
+  ExpMod               := ExpMod + CheckItemQuality(tool);
+
+  if(!Kind)
+    SendSysMessage(who,"Z tego nie uda Ci sie nic zrobic.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+ if((BaseSkill < LogSkill - 5) or (EffSkill < LogReqSkill))
+    SendSysMessage(who,"Twa wiedza jest za mala by moc wykonac przedmiot z wybranego materialu.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var ProdAmount := 1;
+  var MultAmount := SkillCfg[ObjType].MultAmount;
+
+  case(MultAmount)
+    "Skill":
+      MultAmount := Max(CInt(EffSkill / 10), 1);
+  endcase
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount, MultAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SFX_SKILL_LUMBERJACK))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, tool, SKILLID_BOWCRAFT, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+
+  if(!CheckSkill(who, SKILLID_BOWCRAFT, Diff, 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData)+" Wypsnelo Ci sie narzedzie!", FONT_NORMAL, COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SFX_SKILL_LUMBERJACK))
+    return 0;
+  endif
+  
+  var itemLoops := 1;
+  var doubleProduce := GetGlyphMod(who, "DoubleProduce");
+  
+  if(HaveChance(doubleProduce))
+	PrintTextAbove(who, "*cud, cud, podwojny wyrob!*", FONT_NORMAL, COLOR_GREEN);
+	itemLoops := 2;
+   endif
+   
+   
+   while(itemLoops > 0)
+ 
+	  item := CreateItemInCont(Cont, ObjType, ProdAmount * MultAmount, who);
+	  if(!item)
+		SendSysMessage(who,"Masz za malo miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+		return 0;
+	  endif
+
+	  item := SetLogQuality(item, Materials, Kind, who);
+
+	  var ExpData;
+
+	  if(CInt(SkillCfg[ObjType].exchk))
+		ExpData := CraftExceptional(who, SKILLID_BOWCRAFT, ExpMod, CraftLevel);
+	  endif
+
+	  if(ExpData.makeExp)
+		item.quality := EXP_QUALITY_MULTIPLIER;
+		if(ExpData.makeNamed)
+		  SetName(item,EXP_ITEM_NAME + " " + item.desc+" [wykonal"+ggm(who,4)+" "+who.name+"]");
+		else
+		  SetName(item,EXP_ITEM_NAME + " " + item.desc);
+		endif
+		SendSysMessage(who, GetCraftIterDesc(IterData) + " Zrobil"+ggm(who,3)+" Wyjatkowej Jakosci przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+	  elseif(RandomInt(100) > EffSkill*1.5 and item.objtype != UOBJ_SHAFTS)
+		case(RandomInt(3))
+		  0: item.quality := 0.7;
+		  1: item.quality := 0.8;
+		  2: item.quality := 0.9;
+		endcase
+		SendSysMessage(who, GetCraftIterDesc(IterData) + " Zrobil"+ggm(who,3)+" sredniej jakosci przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_RED);
+	  else
+		item.quality := 1.0;
+		SendSysMessage(who, GetCraftIterDesc(IterData) + " Zrobil"+ggm(who,3)+" przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
+	  endif
+	  
+		if(expData.inscribe)
+			start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, item});
+		endif
+		
+		if(expData.changeColor)
+			start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, item});
+		endif
+
+	  if(ObjType != UOBJ_SHAFTS)
+		SetItemHp(item, GetItemMaxHp(item));
+	  endif
+
+	  AwardPoints(who, SKILLID_BOWCRAFT, Points, GAIN_RESTRICT, Diff + CInt(LogSkill / 2));
+	  SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_BOWCRAFT, array(Item, Materials.mainObj));
+	  
+	  itemLoops := itemLoops - 1;
+	  
+	endwhile
+
+	return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetLogQuality(item, byref Materials, Kind, who)
+
+  if(!IsStackableObj(item.objtype))
+
+    item.dmg_mod := CInt(Kind / 2);
+    item.color   := Materials.mainColor;
+    SetMade(who, Item, MTYPE_LOG, Kind);
+    var ItemName := GetDps(Materials.mainObj,item.objtype);
+    if(ItemName)
+      SetName(Item,ItemName + " " + GetDescForItem(item.objtype));
+    else
+      SetName(Item,GetDescForItem(item.objtype));
+    endif
+  endif
+
+  return item;
+
+endfunction
+
+//-----------------------------------------------------------------------------

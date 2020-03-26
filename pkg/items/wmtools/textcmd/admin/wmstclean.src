@@ -1,0 +1,84 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-26
+// Modified: 2011-04-26
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/items/utils";
+include "include/objects/location";
+
+include ":itemsets:definition";
+
+include ":wmtools:gmp_defs";
+include ":wmtools:common";
+include ":wmtools:wmstatics";
+include ":wmtools:statics";
+
+//-----------------------------------------------------------------------------
+
+const STATICS_CFG := SHARECFG_PKG + "statics";
+
+//-----------------------------------------------------------------------------
+
+program WMStaticsClean(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!IsRealAdmin(who))
+    return;
+  endif
+
+  var Groups := GetWmsGroups();
+
+  SendSysMessage(who, "Znaleziono "+Groups.size()+" grup WMS.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!Groups.size())
+    return;
+  endif
+
+  SendSysMessage(who, "Czy jestes pewny, ze chcesz usunac WSZYSTKIE grupy WMS?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Count := 0;
+  var desCount := 0;
+  var allCount := 0;
+
+  foreach wmsName in Groups
+
+    var Res := CleanItemsInWmsGroup(wmsName);
+
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    endif
+
+    desCount += Res.desCount;
+    allCount += Res.allCount;
+
+    Res := DelWmsGroup(wmsName);
+
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    endif
+
+    Count  += 1;
+
+  endforeach
+
+  SendSysMessage(who, "Usunieto "+Count+" grup WMS!", FONT_NORMAL, COLOR_BLUE);
+  SendSysMessage(who, "Usunieto "+desCount+"/"+allCount+" przedmiotow.", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

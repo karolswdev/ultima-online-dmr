@@ -1,0 +1,101 @@
+use uo;
+use os;
+
+include ":spawnnet:spawnnet";
+include "include/gumpboxes";
+
+
+program textcmd_toggleSp(who, args)
+
+	if(!args)
+		SendSysMessage(who, "Uzycie: .gtogglesp [realm] [on/off]. Zatrzymuje albo wznawia runy na danym realmie.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	var parts := SplitWords(args);
+
+	var realm := parts[1];
+	var state := parts[2];
+	
+	SendSysMessage(who, "realm: " + realm + " state: " + state);
+	
+	if(!realm)
+		SendSysMessage(who, "Nieprawidlowy realm.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	var realmCheck := 0;
+	
+	var Rlms := Realms();
+	
+	  foreach RlmInfo in Rlms
+		if(_RlmInfo_iter == realm)
+		  realmCheck := 1;
+		endif
+	  endforeach
+	  
+	if(!realmCheck)
+		SendSysMessage(who, "Nie ma takiego realmu.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+
+	if(!state)
+		SendSysMessage(who, "Uzycie: .gtogglesp [on/off]. Zatrzymuje albo wznawia runy na danym realmie", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(state != "on")
+		if(state != "off")
+			SendSysMessage(who, "Dostepne wartosci to tylko on albo off.", FONT_NORMAL, COLOR_RED);
+			return;
+		endif
+	endif
+	
+	var num := 0;
+	
+	var word := "wlaczyc";
+	if(state == "off")
+		word := "wylaczyc";
+	endif
+	
+	if(!YesNo(who, "Na pewno?"))
+		return;
+	endif
+	
+	if(!YesNo(who, "Na pewno " + word + " wszystkie runy na " + realm  +"?"))
+		return;
+	endif
+	
+	var x,y,Width, Height, Err := 0;	
+	
+	foreach RlmInfo in Rlms
+			if(_RlmInfo_iter == realm)
+			
+				Width  := RlmInfo.width;
+				Height := RlmInfo.height;
+
+					for(x:=Width; x>=32; x:=x -32)
+						SendSysMessage(who, "Restartowanie dla X=" + x + " R:"+num+" Rlm: "+_RlmInfo_iter+" PID: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+							for(y:=Height; y>=32; y:=y-32)
+								foreach item in ListObjectsInBox(x - 32, y - 32, -127, x, y, 127, _RlmInfo_iter )
+									if(item.objtype == UOBJ_SRUNE and item.isa(POLCLASS_ITEM))
+										if(state == "off")
+											AnnihilateSpawns(item);
+											SetStopped(item);
+											num := num + 1;
+										else
+											SetRunning(item);
+											num := num + 1;
+										endif
+									endif
+								endforeach
+							endfor
+					endfor		
+			endif
+  endforeach
+  
+	SendSysMessage(who, num + " run w operacji.", FONT_NORMAL, COLOR_GREEN);
+	
+	
+endprogram
+			

@@ -1,0 +1,84 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "include/items";
+
+include "farming";
+
+//--------------------------------------------------------------------------------
+
+var Grow,InCor;
+
+//--------------------------------------------------------------------------------
+
+program DirtControl(Dirt)
+
+  if(!GetObjProperty(Dirt,"DirtTime"))
+    SetObjProperty(Dirt,"DirtTime",ReadGameClock() + DIRT_TIME);
+  endif
+  if(!GetObjProperty(Dirt,"DirtDestroyTime"))
+    SetObjProperty(Dirt,"DirtDestroyTime",ReadGameClock() + DIRT_TIME + DIRT_DESTROY_TIME);
+  endif
+
+  while(Dirt)
+    Grow := GetObjProperty(Dirt,"Growing");
+    if(Grow and !GetObjProperty(Dirt,"GrowSer"))
+      if(GetObjProperty(Dirt,"SowTime") + DIRT_GROW_TIME < ReadGameClock())
+        InCor := 0;
+        foreach item in ListItemsAtlocation(Dirt.x,Dirt.y,Dirt.z,Dirt.realm)
+          if(item != Dirt)
+            InCor := 1;
+          endif
+        endforeach
+        if(len(ListMobilesNearLocation(Dirt.x,Dirt.y,Dirt.z,0,Dirt.realm)))
+          InCor := 1;
+        endif
+        if(InCor)
+          SetObjProperty(Dirt,"SowTime",ReadGameClock() - CInt(DIRT_GROW_TIME / 3));
+        else
+          Grow := CreateItemAtLoc(Dirt.x,Dirt.y,Dirt.z+1,Grow,1,Dirt.realm);
+          if(Grow)
+            SetObjProperty(Dirt,"GrowSer",Grow.serial);
+            SetObjProperty(Grow,"StayGrown",CInt(GetObjProperty(Dirt,"StayGrown")));
+          endif
+          EraseObjProperty(Dirt,"Growing");
+        endif
+      endif
+
+    endif
+
+    if(CInt(GetObjProperty(Dirt,"DirtTime")) < ReadGameClock())
+      if(Dirt.color != DIRT_COLOR_E)
+        Dirt.color := DIRT_COLOR_E;
+      endif
+      if(CInt(GetObjProperty(Dirt,"GrowSer")))
+        var Prod := SystemFindObjectBySerial(CInt(GetObjProperty(Dirt,"GrowSer")));
+        if(Prod and !GetObjProperty(Prod,"StayGrown"))
+          ReleaseItem(Prod);
+          DestroyItem(Prod);
+        endif
+        if(Prod)
+          SetHouseItem(Prod,GetHouse(Dirt));
+        endif
+        EraseObjProperty(Dirt,"GrowSer");
+      endif
+      EraseObjProperty(Dirt,"DirtTime");
+      EraseObjProperty(Dirt,"Growing");
+    endif
+      
+    if(CInt(GetObjProperty(Dirt,"DirtDestroyTime")) < ReadGameClock())
+      DestroyItem(Dirt);
+      exit;
+    endif
+
+    sleep(60);
+    
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------

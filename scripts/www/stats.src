@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use http;
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/const/misc";
+include "include/std";
+include "include/accounts";
+
+//-----------------------------------------------------------------------------
+
+SetLogRunCycles(LST_HTTP);
+
+//-----------------------------------------------------------------------------
+
+var Accs := ListAccounts();
+
+var AccsNum   := Accs.size();
+var ActiveNum := 0;
+var CharNum   := 0;
+var Rgc       := ReadGameClock();
+var i;
+
+foreach Acc in Accs
+ 
+  Acc := FindAccount(Acc);
+
+  if(IsActiveAccount(Acc))
+    ActiveNum := ActiveNum + 1;
+  endif
+
+  for(i:=1;i<=5;i:=i+1)
+    if(Acc.GetCharacter(i))
+      CharNum := CharNum + 1;
+    endif
+  endfor
+
+  if(IsAccountDeactivated(Acc))
+    AccsNum := AccsNum - 1;
+  endif
+
+endforeach
+
+WriteHtml(AccsNum+" "+ActiveNum+" "+CharNum);
+
+//-----------------------------------------------------------------------------

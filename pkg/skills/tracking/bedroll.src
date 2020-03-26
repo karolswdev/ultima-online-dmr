@@ -1,0 +1,88 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+const LOGOUT_WAIT            := 30;
+const UOBJECT_CAMPFIRE       := 0xDE3;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/checks/objchecks";
+include "include/player/basic";
+
+//-----------------------------------------------------------------------------
+
+program use_bedroll( who, bedroll )
+
+  if(bedroll.graphic == 0xa55 or bedroll.graphic == 0xa56)
+    Change(who, bedroll);
+    return;
+  endif
+
+  if(GetEffectiveSkill(who, SKILLID_TRACKING) < 40)
+    SendSysMessage(who, "Nie mozesz znalezc dobrego miejsca na rozlozenie materaca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(bedroll.container)
+    SendSysMessage(who, "Materac musi lezec na ziemi!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var items := ListItemsNearLocationOfType( who.x,who.y,who.z, 2, UOBJECT_CAMPFIRE, who.realm );
+  if( len(items) == 0 )
+    SendSysmessage( who, "Nie daleko musi byc ognisko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  SendSysmessage( who, "Zacz"+ggm(who,5)+" przygotowywac materac.",FONT_NORMAL,COLOR_GREEN );
+
+  Change(who,bedroll);
+
+  var x := who.x;
+  var y := who.y;
+  var z := who.z;
+   
+  var ttl := LOGOUT_WAIT;
+   
+  while( ttl > 0 )
+    if( (who.x != x) or (who.y != y) or (who.z != z) )
+      SendSysMessage( who, "Przerwal"+ggm(who,3)+" swoje przygotowania.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    SendSysmessage( who, "Musisz poczekac jeszcze " + ttl + " sekund.",FONT_NORMAL,COLOR_GREEN);
+    ttl := ttl - 5;
+    sleep(5);
+  endwhile
+
+  Change(who,bedroll);
+  MoveItemToContainer(bedroll,who.backpack);
+  InstantDisconnect(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Change(who, bedroll)
+
+  var cfg := ReadConfigFile(ITEMS_CFG);
+  var elem := FindConfigElem(cfg, CInt(bedroll.objtype));
+  if(bedroll.graphic == bedroll.objtype)
+    if(elem.changesnd)
+      PlaySoundEffect(who, elem.changesnd);
+    endif
+    bedroll.graphic := elem.change;
+  else
+    if(elem.originsnd)
+      PlaySoundEffect(who, elem.originsnd );
+    endif
+    bedroll.graphic := bedroll.objtype;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,107 @@
+//-----------------------------------------------------------------------------
+
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/logerror";
+
+
+//-----------------------------------------------------------------------------
+
+const MAX_TIME      := 45;
+
+//-----------------------------------------------------------------------------
+
+program ShutDownCmd(who,text)
+
+  text     := SplitWords(text);
+  var time := text[1];
+  var save := text[2];
+
+  if(!time)
+    SendSysMessage(who,".shutdown [%time /stop/stq] [nosave]",FONT_NORMAL,COLOR_GOOD);
+    SendSysMessage(who,"stq - stop quite",FONT_NORMAL,COLOR_GOOD);
+    SendSysMessage(who,"asd [stop/run]",FONT_NORMAL,COLOR_GOOD);
+    return;
+  endif
+
+  if(time == "stop")
+    StopShutDown(who);
+    return;
+  elseif(time == "stq")
+    StopShutDown(who,"q");
+    return;
+  elseif(time == "asd")
+    CheckAutoShutDown(who, save);
+    return;
+  endif
+
+  Time := CInt(Time);
+
+  if(time > MAX_TIME)
+    SendSysMessage(who,"Za duzy czas.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(GetGlobalProperty("#ShutDown"))
+    SendsysMessage(who,"Apokalipsa w toku.",FONT_NORMAL,COLOR_BLUE);
+    return;
+  endif
+
+  if(!YesNo(who,"Na pewno?"))
+    return;
+  endif
+
+  start_script("::apocalypse", array(time, save));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StopShutDown(who,type := 0)
+
+  if(GetGlobalProperty("#AutoShutDown"))
+    EraseGlobalProperty("#AutoShutDown");
+    SendSysMessage(who,"Zatrzymywanie AutoSd.",FONT_NORMAL,COLOR_GOOD);
+    return;
+  endif
+
+  if(type == "q")
+    SendSysMessage(who,"Ciche zatrzymywanie apokalispy.",FONT_NORMAL,COLOR_GOOD);
+    SetGlobalProperty("#ShutDown",2);
+  else
+    SendSysMessage(who,"Zatrzymywanie apokalispy.",FONT_NORMAL,COLOR_GOOD);
+    EraseGlobalProperty("#ShutDown");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckAutoShutDown(who, type)
+
+  case(type)
+    "stop":   if(GetGlobalProperty("#AutoShutDown") == 1)
+                SendSysMessage(who, "AutoSd jest juz wstrzymany.", FONT_NORMAL, COLOR_GREEN);
+              elseif(!GetGlobalProperty("#AutoShutDown"))
+                SetGlobalProperty("#AutoShutDown", 1);
+              else
+                SendSysMessage(who, "AutoSd jest juz w toku.", FONT_NORMAL, COLOR_RED);
+              endif
+
+    "run":    if(GetGlobalProperty("#AutoShutDown") == 1)
+                SendSysMessage(who, "AutoSd zostal uruchomiony.", FONT_NORMAL, COLOR_GREEN);
+                EraseGlobalProperty("#AutoShutDown");
+              elseif(!GetGlobalProperty("#AutoShutDown"))
+                SendSysMessage(who, "AutoSd nie zostal wstrzymany.", FONT_NORMAL, COLOR_RED);
+              else
+                SendSysMessage(who, "AutoSd jest juz w toku.", FONT_NORMAL, COLOR_RED);
+              endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

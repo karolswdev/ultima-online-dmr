@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 13;
+
+//-----------------------------------------------------------------------------
+
+program WwClawOfDeath(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Duration := CalcSkillLinear(Caster, SKILLID_WEARWOLF, 200) + CalcSkillLinear(Caster, SKILLID_ANIMALLORE, 100) + RandomInt(20); // do 5 minut z hakiem.
+  var bDmg     := CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 4) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 3) + RandomInt(3)); // do 7 czy tez 9 dla 120 WW.
+
+  PlaySoundEffect(Caster,SFX_SPELL_FIRE_FIELD);
+  PlayPcEffect( Caster, FX_CURSE_EFFECT, 1000, 1, 0xf, 2);
+  
+  if(CanMod(Caster, MOD_FIRE_DMG))
+    GainWarcastPoints(Caster, Caster, WW_WCID, WCGAIN_NORMAL);
+  endif
+
+  DoMod( Caster, MOD_FIRE_DMG, bDmg, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,68 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumps";
+include "include/clock";
+
+include ":miracleworker:miracles";
+
+//-----------------------------------------------------------------------------
+
+program MiracleTicket(who, Ticket)
+
+  if(!StandardItemCheck(who, Ticket))
+    return;
+  endif
+
+  var Order     := GetObjProperty(Ticket, PROP_ORDER_DATA);
+  var Npc       := FindNpcBySerial(Order.Source);
+
+  if(!Npc)
+    SendSysMessage(who, "Te zamowienie wydaje sie byc przeterminowane...", FONT_NORMAL, COLOR_RED);
+    DestroyItem(Ticket);
+    return;
+  endif
+
+  if(!Order)
+    SendSysMessage(who, "Te zamowienie wydaje sie byc nieprawidlowe...", FONT_NORMAL, COLOR_RED);
+    LogError("MiracleTicket: bilet nie posiada danych! ["+Ticket.serial+"] who ["+who.serial+"]", LOGF_SCRIPTS);
+    return;
+  endif
+
+  GInit(80, 100);
+  GResPic(20,20,3600,480,170+Order.Items.size()*20);
+  GCheckerTrans(35,35,450,140+Order.Items.size()*20);
+  GTextLine(150, 40, 600, "Zamowienie u "+Npc.name);
+
+  var Desc, i := 1;
+
+  GTextLine(90, 70, 999, "Nazwa");
+  GTextLine(350, 70, 999, "Zlozono");
+  GTextLine(420, 70, 999, "Ilosc");
+
+  foreach Item in (Order.Items)
+    Desc := GetMatDescForItem(Item.ObjType, Item.MatObjType);
+    Desc := CutWord(Desc, 40);
+
+    GTextLine(65, 70+i*20,  670,  i+".");
+    GTextLine(90, 70+i*20,  550,  Desc);
+    GTextLine(350, 70+i*20, 1320, Item.GotAmt);
+    GTextLine(420, 70+i*20, 1024, Item.Amount);
+
+    i := i + 1;
+  endforeach
+
+  if(Order.Comp)
+    GTextLine(210, 130+Order.Items.size()*20, 1000, "Wykonane");
+  else
+    GTextLine(50,  130+Order.Items.size()*20, 550, "Data podjecia sie:");
+    GTextLine(170, 130+Order.Items.size()*20, 1420,GetFullDate(Order.aTime));
+    GTextLine(50,  150+Order.Items.size()*20, 550, "Czas na wykonanie:");
+    GTextLine(170, 150+Order.Items.size()*20, 1420,DescGameTime(Order.ExpTime));
+  endif
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

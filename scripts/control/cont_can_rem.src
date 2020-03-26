@@ -1,0 +1,78 @@
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/objtypes/magic";
+include "include/client/fonts";
+include "include/items";
+include "include/bits";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program can_remove(who, backpack, item)
+
+  if(GetObjProperty(Item,"#Stealed"))
+    return 1;
+  endif
+
+  if(GetObjProperty(backpack, "NoRemove"))
+    if(!who.cmdlevel)
+      SendSysMessage(who, "Nie mozesz tego ruszac.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  if(CInt(GetObjProperty(backpack,"#BeingSnoop")) == who.serial and GetObjProperty(who,"#Snooping"))
+    SendSysMessage(who,"Nie uda Ci sie tego tak zabrac!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(!who.isa(POLCLASS_NPC))
+    var ownerserial := GetObjProperty(backpack, PROP_OWNER);
+    if(!ownerserial)
+      ownerserial := FindOwnSer(backpack);
+    endif
+    
+    if(!StdCanContainerRemove(who,backpack,item))
+      return 0;
+    endif
+
+    if(ownerserial and who)
+      if(who.serial != ownerserial)
+        if(IsGM(who))
+          return 1;
+        endif
+        SendSysMessage(who, "Nie mozesz tego ruszac.", FONT_NORMAL, COLOR_RED);
+        return 0;
+      else
+        return 1;
+      endif
+    endif
+  endif
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindOwnSer(backpack)
+
+  var Own := backpack.container;
+  
+  if(Own.isa(POLCLASS_CONTAINER))
+    while(Own and Own.isa(POLCLASS_CONTAINER))
+      Own := Own.container;
+    endwhile
+  endif
+
+  if(IsPlayer(Own))
+    SetObjProperty(backpack,PROP_OWNER,Own.serial);
+    return Own.serial;
+  else
+    EraseObjProperty(backpack,PROP_OWNER);
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

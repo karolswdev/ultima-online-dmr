@@ -1,0 +1,119 @@
+use uo;
+use os;
+use basic;
+
+include "include/gumps";
+include "include/gumpboxes";
+include ":pd:pd";
+include "include/clock";
+
+program textcmd_pdadmin(who)
+
+	var thePlayer := Target(who);
+	
+	if(!thePlayer.isA(POLCLASS_MOBILE))
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(!thePlayer.ip)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	var history := GetPdHistory(thePlayer);
+
+	GInit(0, 0);
+    GPage();
+    GResPic(49, 34, 5170, 510, 361);
+    GTextLine(258, 39, 0, "PD");
+    GTilePic(77, 62, 3894); 
+    GTextLine(110, 61, 0, "Ilosc PD");
+    GTextLine(116, 78, 33, GetPdPoints(thePlayer));
+    GTilePic(407, 64, 15317); 
+	GTextLine(256, 123, 0, "Historia PD");
+	
+	// button functions
+	GButton(175, 66, 1209, 248, 1);
+	GTextLine(198, 64, 0, "Przyznaj PD");
+    GButton(176, 86, 1209, 248, 2);
+    GTextLine(198, 85, 0, "Odejmij PD");
+	
+	GAddPageData(74, 116, 250, 251, 74, 342, 252, 253);
+	
+	var externalPadding := 0;
+	
+	foreach historyItem in history
+	
+		GCheckNextPage(3);
+	
+		if(externalPadding > 203)
+			externalPadding := 0;
+		endif
+		
+		var time := ReadGameClock() - historyItem.time;
+		var timeString := ShortRealTime(time);
+		var type := historyItem.type;
+		var typeString := "+1";
+		var typeColor := 55;
+		
+		var gmName := SystemFindObjectBySerial(historyItem.granter, 1).name;
+		
+		if(type["-"])
+			typeString := "-1";
+			typeColor := 30;
+		endif
+	
+		GResPic(75, 137+externalPadding, 83, 437, 65);	
+		GTextLine(112, 150+externalPadding, 33, "Przyznano:");
+		GTextLine(174, 150+externalPadding, 1152, timeString + " temu");
+		GTextLine(115, 173+externalPadding, typeColor, typeString);
+		GTextLine(329, 149+externalPadding, 33, "GM:");
+		GTextLine(354, 149+externalPadding, 1152, gmName);
+		GTextLine(141, 173+externalPadding, 1152, historyItem.reason);
+			
+		externalPadding := externalPadding + 68;
+		
+		
+	endforeach
+	
+    var result := GSend(who)[0];
+	
+	if(result == 1)
+		AddPd(who, thePlayer);
+	endif
+	
+	if(result == 2)
+		RemovePd(who, thePlayer);
+	endif
+	
+	
+	
+endprogram
+
+function AddPd(who, player)
+
+	var reason := SendTextEntryGump(who, "Z jakiego powodu", TE_CANCEL_ENABLE, TE_STYLE_NORMAL, 60, "nadajesz punkt PD");
+	
+	if(!reason)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	GrantPd(who, player, reason);
+
+endfunction
+
+function RemovePd(who, player)
+
+	var reason := SendTextEntryGump(who, "Z jakiego powodu", TE_CANCEL_ENABLE, TE_STYLE_NORMAL, 60, "odbierasz punkt PD");
+	
+	if(!reason)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	RevokePd(who, player, reason);
+
+endfunction
+

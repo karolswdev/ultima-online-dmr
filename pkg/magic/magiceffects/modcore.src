@@ -1,0 +1,76 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/std";
+include "include/checks/stdchecks";
+include "include/checks/objchecks";
+include "include/reputation/penalty";
+
+include "modcore";
+include "../pkg/magic/magicitems/magicitems";
+
+//-----------------------------------------------------------------------------
+
+var Who, WhoSer, ev;
+
+//-----------------------------------------------------------------------------
+
+program ModCore(_who)
+
+  SetLogRunCycles(LST_HOOK);
+  set_event_queue_size(40);
+
+  who    := _who;
+  WhoSer := who.serial;
+
+  SetObjProperty(who, PROP_MODCORE_PID, GetPid());
+  start_script(":magiceffects:checklongspells", who);
+
+  while(who and IsLoggedIn(who))
+    if(GetObjProperty(who, PROP_MODCORE_PID) != GetPid())
+      return;
+    endif
+
+    ev := wait_for_event(120);
+
+    if(ev and ev.source == who)
+      case(ev.type)
+        EVID_MOD:          DoTempMod(ev);
+        EVID_SKMOD:        DoTempSkMod(ev);
+        EVID_MAGICMOD:     DoTempMagicMod(ev);
+        EVID_MAGICSKMOD:   DoTempMagicSkMod(ev);
+        EVID_UNDOMOD:      CheckUndoMod(ev, 0);
+        EVID_UNDOSKMOD:    CheckUndoMod(ev, 1);
+        EVID_MURDPENALTY:  __ApplyMurdPenaltyMods(ev.source, ev.victim);
+      endcase
+    endif
+
+    sleepms(20);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckUndoMod(byref ev, isSkill)
+
+  if(isSkill)
+    UndoSkillTempMod(ev);
+  else
+    UndoTempMod(ev);
+  endif
+
+  if(ev.flags & UMDF_WAIT)
+    var Proc := GetProc(ev.pid);
+    var retEv := struct;
+    retEv.+undoDone := 1;
+
+    if(Proc)
+      Proc.sendevent(retEv);
+    endif
+  endif
+
+endfunction
+
+
+//-----------------------------------------------------------------------------

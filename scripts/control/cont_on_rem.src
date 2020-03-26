@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+// Modified: 2011-03-07
+//-----------------------------------------------------------------------------
+
+include "include/bits";
+include "include/client/fonts";
+include "include/items";
+include ":banking:gold";
+include "include/items/containers";
+include "include/checks/stdchecks";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program on_remove(who, backpack, item, item_amount, movetype)
+
+  __ParamUnused(item_amount);
+  __ParamUnused(movetype);
+
+  StdOnContainerRemove(who,backpack,item);
+  
+  if(GetObjProperty(Item,"sp"))
+    item.sellprice := CInt(GetObjProperty(Item,"sp"));
+    EraseObjProperty(Item,"sp");
+  endif
+
+  if(item.isa(POLCLASS_CONTAINER))
+    EraseObjProperty(item, PROP_OWNER);
+  endif
+
+  if(IsPlayer(who))
+    var TopCont := GetTopCont(backpack);
+    if(!TopCont)
+      TopCont := backpack;
+    endif 
+
+    if(TopCont.container == who)
+      if(item.objtype == UOBJ_CHEQUE or item.isa(POLCLASS_CONTAINER))
+        SendGoldCheck(who);
+      else
+        RemoveQuestTicketFromPack(who, Item);
+      endif
+    endif
+  endif
+
+
+  EraseToolTipProp(Item, "Wlozone przez");
+
+  
+  if(item.objtype == UOBJ_ESCROWPACK)
+    SendSysMessage(who, "Ten pojemnik moze znajdowac sie tylko w skrzyni powierniczej.",FONT_NORMAL,COLOR_RED_LIGHT);
+  endif
+
+  return;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 57;
+
+//-----------------------------------------------------------------------------
+
+program CastEarthQuake( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var CasterMagery := GetEffectiveSkill(Caster, SKILLID_MAGERY);
+  var Range        := CInt(CasterMagery / 20);
+  var Dmg          := 0;
+  var Num          := 0;
+  var Gained       := 0;
+
+  PlaySoundEffect( Caster, 0x2F4 );
+
+  foreach Mob in ListMobilesNearLocationEx( Caster.x, Caster.y, Caster.z, Range, LISTEX_FLAG_NORMAL + LISTEX_FLAG_HIDDEN, Caster.realm )
+    Mob.hidden := 0;
+
+    if(!CanDamage(Caster,Mob,NO_DIST_CHECK))
+      continue;
+    endif
+
+    if(Mob.isa(POLCLASS_NPC))
+      if(!CheckSpecialLos(Caster,Mob))
+        continue;
+      endif
+    elseif(Mob.multi)
+      continue;
+    endif
+
+    PrintTextAbovePrivate( Mob,"Czujesz jak ziemia porusza sie pod twoimi nogami!", CastOn );
+    PlaySoundEffect( Mob, SFX_SPELL_EARTHQUAKE );
+    PlayObjectCenteredEffect( Mob, FX_SMOKE, 7, 7);
+    Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, Mob, SpellGlob.Type);
+    var DmgRes := DoMagicDamage(Mob, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+    AddMurdReport(Mob, Caster);
+
+    Num := Num + 1;
+
+    if(Gained < 3 and DmgRes > 0)
+      Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+    endif
+
+    if(Num >= 8)
+      break;
+    endif
+
+  endforeach
+
+  PlaySoundEffect( caster, 0x223 );
+
+endfunction
+
+//-----------------------------------------------------------------------------

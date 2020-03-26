@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use basic;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/const/cfgs";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+var LeversCfg := ReadConfigFile("levers");
+
+//-----------------------------------------------------------------------------
+
+program UseLever(who, Lever)
+
+  if(!StandardItemCheck(who,Lever,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  PrintTextAbove(Lever, LeversCfg[Lever.graphic].text); 
+  Lever.graphic := CInt(LeversCfg[Lever.graphic].nextgraphic);
+  PlaySoundEffect(Lever,CInt(LeversCfg[Lever.graphic].sound));
+  
+  Detach();
+  Sleep(3);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+

@@ -1,0 +1,99 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/mobile/misc";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 4;
+
+//-----------------------------------------------------------------------------
+
+program CastHeal( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!Caster.isa(POLCLASS_NPC))
+    if(CastOn.isa(POLCLASS_NPC))
+      if(NpcHaveFlag(CastOn, "NoHeal"))
+        Fizzle(Caster,"Tego tak nie wyleczysz.");
+        return;
+      endif
+
+      if(!IsTamed(CastOn))
+        Fizzle(Caster,"Nie mozesz go wyleczyc.");
+        return;
+      endif
+    endif
+
+    if(CastOn in ListHostiles(Caster,15))
+      Fizzle(Caster,"Nie mozesz go wyleczyc.");
+      return;
+    endif
+  endif
+
+  var CasterSk := GetMagicSkillValue(Caster, SpellGlob.Type, SpellGlob.Circle);
+  var CasterEi := GetMindSkillValue(Caster, SpellGlob.Type, SpellGlob.Circle);
+  var CasterIn := 0;
+
+  if(!Caster.isa(POLCLASS_NPC))
+    CasterIn := Pow(CInt(GetBaseIntelligence(Caster) / 3), 2);
+  else
+    CasterIn := GetBaseIntelligence(Caster)*2;
+  endif
+
+  var Healed := CInt(1 + (CasterSk / 20) + (CasterEi / 20) + RandomInt(3) + (CasterIn / 60));
+  var Desc   := GetName(CastOn);
+
+  if(CastOn == Caster)
+    Desc := "siebie";
+  elseif(CastOn.isa(POLCLASS_NPC))
+    Desc := "stworzenie "+Desc;
+  elseif(IsPlayer(CastOn))
+    Desc := "osobe "+Desc;
+  endif
+
+  if(Healed > 20)
+    Healed := 20;
+  endif
+  
+  if(CastOn.isA(POLCLASS_NPC) and !IsSummoned(CastOn))
+    Healed := CInt(Healed * NPC_HEAL_MULTIPLIER);
+  endif
+
+  if(GetHp(CastOn) + Healed > GetMaxHp(CastOn))
+    Healed := GetMaxHp(CastOn) - GetHp(CastOn);
+  endif
+
+  PlayObjectCenteredEffect(CastOn, FX_SPARK_EFFECT, 7, 0x10);
+  PlaySoundEffect(CastOn, SFX_SPELL_HEAL);
+  if(Healed > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+    HealMobile(CastOn, Healed, Caster);
+    var Perc := (GetHp(CastOn) * 100) / GetMaxHp(Caster);
+    if(Perc >= 100)
+      SendSysMessage(Caster, "Wyleczyl"+ggm(Caster, 3)+" "+Desc+" calkowicie.",FONT_NORMAL,COLOR_BLUE);
+    elseif(Healed > 12)
+      SendSysMessage(Caster, "Uleczyl"+ggm(Caster, 3)+" "+Desc+" znacznie.",FONT_NORMAL,COLOR_GREEN);
+    elseif(Healed > 6)
+      SendSysMessage(Caster, "Uleczyl"+ggm(Caster, 3)+" "+Desc+".",FONT_NORMAL,COLOR_GREEN);
+    elseif(CastOn == Caster)
+      SendSysMessage(Caster, "Nieznacznie sie uleczyl"+ggm(Caster, 3)+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(Caster, "Nie znacznie uleczyl"+ggm(Caster, 3)+" "+Desc+".",FONT_NORMAL,COLOR_GREEN);
+    endif
+      
+    SendHealToHostile(CastOn, Caster, Healed);
+  else
+    SendSysMessage(Caster, "Ta osoba jest w pelni zdrowa.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

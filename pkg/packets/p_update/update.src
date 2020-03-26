@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+include ":banking:gold";
+include "include/player/basic";
+
+//-----------------------------------------------------------------------------
+
+program UpdatePackets()
+
+  print("[0x11]: Stats");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function Stats(who, byref Packet)
+
+  var pSerial := Packet.GetInt32(3);
+  var Flag    := Packet.GetInt8(42);
+
+  if(pSerial == who.serial and Flag > 0)
+    Packet.SetInt32(58, GetGold(who));
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

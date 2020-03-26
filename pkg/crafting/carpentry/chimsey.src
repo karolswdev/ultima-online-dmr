@@ -1,0 +1,95 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/effects";
+
+//-----------------------------------------------------------------------------
+
+program FireChimsey(who, chimsey)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(!StandardItemCheck(who,chimsey,NO_MOVABLE_CHECK | NEW_DIST_CHECK | NO_OWNER_CHECK, 1))
+    return;
+  endif
+
+  var cx       := chimsey.x;
+  var cy       := chimsey.y;
+  var cz       := chimsey.z;
+  var change   := GetChimseyObjTypeIndex(chimsey);
+  var ObjTypes := GetChimseyObjTypes();
+
+  if(!change)
+    return;
+  endif
+
+  if(chimsey.graphic == objtypes[change+1])
+     SendSysMessage(who, "Zgasil"+ggm(who,3)+" ogien w kominku.", FONT_NORMAL, COLOR_GREEN);
+     chimsey.graphic := objtypes[change];
+     foreach part in Listitemsatlocation(cint(cx+cint(objtypes[change+4])),cint(cy+cint(objtypes[change+5])),cz,chimsey.realm)
+        part.graphic := objtypes[change+2];
+        part.facing  := CInt(ItemCfg[part.objtype].facing);
+     endforeach
+     return;
+  endif
+
+  if(ExPid(GetObjProperty(chimsey, "#inuse")))
+    SendSysMessage(who, "Juz ktos podpala drewno.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!who.cmdlevel)
+    SendSysMessage(who, "Zaczynasz rozpalac drewno w kominku.", FONT_NORMAL, COLOR_GREEN);
+    SetObjProperty(chimsey, "#inuse",GetPid());
+  
+    if(!MakeNoise(who,0))
+      return;
+    endif
+  
+    EraseObjProperty(chimsey,"#inuse");
+  endif
+
+  chimsey.graphic := objtypes[change+1];
+  SendSysMessage(who, "Rozpalil"+ggm(who,3)+" ogien w kominku.", FONT_NORMAL, COLOR_BLUE);
+
+  foreach part in ListItemsAtLocation(cint(cx+cint(objtypes[change+4])),cint(cy+cint(objtypes[change+5])),cz,chimsey.realm)
+    part.graphic := objtypes[change+3];
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetChimseyObjTypeIndex(chim)
+
+ var ObjTypes := GetChimseyObjTypes(),i;
+
+ for(i:=1;i<=len(objtypes);i:=i+6)
+   if(chim.graphic == cint(objtypes[i]))
+     return cint(i);
+   endif
+   if(chim.graphic == cint(objtypes[i+1]))
+     return cint(i);
+   endif
+ endfor
+
+ return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetChimseyObjTypes()
+
+  return {
+    0x45D, 0x475, 0x45e, 0x489, 0, -1,
+    0x45F, 0x47B, 0x460, 0x482,-1,  0,  //sand
+    0x951, 0x953, 0x952, 0x959, 0, -1,
+    0x95F, 0x961, 0x960, 0x967,-1,  0,  //dark stone
+    0x935, 0x937, 0x936 ,0x93D, 0, -1,
+    0x943, 0x945, 0x944, 0x94B,-1,  0  // light stone
+  };
+  
+endfunction
+
+//-----------------------------------------------------------------------------

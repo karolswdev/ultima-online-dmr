@@ -1,0 +1,35 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//--------------------------------------------------------------------------------
+
+program CanInsertBoard(who,board,movetype, inserttype, adding_item, existing_stack)
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(GetObjProperty(board,"#Creating"))
+    return 1;
+  endif
+  
+  if(who.isa(POLCLASS_MOBILE))
+    PlaySoundEffect(who, 0x3B0);
+  endif
+
+  if(CInt(GetObjProperty(item,"BoardSer")) == board.serial)
+    return 1;
+  endif
+
+  SendSysMessage(who,"Nie mozesz tego tu wlozyc.",FONT_NORMAL,COLOR_RED);
+  return 0;
+
+endprogram
+
+//--------------------------------------------------------------------------------

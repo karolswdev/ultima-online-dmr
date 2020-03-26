@@ -1,0 +1,41 @@
+use uo;
+use os;
+use util;
+
+include "include/gumps";
+include "include/finding";
+include "include/misc";
+include "include/player/target";
+include "include/clock";
+include ":makrocheck:makro";
+
+program sys_RandomMacro()
+
+	syslog("Random Macro script started");
+	
+	while(1)
+		sleep(80);
+		RandomMakroCheck();
+	endwhile
+	
+endprogram
+
+function RandomMakroCheck()
+
+	if(!GetGlobalProperty("LastRandomMC"))
+		SetGlobalProperty("LastRandomMC", ReadGameClock());
+	endif
+	
+	var lastTime := CInt(GetGlobalProperty("LastRandomMC"));
+	
+	if(ReadGameClock() - lastTime < 1380)
+		return;
+	else
+		foreach player in EnumerateOnlineCharacters()
+			if(RandomInt(4) == 2)
+				SendMakrorer(player);
+			endif
+		endforeach
+	endif
+	
+endfunction

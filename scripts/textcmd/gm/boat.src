@@ -1,0 +1,116 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use boat;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/const/props";
+include "include/finding";
+include "include/move";
+include "include/coords";
+
+//-----------------------------------------------------------------------------
+
+program MoveBoatCmd(who,text)
+
+  if(!text or text == "?")
+    SendSysMessage(who,".boat [turn 0=none, 1=right, 2=around, 3=left / move 0=N, 1=NE, 2=E 3=SE 4=S 5=SW 6=W 7=NW / movexy x,y / keyfind / moveoffmob]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  text := SplitWords(text);
+
+  case(text[1])
+
+    "keyfind": 
+                 SendSysMessage(who, "Wybierz klucz.", FONT_NORMAL, COLOR_GREEN);
+                 var Key := ObjTarget(who);
+                 if(!Key.isa(POLCLASS_ITEM))
+                   SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                   return;
+                 endif
+
+                 var Boat := FindBoatBySerial(GetObjProperty(Key, PROP_SHIPSER));
+
+                 if(Boat)
+                   SendSysMessage(who, "Znaleziono lodz - "+Boat.serial+" ["+Boat.x+","+Boat.y+","+Boat.z+","+Boat.realm+"]", FONT_NORMAL, COLOR_GREEN);
+                   MoveObject(who, Boat.x+1, Boat.y, GetStandZ(Boat.x+1, Boat.y, Boat.realm, Boat.z), Boat.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+                 endif
+                 return;
+
+  endcase
+  
+  SendSysMessage(who, "Wybierz sternika lodzi.", FONT_NORMAL, COLOR_GREEN);
+
+  var Tilerman := ObjTarget(who);
+
+  if(!TilerMan)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Boat := FindBoatBySerial(GetObjProperty(Tilerman,"shipserial"));
+
+  if(!Boat)
+    Boat := Tilerman.multi;
+  endif
+  
+  if(Boat)
+    case(lower(text[1]))
+      "turn":       SendSysMessage(who,"Turn - "+CInt(text[2])+" - "+TurnBoat(Boat,CInt(Text[2])),FONT_NORMAL,COLOR_GREEN);
+      "move":       SendSysMessage(who,"Move - "+CInt(text[2])+" - "+MoveBoat(Boat,CInt(Text[2])),FONT_NORMAL,COLOR_GREEN);
+      "movexy":     SendSysMessage(who,"MoveXY - "+CInt(text[2])+","+CInt(text[3])+" - "+MoveBoatXY(Boat,CInt(Text[2]), CInt(Text[3])),FONT_NORMAL,COLOR_GREEN);
+      "moveoffmob": MoveOfflineMobiles(who, Boat);
+      "start":      SetScriptController(0);
+                    Detach();
+                    if(!GetObjProperty(Boat, "Carrier"))
+                      if(GetProc(GetObjProperty(Boat, "#BoatPid")))
+                        SendBad(who,"Skrypt jest juz odpalony.");
+                      else
+                        SendGood(who,"Restart sternika.");
+                        start_script(":boat:boat", Boat);
+                      endif
+                    else
+                      SendBad(who, "To lodz przewoznika.");
+                    endif
+
+      default:   SendSysMessage(who,".boat [turn 0=none, 1=right, 2=around, 3=left / move 0=N, 1=NE, 2=E 3=SE 4=S 5=SW 6=W 7=NW / movexy x,y / keyfind / moveoffmob]",FONT_NORMAL,COLOR_RED);
+                 return;
+    endcase
+  else
+    SendSysMessage(who, "Nie znaleziono lodzi.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MoveOfflineMobiles(who, Boat)
+
+  if(!Boat.has_offline_mobiles)
+    SendSysMessage(who, "Statek nie posiada wylogowanych postaci.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz lokacje, gdzie przeniesc wylogowane na statku postacie.", FONT_NORMAL, COLOR_GREEN);
+
+  var Loc := LocTarget(who);
+  
+  if(!Loc)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Boat.move_offline_mobiles(Loc.x, Loc.y, Loc.z, Loc.realm))
+    SendSysMessage(who, "Postacie przeniesiono.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Nie udalo sie przeniesc postaci.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

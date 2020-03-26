@@ -1,0 +1,29 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/finding";
+
+include ":ai_handler:utils/misc";
+
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program NpcMiniQuestHello(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  SendQuestEvent(Data.source, EVQID_NPC_SPEECH, 0, Data.npc);
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

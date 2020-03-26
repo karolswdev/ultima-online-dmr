@@ -1,0 +1,63 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+use storage;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/log";
+include "include/const/cfgs";
+include "include/clock";
+include "include/client/fonts";
+include "include/items/temp_storage";
+
+//-----------------------------------------------------------------------------
+
+program TempStorageInfo(who,text)
+
+  __ParamUnused(text);
+
+  var Temp := GetTemporaryBox();
+
+  while(IsLoggedIn(who))
+    GInit(50, 20);
+    GPage();
+    GResPic(0, 0, 3600, 400,250);
+
+    GTextLine(38, 30, 999, "Oczekujacych:");
+    GTextLine(150, 30, 550, Temp.item_count-1);
+
+    GTextLine(38, 50, 999, "Ilosc pulli:");
+    GTextLine(150, 50, 550, CInt(GetObjProperty(Temp, "#CurPullCount")) +"/"+CInt(GetObjProperty(Temp, "PullCount")));
+
+    GTextLine(38, 70, 999, "Ilosc zwrotow:");
+    GTextLine(150, 70, 550, CInt(GetObjProperty(Temp, "#CurReturnCount")) +"/"+CInt(GetObjProperty(Temp, "ReturnCount")));
+
+    GTextLine(38, 90, 999, "Ostatni pull:");
+    GTextLine(150, 90, 550, CUnixTime(CInt(GetObjProperty(Temp, "#LastPull"))));
+
+    GTextLine(38, 110, 999, "Ostatni zwrot:");
+    GTextLine(150, 110, 550, CUnixTime(CInt(GetObjProperty(Temp, "#LastReturn"))));
+
+    GTextLine(38, 130, 999, "Ostatni serial:");
+    GTextLine(150, 130, 1320, hex(GetObjProperty(Temp, "#LastItem")));
+
+    GTextLine(38, 150, 999, "Ilosc utworzonych:");
+    GTextLine(150, 150, 550, CInt(GetObjProperty(Temp, "#CurCreateCount")) + "/" + CInt(GetObjProperty(Temp, "CreateCount")));
+
+    GButton(300, 33, 2117, 2118, 1);
+    GTextLine(318, 30, 999, "Odswiez");
+
+    var Res := GSend(who);
+
+    if(!Res)
+      return;
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

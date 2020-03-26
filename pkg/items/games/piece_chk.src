@@ -1,0 +1,22 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+program PieceChk(Parms)
+
+  while(!ReserveItem(Parms[1]))
+    sleepms(500);
+  endwhile
+
+  if(Parms[2] != Parms[1].container)
+    if(!MoveItemToContainer(Parms[1],Parms[2]))
+      DestroyItem(Parms[1]);
+    endif
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------

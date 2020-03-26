@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program OnShelfRemove(who, Shelf, item)
+
+  __ParamUnused(who);
+
+  EraseObjProperty(Item,"NoWrite");
+  
+  if(Shelf.item_count == 1)
+    case(Shelf.graphic)
+      0xa97:
+      0xa98:
+      0xa9b: Shelf.graphic := 0xa9d;
+
+      0xa99:
+      0xa9a:
+      0xa9c: Shelf.graphic := 0xa9e;
+    endcase
+  else
+    if(Shelf.graphic == 0xa9d)
+      case(RandomInt(3)+1)
+        1: Shelf.graphic := 0xa97;
+        2: Shelf.graphic := 0xa98;
+        3: Shelf.graphic := 0xa9b;
+      endcase
+    elseif(Shelf.graphic == 0xa9e)
+      case(RandomInt(3)+1)
+        1: Shelf.graphic := 0xa99;
+        2: Shelf.graphic := 0xa9a;
+        3: Shelf.graphic := 0xa9c;
+      endcase
+    endif
+  endif
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

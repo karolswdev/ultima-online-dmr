@@ -1,0 +1,53 @@
+//-----------------------------------------------------------------------------
+
+include "include/inncheck";
+include "include/logon";
+include ":jail:common";
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+program logofftest(who)
+
+  var Delay := 300;
+  
+  if(who.cmdlevel > 1 or GetObjProperty(who, PROP_SAFELOGOFF))
+    Delay := 0;
+  elseif(GetObjProperty(who, "Delay"))
+    EraseObjProperty(who, "Delay");
+    Delay := 0;
+  elseif(IsJailed(who) or GetObjProperty(who,"BadName"))
+    Delay := 0;
+  elseif(who.multi)
+    var house := who.multi;
+    if(IsHouseOwner(who,house) or IsHouseCoOwner(who,house) or IsHouseFriend(who,house))
+      Delay := 30;
+    endif
+  elseif(Inncheck(who))
+    Delay := 30;
+  endif
+
+  EraseObjProperty(who, PROP_SAFELOGOFF);
+
+  if(Delay)
+    SetObjProperty(who, "#LoggingOut", ReadGameClock());
+  endif
+  
+  SendStaffNotify(EVID_PLAYER_DELAY, who, Delay);
+  CheckLogOff(who);
+
+  if(who.party)
+    SendPartyNotice(who.party, who.name+" stracil"+ggm(who,4)+" przytomnosc!", COLOR_RED_SPICED);
+  endif
+
+  if(CheckForShortLogs(who))
+    BanAccount(who.acct, "Czeste krotkie logowania", 10800);
+    LogNotice("[ShortLogs] Osoba z konta "+who.acctname+" dostala bana za czeste krotkie logowania.");
+  endif
+
+  return Delay;
+
+endprogram
+
+//-----------------------------------------------------------------------------

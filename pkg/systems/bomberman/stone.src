@@ -1,0 +1,919 @@
+include "bomberman";
+
+const  NEXT_LINE := 20;
+
+// Objtyp wszystki elemetow wchodzacych w sklad miejsc koncowych druzyn.
+var BA_S_T1    := {{6122,6124,6127},{6123,6126,6129},{6125,6128,6130}};
+var BA_S_T2    := {{6149,6151,6154},{6150,6153,6156},{6152,6155,6157}};
+
+var ButtonID := {1,11,12,21,22,31,32,321,322,41,421,422,43,431,432,44,451,452,433,434,453,454};
+
+var Button := dictionary;
+
+var _TeamA, _TeamB;
+var _ArenaStone;
+var _Controler;
+var _ArenaInUse;
+var _line;
+var _TimeLeft;
+var _GameTime;
+
+//-----------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------
+
+program mainstone (who, item)
+  detach();
+  _ArenaStone := item;
+  _Controler := who;
+  if(!isGM(_Controler))
+    SetVital(_Controler, VITALID_LIFE, 100);
+    PlayLightningBoltEffect( _Controler );
+    sleepms(500);
+    PlaySoundEffect( who, SFX_SPELL_LIGHTNING);
+    return;
+  endif
+  if(GetObjProperty(_ArenaStone,BA_SIU))
+    return;
+  endif
+  SetObjProperty(_ArenaStone,BA_SIU,1);
+  SetDefaultGameTime();
+  var sbutton;
+  
+  while (item)
+    sbutton := DrawStoneGump()[0];
+    if(sbutton)
+    
+      case (sbutton[0])
+        1: StartGame(); EndGame(); break;
+        21  :     ChangePlayer(BA_P_T1,1); break;
+        22  :     ChangePlayer(BA_P_T1,2); break;
+        23  :     ChangePlayer(BA_P_T2,1); break;
+        24  :     ChangePlayer(BA_P_T2,2); break;
+        31  :     SendEventToGame(1); break;
+        32  :     SetDefaultGameTime(); break;
+        321 :     ChangeGameTime(1);  break;
+        322 :     ChangeGameTime(-1); break;
+        41:       SetArenaLoc(); break;
+        42:       SetTeamSpots(BA_T1);
+        43:       SetTeamSpots(BA_T2);
+        441 :     ChangeVisible(BA_BORDER,1); break;
+        442 :     ChangeVisible(BA_BORDER,0);  break;       
+        451 :     AddItem(BA_BLOCK); break;
+        452 :     SubstractItem(BA_BLOCK); break;
+        453 :     ChangeVisible(BA_BLOCK,1); break;
+        454 :     ChangeVisible(BA_BLOCK,0); break;
+        461 :     AddItem(BA_WALL); break;
+        462 :     SubstractItem(BA_WALL); break;
+        463 :     ChangeVisible(BA_WALL,1); break;
+        464 :     ChangeVisible(BA_WALL,0);  break;
+      endcase
+    else
+      break;
+    endif
+  endwhile
+  EraseObjProperty(_ArenaStone,BA_SIU);
+endprogram
+
+///???????????????????????????????????????????$!@#$#$^%$^#%^&#%^&%$^@#$#$@#$#$#^#$$^&&#$$#%$^@$@#%@$%#$
+
+function EndGame()
+  var T1:= GetObjProperty(_ArenaStone,BA_P_T1);
+  var T1spot := GetObjProperty(_ArenaStone,BA_A_T1);
+  var T2:= GetObjProperty(_ArenaStone,BA_P_T2);
+  var T2spot := GetObjProperty(_ArenaStone,BA_A_T2);
+
+  if (!T1 or !T1spot or !T2 or !T2spot)
+    return 0;
+  endif
+
+  T1spot := SystemFindObjectBySerial(T1spot[5]);
+  T2spot := SystemFindObjectBySerial(T2spot[5]);
+
+  T1 := {SystemFindObjectBySerial(T1[1]),SystemFindObjectBySerial(T1[2])};
+  T2 := {SystemFindObjectBySerial(T2[1]),SystemFindObjectBySerial(T2[2])};
+
+  if(T1[1])
+    RemovePlayerFromArena(T1[1],T1spot);
+    sleep(1);
+  endif
+  if(T2[1])
+    RemovePlayerFromArena(T2[1],T2spot);
+    sleep(1);
+  endif
+   if(T1[2])
+    RemovePlayerFromArena(T1[2],T1spot);
+    sleep(1);
+  endif
+   if(T2[2])
+    RemovePlayerFromArena(T2[2],T2spot);
+    sleep(1);
+  endif
+endfunction
+
+function RemovePlayerFromArena(who, spot, how := 0) 
+  var serial;
+  var arr := GetObjProperty(_ArenaStone,BA_A_ITEM);
+  foreach item in EnumerateItemsInContainer( who.backpack, ENUMERATE_IGNORE_LOCKED)
+    if(GetObjProperty(item,BA_CND))
+      EraseObjProperty(item,BA_CND);
+      serial := item.serial;
+      if(DestroyItem(item))
+        arr.erase(RetIndex(arr,serial));
+      endif
+    endif
+  endforeach
+  if(arr.size())
+    SetObjProperty(_ArenaStone,BA_A_ITEM,arr);
+  else
+    EraseObjProperty(_ArenaStone,BA_A_ITEM);
+  endif
+  
+  var Sx := who.x, Sy := who.y, Sz := who.z;
+  MoveObjectToLocation( who, spot.x, spot.y, spot.z, spot.realm);
+  PlaySoundEffect( who, SFX_SPELL_FLAME_STRIKE );
+  PlayStationaryEffect(who.x,who.y,who.z,FX_FLAMESTRIKE,0xf,0xf);
+  PlayStationaryEffect(Sx,Sy,Sz,FX_SMOKE,0xf,0xf);
+endfunction
+
+function StartGame()
+
+  var T1:= GetObjProperty(_ArenaStone,BA_P_T1);
+  var T1spots := GetObjProperty(_ArenaStone,BA_A_T1);
+  var T2:= GetObjProperty(_ArenaStone,BA_P_T2);
+  var T2spots := GetObjProperty(_ArenaStone,BA_A_T2);
+
+  if (!T1 or !T1spots or !T2 or !T2spots)
+    return 0;
+  endif
+
+  T1spots := {SystemFindObjectBySerial(T1spots[10]),SystemFindObjectBySerial(T1spots[11])};
+  T2spots := {SystemFindObjectBySerial(T2spots[10]),SystemFindObjectBySerial(T2spots[11])};
+
+  T1 := {SystemFindObjectBySerial(T1[1]),SystemFindObjectBySerial(T1[2])};
+  T2 := {SystemFindObjectBySerial(T2[1]),SystemFindObjectBySerial(T2[2])};
+
+  if(T1[1])
+    AddPlayerToArena(T1[1],T1spots[1]);
+    sleep(1);
+  endif
+  if(T2[1])
+    AddPlayerToArena(T2[1],T2spots[1]);
+    sleep(1);
+  endif
+   if(T1[2])
+    AddPlayerToArena(T1[2],T1spots[2]);
+    sleep(1);
+  endif
+   if(T2[2])
+    AddPlayerToArena(T2[2],T2spots[2]);
+    sleep(1);
+  endif
+endfunction
+
+function AddPlayerToArena(who, startloc)
+  var Sx := who.x, Sy := who.y, Sz := who.z;
+  MoveObjectToLocation( who, startloc.x, startloc[1].y, startloc[1].z, startloc[1].realm);
+  PlaySoundEffect( who, SFX_SPELL_TELEPORT );
+  PlayStationaryEffect(who.x,who.y,who.z,FX_SMOKE,0xf,0xf);
+  PlayStationaryEffect(Sx,Sy,Sz,FX_SMOKE,0xf,0xf);
+  GiveItem(0xBB01,who);
+endfunction
+
+
+function GiveItem(objtype,who)
+  var Item;
+  var ItemArray := GetObjProperty(_ArenaStone,BA_A_ITEM);
+  if(!ItemArray)
+    ItemArray := array;
+  endif
+  
+  Item := CreateItemInBackpack(who,objtype);
+  SetObjProperty(Item, BA_CND, _ArenaStone.serial);
+  SetObjProperty(Item, BA_A_LOC, GetObjProperty(_ArenaStone,BA_A_LOC));
+  ItemArray.append(Item.serial);
+  SetObjProperty(_ArenaStone,BA_A_ITEM,ItemArray);
+endfunction
+
+
+///????????????????????????????????????????????!!?!!?2?!@#!@#!@#!@#!@!#$%!#$%#$%$^%&%**
+
+
+//-----------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------------------------------
+
+function  SendEventToGame(event)
+  if(GetProcess(GetObjProperty(_ArenaStone,BA_GAME_SCRIPT)).sendevent(event))
+    
+    return 1;
+  else
+    SendSysMessage(_Controler,"huj",FONT_NORMAL,COLOR_RED);
+    return 0;
+
+  endif
+endfunction
+
+function ChangePlayer(team,place)
+  case (team)
+    BA_P_T1:    
+    BA_P_T2:    break;
+    default:  SendSysMessage(_Controler,"Bledny argument funkcji ChangePlayer",FONT_NORMAL,COLOR_RED);
+              return;
+  endcase
+  case (place)
+    1:
+    2:        break;
+    default:  SendSysMessage(_Controler,"Bledny argument funkcji ChangePlayer",FONT_NORMAL,COLOR_RED);
+              return;
+  endcase
+
+  var arr := GetObjProperty(_ArenaStone,team);
+  if(!arr)
+    arr := array{0,0};
+    SetObjProperty(_ArenaStone,team,arr);
+    SendSysMessage(_Controler,"Nie bylo tablicy graczy, ale ja dodalem",FONT_NORMAL,COLOR_GREEN);
+  endif
+  
+  if(!arr[place]) 
+    SendSysMessage(_Controler,"Wskaz gracza:",FONT_NORMAL,COLOR_GREEN);
+    var targ := Target(_Controler);
+    if (!targ)
+      SendSysMessage(_Controler,"Anulowano",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(!targ.isa(POLCLASS_MOBILE))
+      SendSysMessage(_Controler,"To nie jest gracz",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    var exist := 0;
+    foreach player in GetObjproperty(_ArenaStone,BA_P_T1)
+      if(player == targ.serial)
+        exist := 1;
+      endif
+    endforeach
+    foreach player in GetObjproperty(_ArenaStone,BA_P_T2)
+      if(player == targ.serial)
+        exist := 1;
+      endif
+    endforeach
+    if (exist)
+      SendSysMessage(_Controler,"Gracz juz jest dopisany do gry",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+
+    arr[place]:= targ.serial;
+    SendSysMessage(_Controler,"Gracz dodany",FONT_NORMAL,COLOR_GREEN);
+  else
+    arr[place]:= 0;
+    SendSysMessage(_Controler,"Gracz usuniety",FONT_NORMAL,COLOR_GREEN);
+  endif
+  SetObjProperty(_ArenaStone,team,arr);
+  
+    
+endfunction
+
+//----------------------------------------------------------------------
+
+function SetTeamSpots(team)
+  var TeamEndSpot;
+  var TeamStartSpot;
+  case (team)
+    BA_T1_NAME:
+    BA_T1:
+    BA_A_T1:      TeamEndSpot := BA_S_T1;
+                  team := BA_A_T1;
+                  TeamStartSpot := BA_T1;
+                  break;
+    BA_T2_NAME:
+    BA_T2:
+    BA_A_T2:      TeamEndSpot := BA_S_T2;
+                  team := BA_A_T2;
+                  TeamStartSpot := BA_T2;
+                  break;
+    default:      return;
+  endcase
+  
+  if(!Check(_ArenaStone,BA_A_LOC,_Controler))
+    return;
+  endif
+  
+  if(Check(_ArenaStone,team))
+    SendSysmessage(_Controler, "Lokalizacje juz istnieja, chcesz ja zmienic?",FONT_NORMAL,COLOR_GREEN);
+    SendSysmessage(_Controler, "Wszystkie pobudowane lokacje druzyny zostana skasowane!!",FONT_NORMAL,COLOR_GREEN);
+    if(YesNo(_Controler,"Zmienic?"))
+      DestroyAll(team);
+      EraseObjproperty(_ArenaStone,team);
+    else
+      SendSysMessage(_Controler,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif 
+  endif
+
+  var temp;
+  var arr := array;
+  for k := 1 to 3
+    temp := array;
+    case(k)
+        1:  temp.append("Wskaz miejsce koncowe druzyny - poza arena");
+            temp.append("To ma byc poza arena");
+            break;
+        2:  temp.append("Wskaz miejsce zawodnika 1");
+            temp.append("To ma byc wewnatrz areny");
+            break;
+        3:  temp.append("Wskaz miejsce zawodnika 2");
+            temp.append("To ma byc wewnatrz areny");
+            break;
+    endcase
+    
+    SendSysmessage(_Controler, temp[1],FONT_NORMAL,COLOR_GREEN);
+    if(YesNo(_Controler,"Tutaj?"))
+      if((InArena(_Controler.x,_Controler.y,_Controler.realm) and k == 1) or (!InArena(_Controler.x,_Controler.y,_Controler.realm) and k != 1))
+        DestroyAll(team);
+        SendSysMessage(_Controler,temp[2],FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    else
+      DestroyAll(team);
+      SendSysMessage(_Controler,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    case (k)
+      1:  temp.append(ListItemsNearLocation( _Controler.x, _Controler.y, LIST_IGNORE_Z, 1, _Controler.realm ));
+          break;
+      2:
+      3:  temp.append(ListItemsAtLocation( _Controler.x, _Controler.y, LIST_IGNORE_Z, _Controler.realm ));
+    endcase
+
+    foreach item in (temp[3])
+      if( item.isa(POLCLASS_MOBILE) )
+        continue;
+      endif
+      DestroyAll(team);
+      SendSysMessage(_Controler,"Cos znajduje sie na lokacji",FONT_NORMAL,COLOR_RED);
+      return;  
+    endforeach
+
+    
+    case(k)
+      1:          for i:= 1 to 3
+                    for j:= 1 to 3
+                      arr.append(CreateIt(_Controler.x-2+i,_Controler.y-2+j,_Controler.z,_Controler.realm,TeamEndSpot[j][i]).serial);
+                    endfor
+                  endfor
+                  break;
+      2:          
+      3:          arr.append(CreateIt(_Controler.x,_Controler.y,_Controler.z,_Controler.realm,TeamStartSpot).serial);
+    endcase
+    SetObjProperty(_ArenaStone,team,arr);
+  endfor
+
+  foreach it in GetObjProperty(_ArenaStone,team)
+      SystemFindObjectBySerial(it).movable := 0;
+  endforeach
+
+  SendSysmessage(_Controler, "Stworzyles wszystkie miejsca koncowe druzyny",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+// Tworzy item i uniemozliwia usuniecie go
+function CreateIt(x,y,z,realm,objtype)
+  if ( z & BA_M_Z )
+    z := GetWorldHeight( x, y, realm);
+  endif
+  var item := CreateItemAtLocation(x,y,z,objtype,1,realm);
+  SetObjProperty(item,BA_CND,_ArenaStone.serial);
+
+  return item;
+endfunction
+
+// Niszczy item (uprzedniu usuwa flage uniemozliwiajaca usuniecie itemu)
+function DestroyIt(item)
+  EraseObjProperty(item,BA_CND);
+  DestroyItem(item);
+endfunction
+
+function AddItem(what)
+  
+  if(!Check(_ArenaStone,{BA_A_LOC,BA_A_T1,BA_A_T2},_Controler))
+    return;
+  endif
+
+  var wwhat := struct{"arr","hidden","name", "type"};
+
+  case (what)
+    BA_H_WALL:
+    BA_A_WALL: 
+    BA_WALL:        wwhat.name   := "Sciana";
+                    wwhat.arr    := BA_A_WALL;
+                    wwhat.hidden := BA_H_WALL;
+                    wwhat.type   := BA_WALL;
+                    break;
+    BA_H_BLOCK:
+    BA_A_BLOCK: 
+    BA_BLOCK:       wwhat.name   := "Blok";
+                    wwhat.arr    := BA_A_BLOCK;
+                    wwhat.hidden := BA_H_BLOCK;
+                    wwhat.type   := BA_BLOCK;
+                    break;
+      default:      return;
+  endcase
+
+  ChangeVisible(what,1);
+
+  what := wwhat;
+  
+  var arr := GetObjProperty(_ArenaStone,what.arr);
+  if (!arr)
+      arr := array;
+  endif
+
+  var loc := 1;
+  while ( loc )
+    loc := TargetCoordinates( _Controler );
+    if (loc)
+      if(loc.item)
+        SendSysmessage(_Controler, "Lokacja zajeta przez inny obiekt",FONT_NORMAL,COLOR_RED);
+      else
+        if (InArena(loc.x,loc.y,loc.realm))        
+          arr.append(CreateIt(loc.x,loc.y,loc.z,loc.realm,what.type).serial);
+          SetObjProperty(_ArenaStone,what.arr,arr);
+          SendSysmessage(_Controler, "Dodano: " + what.name,FONT_NORMAL,COLOR_GREEN);
+        else
+          SendSysmessage(_Controler, "Lokacja poza arena",FONT_NORMAL,COLOR_RED);
+        endif
+      endif
+    endif
+  endwhile
+  
+endfunction
+
+function SubstractItem(what)
+  
+
+  var wwhat := struct{"arr","hidden","name", "type"};
+
+  case (what)
+    BA_H_WALL:
+    BA_A_WALL: 
+    BA_WALL:        wwhat.name   := "Sciana";
+                    wwhat.arr    := BA_A_WALL;
+                    wwhat.hidden := BA_H_WALL;
+                    wwhat.type   := BA_WALL;
+                    break;
+    BA_H_BLOCK:
+    BA_A_BLOCK: 
+    BA_BLOCK:       wwhat.name   := "Blok";
+                    wwhat.arr    := BA_A_BLOCK;
+                    wwhat.hidden := BA_H_BLOCK;
+                    wwhat.type   := BA_BLOCK;
+                    break;
+      default:      return;
+  endcase
+
+  ChangeVisible(what,1);
+
+  what := wwhat;
+
+  if(!Check(_ArenaStone,what.arr,_Controler))
+    return;
+  endif
+  
+  var arr := GetObjProperty(_ArenaStone,what.arr);
+  if (!arr)
+      arr := array;
+  endif
+
+  var item := 1;
+  while ( item )
+    item := Target( _Controler, 0 );
+    if (item)
+      if(item.isa(POLCLASS_ITEM))
+        if (item.objtype == what.type)
+          if(GetObjProperty(item,BA_CND) == _ArenaStone.serial)
+            arr.erase(RetIndex(arr,item.serial));
+            DestroyIt(item);
+            if(arr.size())
+              SetObjProperty(_ArenaStone,what.arr,arr);
+              SendSysmessage(_Controler, "Usunieto: " + what.name,FONT_NORMAL,COLOR_GREEN);
+              item := 1;
+            else
+              EraseObjProperty(_ArenaStone,what.arr);
+              EraseObjProperty(_ArenaStone,what.hidden);
+              SendSysmessage(_Controler, "Usunieto wszystkie: " + what.name,FONT_NORMAL,COLOR_GREEN);
+              return;
+            endif
+          else
+            SendSysmessage(_Controler, "To nie nalezy do tej areny",FONT_NORMAL,COLOR_RED);
+          endif
+        else
+          SendSysmessage(_Controler, "To nie jest: " + what.name,FONT_NORMAL,COLOR_RED);
+        endif
+      else
+        SendSysmessage(_Controler, "To nie jest: " + what.name,FONT_NORMAL,COLOR_RED);
+      endif
+    else
+      SendSysmessage(_Controler, "Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+  endwhile
+  
+
+endfunction
+
+
+function DestroyAll(what)
+
+  var wwhat := struct{"arr","name","hidden"};
+
+  case (what)
+    BA_H_BORDER:
+    BA_A_BORDER: 
+    BA_BORDER:      wwhat.name   := "Plot";
+                    wwhat.arr    := BA_A_BORDER;
+                    wwhat.hidden := BA_H_BORDER;
+                    break;
+    BA_H_WALL:
+    BA_A_WALL: 
+    BA_WALL:        wwhat.name   := "Sciany";
+                    wwhat.arr    := BA_A_WALL;
+                    wwhat.hidden := BA_H_WALL;
+                    break;
+    BA_H_BLOCK:
+    BA_A_BLOCK: 
+    BA_BLOCK:       wwhat.name   := "Bloki";
+                    wwhat.arr    := BA_A_BLOCK;
+                    wwhat.hidden := BA_H_BLOCK;
+                    break;
+    BA_A_T1:
+    BA_T1_NAME: 
+    BA_T1:          wwhat.name   := "Druzyna1";
+                    wwhat.arr    := BA_A_T1;
+                    wwhat.hidden := 0;
+                    break;
+
+    BA_A_T2:
+    BA_T2_NAME: 
+    BA_T2:          wwhat.name   := "Druzyna2";
+                    wwhat.arr    := BA_A_T2;
+                    wwhat.hidden := 0;
+                    break;
+
+      default:      return;
+  endcase
+  
+  what := wwhat;
+
+  if(!Check(_ArenaStone,what.arr,_Controler))
+    return 0;
+  endif
+  
+  var arr := GetObjProperty(_ArenaStone,what.arr);
+
+  foreach todestroy in arr
+    DestroyIt(SystemFindObjectBySerial(todestroy));
+  endforeach
+  EraseObjProperty(_ArenaStone, what.arr);
+  if(what.hidden)
+    EraseObjProperty(_ArenaStone, what.hidden);
+  endif
+  SendSysMessage(_Controler,"Zniszczony: " + what.name,FONT_NORMAL,COLOR_GREEN);
+    
+
+endfunction
+
+//----------------------------------------------------------------------
+
+
+function SetArenaLoc()
+  if(Check(_ArenaStone,BA_A_LOC))
+    SendSysmessage(_Controler, "Lokalizacja areny jest juz zdefinowana, chcesz ja zmienic?",FONT_NORMAL,COLOR_GREEN);
+    SendSysmessage(_Controler, "Wszystkie pobudowane itemy zostana skasowane!!",FONT_NORMAL,COLOR_GREEN);
+    if(YesNo(_Controler,"Zmienic?"))
+      DestroyAll(BA_BORDER);
+      DestroyAll(BA_WALL);
+      DestroyAll(BA_BLOCK);
+      DestroyAll(BA_T1);
+      DestroyAll(BA_T2);
+      EraseObjproperty(_ArenaStone,BA_A_LOC);
+    else
+      SendSysMessage(_Controler,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif 
+  endif
+  
+  SendSysmessage(_Controler, "Stan na maksymalnym NW areny",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(_Controler,"NW"))
+    SendSysMessage(_Controler,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  var NW := struct;
+  NW.+x := _Controler.x;
+  NW.+y := _Controler.y;
+  NW.+realm := _Controler.realm;
+
+  SendSysmessage(_Controler, "Stan na maksymalnym SE areny",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(_Controler,"SE"))
+    SendSysMessage(_Controler,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  var SE := struct;
+  SE.+x := _Controler.x;
+  SE.+y := _Controler.y;
+  SE.+realm := _Controler.realm;
+  
+  if(SE.x <= NW.x or SE.y <= NW.y or SE.realm != NW.realm)
+    SendSysMessage(_Controler,"Bledne wspolrzedne",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+
+  
+  SetObjProperty(_ArenaStone, BA_A_LOC, array{NW,SE});
+
+  if(InArena(_ArenaStone.x,_ArenaStone.y,_ArenaStone.realm))
+    SendSysMessage(_Controler,"Kamien Areny nie moze byc wewnatrz areny",FONT_NORMAL,COLOR_RED);
+    EraseObjProperty(_ArenaStone, BA_A_LOC);
+    return;
+  endif
+
+  SendSysmessage(_Controler, "Wspolrzedne OK.",FONT_NORMAL,COLOR_GREEN);
+  BuilBorder();
+endfunction
+
+function InArena(x,y,realm)
+  
+  if(!Check(_ArenaStone,BA_A_LOC,_Controler))
+    return 0;
+  endif
+
+  var Locs := GetObjProperty(_ArenaStone,BA_A_LOC);
+  var NW := Locs[1];
+  var SE := Locs[2];
+  
+
+  if(!NW or !SE)
+    return 0;
+  endif
+
+  if ( x > SE.x or x < NW.x or y > SE.y or y < NW.y or realm != NW.realm)
+    return 0;
+  else
+    return 1;
+  endif
+endfunction
+
+
+function BuilBorder()
+  
+  if(!Check(_ArenaStone,BA_A_LOC,_Controler))
+    return;
+  endif
+
+  if(Check(_ArenaStone,BA_A_BORDER))
+     SendSysMessage(_Controler,"Plot jest juz wybudowany",FONT_NORMAL,COLOR_RED);
+     return;
+  endif
+
+  var Locs := GetObjProperty(_ArenaStone,BA_A_LOC);
+  var NW := Locs[1];
+  var SE := Locs[2];
+
+  var borders := array;
+  
+  for i:= NW.x to SE.x    // N W->E
+    borders.append(CreateIt(i,NW.y,BA_M_Z,NW.realm, BA_BORDER).serial);
+  endfor
+  for i:= NW.x to SE.x    // S W->E
+    borders.append(CreateIt(i,SE.y,BA_M_Z,NW.realm, BA_BORDER).serial);
+  endfor
+  for i:= NW.y+1 to SE.y  // W N->S
+    borders.append(CreateIt(NW.x,i,BA_M_Z,NW.realm, BA_BORDER).serial);
+  endfor
+  for i:= NW.y+1 to SE.y  // E N->S
+    borders.append(CreateIt(SE.x,i,BA_M_Z,NW.realm, BA_BORDER).serial);
+  endfor
+  
+  SetObjProperty(_ArenaStone,BA_A_BORDER, borders);
+  SendSysMessage(_Controler,"Plot zostal wybudowany",FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+
+function ChangeVisible(param, value := BA_HOP)
+   
+  var what := struct{"arr","name","hidden"};
+  
+  case (param)
+    BA_H_BORDER:
+    BA_A_BORDER: 
+    BA_BORDER:      what.name   := "Plot";
+                    what.arr    := BA_A_BORDER;
+                    what.hidden := BA_H_BORDER;
+                    break;
+    BA_H_WALL:
+    BA_A_WALL: 
+    BA_WALL:        what.name   := "Sciany";
+                    what.arr    := BA_A_WALL;
+                    what.hidden := BA_H_WALL;
+                    break;
+    BA_H_BLOCK:
+    BA_A_BLOCK: 
+    BA_BLOCK:       what.name   := "Bloki";
+                    what.arr    := BA_A_BLOCK;
+                    what.hidden := BA_H_BLOCK;
+                    break;
+      default:      return;
+  endcase
+  
+  if (value == BA_HOP)
+    if (GetObjProperty(_ArenaStone,what.hidden))
+      value := 1;
+    else
+      value := 0;
+    endif
+  else
+    value := ! value;
+  endif
+  
+  
+    
+  foreach it in GetObjProperty(_ArenaStone,what.arr)
+      SystemFindObjectBySerial(it).invisible := value;
+  endforeach
+
+  if(value)
+    SetObjProperty(_ArenaStone,what.hidden,1);
+    SendSysMessage(_Controler, what.name+": ukryte",FONT_NORMAL,COLOR_GREEN);
+  else
+    EraseObjProperty(_ArenaStone,what.hidden);
+    SendSysMessage(_Controler, what.name+": odkryte",FONT_NORMAL,COLOR_GREEN);
+  endif
+endfunction
+
+
+
+
+//--------------------------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+
+
+//--------------------------------------------------------------
+// Czas Walki
+function SetDefaultGameTime()
+  SetObjProperty(_ArenaStone,BA_GAME_TIME,BA_DEFAULT_TIME);
+endfunction
+
+
+function ChangeGameTime(x)
+  var Time := GetObjProperty(_ArenaStone,BA_GAME_TIME);
+  var ret := error;
+  if (Time + x < BA_MIN_TIME )
+    ret.+text := "Time is too low"; 
+  elseif (Time + x > BA_MAX_TIME )
+    ret.+text := "Time is too high";
+  else 
+    SetObjProperty(_ArenaStone,BA_GAME_TIME,Time+x);
+    ret := 1;
+  endif
+    return ret;
+endfunction;
+
+//--------------------------------------------------------------
+
+function GetPlayersName(team)
+  var arr := GetPlayers(team);
+  arr[1] := SystemFindObjectBySerial(arr[1]).name;
+  arr[2] := SystemFindObjectBySerial(arr[2]).name;
+  return arr;
+endfunction
+
+function GetPlayers(team)
+  return GetObjProperty(_ArenaStone,team);
+endfunction
+
+function RefreshValues()
+  _ArenaInUse := GetObjProperty(_ArenaStone, "ArenaInUse");
+  _TeamA := GetPlayersName(BA_P_T1);
+  _TeamB := GetPlayersName(BA_P_T2); 
+  _TimeLeft := GetObjProperty(_ArenaStone, "EndTime");
+  _GameTime := GetObjProperty(_ArenaStone,BA_GAME_TIME);
+  if(!_GameTime)
+    SetDefaultGameTime();
+  endif
+endfunction
+
+
+
+function DrawStoneGump()
+  RefreshValues();
+  GInit(100, 100);
+  DrawBackgroundGump();
+  GButton(10,  10,  2117,2118,1);
+  _line := 10;
+  GTextLine( 90,  _line,  100, "Kamien areny");
+  
+  _line := _line + NEXT_LINE;
+  if (_ArenaInUse)
+    GTextLine( 30,  _line,  45, "Wlasnie toczona jest walka " + "00:00");
+  else
+    GTextLine( 20,  _line,  45, "Nikt aktualnie nie przebywa na arenie");
+  endif
+  _line := _line + 2 * NEXT_LINE;
+  GTextLine( 15,  _line,  45, BA_T1_NAME);
+  _line := _line + NEXT_LINE;
+  if ( _TeamA[1] )
+    GTextLine( 40, _line,  45, _TeamA[1]);
+  endif;
+  GButton(15,  _line+3,  2117,2118,21);
+  _line := _line + NEXT_LINE;
+  if ( _TeamA[2])
+    GTextLine( 40, _line,  45, _TeamA[2]);
+  endif;
+  GButton(15,  _line+3,  2117,2118,22);
+  _line := _line + NEXT_LINE;
+  GTextLine( 15, _line,  45, BA_T2_NAME);
+  _line := _line + NEXT_LINE;
+  if ( _TeamB[1] )
+    GTextLine( 40, _line,  45, _TeamB[1]);
+  endif;
+  GButton(15,  _line+3,  2117,2118,23);
+  _line := _line + NEXT_LINE;
+  if ( _TeamB[2] )
+    GTextLine( 40, _line,  45, _TeamB[2]);
+  endif;
+  GButton(15,  _line+3,  2117,2118,24);
+  _line := _line + 2 * NEXT_LINE;
+  GTextLine( 15, _line,  45, "Opcje");
+  _line := _line + NEXT_LINE;
+  GButton(15,  _line+3,  2117,2118,31);
+  if (_ArenaInUse)
+    GTextLine( 40,  _line,  45, "Zakoncz walke");
+    _line := _line + 3 * NEXT_LINE;
+    GTextLine( 50,  _line,  45, "Pozostale opcje zablokowane");
+  else
+    GTextLine( 40,  _line,  45, "Rozpocznij walke");
+    _line := _line + NEXT_LINE;
+    GTextLine( 40,  _line,  45, "Czas walki: " + CStr(_GameTime) + " minut"); 
+    GButton(15,  _line+3,  2117,2118,ButtonID[7]);
+    GButton(210,  _line+3,  0x151A,0x15E4,ButtonID[8]);
+    GButton(231,  _line+3,  0x1519,0x15E6,ButtonID[9]);
+    _line := _line + 2 * NEXT_LINE;
+    GTextLine( 15, _line,  45, "Arena");
+    _line := _line + NEXT_LINE;
+    GButton(15,  _line+3,  2117,2118,41);
+    GTextLine( 40,  _line,  45, "Lokalizacja");
+    //GButton(135,  _line+3,  0x151A,0x15E4,ButtonID[11]);
+    GButton(115,  _line+3,  2117,2118,441);
+    GButton(135,  _line+3,  2117,2118,442);
+    GTextLine( 160,  _line,  45, "Plot");
+
+   // GButton(210,  _line+3,  0x1519,0x15E6,ButtonID[12]);
+    _line := _line + NEXT_LINE;
+    GButton(15,  _line+3,  2117,2118,42);
+    GTextLine( 40,  _line,  45, BA_T1_NAME);
+    GButton(115,  _line+3,  2117,2118, 453);
+    GButton(135,  _line+3,  2117,2118, 454);
+    GTextLine( 160,  _line,  45, "Bariera");
+    GButton(210,  _line+3,  0x151A,0x15E4,451);
+    GButton(231,  _line+3,  0x1519,0x15E6,452);
+    
+    _line := _line + NEXT_LINE;
+    GTextLine( 40,  _line,  45, BA_T2_NAME);
+    GButton(15,  _line+3,  2117,2118, 43);
+    GButton(115,  _line+3,  2117,2118, 463);
+    GButton(135,  _line+3,  2117,2118, 464);
+    GTextLine( 160,  _line,  45, "Sciana");
+    GButton(210,  _line+3,  0x151A,0x15E4,461);
+    GButton(231,  _line+3,  0x1519,0x15E6,462);
+    
+  endif
+ 
+  return GSend(_Controler);
+endfunction
+
+function DrawBackgroundGump()
+  GGumpPic(   0,   0,   0x2439); //  lewa
+  GGumpPic(   0,  90,   0x2439); //  lewa
+  GGumpPic( 252,   0,   0x243B); //  prawa
+  GGumpPic( 252,  90,   0x243B); //  prawa
+  GGumpPic( 0,     0,   0x2437); //  gora
+  GGumpPic( 100,   0,   0x2437); //  gora
+  GGumpPic( 130,   0,   0x2437); //  gora
+  GGumpPic(   0, 377,   0x243D); //  dol
+  GGumpPic( 100, 377,   0x243D); //  dol
+  GGumpPic( 130, 377,   0x243D); //  dol
+  GGumpPic( 252,   0,   0x2438); // prawy gorny rog
+  GGumpPic( 252, 377,   0x243E); // prawy dolny rog
+  GGumpPic(   0,   0,   0x2436); // lewy gorny rog
+  GGumpPic(   0, 377,   0x243C); // lewy gorny rog
+  GGumpPic(   9,   9,   0x243A); //tlo
+  GGumpPic( 125,   9,   0x243A); //tlo
+  GGumpPic(   9, 125,   0x243A); //tlo
+  GGumpPic( 125, 125,   0x243A); //tlo
+  GGumpPic(   9, 250,   0x243A); //tlo
+  GGumpPic( 125, 250,   0x243A); //tlo
+endfunction

@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/wcbook";
+
+//-----------------------------------------------------------------------------
+
+program InscribeDkScroll(who, Scroll)
+
+  if(!StandardItemCheck(who, Scroll))
+    return;
+  endif
+
+  var WarCfg  := GetWarCastCfg();
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var wcId    := ItemCfg[Scroll.objtype].WcID;
+
+  if(!wcId)
+    LogError("InscribeDkScroll: Sc: ["+Scroll.objtype+"] brakuje wcId.", LOGF_SCRIPTS);
+    SendSysMessage(who, "Nie bardzo wiesz co z tym zrobic...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Skill   := GetEffectiveSkill(who, SKILLID_FANATICISM);
+
+  if(Skill < 10)
+    SendSysMessage(who, "Nie wydaje sie bys wiedzial"+ggm(who, 4)+" co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz ksiege mroku.", FONT_NORMAL, COLOR_GREEN);
+
+  var Book := ObjTarget(who);
+
+  if(!StandardItemCheck(who, Book))
+    return;
+  endif
+
+  if(Book.objtype != UOBJ_DK_WCBOOK)
+    SendSysMessage(who, "To nie jest swieta ksiega.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(IsInWarCastBook(Book, wcId))
+    SendSysMessage(who, "Ta modlitwa jest juz wpisana w ta ksiege.", FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+  var Diff := CInt(WarCfg[wcId].Diff);
+  var x    := who.x;
+  var y    := who.y;
+
+  SendSysMessage(who, "Probujesz wpisac modlitwe do ksiegi...", FONT_NORMAL, COLOR_GREEN);
+
+  PlaySoundEffect(who, SOUND_EFFECT_SCRIBE);
+
+  for i := 1 to 7
+    sleep(1);
+
+    if(x != who.x or y != who.y)
+      SendSysMessage(who,"Przestal"+ggm(who,3)+" pisac.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endfor
+
+  if(CheckMoreSkill(who, SKILLID_FANATICISM, ToMin(Diff - 5, 0), 0) and CheckMoreSkill(who, SKILLID_ZEAL, ToMin(Diff - 10, 0), 0))
+    SendSysMessage(who, "Udalo Ci sie wpisac modlitwe do ksiegi mroku.", FONT_NORMAL, COLOR_BLUE);
+    AddToWarCastBook(Book, wcId);
+  else
+    SendSysMessage(who, "Nie udalo Ci sie wpisac modlitwy!", FONT_NORMAL, COLOR_RED);
+  endif
+
+  DestroyItem(Scroll);
+
+endprogram
+
+//-----------------------------------------------------------------------------

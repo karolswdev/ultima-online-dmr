@@ -1,0 +1,55 @@
+//--------------------------------------------------------------------------------
+
+use datafile;
+
+//--------------------------------------------------------------------------------
+
+include "include/clock";
+include "include/std";
+include ":banking:common";
+include "include/accounts";
+include ":banking:gold";
+include "economy";
+
+include ":crafting:common";
+include ":harvesting:harvest";
+include ":crafting:mat_groups";
+include ":magicitems:magicitems";
+
+//--------------------------------------------------------------------------------
+
+program Weather(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_CONTROL);
+  
+  sleep(RandomInt(5)+5);
+
+  while(1)
+    CheckLatest();
+    sleep(600);
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function CheckLatest()
+
+  var Date := CUnixTime(0, RLT_SDATE);
+
+  var EconData := GetEconomyData();
+
+  if(!EconData.FindElement(Date))
+    CreateEconomyStats(Date);
+  elseif(GetGlobalProperty("#RegenEconomy"))
+    CreateEconomyStats(Date);
+    EraseGlobalProperty("#RegenEconomy");
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

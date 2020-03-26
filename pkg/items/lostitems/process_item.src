@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include "include/loots";
+
+include "lostitems";
+
+//-----------------------------------------------------------------------------
+
+program HandlerLostProcessItem(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+  
+  var lProps := GetObjProperty(Data.param, PROP_LOSTITEM);
+
+  if(lProps != error)
+    if(lProps[2] == Data.npc.serial)
+      CompleteLostItem(Data.source, Data.npc, Data.param);
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------

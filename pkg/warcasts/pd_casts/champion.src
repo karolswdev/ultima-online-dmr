@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 33;
+
+//-----------------------------------------------------------------------------
+
+program PdChampion(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Mod      := CInt((GetEffectiveSkill(Caster, SKILLID_PALADINISM)/2) + (GetEffectiveSkill(Caster, SKILLID_ZEAL) / 4));
+  var Duration := GetWarCastDuration(Caster, WCT_PALADIN);
+
+  if(!CanMod(Caster, MOD_UNDEAD_SLAY) and !CanMod(Caster, MOD_DAEMON_SLAY))
+    WcFizzleId(Caster, "Jestes juz pod wplywem tego zaklecia.", PD_WCID);
+    return;
+  endif
+
+  GainWarcastPoints(Caster, Caster, PD_WCID, WCGAIN_NORMAL);
+
+  PlaySoundEffect(Caster, SFX_FOCUSATTACK);
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 90, 0xF, 0x10, 2);
+  DoMod(Caster, MOD_UNDEAD_SLAY, Mod, Duration);
+  DoMod(Caster, MOD_DAEMON_SLAY, Mod, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

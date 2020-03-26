@@ -1,0 +1,146 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-24
+//-----------------------------------------------------------------------------
+
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/findcity";
+include "include/move";
+include "include/std";
+include "include/player/misc";
+
+include ":quests:questloc";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program QuestControl(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "tres":     var Ticket := ObjTarget(who);
+                if(Ticket)
+                  if(Ticket.objtype == UOBJ_QUESTTICKET)
+                    var Res := start_script(":quests:quest_ctrl", Ticket);
+                    if(!Res)
+                      SendSysMessage(who,"Blad: "+Res, FONT_NORMAL, COLOR_RED);
+                    else
+                      SendSysMessage(who,"Zrestartowano Pid Biletu: "+Ticket.desc+"/"+Ticket.serial, FONT_NORMAL, COLOR_GREEN);
+                    endif
+                  else
+                    SendSysMessage(who, "To nie bilet questu.", FONT_NORMAL, COLOR_RED);
+                  endif
+                else
+                  SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                endif
+
+     "reset":   SendSysMessage(who, "Wskaz bilet.", FONT_NORMAL, COLOR_GREEN);
+                var Ticket := ObjTarget(who);
+                if(!Ticket)
+                  SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                  return;
+                elseif(Ticket.objtype != UOBJ_QUESTTICKET)
+                  SendSysMessage(who, "To nie QuestTicket.", FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+
+                if(SendQuestTicketEvent(Ticket, who, EVQID_RESET, 0, who))
+                  SendSysMessage(who, "Wyslano event.", FONT_NORMAL, COLOR_GREEN);
+                else
+                  SendSysMessage(who, "Nie udalo sie wyslac eventa.", FONT_NORMAL, COLOR_RED);
+                endif
+
+     "finish":  SendSysMessage(who, "Wskaz bilet.", FONT_NORMAL, COLOR_GREEN);
+                var Ticket := ObjTarget(who);
+                if(!Ticket)
+                  SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                  return;
+                elseif(Ticket.objtype != UOBJ_QUESTTICKET)
+                  SendSysMessage(who, "To nie QuestTicket.", FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+
+                if(SendQuestTicketEvent(Ticket, who, EVQID_FINISH, 0, who))
+                  SendSysMessage(who, "Wyslano event.", FONT_NORMAL, COLOR_GREEN);
+                else
+                  SendSysMessage(who, "Nie udalo sie wyslac eventa.", FONT_NORMAL, COLOR_RED);
+                endif
+
+     "impcity": ImportCities(who);
+
+     default:   SendSysMessage(who, ".qct [tres]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ImportCities(who)
+
+  var QLocData, Res;
+  var Rlms := Realms();
+  InitQLocData(QLocData);
+
+  QLocData.GroupName := "RandomCity";
+  QLocData.Locs      := array;
+  AddQuestLocGroup(QLocData, who);
+
+  foreach City in GetCities()
+    QLocData.Locs.append(GetCityCoords(City));
+    QLocData.Locs[QLocData.Locs.size()][5] := Rlms[GetCityRealm(City)].mapid;
+  endforeach
+
+  Res := SetQuestLocs(QLocData, who);
+  if(!Res)
+    SendSysMessage(who, "Blad! "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Zapisano "+QLocData.Locs.size()+" lokacji w grupie RandomCity.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ImportCitiesCfg(who, Cfg, ri)
+
+  var QLocData, Res;
+  InitQLocData(QLocData);
+
+  foreach Loc in GetConfigStringKeys(Cfg)
+    QLocData.GroupName := Loc;
+    QLocData.Locs      := array;
+    Res := AddQuestLocGroup(QLocData, who);
+//    if(!Res)
+//      SendSysMessage(who, QLocData.GroupName+" "+Res.errortext, FONT_NORMAL, COLOR_RED);
+//    else
+      if(GetConfigInt(Cfg[Loc], "NoZ"))
+        SetBitOn(QLocData.Flags, QLF_NOCHECK_Z);
+      endif
+      if(GetConfigInt(Cfg[Loc], "Multi"))
+        SetBitOn(QLocData.Flags, QLF_ACP_MULTI);
+      endif
+
+      foreach qLoc in GetConfigStringArray(Cfg[Loc], "Loc")
+        qLoc := SplitWords(qLoc);
+        qLoc[5] := ri;
+        QLocData.Locs.append(qLoc);
+      endforeach
+
+      Res := SetQuestLocs(QLocData, who);
+      if(Res)
+        SendSysMessage(who, "Dodano grupe "+QLocData.GroupName, FONT_NORMAL, COLOR_GREEN);
+      else
+        SendSysMessage(who, QLocData.GroupName+" "+Res.errortext, FONT_NORMAL, COLOR_RED);
+      endif
+//    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,68 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/client/fonts";
+
+include "include/log";
+
+//-----------------------------------------------------------------------------
+
+program MoveTo(who,text)
+
+  if(!text)
+    SendSysMessage(who,".move [w/r/fw/fr/fs/ra/flee/kd] [trg]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Targ := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+
+  if(!Targ.isa(POLCLASS_NPC))
+    SendSysMessage(who,"Wskaz NPC.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Dest := who;
+  
+  if(text["trg"])
+    SendSysMessage(who,"Wskaz miejsce.",FONT_NORMAL,COLOR_GREEN);
+    Dest := LocTarget(who);
+    if(!Dest)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  var EvID  := EVID_RUN;
+  var Prior := "priormax";
+
+  if(text["np"])
+    Prior := 0;
+  endif
+
+  if(text["fs"])
+    EvId := EVID_FOLLOW_STOP;
+  elseif(text["fw"])
+    EvId := EVID_WALK_FOLLOW;
+  elseif(text["fr"])
+    EvId := EVID_RUN_FOLLOW;
+  elseif(text["w"])
+    EvID := EVID_WALK;
+  elseif(text["ra"])
+    EvID := EVID_RUN_AWAY;
+  elseif(text["flee"])
+    EvID := EVID_FLEE;
+  elseif(text["kd"])
+    EvID := EVID_KEEP_DISTANCE;
+  endif
+  
+  LogMsg(MOVE_LOG,who,{Targ,Dest.x,Dest.y,Dest.z,Targ.realm});
+
+  SendChEvent(Targ, Dest, EvID, Prior);
+
+endprogram
+
+//-----------------------------------------------------------------------------

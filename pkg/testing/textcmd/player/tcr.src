@@ -1,0 +1,125 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/log";
+include "include/npcs";
+include "include/command_func";
+include ":magicitems:magicitems";
+include "../../testing"; // nie uzywamy :testing:
+
+include ":crafting:common";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+program TCreate(who,text)
+  
+  SetLogRunCycles(LST_CMD);
+
+  if(!text)
+    SendSysMessage(who,".tcr [npcs d/npcs n/items d/items n/set/magic]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Split := SplitWords(text);
+  
+  
+  if(Split[1] == "npcs")
+    var Template := SelectTemplate(who,Split[3], __IfElse(Split[2] == "d", 1, 2));
+    if(Template)
+      CreateSelectedNpc(Template, who, text);
+    endif
+    return;
+  endif
+
+  if(Split[1] == "items")
+  
+    var Items := SearchItemBy(__IfElse(Split[2] == "d", "Desc", "Name"),Split[3]);
+    var objtype;
+
+    if(!Items and (Split[2] == "d" or Split[2] == "n"))
+      SendSysMessage(who,"Nie ma takiego itema.",FONT_NORMAL,COLOR_RED);
+      return;
+    elseif(Items and Items.size() > 1)
+      objtype := ShowItems(who,Items, __IfElse(Split[4] == "cq" and CanUseCmd(who, "tcr items cq"), SIF_SHOW_CRAFT, 0));
+    elseif(Items and Items.size() == 1)
+      objType := Items[1];
+    elseif(Split[2] == "c" or Split[2] == "b")
+      objType := Split[3];
+    endif
+    
+    var amount := CInt(Split[4]);
+    
+    if(!amount)
+      amount := 1;
+    endif
+
+    var Item;
+
+    if(Split[2] == "c")
+      Item := CreateItemAtLoc(who.x, who.y, who.z, CInt(objtype), amount, who.realm);
+    else
+      Item := CreateItemInCont(who.backpack, CInt(objtype), amount);
+    endif
+    
+    if(!Item)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    SendSysMessage(who,"Stworzyl"+ggm(who,3)+" item.",FONT_NORMAL,COLOR_GREEN);
+
+  endif
+  
+  if(Split[1] == "set")
+    ShowSets(who, Split);
+    return;
+  endif
+
+  if(Split[1] == "magic")
+    if(len(split) != 4)
+      SendSysMessage(who, ".tcr magic lvl prefix suffix", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    var MagicLvl := CInt(Split[2]);
+    if(MagicLvl < 1 or MagicLvl > CInt(MAX_MAGIC_LVL)+1)
+      SendSysMessage(who,"Za duzy/maly magiczny lvl [1-"+CInt(MAX_MAGIC_LVL+1)+"]!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    var item := ObjTarget(who);
+    var MagicMods := GetMagicModsType(item);
+
+    var ItemCfg := ReadConfigFile(ITEMS_CFG);
+    if(ItemCfg[item.objtype].CanBeMagicWeapon)
+      MagicMods.suffix.append(MAGICMOD_SKILLMOD + FindSkillidByIdentifier(ItemCfg[item.objtype].Attribute));
+    elseif(ItemCfg[item.objtype].CanBeMagicArmor)
+      MagicMods.suffix.append(MAGICMOD_SKILLMOD + SKILLID_PARRY);
+    elseif(ItemCfg[item.objtype].CanBeMagicCloth or ItemCfg[item.objtype].CanBeMagicJews)
+      MagicMods.suffix.append(MAGICMOD_SK_RAND_ALL);
+    else
+      SendSysMessage(who, "Ten przedmiot nie moze byc magiczny.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    MagicMods[1] := Cint(split[3])+9;
+    if(MagicMods[1] < 10 or MagicMods[1] > 19)
+      SendSysMessage(who, "Prefix 1-10.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    MagicMods[2] := Cint(split[4]) +99;
+    if((MagicMods[2] < 100 or MagicMods[2] > 108) and (MagicMods[2] < 200 or MagicMods[2] > 200 + SKILLID__HIGHEST + 1 ))
+      SendSysMessage(who, "Sufix dla odpornosci 1-9 lub dla skilli 101-"+(101+SKILLID__HIGHEST)+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    MakeItemMagic(item,MagicLvl,MagicMods); 
+    IdentifyMagicItem(who,item);
+    AddQualityDesc(item);
+    return;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

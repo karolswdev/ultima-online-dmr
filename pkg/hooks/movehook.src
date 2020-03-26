@@ -1,0 +1,133 @@
+//-----------------------------------------------------------------------------
+
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/log";
+include "include/logerror";
+include "include/move";
+include "include/std";
+include "include/coords";
+include "include/const/uof";
+
+//-----------------------------------------------------------------------------
+
+const LOOP_SLEEP_MS            := 950; //1100
+const WALK_MAXSTEP             := 5;
+const RUN_MAXSTEP              := 11;
+const MAX_BAD_COUNT            := 6;
+
+//-----------------------------------------------------------------------------
+
+var ev, who, Mount, LastSave, lx, ly;
+var ShInfoTime := 0;
+var Count      := 0;
+
+//-----------------------------------------------------------------------------
+
+program MoveHook(_who)
+
+  SetLogRunCycles(LST_HOOK);
+  return;
+  
+  who := _who;
+
+  SetObjProperty(who, PROP_MOVEHOOK_PID, GetPid());
+
+  sleep(2);
+
+  lx  := who.x;
+  ly  := who.y;
+
+  while(who and IsLoggedIn(who))
+
+    if(GetObjProperty(who, PROP_MOVEHOOK_PID) != GetPid())
+      return;
+    endif
+
+    if((lx != who.x or ly != who.y) and !who.multi.isa(POLCLASS_BOAT))
+      LastSave := GetGlobalProperty("#:saver:globalsave");
+      Mount    := GetEquipmentByLayer(who, LAYER_MOUNT) or (CanMod(who, MOD_RUN_SPEED) == 0);
+
+      if(ReadGameClock() - LastSave > 60)
+
+        if(Mount)
+          if(abs(lx - who.x) > RUN_MAXSTEP or abs(ly - who.y) > RUN_MAXSTEP)
+            Count := Count + coordist(lx, ly, who.x, who.y) - RUN_MAXSTEP;
+            if(Count >= MAX_BAD_COUNT)
+              InformSpeedHack();
+            endif
+          else
+            Count := 0;
+          endif
+
+          if(who.cmdlevel)
+            if(GetObjProperty(who, "MoveDebug"))
+              SendSysMessage(who, "R: x: "+abs(lx - who.x)+" y: "+abs(ly - who.y)+" ("+RUN_MAXSTEP+")", FONT_NORMAL, COLOR_GREEN);
+            endif
+          endif
+
+        else
+          if(abs(lx - who.x) > WALK_MAXSTEP or abs(ly - who.y) > WALK_MAXSTEP)
+            Count := Count + coordist(lx, ly, who.x, who.y) - WALK_MAXSTEP;
+            if(Count >= MAX_BAD_COUNT)
+              InformSpeedHack();
+            endif
+          else
+            Count := 0;
+          endif
+
+          if(who.cmdlevel)
+            if(GetObjProperty(who, "MoveDebug"))
+              SendSysMessage(who, "W: x: "+abs(lx - who.x)+" y: "+abs(ly - who.y)+" ("+WALK_MAXSTEP+")", FONT_NORMAL, COLOR_GREEN);
+            endif
+          endif
+
+        endif
+
+      endif
+    endif
+
+    lx := who.x;
+    ly := who.y;
+    sleepms(LOOP_SLEEP_MS);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function InformSpeedHack()
+
+  if(who.cmdlevel)
+
+    if(GetObjProperty(who, "MoveDebug"))
+      if(Mount)
+        SendSysMessage(who, "R: x: "+abs(lx - who.x)+" y: "+abs(ly - who.y), FONT_NORMAL, COLOR_RED);
+      else
+        SendSysMessage(who, "W: x: "+abs(lx - who.x)+" y: "+abs(ly - who.y), FONT_NORMAL, COLOR_RED);
+      endif
+    endif
+
+  else
+
+    if(WasJustMoving(who, MOVETYPE_ALL, 3) or who.multi.isa(POLCLASS_BOAT))
+      return;
+    endif
+
+    LogMsg(SM_LOG,who,{who.x,who.y,abs(who.x-lx),abs(who.y-ly)});
+
+    if(ShInfoTime + 3 < ReadGameClock())
+      LogNotice("Podejrzany SH "+who.name+" X: "+who.x+" Y: "+who.y+" lX: "+lx+" lY: "+ly+" Dx: "+abs(who.x-lx)+" Dy: "+abs(who.y-ly), LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NO_NEED);
+      ShInfoTime := ReadGameClock();
+
+      start_script(":logs:shlog", array(who, abs(who.x-lx), abs(who.y-ly)));
+    endif
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

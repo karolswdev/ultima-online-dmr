@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/finding";
+include "combat";
+include "sets";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program destroy(item)
+
+  var who      := FindPlayerBySerial(GetObjProperty(item, "equipped"));
+  var penalty  := CInt(ItemCfg[item.objtype].DexPenalty);
+  if(penalty)
+    SetDexterityMod(who, GetDexterityMod(who) + penalty);
+  endif
+  
+  SendUnEquip(item);
+  CheckSetUnEquip(who, item);
+
+  set_critical(0);
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

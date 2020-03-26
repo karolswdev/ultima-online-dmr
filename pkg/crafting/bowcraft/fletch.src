@@ -1,0 +1,67 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/gumps";
+include "include/skills/gumps";
+include "include/gump_utils";
+
+//-----------------------------------------------------------------------------
+
+program on_fletch(who, shafts)
+
+  if(!StandardItemCheck(who, shafts))
+    return;
+  endif
+
+  var ObjType := SendArrowsGump(who);
+
+  if(ObjType)
+    start_script(":bowcraft:make_arrows", array(who, shafts, ObjType));
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendArrowsGump(who)
+
+  var butRes;
+
+  while(IsLoggedIn(who))
+
+    BuildMainArrowsGump();
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+
+    if(butRes)
+      return butRes;
+    else
+      break;
+    endif
+
+  endwhile
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainArrowsGump()
+
+  GInit(200, 200);
+  GResPic(0, 0, 2600, 250, 150);
+  GTextLine(80,  25, 1153, "Menu strzal");
+
+  GButton(40, 60, 210, 211, UOBJ_ARROW);
+  GTextLine( 95, 60, 560, "Strzaly");
+  GTilePic ( 55, 60, UOBJ_ARROW);
+  
+  GButton(40, 90, 210, 211, UOBJ_BOLTS);
+  GTextLine( 95, 90, 560, "Belty");
+  GTilePic ( 55, 90, UOBJ_BOLTS);
+
+endfunction
+
+//-----------------------------------------------------------------------------

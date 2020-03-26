@@ -1,0 +1,121 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+include "include/findcity";
+include "include/mspeech";
+include "include/buildings";
+include "ai/combat/fight";
+include "ai/combat/ngd_npcevent";
+include "ai/include/cdist";
+include "ai/include/npccast";
+include "ai/setup/citynpcsetup";
+include "ai/include/def_merc";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 15;
+
+//-----------------------------------------------------------------------------
+
+program NpcGuild_AI()
+
+  SetLogRunCycles(LST_AI);
+  
+  EnableMainEvents();
+  sleepms(RandomInt(2000));
+  
+  if(GetMercType())
+    MerchantInit();
+  endif
+  
+  while(me)
+  
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+    
+    StdMercEventLoop();
+    
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_ENGAGED:                   
+    EVID_DAMAGED:                   Fight(ev.source);
+                                    ev := 0;
+                                    return 1;
+  endcase
+
+  return StdMercHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanFightWith(who)
+
+  if(!IsMemberOfNpcGuild(who))
+    if(me.murderer)
+      return !who.murderer;
+    else
+      return (who.murderer or who.criminal);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsMemberOfNpcGuild(who)
+
+  var PlayerData := GetObjProperty(who, PROP_NGDDATA);
+  var NpcData := GetObjProperty(me, PROP_NGDDATA);
+
+  if(PlayerData)
+    if(PlayerData.Guilds.exists(NpcData.GuildId))
+      return (PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_MEMBER);
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnableMainEvents()
+
+  EnableEvents( EVID_DAMAGED);
+  EnableEvents( EVID_ENGAGED);
+  EnableEvents( EVID_ITEM_GIVEN);
+  EnableEvents( EVID_SPEECH, SPEECH_RANGE );
+
+  DisableEvents(EVID_LEFTAREA + EVID_DISENGAGED + EVID_OPPONENT_MOVED);
+  EnableEvents (EVID_ENGAGED + EVID_DAMAGED);
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisableMainEvents()
+  DisableEvents(EVID_ENGAGED + EVID_DAMAGED + EVID_ENTEREDAREA);
+  DisableEvents(EVID_SPEECH + EVID_ITEM_GIVEN);
+endfunction
+
+//-----------------------------------------------------------------------------

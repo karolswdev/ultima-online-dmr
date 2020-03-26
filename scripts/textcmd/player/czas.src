@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/objtypes/skills";
+include "include/objtypes/misc";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+program TimeCmd(who, text)
+
+  if(who.dead or who.frozen or who.paralyzed)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Clock := FindItemInContainer(who.backpack, UOBJ_CLOCK) or FindItemInContainer(who.backpack, UOBJ_WATCH) or GetEquipmentByLayer(who, LAYER_WRIST).objtype == UOBJ_WATCH;
+  var Calendar := FindItemInContainer(who.backpack, UOBJ_CALENDAR);
+
+  if(Clock or Calendar)
+    if(Clock and Calendar)
+      if(text == "mini")
+        SendSysMessage(who, "Data: " + GetDate()+" "+GetTimeofDay(), FONT_NORMAL, COLOR_GREEN);
+      else
+        SendSysMessage(who, "Data: " + GetFullDate(), FONT_NORMAL, COLOR_GREEN);
+      endif
+    elseif(Clock)
+      SendSysMessage(who, "Czas: " + GetTimeofDay(), FONT_NORMAL, COLOR_GREEN);
+    elseif(Calendar)
+      SendSysMessage(who, "Data: " + GetFullDate(0, 0), FONT_NORMAL, COLOR_GREEN);
+    endif
+  else
+    SendSysMessage(who, "Nie masz ani zegarka ani kalendarza przy sobie.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

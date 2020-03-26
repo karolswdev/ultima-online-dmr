@@ -1,0 +1,115 @@
+use uo;
+use os;
+include "include/checks/objchecks";
+include "include/client/fonts";
+
+var item;
+var who;
+var location;
+program lever(_who,_item)
+  
+  item := _item;
+  who := _who;
+
+  if(!StandardItemCheck(who,item,NEW_DIST_CHECK | NO_MOVABLE_CHECK | NO_BUSY_CHECK, 1))
+    return;
+  endif
+
+  var sheald := SystemFindObjectBySerial(GetObjProperty(item,"sheald"));
+  var axe := SystemFindObjectBySerial(GetObjProperty(item,"axe"));
+  var delay := CInt(GetObjProperty(item, "delay"));
+
+  if(!delay)
+    delay := 30;
+  endif
+
+  location := GetObjProperty(item, "location");
+  
+  if(!sheald or !axe or !location)
+    printtextabove(item, "*zepsuta*");
+    sleep(10);
+    return;
+  endif
+
+  printtextabove(who, "*probuje ruszyc dzwignie*");
+  sleep(3);
+  if(Distance(who,item) > 1)
+    SendSysMessage(who, "Oddalil" + ggm(who,3) , FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CanUseLeverGong(who))
+    printtextabove(who, "*za slab" + ggm(who,6) + "*");
+    return;
+  endif
+  
+  var i;
+  item.graphic := 0x108E;
+  
+  for(i := 0; i < 5 and Distance(who,item) < 2 and !who.dead; i := i + 1)
+    axe.invisible := 0;
+    axe.graphic := 4429;
+    sleepms(100);
+    axe.graphic := 4430;
+    gong();
+    sleepms(400);
+    axe.graphic := 4429;
+    sleepms(100);
+    axe.graphic := 4427;
+    axe.invisible := 1;
+    for j:= 0 to 9
+      if( Distance(who,item) > 1 or who.dead )
+        break;
+      endif
+      sleep(1);
+    endfor
+  endfor
+  item.graphic := 0x108C;
+  
+  detach();
+  sleep(delay);
+  item.graphic := 0x108D;
+  
+endprogram
+
+
+function CanUseLeverGong(who)
+  /*/__NOPVP__  
+  if(!GetPvPStatus(who))
+    return 0;
+  endif*/
+
+  if (IsCharClass(who, CLASS_MAGE))
+    if(CInt(GetObjProperty(who, PROP_STATSUM)) < 170)
+      return 0;
+    endif
+  else
+    if(CInt(GetObjProperty(who, PROP_STATSUM)) < 160)
+      return 0;
+    endif
+  endif
+
+  if(GetObjProperty(who, "gong_off"))
+      return 0;
+  endif
+
+  if(who.ar < 40)
+    return 0;
+  endif
+
+  return 1;
+endfunction
+
+
+function gong()
+
+  var name := GetRealName(who);
+  foreach player in EnumerateOnlineCharacters()
+    if(!GetObjProperty(player, "gong_off") or Distance(item, player) < 50)
+      PlaySoundEffectPrivate( player, 0x101, player );
+      SendSysMessage(player, "*" + name + " uderza w Wojenny Gong*", FONT_NORMAL, COLOR_YELLOW);
+      SendSysMessage(player, "*dzwiek dochodzi z okolic " + location + "*", FONT_NORMAL, COLOR_GREEN_LIGHT);
+    endif
+  endforeach
+
+endfunction

@@ -1,0 +1,24 @@
+use uo;
+use os;
+use util;
+
+include "include/client/fonts";
+
+program stuck_teleporter(parms)
+
+	var who := parms[1];
+	
+	var randomWait := RandomInt(4) + 3;
+	
+	while(randomWait > 0)
+		SendSysMessage(who, "Za " + randomWait + " min. nastapi teleportacja.", FONT_NORMAL, COLOR_GREEN);
+		sleep(60);
+		randomWait := randomWait - 1;
+	endwhile
+	
+	MoveObjectToLocation(who, 1726, 854, 0, "britannia_alt");
+	
+endprogram
+	
+	
+	

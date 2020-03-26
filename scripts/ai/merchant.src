@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+include "include/findcity";
+include "include/mspeech";
+include "include/buildings";
+include "ai/setup/citynpcsetup";
+include "ai/include/def_merc";
+include "ai/include/smartrun";
+
+include ":crafting:mat_groups";
+
+const AREA_RANGE := 6; // entered area range
+
+//-----------------------------------------------------------------------------
+
+program Merchant_AI()
+
+  SetLogRunCycles(LST_AI);
+  
+  EnableEvents(EVID_DAMAGED);
+  EnableEvents(EVID_ENGAGED);
+  EnableEvents(EVID_SPEECH, SPEECH_RANGE );
+  EnableEvents(EVID_DOUBLECLICKED);
+  EnableEvents(EVID_ITEM_GIVEN);
+  EnableEvents(EVID_ENTEREDAREA, AREA_RANGE );
+  EnableEvents(EVID_LEFTAREA, AREA_RANGE );
+  sleepms(RandomInt(2000));
+  
+  MerchantInit();
+  
+  while (me)
+    if(!ev)
+      ev := os::wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+    StdMercEventLoop();
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  return StdMercHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------

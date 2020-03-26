@@ -1,0 +1,8 @@
+use uo;
+
+program leverctrl(item)
+  var axe := SystemFindObjectBySerial(GetObjProperty(item,"axe"));
+  axe.invisible := 1;
+  item.graphic := 0x108D;
+
+endprogram

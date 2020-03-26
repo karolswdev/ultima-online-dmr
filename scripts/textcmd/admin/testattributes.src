@@ -1,0 +1,11 @@
+use uo;
+use os;
+
+include "include/attributes/main";
+include "include/attributes/stats";
+
+program textcmd_attributes(who);
+
+	SendSysMessage(who, "GetBaseStrength(who): " + GetBaseStrength(who));
+	
+endprogram

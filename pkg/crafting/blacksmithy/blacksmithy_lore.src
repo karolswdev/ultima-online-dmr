@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/dices";
+include "include/poison";
+include "lore";
+
+include ":magicitems:magicitems";
+include ":alchemy:potion";
+
+//-----------------------------------------------------------------------------
+
+program BlacksmithyLore( who )
+
+  if(!CheckSkillUse(who, SKILLID_BLACKSMITHY))
+    return;
+  endif
+
+  SendSysMessage( who, "Wybierz przedmiot ktory chcesz ocenic." ,FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+  
+  if(!StandardItemCheck(who, item))
+    return;
+  endif
+
+  SetBusyTime(who, GetSkillDelay(SKILLID_BLACKSMITHY));
+    
+  SendItemDescription(who, item, SKILLID_BLACKSMITHY);
+
+endprogram
+
+//-----------------------------------------------------------------------------

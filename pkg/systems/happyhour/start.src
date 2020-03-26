@@ -1,0 +1,16 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(":happyhour:happyhour", "HappyHour");
+  StartGlobCtrlScript(":happyhour:happyhour");
+  AddGlobCtrlScript(":happyhour:happylottery", "HappyLottery");
+  StartGlobCtrlScript(":happyhour:happylottery");
+
+endprogram
+
+//-----------------------------------------------------------------------------

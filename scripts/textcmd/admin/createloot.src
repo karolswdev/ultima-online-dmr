@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/loots";
+
+//-----------------------------------------------------------------------------
+
+program CreateLootCmd(who, text)
+
+  text := SplitWords(text);
+
+  if(text[1] == "npc")
+
+    var cfgElem := GetNpcConfig(text[2]);
+
+    if(!cfgElem)
+      SendSysMessage(who, "Nie znaleziono npeca: "+text[2], FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Corpse := Target(who);
+
+    if(!Corpse.isa(POLCLASS_CONTAINER))
+      SendSysMessage(who, "To nie pojemnik!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Loots := GetConfigStringArray(cfgElem, "lootgroup");
+
+    foreach Loot in Loots
+      CreateLoot(Corpse, Loot, LOOTS_CFG, 0, 1);
+      SendSysMessage(who, "Tworzenie lootgrupy "+Loot+".",FONT_NORMAL,COLOR_GREEN);
+    endforeach
+
+    SendSysMessage(who, "Stworzono loot dla "+text[2]+".",FONT_NORMAL,COLOR_GREEN);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,325 @@
+//-----------------------------------------------------------------------------
+
+use boat;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/logerror";
+include "include/portals";
+include "include/names";
+include "include/dirs";
+include "const";
+
+include ":boat:plankutil";
+
+//-----------------------------------------------------------------------------
+
+const STATE_STATIONARY := 0;
+const STATE_CARRIER    := 1;
+
+//-----------------------------------------------------------------------------
+
+var g_State := STATE_STATIONARY;
+var ms_delay_between_moves := 200;
+var g_Boat;
+
+//-----------------------------------------------------------------------------
+
+program CarrierBoatControl(param)
+
+  g_Boat := param;
+  
+  if(!g_Boat)
+    LogError("[CarrierBoatControl] Brak lodzi ["+CStr(g_Boat)+"]", LOGF_SCRIPTS);
+    return;
+  endif
+
+  if(GetObjProperty(g_Boat.tillerman, "#ControlPid"))
+    KillPid(GetObjProperty(g_Boat.tillerman, "#ControlPid"));
+  endif
+
+  g_Boat.starboardplank.locked := 1;
+  g_Boat.portplank.locked := 1;
+
+  SetObjProperty(g_Boat.tillerman, "#State", CARRIER_STATE_DOCK);
+  SetObjProperty(g_Boat.tillerman, "#ControlPid", GetPid());
+
+  var lDone := 0;
+
+  while(g_Boat and !lDone)
+    
+    var ev := wait_for_event(5);
+
+    if(ev)
+      case(ev.type)
+        EVTYPE_CARRIER:
+          ParseCarrier(ev);
+
+        EVTYPE_SHUTDOWN:
+          lDone := 1;
+      endcase
+    endif
+
+  endwhile
+
+  if(g_Boat and GetObjProperty(g_Boat.tillerman, "#ControlPid") == GetPid())
+    EraseObjProperty(g_Boat.tillerman, "#ControlPid");
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ParseCarrier(byref ev)
+
+  if(g_State == STATE_CARRIER)
+    return;
+  endif
+  
+  if(!ev.mobile)
+    return;
+  endif
+  
+  g_State := STATE_CARRIER;
+
+  g_Boat.starboardplank.locked := 0;
+  g_Boat.portplank.locked := 0;
+
+  Extend(g_Boat.starboardplank);
+  Extend(g_Boat.portplank);
+
+  var Count := 0;
+  SetObjProperty(g_Boat.tillerman, "#State", CARRIER_STATE_WAITING);
+
+  while(ev.mobile.multi != g_Boat and Count < 14 and Distance(ev.mobile, g_Boat) < 10)
+    sleep(2+RandomInt(2));
+
+    if(RandomInt(100) < (100-(Count*4)) and Count >= 4 and modulo(Count, 2) == 0)
+      case(RandomInt(4))
+        1: PrintTextAbove(g_Boat.tillerman, "Wsiadaj "+GetName(ev.mobile)+", nie bede czekac w nieskonczonnosc!");
+        2: PrintTextAbove(g_Boat.tillerman, "Halo "+GetName(ev.mobile)+", ja tutaj czekam na Ciebie!");
+        default: PrintTextAbove(g_Boat.tillerman, "Wsiadasz czy nie "+GetName(ev.mobile)+"? Nie mam calego dnia");
+      endcase
+    endif
+    Count += 1;
+  endwhile
+
+  Retract(g_Boat.starboardplank);
+  Retract(g_Boat.portplank);
+
+  if(ev.mobile.multi != g_Boat)
+    if(Distance(ev.mobile, g_Boat) < 10)
+      PrintTextAbove(g_Boat.tillerman, "Widze, ze nie mozesz sie namyslec "+GetName(ev.mobile));
+      PrintTextAbove(g_Boat.tillerman, "Ja nie mam czasu by tyle czekac!");
+    else
+      PrintTextAbove(g_Boat.tillerman, "Uciekl"+ggm(ev.mobile, 4)+" czy jak? Nie moja strata.");
+    endif
+  else
+  
+    MoveTamedCreaturesToLocation(ev.mobile, ev.mobile.x, ev.mobile.y, ev.mobile.z, ev.mobile.realm, 15);
+
+    PrintTextAbove(g_Boat.tillerman, "To ruszajmy!");  
+    SetObjProperty(g_Boat.tillerman, "#State", CARRIER_STATE_MOVING);
+    
+    if(!MoveToDestLocation(ev.shiploc))
+      MoveObject(ev.mobile, ev.playerloc[1], ev.playerloc[2], ev.playerloc[3], ev.playerloc[4], MOVEOBJECT_FORCELOCATION);
+    else    
+      DropPlayer(ev.mobile, ev.playerloc);
+    endif
+
+    MoveTamedCreaturesToLocation(ev.mobile, ev.playerloc[1], ev.playerloc[2], ev.playerloc[3], ev.playerloc[4], 10);
+    SetObjProperty(g_Boat.tillerman, "#State", CARRIER_STATE_DOCK);
+
+    foreach Mobile in ListMobilesNearLocation(g_Boat.x, g_Boat.y, g_Boat.z, 15, g_Boat.realm)
+      if(Mobile.multi == g_Boat)
+        MoveObject(Mobile, ev.playerloc[1], ev.playerloc[2], ev.playerloc[3], ev.playerloc[4], MOVEOBJECT_FORCELOCATION);
+      endif
+    endforeach
+    
+    foreach Item in ListItemsNearLocation(g_Boat.x, g_Boat.y, g_Boat.z, 15, g_Boat.realm)
+      if(Item.multi == g_Boat)
+        MoveObject(Item, ev.playerloc[1], ev.playerloc[2], ev.playerloc[3], ev.playerloc[4], MOVEOBJECT_FORCELOCATION);
+      endif
+    endforeach
+
+  endif
+
+  g_State := STATE_STATIONARY;
+  
+  g_Boat.starboardplank.locked := 1;
+  g_Boat.portplank.locked := 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveToDestLocation(Loc)
+
+  var Path := GetCoordsInLine(g_Boat.x, g_Boat.y, Loc[1], Loc[2]);
+  var CurIdx := 0;
+  var ErrCount := 0;
+
+  while(coordist(Loc[1], Loc[2], g_Boat.x, g_Boat.y) != 0 and ErrCount < 6)
+    var curLoc := Path[CurIdx];
+    var Dir := GetDirFromLocToLoc(g_Boat.x, g_Boat.y, curLoc.x, curLoc.y);
+
+    if(!MoveBoat(g_Boat, Dir))
+      ErrCount += 1;
+    endif
+
+    if(coordist(Loc[1], Loc[2], g_Boat.x, g_Boat.y) < 4)
+      Dir := DIR_N;
+    endif
+
+    var lTurn := GetBoatTurnDir(g_Boat, Dir);
+
+    if(lTurn)
+      TurnBoat(g_Boat, lTurn);
+    endif
+
+    CurIdx += 1;
+    sleepms(350);
+  endwhile
+
+  MoveBoatXY(g_Boat, Loc[1], Loc[2]);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+/*
+const DIR_N   := 0x00;   // North.
+const DIR_NE  := 0x01;   // Northeast.
+const DIR_E   := 0x02;   // East.
+const DIR_SE  := 0x03;   // Southeast.
+const DIR_S   := 0x04;   // South.
+const DIR_SW  := 0x05;   // Southwest.
+const DIR_W   := 0x06;   // West.
+const DIR_NW  := 0x07;   // Northwest.
+*/
+
+function GetBoatTurnDir(Boat, Dir)
+
+  case(Boat.facing)
+    DIR_NE: 
+      case(Dir)
+        DIR_NE: 
+        DIR_E: 
+          return 0;
+
+        DIR_SE: 
+        DIR_S: 
+          return 1;
+
+        DIR_SW: 
+        DIR_W: 
+          return 2;
+
+        DIR_N: 
+        DIR_NW: 
+          return 3;
+      endcase
+
+    DIR_NW: 
+      case(Dir)
+        DIR_NE: 
+        DIR_E: 
+          return 1;
+
+        DIR_SE: 
+        DIR_S: 
+          return 2;
+
+        DIR_SW: 
+        DIR_W: 
+          return 3;
+
+        DIR_N: 
+        DIR_NW: 
+          return 0;
+      endcase
+
+    DIR_SW: 
+      case(Dir)
+        DIR_NE: 
+        DIR_E: 
+          return 2;
+
+        DIR_SE: 
+        DIR_S: 
+          return 3;
+
+        DIR_SW: 
+        DIR_W: 
+          return 0;
+
+        DIR_N: 
+        DIR_NW: 
+          return 1;
+      endcase
+
+    DIR_SE: 
+      case(Dir)
+        DIR_NE: 
+        DIR_E: 
+          return 3;
+
+        DIR_SE: 
+        DIR_S: 
+          return 0;
+
+        DIR_SW: 
+        DIR_W: 
+          return 1;
+
+        DIR_N: 
+        DIR_NW: 
+          return 2;
+      endcase
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DropPlayer(Player, Loc)
+
+  PrintTextAbove(g_Boat.tillerman, "Dotarlismy! Prosze wysiadac");  
+
+  Extend(g_Boat.starboardplank);
+  Extend(g_Boat.portplank);
+
+  var Count := 0;
+
+  while(Player.multi == g_Boat and Count < 14)
+    sleep(2+RandomInt(2));
+
+    if(RandomInt(100) < 100-(Count*4) and Count >= 4 and modulo(Count, 2) == 0)
+      case(RandomInt(4))
+        1: PrintTextAbove(g_Boat.tillerman, GetName( Player)+", prosze wysiasc ze statku!");
+        2: PrintTextAbove(g_Boat.tillerman, "Halo "+GetName( Player)+", nie mam czasu czekac w nieskonczonnosc");
+        default: PrintTextAbove(g_Boat.tillerman, "Czy mozesz wysiasc ze statku "+GetName( Player)+"? Nie mam calego dnia");
+      endcase
+    endif
+
+    Count += 1;
+  endwhile
+
+  MoveTamedCreaturesToLocation(Player, Player.x, Player.y, Player.z, Player.realm, 10, Loc[1], Loc[2], Loc[3], Loc[4]);
+  
+  if(Player.multi == g_Boat)
+    MoveObject(Player, Loc[1], Loc[2], Loc[3], Loc[4], MOVEOBJECT_FORCELOCATION);
+    PrintTextAbove(g_Boat.tillerman, "do widzenia "+GetName( Player)+"!");
+  else
+    PrintTextAbove(g_Boat.tillerman, "Milego dnia "+GetName( Player)+"!");
+  endif
+
+  Retract(g_Boat.starboardplank);
+  Retract(g_Boat.portplank);
+
+endfunction
+
+//-----------------------------------------------------------------------------

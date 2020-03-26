@@ -1,0 +1,44 @@
+use uo;
+use os;
+
+include ":pd:pd";
+include "include/gumps";
+
+program textcmd_pd(who)
+
+	var pdPoints := GetPdPoints(who);
+	
+	GInit(0, 0);
+    GPage(1);
+    GGumpPic(309, 235, 500, 0); 
+    GTilePic(573, 410, 6993); 
+    GTilePic(604, 392, 6998); 
+    GTilePic(535, 413, 7015); 
+    GTilePic(365, 387, 6984); 
+    GTilePic(624, 379, 6999); 
+    GTilePic(645, 392, 7002); 
+    GTilePic(548, 401, 6995); 
+    GTilePic(622, 417, 7003); 
+    GTilePic(467, 411, 7010); 
+    GTilePic(333, 392, 6990); 
+    GTilePic(445, 414, 6979); 
+    GTilePic(377, 426, 6977); 
+    GTilePic(393, 402, 6976); 
+    GTilePic(320, 428, 6975); 
+    GTilePic(341, 407, 6980); 
+    GTilePic(421, 397, 7017); 
+    GTilePic(386, 408, 7008); 
+    GTilePic(361, 418, 6978); 
+    GTilePic(346, 384, 7014); 
+    GTilePic(490, 417, 6988); 
+    GTilePic(456, 433, 6987); 
+    GTilePic(508, 419, 6990); 
+    GTextLine(357, 280, 0, "Twoja aktualna ilosc PD");
+    GTextLine(541, 280, 0, pdPoints);
+    GTextLine(374, 324, 0, "Wymiana punktow");
+    GButton(569, 324, 2152, 2152, 0);
+    GSend(who);
+	
+endprogram
+	
+	

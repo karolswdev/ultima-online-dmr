@@ -1,0 +1,75 @@
+use polsys;
+use basic;
+use uo;
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/buffs";
+include "include/items/creation";
+
+program skillPotion(who, potion)
+
+    if(!potion.movable)
+	return;
+    endif
+    
+    if(GetObjProperty(who, "#AddSkPotion"))
+	SendSysMessage(who, "Jestes juz pod wplywem komendy .gain", FONT_NORMAL, RED_COLOR);
+	return;
+    endif
+    
+    if(!YesNo(who, "Czy jestes gotow by spozyc miksture nauki?"))
+	SendSysMessage(who, "Byc moze dobry wybor...", FONT_NORMAL, RED_COLOR);
+	return;
+    endif
+    
+    if(GetObjProperty(potion, "DestSerial"))
+	if(CInt(GetObjProperty(potion, "DestSerial") != who.serial))
+	    SendSysMessage(who, "Ta mikstura nie jest dla Ciebie...", FONT_NORMAL, RED_COLOR);
+	    return;
+	endif
+    endif
+    
+    
+    
+    if(GetObjProperty(potion, "SpecialGranted" && GetAmount(potion) > 1))
+	SendSysMessage(who, "Mikstura zostanie pochlonieta w calosci!", FONT_NORMAL, RED_COLOR);
+	if(!YesNo(who, "Pochlonac wszystkie mikstury?"))
+	    return;
+	else
+	    CreateItemInPack(who, 0xe24, GetAmount(potion));
+	endif
+    endif
+	
+    
+    var Dur := ReadGameClock();
+    
+    var durFound := 0;    
+    if(GetObjProperty(potion, "SkDuration"))
+        SetObjProperty(who, "#SkPotionLasting", CInt(GetObjProperty(potion, "SkDuration")));
+        durFound := 1;
+    endif
+    
+    if(SubtractAmount(potion,1))
+	// deleting of excess 'offline bonus' potions
+	
+	if(GetObjProperty(potion, "SpecialGranted") && GetAmount(potion) > 1)
+	    DestroyItem(potion);
+	endif
+	
+        PlaySoundEffect(who, 666);
+        if(!durFound)
+            SendSysMessage(who, "Od teraz przez 25 minut jestes w stanie nauczyc sie wiecej", FONT_NORMAL, GREEN_COLOR);
+        else
+            SendSysMessage(who, "Od teraz przez " + CInt(GetObjProperty(who, "#SkPotionLasting")) + " minut jestes w stanie nauczyc sie wiecej", FONT_NORMAL, GREEN_COLOR);
+        endif
+        CreateItemInPack(who, 0xe24, 1);
+        SetObjProperty(who, "SkillPotion", ReadGameClock() + (25 * 60));
+        //Buff(who,MOD_SKPOTION,1,25*60);
+    endif
+    
+    
+endprogram
+
+
+    

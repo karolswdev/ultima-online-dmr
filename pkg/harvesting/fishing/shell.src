@@ -1,0 +1,81 @@
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/skills";
+include "include/checks/objchecks";
+include "include/items";
+
+
+const SHELL_AMT := 600;
+
+//-----------------------------------------------------------------------------
+
+program BreakShell(who, shell)
+
+	if(!StandardItemCheck(who,shell))
+		return;
+	endif
+
+	if ( shell.amount > SHELL_AMT )
+		SendSysMessage(who, "Mozesz rozlupac maksymalnie "+SHELL_AMT+" muszelek na raz.",FONT_NORMAL,RED_COLOR);
+		return;
+	endif
+
+	var ItemsCfg  := ReadConfigFile(ITEMS_CFG);
+	var SizeAmount := CInt(ItemsCfg[shell.objtype].SizeAmount);
+  
+	if(!SizeAmount)
+		SendSysMessage(who, "To nie muszla z perlami.",FONT_NORMAL,COLOR_RED);
+	else
+		var lPearl := 0;
+		var lOys := 0;
+
+		CreateRest(who, shell, SizeAmount, lPearl, lOys);
+
+		if(lPearl)
+			SendSysMessage(who, "Znalazl"+ggm(who,3)+" "+lPearl+" czarnych perel!", FONT_NORMAL, COLOR_GREEN);
+		endif
+
+		if(lOys)
+			SendSysMessage(who, "Znalazl"+ggm(who,3)+" "+lOys+" ostryg.", FONT_NORMAL, COLOR_GREEN);
+		endif
+	endif
+
+	sleep(1);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateRest(who,shell,amt, byref pPearl, byref pOys)
+
+	var Cont := who.backpack;
+
+	var i := 0;
+	var sAmt := shell.amount;
+	var pAmt := 0;
+	for(i:=0; i<=sAmt; i:=i+1)
+		if ( SubtractAmount(shell, 1) )
+			pAmt := pAmt +RandomInt(amt)+1;
+		endif
+		sleepms(6);
+		if ( RandomInt(60) > 57 )
+			Playsoundeffect(who, 0x134);
+		endif
+	endfor
+
+	CreateItemInCont(Cont, 0x0FC8, pAmt, who);
+
+	var itmDesc := GetHarvestDescriptor(UOBJ_BLACKPEARL, who);
+	CreateItemInCont(Cont, itmDesc, pAmt, who);
+	pPearl += pAmt;
+
+	if(amt >= 8 and HaveChance(60))
+		var itmDesc := GetHarvestDescriptor(UOBJ_OYSTER, who);
+		var OysAmt := 1+RandomInt(2);
+		CreateItemInCont(Cont, itmDesc, OysAmt, who);
+		pOys += OysAmt;
+	endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

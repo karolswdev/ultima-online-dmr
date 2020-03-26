@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+
+include "include/staff";
+
+//-----------------------------------------------------------------------------
+
+program HideTrap(Parms)
+
+  var Trap   := Parms[1];
+  var Time   := CInt(Parms[2]);
+  var Proc   := GetProc(GetObjProperty(Trap, "#HidePid"));
+
+  if(Proc)
+    Proc.kill();
+  endif
+  
+  SetObjProperty(Trap, "#HidePid", GetPid());
+
+  sleep(Time);
+
+  Trap.invisible := 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

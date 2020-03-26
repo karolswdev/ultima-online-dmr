@@ -1,0 +1,79 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+include "include/calc";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID       := 72;
+
+//-----------------------------------------------------------------------------
+
+program CastWyvernStrike( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var plvl := CalcPoisonLevel(Caster, GetMagicSkillID(SpellGlob.Type), GetMindSkillID(SpellGlob.Type));
+  var Dmg  := 0;
+  var Num  := 0;
+  var Gained := 0;
+
+  var Mobiles := ListMobilesNearLocation(CastOn.x, CastOn.y, CastOn.z, Plvl, Caster.realm);
+
+  if(!(CastOn in Mobiles))
+    Mobiles.append(CastOn);
+  endif
+
+  foreach mobile in Mobiles
+
+    if(CanDamage(Caster, mobile,0,CastOn))
+      if(Dispersed(Caster, Mobile))
+        continue;
+      endif
+
+      PlaySoundEffect(mobile, 0x1E2);
+      PlayPcMovEffect(Caster, Mobile, FX_FIREBALL, 57, 5, 1, 1, 0, 3);
+
+      if(Reflected(mobile, Caster))
+        PlayPcMovEffect(Mobile, Caster, FX_FIREBALL, 57, 5, 1, 1, 0, 3);
+        mobile := Caster;
+      endif
+
+      Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, Mobile, SpellGlob.Type);
+
+      // Poison zostanie wrzucony z racji Element poison czaru - DmgType to poison, wiec dodatkowo zatruwa za kazdym razem.
+      // Plus taki, ze w DoMagicDamage resisted wspolnie obnizy Dmg i PoisonLevel
+      var DmgRes := DoMagicDamage(Mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+      AddMurdReport(mobile, Caster);
+
+      Num := Num + 1;
+
+      if(Gained < 3 and DmgRes > 0) 
+        Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+      endif
+
+      if(Num >= 5)
+        break;
+      endif
+
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

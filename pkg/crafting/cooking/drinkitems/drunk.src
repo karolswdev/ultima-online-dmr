@@ -1,0 +1,239 @@
+//-----------------------------------------------------------------------------
+
+include "include/mount";
+include "include/player/young";
+include "include/player/nutrition";
+include "include/objects/location";
+include "drunk";
+
+//-----------------------------------------------------------------------------
+
+var Pukes := array;
+
+//-----------------------------------------------------------------------------
+
+program Drunk(who)
+
+  Detach();
+  var drunkness;
+  var MaxLevel;
+  var whoSer := who.serial;
+
+  repeat
+    if(!who)
+      who := FindPlayerBySerial(whoSer);
+    endif
+
+    if(!who)
+      break;
+    endif
+
+    drunkness := GetObjProperty(who, PROP_DRUNKNESS);
+    MaxLevel  := GetObjProperty(who, PROP_MAX_DRUNKNESS);
+
+    if(drunkness and drunkness > 0)
+      do_drunk_stuff(who);
+      
+      if(!who)
+        who := FindPlayerBySerial(whoSer);
+      endif
+
+      if(!who)
+        break;
+      endif
+
+      drunkness := GetObjProperty(who, PROP_DRUNKNESS);
+      drunkness := drunkness - 1;
+
+      if (drunkness < 0)
+        drunkness := 0;
+      elseif (drunkness > MaxLevel)
+        drunkness := MaxLevel;
+      endif
+      
+      SetObjProperty( who, PROP_DRUNKNESS, drunkness );
+
+      case(GetDrunkFactor(who))
+        DRUNK_LOW_LVL:   SendSysMessage (who, "Jestes prawie trzezw"+ggm(who,6)+".",FONT_NORMAL,COLOR_GREEN);
+        DRUNK_MID_LVL:   SendSysMessage (who, "Czujesz lekkie zawroty glowy, ale trzezwosc powraca.",FONT_NORMAL,COLOR_GREEN);
+        DRUNK_HIGH_LVL:  SendSysMessage (who, "Czujesz sie lekko pijan"+ggm(who,6)+".",FONT_NORMAL,COLOR_GREEN);
+        DRUNK_SUPER_LVL: SendSysMessage (who, "Czujesz sie juz lepiej.",FONT_NORMAL,COLOR_GREEN);
+      endcase
+    else
+      drunkness := 0;
+    endif
+
+    sleep(1);
+
+  until (!drunkness);
+
+  if(who)
+    EraseObjProperty( who, PROP_DRUNKNESS );
+    EraseObjProperty( who, PROP_MAX_DRUNKNESS );
+    SendSysmessage( who , "Nie jestes juz pod wplywem alkoholu.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  if(Pukes.size())
+    Detach();
+    sleep(90);
+    foreach Item in Pukes
+      DestroyItem(Item);
+    endforeach
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function do_drunk_stuff(who)
+
+  if(!IsLoggedIn(who))
+    sleep(5);
+    return;
+  endif
+
+  var Factor := GetDrunkFactor(who);
+
+  if(Factor == DRUNK_LOW_LVL)
+
+    sleep(5);
+    PrintTextAbove( who, "*hic*" );
+    sleep(10);
+
+  elseif(Factor == DRUNK_MID_LVL)
+
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(5);
+    PrintTextAbove( who, "*hic*" );
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(5);
+    PrintTextAbove( who, "*hic*" );
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(5);
+
+  elseif(Factor == DRUNK_HIGH_LVL)
+
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(3);
+    vomit(who, 1);
+    PerformAction( who, ACTION_BOW );
+    PrintTextAbove( who, "*hic*" );
+    who.facing := RandomDiceRoll( "1d8" );
+    sleep(3);
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(3);
+    PerformAction( who, ACTION_BOW );
+    PrintTextAbove( who, "*hic*" );
+    who.facing := RandomDiceRoll( "1d8" );
+    sleep(3);
+    vomit(who, 1);
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    sleep(3);
+
+  elseif(Factor >= DRUNK_SUPER_LVL)
+
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(3);
+    vomit(who, 10);
+    PerformAction( who, ACTION_BOW );
+    PrintTextAbove( who, "*hic*" );
+    who.facing := RandomDiceRoll( "1d8" );
+    sleep(3);
+    if( GetEquipmentByLayer( who, LAYER_MOUNT ) )
+      Dismount (who);
+      SendSysmessage (who, "Spadl"+ggm(who,3)+" z wierzchowca.", FONT_NORMAL, COLOR_RED);
+    else
+      PerformAction( who, ACTION_FALL );
+    endif
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(3);
+    vomit(who, 10);
+    PrintTextAbove( who, "*hic*" );
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    PlayHiccupSound(who);
+    sleep(3);
+    PerformAction( who, ACTION_BOW );
+    who.facing := RandomDiceRoll( "1d8" );
+    sleep(3);
+
+  else
+    sleep(15);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function vomit ( who, chance )
+
+  if(RandomInt(100) <= chance)
+
+    PlayPukeSound(who);
+    PrintTextAbove(who, "*bleee*");
+    var Puke     := CreateInvisItem( who.x, who.y, who.z, 0x0f3c, who.realm);
+
+    if(Puke)
+      puke.name    := "rzygi";
+      puke.movable := 0;
+  
+      case (RandomInt(4))
+        0:  puke.color := 1422;
+        1:  puke.color := 540;
+        2:  puke.color := 555;
+        3:  puke.color := 970;
+      endcase
+
+      Pukes.append(Puke);
+    endif
+
+    SetNutrValue(who, NVI_HUNGER,  GetNutrValue(who, NVI_HUNGER)  - 2 - RandomInt(3));
+    SetNutrValue(who, NVI_VITAMIN, GetNutrValue(who, NVI_VITAMIN) - 2 - RandomInt(3));
+    SetNutrValue(who, NVI_SUGAR,   GetNutrValue(who, NVI_SUGAR)   - 2 - RandomInt(3));
+    SetNutrValue(who, NVI_PROTEIN, GetNutrValue(who, NVI_PROTEIN) - 2 - RandomInt(3));
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayHiccupSound(who)
+
+  if(RandomInt(100) < 20)
+    case(who.gender)
+      0:  PlaySoundEffect(who, 0x42F);
+      1:  PlaySoundEffect(who, 0x31F);
+    endcase
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayPukeSound(who)
+
+  case(who.gender)
+    0:  PlaySoundEffect(who, 0x440);
+    1:  PlaySoundEffect(who, 0x32E);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 15;
+
+//-----------------------------------------------------------------------------
+
+program WwPredator(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!CanMod(Caster, MOD_RETORT))
+    WcFizzleId(Caster, "Jestes juz pod wplywem zaklecia!", WW_WCID);
+    return 0;
+  endif
+
+  var Duration := 5 + CInt(GetWarCastDuration(Caster, WCT_WEARWOLF) / 2);
+  var WWSkill  := GetEffectiveSkill(Caster,SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var ModAmt   := 1 + CInt((WWSkill + ALSkill) / 50);
+
+  DoMod(Caster, MOD_RETORT, ModAmt, Duration);
+
+  PlayPcEffect(Caster, FX_MARK_EFFECT, 999, 0x10, 0x10, 32);
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 31, 0x10, 0x1A, 32);
+  PlaySoundEffect(Caster, SFX_KIATTACK);
+  PlaySoundEffect(Caster, 0xFB);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

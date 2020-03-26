@@ -1,0 +1,108 @@
+//-----------------------------------------------------------------------------
+
+include "include/std";
+
+include "include/gumpboxes";
+
+//-----------------------------------------------------------------------------
+
+var RestSc   := 0;
+var RestTemp := 0;
+var RestObj  := 0;
+
+//-----------------------------------------------------------------------------
+
+program RestartAll(who,text)
+
+  SetLogRunCycles(LST_CMD);
+  
+  if(text)
+    CheckText(text);
+  endif
+
+  if(RestSc)
+    SendSysMessage(who,"Napewno chcesz zrestartowac skrypty ["+RestSc+"] Npecom ?",FONT_NORMAL,COLOR_GREEN);
+  elseif(RestTemp)
+    SendSysMessage(who,"Napewno chcesz zrestartowac Npecom o Templacie ["+RestTemp+"] skrypty ?",FONT_NORMAL,COLOR_GREEN);
+  elseif(RestObj)
+    SendSysMessage(who,"Napewno chcesz zrestartowac Npecom o ObjTypie ["+RestObj+"] skrypty ?",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Napewno chcesz zrestartowac skrypty wszystkim Npecom?",FONT_NORMAL,COLOR_GREEN);
+  endif
+  
+  if(!YesNo(who,"Napewno?"))
+    return;
+  endif
+
+  var Rlms := Realms();
+  var num  := 0,x,y,Width, Height, all := 0;
+
+  foreach RlmInfo in Rlms
+    //if(_RlmInfo_iter == "britannia_alt")
+    //  continue;
+    //endif
+
+    Width  := RlmInfo.width;
+    Height := RlmInfo.height;
+
+    for(x:=Width; x>=32; x:=x -32)
+      if(!(x % 256))
+        SendSysMessage(who, "Restartowanie dla X=" + x + " R:"+num+" Rlm: "+_RlmInfo_iter+" PID: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+      endif
+      for(y:=Height; y>=32; y:=y-32)
+        foreach npc in ListObjectsInBox(x - 32, y - 32, -127, x-1, y-1, 127, _RlmInfo_iter )
+          if(npc.isa(POLCLASS_NPC))
+            if(RestSc)
+              if(npc.script == RestSc)
+                RestartScript(npc);
+                num := num + 1;
+              endif
+            elseif(RestTemp)
+              if(npc.npctemplate == RestTemp)
+                RestartScript(npc);
+                num := num + 1;
+              endif
+            elseif(RestObj)
+              if(npc.objtype == RestObj)
+                RestartScript(npc);
+                num := num + 1;
+              endif
+            else
+              RestartScript(npc);
+              num := num + 1;
+            endif
+            all := all + 1;
+          endif
+        endforeach
+        sleepms(4);
+      endfor
+      sleepms(4);
+    endfor
+  endforeach
+
+  if(RestSc)
+    SendSysMessage(who,"Zrestartowano skrypty ["+RestSc+"] ["+num+"] Npecom, wszystkie ["+all+"]",FONT_NORMAL,COLOR_BLUE);
+  elseif(RestTemp)
+    SendSysMessage(who,"Zrestartowano skrypty ["+num+"] Npecom o Templacie ["+RestTemp+"], wszystkie ["+all+"]",FONT_NORMAL,COLOR_BLUE);
+  elseif(RestObj)
+    SendSysMessage(who,"Zrestartowano skrypty ["+num+"] Npecom o ObjTypie ["+RestObj+"], wszystkie ["+all+"]",FONT_NORMAL,COLOR_BLUE);
+  else
+    SendSysMessage(who,"Zrestartowano skrypty ["+num+"] Npecom, wszystkie ["+all+"]",FONT_NORMAL,COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckText(text)
+
+  text := SplitWords(text);
+  case(lower(text[1]))
+    "temp": RestTemp := lower(text[2]);
+    "obj":  RestObj  := CInt(text[2]);
+    "sc":   RestSc   := lower(text[2]);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

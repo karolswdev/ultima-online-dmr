@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+use uo;
+
+
+include "include/player/nutrition";
+include "include/poison";
+
+include "include/checks/objchecks";
+
+program NormHunger(who, item)
+  
+  if(!StandardItemCheck(who, item))
+    return;
+  endif
+
+  SendSysMessage(who, "Przywrociles swoj zoladek do normy.",FONT_NORMAL,COLOR_GREEN);
+  SetNutrValue(who, NVI_VITAMIN, CInt(50));
+  SetNutrValue(who, NVI_PROTEIN, CInt(50));
+  SetNutrValue(who, NVI_HUNGER,  CInt(50));
+  SetNutrValue(who, NVI_SUGAR,   CInt(50));
+  PlayPcEffect(who, FX_HEAL_EFFECT, 0x489, 0x1F, 0x1F, 3);
+  DestroyItem(item);
+  
+endprogram

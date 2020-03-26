@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program DeadCtl(who)
+
+  SetObjProperty(who,"#DeadPid",GetPid());
+  
+  sleep(10 + RandomInt(15));
+  
+  var counter := 1;
+  
+  if(!who.cmdlevel and IsPlayer(who))
+    while(who.dead and GetObjProperty(who,"#DeadPid") == GetPid() and IsLoggedIn(who))
+      if(!who.warmode)
+        who.SetWarmode(1);
+        sleep(1);
+        who.SetWarmode(0);
+      endif
+      sleep(30 + RandomInt(30));
+	  
+	  if(counter > 10)
+		Resurrect(who);
+	  endif
+    endwhile
+  endif
+  
+  if(GetObjProperty(who,"#DeadPid") == GetPid())
+    EraseObjProperty(who,"#DeadPid");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,30 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/packets";
+include "include/finding";
+include "include/client/effects";
+include "include/player/target";
+include "include/bits";
+include "include/logerror";
+include "include/reputation/murderer";
+include "include/reputation/pvparea";
+include "include/reputation/penalty";
+include "include/tempmods";
+include "include/client/sounds";
+
+//--------------------------------------------------------------------------------
+
+program ApplyMurderer(Params)
+
+  var who := Params[1];
+  var Victim := Params[2];
+
+  ApplyMurdPenalty(who, Victim);
+
+endprogram
+
+//--------------------------------------------------------------------------------

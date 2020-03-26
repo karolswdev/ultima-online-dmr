@@ -1,0 +1,36 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/checks/stdchecks";
+include "include/player/target";
+include "include/msgs";
+include "include/misc";
+
+//--------------------------------------------------------------------------------
+
+program ShowBag(who)
+
+  var BPack := who.backpack;
+  
+  SendSysMessage(who,"Komu chcesz pokazac plecak?",FONT_NORMAL,COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  
+  if(!IsPlayer(Targ))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Targ == who)
+    SendSysMessage(who,"Masz problemy z zajrzeniem do swojego plecaka ?",FONT_NORMAL,COLOR_GREEN);
+    return;
+  elseif(Distance(who,Targ) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+  SendOpenSpecialContainer(Targ,BPack);
+
+endprogram
+
+//--------------------------------------------------------------------------------

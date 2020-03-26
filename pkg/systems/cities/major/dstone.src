@@ -1,0 +1,15 @@
+include "major";
+include ":character:checks";
+
+program DestroyVoteStone(Stone)
+
+  if(!CanDestroyStone(Stone))
+    return 0;
+  endif
+
+  var Stones := GetAllVStones();
+  Stones[GetCity(Stone)] := 0;
+  SetAllVStones(Stones);
+  return 1;
+
+endprogram

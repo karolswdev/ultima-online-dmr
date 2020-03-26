@@ -1,0 +1,178 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/gumps";
+include "include/portals";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 73;
+
+//-----------------------------------------------------------------------------
+
+program CastDeathPath( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(NoTeleportZone(Caster.x, Caster.y, Caster.z, Caster.realm))
+    Fizzle(Caster, "Miejsce w ktorym sie znajdujesz blokuje mozliwosc przyzwania portalu...");
+    return;
+  endif
+
+  if(IsWaterInRange(Caster.x,Caster.y,Caster.z,Caster.realm, 10))
+    Fizzle(caster, "Nie mozesz przywolac portalu, jestes zbyt blisko wody.");
+    return;
+  endif
+
+  var Loc := SelectDeathPath(Caster);
+
+  if(Loc)
+    if(!CanOpenGateAt(Caster, Loc))
+      Fizzle(Caster, "Twoj portal zawiodl...");
+      return;
+    endif
+
+    if(coordist(Caster.x, Caster.y, Loc.x, Loc.y) < 3 and Caster.realm == Loc.realm)
+      Fizzle(Caster, "Znajdujesz sie w miejscu docelowym...");
+    else
+      CreateGateTravel(Caster.x, Caster.y, Caster.z, Caster.realm, Loc.x, Loc.y, Loc.z, Loc.realm, CGTF_BLACK_GATE);
+      GainSpellPoints(Caster, Caster, MAGICGAIN_NORMAL);
+    endif
+  else
+    Fizzle(Caster, "Anulowano.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanOpenGateAt(who, Loc)
+
+  if(NoTeleportZone(Loc.x, Loc.y, Loc.z, Loc.realm, TCF_NOCHECK_DUNG | TCF_CHECK_CHAMP))
+    return 0;
+  endif
+
+  if(NoTeleportZone(who.x, who.y, who.z, who.realm))
+    return 0;
+  endif
+
+  if(who.realm != Loc.realm and (who.realm == BRITA_REALM or Loc.realm == BRITA_REALM))
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectDeathPath(Caster)
+
+  //var LastPath := GetObjProperty(Caster, "LastDeathPath"); // wylaczenie opcji portalu powrotnego
+  var LastPath := 0;
+
+  var Loc   := 0;
+  var dpCfg := ReadConfigFile(":necromancy:deathpaths");
+  var Res;
+  var oLoc  := struct;
+  
+  oLoc.+x     := Caster.x;
+  oLoc.+y     := Caster.y;
+  oLoc.+z     := Caster.z;
+  oLoc.+realm := Caster.realm;
+
+  Res := SelDeathPathGump(Caster, dpCfg, LastPath);
+
+  if(Res)
+    if(oLoc.x != Caster.x or oLoc.y != Caster.y or oLoc.z != Caster.z or oLoc.realm != Caster.realm)
+      SendSysMessage(Caster, "Oddalil"+ggm(Caster,3)+" sie.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    if(Res == 1000)
+      return LastPath;
+    endif
+
+    Loc := SplitWords(dpCfg[Res].Loc);
+
+    if(!Loc)
+      return 0;
+    endif
+
+    var rLoc    := struct;
+    rLoc.+x     := Caster.x;
+    rLoc.+y     := Caster.y;
+    rLoc.+z     := Caster.z;
+    rLoc.+realm := Caster.realm;
+
+    SetObjProperty(Caster, "LastDeathPath", rLoc);
+    
+    rLoc.x      := CInt(Loc[1]);
+    rLoc.y      := CInt(Loc[2]);
+    rLoc.z      := CInt(Loc[3]);
+    rLoc.realm  := Loc[4];
+
+    return rLoc;
+
+  endif
+
+  return Loc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelDeathPathGump(who, dpCfg, Last)
+ 
+  GInit(50, 50);
+  GPage();
+  GNoDispose();
+  GGumpPic(0, 0, 0x2B00);
+  GTextLine(100, 14,999,"Miejsca");
+
+  var s := 0, h := 0;
+  var Loc;
+  foreach Id in GetConfigIntKeys(dpCfg)
+    Loc := SplitWords(dpCfg[Id].Loc);
+    //__NONPVP__ DELETED if(IsInNonPvPArea(who.x, who.y, who.realm) == IsInNonPvPArea(CInt(Loc[1]), CInt(Loc[2]), Loc[4]))
+      if(h >= 8)
+        s := 160;
+        h := 0;
+      endif
+
+      GButton(60+s,40+(h*20),2104,2103,Id);
+      GTextLine(80+s,35+(h*20),650, dpCfg[Id].Name);
+
+      h := h + 1;
+   // endif
+  endforeach
+
+  if(Last)
+    //__NONPVP__ DELETED if(IsInNonPvPArea(who.x, who.y, who.realm) == IsInNonPvPArea(Last.x, Last.y, Last.realm))
+      h := h + 1;
+      if(h >= 8)
+        s := 160;
+        h := 0;
+      endif
+
+      GButton(60+s,40+(h*20),2104,2103, 1000);
+      GTextLine(80+s,35+(h*20), 1000, "Powrotny");
+    //endif
+  endif
+
+  GButton(275, 19, 2104, 2103, 0);
+  GTextLine(295, 14,999,"Zamknij");
+
+  return GSend(who)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 121;
+
+//-----------------------------------------------------------------------------
+
+program KnNaturalArmor(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!CanMod(Caster, MOD_AR))
+    WcFizzleId(Caster, "Jestes juz pod wplywem eliksiru!", KN_WCID);
+    return 0;
+  endif
+
+  var Duration := GetWarCastDuration(Caster, WCT_KENSAI);
+  var SkKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var ModAmt   := CInt((SkKensai + SkTact) / 10) + RandomInt(3);
+
+  GainWarcastPoints(Caster, Caster, KN_WCID, WCGAIN_DEFENSIVE);
+  DoMod(Caster, MOD_AR, ModAmt, Duration);
+
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 100, 0x10, 0x10, 3);
+  PlaySoundEffect(Caster, SFX_SPELL_PROTECTION);
+  PlaySoundEffect(Caster, SFX_SPELL_STRENGTH);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

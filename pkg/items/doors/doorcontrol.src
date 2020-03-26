@@ -1,0 +1,21 @@
+//-----------------------------------------------------------------------------
+
+include "doors";
+include ":baseitems:baseitems";
+
+//-----------------------------------------------------------------------------
+
+program DoorControl(door)
+
+  CloseDoor(Door, 1);
+  
+  var Nr   := GetItemBINr(door);
+  if(Nr)
+    if(UpdateBaseItemFromData(Nr))
+      print("Door ["+door.serial+"] BaseItem Updated.");
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,130 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_merchant:utils/misc";
+
+include "include/attributes/main";
+include "include/gumps";
+include ":banking:gold";
+include "include/player/young";
+
+include "merc_train";
+
+//-----------------------------------------------------------------------------
+
+program NpcTrainSkill(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  var Res := TrainGump(Data.npc, Data.source);
+  
+ 
+  if(Res)
+    var SkId := Res - 1;
+
+    var SkElem := GetSkillConfigElem(SkId);
+    if(SkElem)
+      var TeachAmt := MT_MAX_TRAIN_SKILL - GetBaseSkillBaseValue(Data.source,SkId);
+      
+      if(TeachAmt <= 0)
+        PrintTextAbove(Data.npc, "Nie naucze cie niczego wiecej o umiejetnosci "+SkElem.name+".");
+        return;
+      elseif(TeachAmt > MT_TRAIN_AMOUNT)
+        TeachAmt := MT_TRAIN_AMOUNT;
+      endif
+
+      if(!CanNpcTrainSkill(Data.npc, Data.source, SkId))
+        return;
+      endif
+      
+      if(!SpendGold(Data.source,TeachAmt))
+        PrintTextAbove(Data.npc, "Oczekuje drobnej zaplaty za nauczenie Cie tej umiejetnosci w wysokosci "+TeachAmt+" gp.");
+        return;
+      endif
+
+      PrintTextAbove(Data.npc, "Wybral"+ggm(Data.source,3)+" "+SkElem.name+", dobrze.");
+      PrintTextAbove(Data.npc, "*naucza*");
+      sleepms(2000+RandomInt(1000));
+      
+      if(Distance(Data.source,Data.npc) > 3)
+        PrintTextAbove(Data.npc, "No i uciekl"+ggm(Data.source,4));
+        return;
+      endif
+      
+      PrintTextAbove(Data.npc, "*tlumaczy*");
+      sleepms(4000+RandomInt(1000));
+      
+      if(Distance(Data.source,Data.npc) > 3)
+        PrintTextAbove(Data.npc, "No i uciekl"+ggm(Data.source,4));
+        return;
+      endif
+      
+      PrintTextAbove(Data.npc, "Gotowe.");
+      if(GetBaseSkillBaseValue(Data.source,SkId) + TeachAmt <= MT_MAX_TRAIN_SKILL)
+        SetBaseSkillBaseValue(Data.source,SkId,GetBaseSkillBaseValue(Data.source,SkId) + TeachAmt);
+      endif
+    endif
+
+  elseif(Res == error)
+
+    PrintTextAbove(Data.npc, "Przykro mi, ale nie ucze umiejetnosci!");
+
+  else
+
+    NpcSpeechSay(Data.npc, Data.source, AI_SPID_GOODBYE);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function TrainGump(Npc, Source)
+
+  var SkillVal;
+  var cTeach;
+  var i := 0;
+  var Skills := GetMerchantTeachSkills(Npc);
+
+  if(!Skills.size())
+    return error;
+  endif
+
+  NpcSpeechSay(Npc, Source, "MTr_Hello");
+
+  GInit(50,50);
+  GResPic(0,0,BKGND_SILVERTRIM,300,80 + (Skills.size() * 20));
+
+  GTextLine(50,25,400,"Umiejetnosci: ");
+
+  foreach Skill in Skills
+    SkillVal := GetBaseSkillBaseValue(Source,CInt(_Skill_iter));
+    cTeach   := MT_MAX_TRAIN_SKILL - SkillVal;
+
+    if(cTeach <= 0)
+      GTextLine(55, 50 + (i*20), 999,  Skill);
+      GGumpPic(30, 53 + (i*20), 2118);
+      cTeach := 0;
+    else
+      GTextLine(55, 50 + (i*20), 500,  Skill);
+      GButton(30, 53 + (i*20), 2117 ,2118 ,CInt(_Skill_iter)+1);
+    endif
+
+    GTextLine(250,50 + (i*20), 400, CStr(CDbl(cTeach * 0.1))+"%");
+
+    i := i + 1;
+  endforeach
+
+  return GSend(Source)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------

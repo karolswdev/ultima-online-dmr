@@ -1,0 +1,19 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumps";
+include "ai/include/tamed";
+include "include/npcs";
+
+include ":gods:common";
+include ":gods:gods";
+
+//-----------------------------------------------------------------------------
+
+program Bogowie(who)
+
+  ShowGodInfo(who, who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

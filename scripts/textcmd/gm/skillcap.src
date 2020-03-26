@@ -1,0 +1,27 @@
+use uo;
+use os;
+
+include "include/skills/skillwin";
+include "include/clock";
+include ":magic:magicatt";
+include "include/player/misc";
+include "include/checks/objchecks";
+include "include/gumpboxes";
+include "include/player/nutrition";
+include "include/reputation/murderer";
+include "include/reputation/penalty";
+include "include/reputation/pvparea";
+include "include/std";
+include "include/mobile/age";
+include "include/resurrect";
+include ":jail:common";
+include ":jail:jail";
+include ":traits:gumps";
+include ":musicianship:music";
+include ":npcguilds:guilds";
+
+program textcmd_skillcap(who)
+
+	SendSysMessage(who, "Your skill cap is: " + GetSkillCap(who));
+
+endprogram

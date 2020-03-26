@@ -1,0 +1,99 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/noto";
+
+include "snooping";
+
+//-----------------------------------------------------------------------------
+
+program Snooping(who)
+
+  if(ExPid(GetObjProperty(who,"#SnoopPid")))
+    SendSysMessage(who,"Juz podgladasz...",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsBusy(who))
+    return;
+  endif
+  
+  if(GetObjProperty(who,"LastSnoop") and (CInt(GetObjProperty(who,"LastSnoop")) > ReadGameClock()))
+    SendSysMessage(who,"Musisz chwile odczekac...",FONT_NORMAL,COLOR_BLUE);
+    return;
+  endif
+
+  if(!CanSnoop(who))
+    return;
+  endif
+  
+  SetBusyTime(who,GetSkillDelay(SKILLID_SNOOPING));
+
+  SendSysMessage(who, "Do czyjego plecaka chcial"+ggm(who,1)+" zajrzec ?",FONT_NORMAL,COLOR_GREEN);
+  var Victim := ObjTarget(who,TGTOPT_CHECK_LOS);
+    
+  if(!StandardMobCheck(who,Victim))
+    return;
+  endif
+
+  if(Victim == who)
+    SendSysMessage(who,"Raczej nie masz problemow z zajrzeniem do swojego plecaka.",FONT_NORMAL,COLOR_BLUE);
+    return;
+  endif
+  
+  if(Distance(who,Victim) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(GetObjProperty(Victim,"#BeingSnoop") or Victim.cmdlevel)
+    SendSysMessage(who,"Nie uda Ci sie teraz zajrzec do plecaka tego stworzenia.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var VicPack := GetSnoopPack(Victim);
+  var Delay   := 1500 + (1500 - (CInt(GetEffectiveSkill(who,SKILLID_SNOOPING) * 10)));
+
+  if(!VicPack or (IsStaff(Victim) and !IsStaff(who)))
+    SendSysMessage(who,"To stworzenie nie ma plecaka!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  //__NOPVP__  SetPvPStatus(who,PVP_FORCED_YES, PVP_FORCED_TIME); // za zagladanie flaga pvp
+
+  SendSysMessage(who,"Probujesz zajrzec do plecaka "+Victim.name+"...",FONT_NORMAL,COLOR_GREEN);
+  
+  if(!MakeNoise(who,0,Delay))
+    return;
+  endif
+  
+  if(!who or !Victim or Victim.hidden or Victim.dead or who.dead)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Distance(Victim,who) > 1)
+    SendSysMessage(who,"Oddalil"+ggm(who,3)+" sie!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(GetObjProperty(Victim,"#BeingSnoop"))
+    SendSysMessage(who,"Nie uda Ci sie teraz zajrzec do plecaka tego stworzenia.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  FameLost(who);
+  KarmaLost(who);
+  
+  if(CheckSkill(who,SKILLID_SNOOPING,GetSnoopDiff(who,Victim),0) and VicPack)
+    SendSysMessage(who,"Udalo Ci sie otworzyc plecak "+Victim.name+"!",FONT_NORMAL,COLOR_GREEN);
+    start_script("snooppack",{who,Victim});
+    AwardPoints(who,SKILLID_SNOOPING,GetDefaultPointsValue(SKILLID_SNOOPING));
+  else
+    SendSysMessage(who,"Nie udalo Ci sie otworzyc plecaka "+Victim.name+"!",FONT_NORMAL,COLOR_RED);
+    SnoopAlarmOthers(who,Victim);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

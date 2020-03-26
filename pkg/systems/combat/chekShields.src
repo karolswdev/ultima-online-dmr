@@ -1,0 +1,32 @@
+use uo;
+use os;
+include "include/finding";
+
+include "include/const/misc";
+include "include/misc";
+//-----------------------------------------------------------------------------
+
+
+program OiledShieldsControl()
+
+  var Oiled_shields := GetGlobalProperty("OiledShields");
+
+  if(!Oiled_shields)
+    return;
+  endif
+
+  var i := Oiled_shields.size() - 1;
+  
+  while(i >= 0)
+    var shield := FindItemBySerial(Oiled_shields[i]);
+    if(shield)
+      start_script(":combat:shield_oil_control", shield);
+    else
+      Oiled_shields.erase(i);
+    endif
+    i := i - 1;
+  endwhile
+
+  SetGlobalProperty("OiledShields",Oiled_shields);
+
+endprogram

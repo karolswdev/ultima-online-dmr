@@ -1,0 +1,140 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "msgboard";
+
+include "include/proc";
+include "include/misc";
+include "include/tempmods";
+include "include/names";
+
+//--------------------------------------------------------------------------------
+
+var ev, Board, Posts;
+
+//--------------------------------------------------------------------------------
+
+program BoardControl(_Board)
+
+  Board := _Board;
+  Posts := GetObjProperty(Board, PROP_POSTS);
+  if(!Posts or !Posts.size())
+    Posts := dictionary;
+  endif
+
+  SetObjProperty(Board, PROP_BOARD_CTRLPID, GetPid());
+
+  while(Board)
+
+    CheckMessages();
+
+    ev := wait_for_event(360);
+
+    case(ev.type)
+      GMBEVID_POST:     ReceivePostMessage();
+      GMBEVID_DELETE:   ReceiveDeleteMessage();
+    endcase
+    
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function ReceivePostMessage()
+
+  var Post := array;
+  Post[1]  := GetRealName(ev.who);
+  Post[2]  := ev.who.serial;
+  Post[3]  := ReadGameClock();
+  Post[4]  := ev.Lines;
+
+  if(ev.pId)
+    if(Posts.exists(ev.pId))
+      Posts[ev.pId][6].append(Post);
+    endif
+  else
+    var nId  := CInt(GetObjProperty(Board, PROP_POST_NEXTID)) + 1;
+    Post[5]  := ev.Title;
+    Post[6]  := array;
+    Posts[nId] := Post;
+    SetObjProperty(Board, PROP_POST_NEXTID, nId);
+  endif
+
+  SetObjProperty(Board, PROP_POSTS, Posts);
+
+  var nEv   := struct;
+  nEv.+type := GMBEVID_RECREATE;
+
+  SendViewersEvent(Board, nEv);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ReceiveDeleteMessage()
+
+  if(Posts.exists(ev.pId))
+    if(ev.spId)
+      if(Posts[ev.pId][6].size() >= ev.spId)
+        Posts[ev.pId][6].erase(ev.spId);
+      else
+        return;
+      endif
+    else
+      Posts.erase(ev.pId);
+    endif
+  else
+    return;
+  endif
+  
+  SetObjProperty(Board, PROP_POSTS, Posts);
+
+  var nEv   := struct;
+  nEv.+type := GMBEVID_RECREATE;
+
+  SendViewersEvent(Board, nEv);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckMessages()
+
+  if(CInt(GetObjProperty(Board, PROP_CHECK_TIME)) < ReadGameClock())
+    var DelArr := array;
+
+    foreach Post in Posts
+      if(Post[6].size())
+        if(Post[6][Post[6].size()][3] + GMB_TOPIC_EXP_TIME < ReadGameClock())
+          DelArr.append(_Post_iter);
+        endif
+      else
+        if(Post[3] + GMB_TOPIC_EXP_TIME < ReadGameClock())
+          DelArr.append(_Post_iter);
+        endif
+      endif
+    endforeach
+  
+    if(DelArr.size())
+      foreach PostId in DelArr
+        Posts.erase(PostId);
+      endforeach
+
+      SetObjProperty(Board, PROP_POSTS, Posts);
+
+      var nEv   := struct;
+      nEv.+type := GMBEVID_RECREATE;
+
+      SendViewersEvent(Board, nEv);
+    endif
+
+    SetObjProperty(Board, PROP_CHECK_TIME, ReadGameClock() + GMB_CHECK_DELAY);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

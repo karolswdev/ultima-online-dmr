@@ -1,0 +1,162 @@
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/player/misc";
+include "include/accounts";
+include "include/std";
+
+include ":weather:weather";
+
+//-----------------------------------------------------------------------------
+
+var ev, AccStatusTime := 0;
+
+//-----------------------------------------------------------------------------
+
+program ShardInfoCore(Parms)
+
+  SetLogRunCycles(LST_CONTROL);
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  while(1)
+    WriteShardInfo();
+    ev := wait_for_event(30);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function WriteShardInfo()
+
+  var ShardInfo   := ReadFile(SHARDINFO_LOG);
+
+  if(!ShardInfo)
+    ShardInfo     := array;
+    AccStatusTime := 0;
+  elseif(!ShardInfo[SI_ACC_COUNT_IDX] or !ShardInfo[SI_CHARS_COUNT_IDX] or !ShardInfo[SI_ACTIVE_ACC_COUNT_IDX])
+    AccStatusTime := 0;
+  endif
+
+  var Status := "DOWN";
+  var Online := 0;
+
+  if(ShardInfo[SI_STATUS_IDX][SHARDINFO_STATUS])
+    Status := StrReplace(ShardInfo[SI_STATUS_IDX], SHARDINFO_STATUS, "");
+  endif
+
+  if(ShardInfo[SI_ONLINE_IDX][SHARDINFO_ONLINE])
+    Online := StrReplace(ShardInfo[SI_ONLINE_IDX], SHARDINFO_ONLINE, "");
+  endif
+
+  if(ev)
+    case(ev.type)
+      SI_STATUS_IDX:  Status := ev.value;
+      SI_ONLINE_IDX:  Online := ev.value;
+    endcase
+  endif
+
+  case(Status)
+    "UP":
+    "RESTART":
+    "DOWN":          break;
+
+    SERV_ST_UP:      Status := "UP";
+    SERV_ST_RES:     Status := "RESTART";
+    default:         Status := "DOWN";
+  endcase
+
+  var Time   := PolCore().uptime;
+
+  var tDay   := CInt(Time / DAY_LENGTH);
+  var tHour  := CInt((Time - (tDay * DAY_LENGTH)) / 3600);
+  var tMin   := CInt((Time - (tDay * DAY_LENGTH) - (tHour * 3600)) / 60);
+  var tSec   := CInt((Time - (tDay * DAY_LENGTH) - (tHour * 3600) - (tMin * 60)));
+
+  if(tHour < 10)
+    tHour := "0"+tHour;
+  endif
+
+  if(tMin < 10)
+    tMin := "0"+tMin;
+  endif
+
+  if(tSec < 10)
+    tSec := "0"+tSec;
+  endif
+
+  ShardInfo[SI_STATUS_IDX] := SHARDINFO_STATUS+Status;
+  ShardInfo[SI_UPTIME_IDX] := SHARDINFO_UPTIME+tDay+" "+tHour+" "+tMin+" "+tSec;
+  ShardInfo[SI_ONLINE_IDX] := SHARDINFO_ONLINE+CInt(Online);
+  ShardInfo[SI_SEASON_IDX] := SHARDINFO_SEASON+GetCurrentSeason();
+  ShardInfo[SI_NIGHT_IDX]  := SHARDINFO_NIGHT+IsNightLight();
+  ShardInfo[SI_SERVER_LIFETIME] := SHARDINFO_SERVER_LIFETIME+ReadGameClock();
+
+  if(AccStatusTime <= ReadGameClock())
+    AddAccStatus(ShardInfo);
+    AccStatusTime := ReadGameClock() + ACCSTATUS_DELAY;
+  endif
+
+  WriteFile(SHARDINFO_LOG, ShardInfo);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddAccStatus(byref ShardInfo)
+
+  var Accs := ListAccounts();
+
+  var AccsNum   := Accs.size();
+  var ActiveNum := 0;
+  var CharNum   := 0;
+  var NewNum    := 0;
+  var i;
+  var LastTime := -1;
+  var curTime := ReadGameClock();
+
+  foreach Acc in Accs
+
+    Acc := FindAccount(Acc);
+
+    if(IsActiveAccount(Acc))
+      ActiveNum += 1;
+    endif
+
+    for(i:=1;i<=5;i+=1)
+      if(Acc.GetCharacter(i))
+        CharNum += 1;
+      endif
+    endfor
+
+    if(IsAccountDeactivated(Acc))
+      AccsNum -= 1;
+    endif
+
+    var Time := CInt(Acc.GetProp(PROP_CREATE_TIME));
+
+    if(Time)
+      if(Time + NEW_ACCOUNT_TIME > curTime)
+        NewNum += 1;
+      endif
+
+      if(curTime - Time < LastTime or LastTime == -1)
+        LastTime := curTime - Time;
+      endif
+    endif
+
+    Sleepms(1);
+  endforeach
+
+  ShardInfo[SI_ACC_COUNT_IDX]        := SHARDINFO_ACC_COUNT+AccsNum;
+  ShardInfo[SI_CHARS_COUNT_IDX]      := SHARDINFO_CHARS_COUNT+CharNum;
+  ShardInfo[SI_ACTIVE_ACC_COUNT_IDX] := SHARDINFO_ACTIVE_ACC_COUNT+ActiveNum;
+  ShardInfo[SI_NEW_ACC_COUNT_IDX]    := SHARDINFO_NEW_ACC_COUNT+NewNum;
+  ShardInfo[SI_LAST_ACCOUNT]         := SHARDINFO_LAST_ACCOUNT+LastTime;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,752 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/guarding";
+include "include/poison";
+include "include/clock";
+include "include/buildings";
+include "include/npcspeech";
+include "include/smartrun";
+include "include/mount";
+include "include/client/anims";
+include "include/mobile/misc";
+include "include/reputation/murderer";
+include "ai/include/smartrun";
+include "ai/setup/default_setup";
+
+include ":jail:common";
+include ":npcguilds:exping";
+
+include ":major:major";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 18;
+const WAKE_UP_TIME           := 60;
+const CHASE_TIME             := 900;
+
+//-----------------------------------------------------------------------------
+
+var NextWander               := ReadGameClock() + GUARD_WANDER_TIME;
+var PushTimer                := ReadGameClock();
+var IsArcherGuard            := 0;
+var opponent                 := 0;
+var CityAl                   := GetCityAlignment(City);
+var SpecFlag, Specs, curHour;
+
+//-----------------------------------------------------------------------------
+
+SaveAiSerial();
+drop_anchor();
+check_frozen();
+check_alignment();
+InitWalk();
+SetSpecs();
+
+//-----------------------------------------------------------------------------
+
+program Town_Guard_AI()
+
+  Say("My city is " + City);
+  Say("My city's alignment is " + CityAl);
+
+  SetLogRunCycles(LST_AI);
+
+  DisableEvents(EVID_ENGAGED + EVID_DAMAGED);
+  EnableEvents(EVID_ITEM_GIVEN);
+  EnableEvents(EVID_SPEECH, HALT_THRESHOLD);
+  EnableEvents(EVID_ENGAGED + EVID_DAMAGED);
+  EnableEvents(EVID_ENTEREDAREA,HALT_THRESHOLD);
+  SetWarMode(0);
+  
+  CheckGuardZone();
+  waittime := GUARD_WAITTIME;
+  IsArcherGuard := GetMobWeaponSkillId(me) == SKILLID_ARCHERY;
+  
+  while(me)
+     if(!ev)
+       ev := wait_for_event(waittime);
+     endif
+
+     CheckGuardSleep();
+
+     StdHandleEvent(ev);
+
+     if(!me.frozen)
+       if(IsSleeping(me))
+
+         if(ReadGameClock() >= NextWander)
+           Say("*hrrr*");
+           NextWander := ReadGameClock() + GUARD_WANDER_TIME + RandomInt(CInt(GUARD_WANDER_TIME/2));
+         endif
+         waittime := GUARD_WAITTIME;
+
+       else
+
+         if(ReadGameClock() >= NextWander)
+           CheckBegPurse();
+
+           if(!IsWalking() and !IsWalkPause())
+             DoWander();
+             check_anchor();
+           endif
+
+           NextWander := ReadGameClock() + GUARD_WANDER_TIME + RandomInt(CInt(GUARD_WANDER_TIME/2));
+           LookForCriminals(LFCF_NOSPEAK);
+           CheckMemory();
+         endif
+     
+         if(IsWalking())
+           if(!IsWalkPause())
+             WalkToDest();
+           endif
+         endif
+       endif
+     endif
+     
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_SPEECH:             if(IsSleeping(me))
+                               if(ev.text["STRAZ"] and Distance(me,ev.source) <= 2)
+                                 GuardWakeUp();
+                               endif
+                               ev := 0;
+                               return 1;
+                             endif
+
+    EVID_ENGAGED:
+    EVID_DAMAGED:            if(ev.source and !me.frozen and !ev.source.hidden)
+                               if(ev.others[1] == "Gmr" and ev.others[2] > 0)
+                                 MemReason := ev.others[2];
+                               else
+                                 MemReason := GMR_ATTACKED;
+                               endif
+                               Fight(ev.source);
+                             endif
+
+                             ev := 0;
+                             return 1;
+
+    EVID_ITEM_GIVEN:         if(IsSleeping(me))
+                               MoveToPack(ev.item, ev.source);
+                               ev := 0;
+                               return 1;
+                             endif
+                               
+    EVID_ENTEREDAREA:        CheckEntered(ev.source);
+                             ev := 0;
+                             return 1;
+
+    EVID_PUSH:               if(IsSleeping(me))
+                               GuardWakeUp();
+                               ev := 0;
+                               return 1;
+                             endif
+  endcase
+
+  return StdCityNpcHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  text := lower(text);
+  EraseObjProperty(me,"Sleeping");
+
+  if(text["ucz"] and Distance(me,who) < 3)
+    TurnToward(who);
+    if(len(text) < 8)
+      Say("Hm? ucz?");
+    elseif(CanNpcSpeakWith(who))
+      TrainSkill(me, who);
+    endif
+  elseif(text["straz"] or (text["pomoc"]))
+    TurnToward(who);
+    NextWander := ReadGameClock() + GUARD_WANDER_TIME;
+    if(text["zlodziej"])
+      Say("Zlodziej?!");
+      Say("*rozglada sie*");
+      if(!LookForCriminals(LFCF_THIEF))
+        Say("Co mnie wolasz na darmo?! Nie ma tu zadnego zlodzieja");
+        Say("*wzdycha*");
+      endif
+    else
+      if(!LookForCriminals())
+        case(RandomInt(3))
+          1: Say("Na co mnie wolasz? Nie widze nikogo do zabicia!");
+          2: Say("Po kiego sie wydzierasz, jak nie ma kogo zabic...");
+          default: Say("Rozejrzal"+ggm(me,8)+" sie i nie widze tutaj nikogo lamiacego zasady w miescie!");
+        endcase 
+      endif
+    endif
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Fight(NewOpp, IsTamedMemRsn := 0)
+
+  
+  if(IsMajorByLocation(me, NewOpp))
+	Say("*Nie bije burmistrzow*");
+	return;
+  endif
+  
+  if(IsGuardByLocation(me, NewOpp))
+	Say("*Nie bije strazy*");
+	return;
+  endif
+  
+  if(me.frozen or IsNpcGuard(NewOpp) or NewOpp.enabled("invul") or IsJailed(NewOpp) or Distance(me, NewOpp) > HALT_THRESHOLD+1)
+    return;
+  endif
+
+  opponent := NewOpp;
+
+  if(!me.murderer)
+    var Gmr;
+    case(MemReason)
+      GMR_CHASING:        Gmr := "Scigany przez innego straznika";
+      GMR_ANIMAL_INB:     Gmr := "Zwierzak w budynku";
+      GMR_NOT_MURD:       Gmr := "Nie morderca!?";
+      GMR_TO_WEAK_MURD:   Gmr := "Za slaby morderca!?";
+      GMR_MURD:           Gmr := "Morderca";
+      GMR_CRIMINAL:       Gmr := "Kryminalista";
+      GMR_STEALING:       Gmr := "Kradziez";
+      GMR_ATTACKED:       Gmr := "Atak na straznika";
+      GMR_INMEMORY:       Gmr := "Pamietany";
+      GMR_PLAYER_ATTACK:  Gmr := "Atak na gracza";
+      
+      GMR_CITYCHASING:    var Cmob;
+                          if(IsTamed(opponent) and !IsTamedMemRsn)
+                            Cmob := GetMaster(opponent);
+                          else
+                            Cmob := opponent;
+                          endif
+                          
+                          var GChase := GetObjProperty(Cmob, PROP_GUARD_CHASE);
+                          if(GChase.Flags & GDCF_ALLCITIES)
+                            Gmr := "Scigany we wszystkich miastach";
+                          else
+                            Gmr := "Scigany w "+City;
+                          endif
+
+      GMR_NPCATTACKED:    Gmr := "Atak na Npca";
+      GMR_TAMEDFIGHT:     Gmr := "Straznik bil sie z jego zwierzakiem";
+      default:            Gmr := "Brak";
+    endcase
+
+    var CrimReason;
+    if(IsTamed(opponent) and !IsTamedMemRsn)
+      CrimReason := "Krim wynikajacy z ataku straznika ["+me.serial+"], Master Powod: "+Gmr+".";
+    else
+      CrimReason := "Krim wynikajacy z ataku straznika ["+me.serial+"], Powod: "+Gmr+".";
+    endif
+
+    SetCriminal(opponent, 1, "Fight", CrimReason);
+  endif
+  
+  if(opponent.dead or !opponent or opponent == me)
+    EndFight();
+    return;
+  endif
+  
+  if(opponent.cmdlevel > 0 and !GetObjProperty(opponent, "Possess"))
+    EndFight();
+    return;
+  endif
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  if(opponent.name)
+    Say("Ah ha! "+opponent.name+"!");
+  endif
+
+  Remember(opponent);
+
+  InitSmartRunMob(opponent);
+  InitSpecs();
+  
+  SetObjProperty(me,"#Chasing",opponent.serial);
+  SetObjProperty(opponent,"#BeingChased",me.serial);
+
+  SetOpponent(opponent);
+  SetWarMode(1);
+  prepare_for_fight();
+  TurnToward(opponent);
+  
+  var loops    := 0;
+  waittime     := 1;
+  
+
+  if(opponent.hidden)
+    opponent.hidden := 0;
+  endif
+  
+  while(opponent and !opponent.dead and !opponent.concealed and Distance(me,opponent) < 20)
+    ev := wait_for_event(waittime);
+    
+    case(ev.type)
+      EVID_ENGAGED:          if(ev.others == "forced")
+                               ChangeOpponent(ev.source);
+                             endif
+    endcase
+
+    if(!CloseDistance(opponent))
+      loops    := loops + 1;
+      waittime := 0;
+    else
+      loops    := 0;
+      waittime := 1;
+
+      if(DistZ(me,opponent) >= 20)
+        break;
+      endif
+
+      if(!me.warmode)
+        SetOpponent(opponent);
+        SetWarMode(1);
+      endif
+    endif
+
+    if(!in_combat_event_loop(loops))
+      break;
+    endif
+
+    if(opponent.hidden)
+      if(Distance(me, opponent) > 9)
+        break;
+      else
+        Say("Juz mi sie nie schowasz!");
+        opponent.hidden := 0;
+      endif
+    endif
+  endwhile
+
+  if(opponent)
+    if(CInt(GetObjProperty(opponent,"#BeingChased")) == me.serial)
+      EraseObjProperty(opponent,"#BeingChased");
+    endif
+  endif
+
+  post_combat();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EndFight()
+
+  opponent := 0;
+  waittime := GUARD_WAITTIME;
+
+  SetOpponent(0);
+  SetWarmode(0);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeOpponent(Opp)
+
+  if(opp)
+    if(opponent != Opp)
+      opponent := Opp;
+      SetOpponent(opponent);
+      SetWarMode(1);
+      TurnToward(opponent);
+    endif
+  else
+    EndFight();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function post_combat()
+
+  EraseObjProperty(me,"#Chasing");
+  DisableCombatEvents();
+  EnableMainEvents();
+  EndFight();
+
+  if(GetPoisonLevel(me))
+    sleep(1);
+    PerformAction(me, 0x22);
+    CurePoison(me);
+    PlaySoundEffect(me, 0x31);
+    sleep(1);
+  endif
+
+  if(GetHp(me) < GetMaxHP(me))
+    sleep(1);
+    PerformAction(me, 0x22);
+    PlaySoundEffect(me, 0x32);
+    sleep(1);
+  endif
+  
+  sleep(1);
+  Say("*wrr*");
+  sleep(1);
+  move_to_anchor();
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function prepare_for_fight()
+
+  DisableMainEvents();
+  EnableCombatEvents();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnableMainEvents()
+
+  DisableEvents(EVID_DISENGAGED);
+  EnableEvents(EVID_ENGAGED + EVID_DAMAGED);
+  EnableEvents(EVID_ITEM_GIVEN);
+  EnableEvents(EVID_SPEECH, HALT_THRESHOLD);
+  EnableEvents(EVID_ENTEREDAREA,HALT_THRESHOLD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisableMainEvents()
+
+  DisableEvents(EVID_ENGAGED + EVID_DAMAGED );
+  DisableEvents(EVID_ITEM_GIVEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnableCombatEvents()
+
+  EnableEvents( EVID_ENGAGED + EVID_DAMAGED + EVID_PEACEMADE );
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisableCombatEvents()
+
+  DisableEvents( EVID_ENGAGED + EVID_DAMAGED + EVID_PEACEMADE );
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function in_combat_event_loop(byref loops)
+
+  if(GetPoisonLevel(me))
+    sleep(1);
+    PerformAction(me, 0x22);
+    CurePoison(me);
+    PlaySoundEffect(me, 0x31);
+    sleep(1);
+  endif
+  
+  if(loops > 80)
+    if(!(loops % 10))
+      if(!(AiFlags & AIF_TMP_LOS))
+        if(SeekNextTarget())
+          return 0;
+        endif
+      endif
+    endif
+  endif
+
+  if(loops >= 100)
+    if(!(loops % 20))
+      Say("Wracaj tu!");
+    endif
+  endif
+
+  if(loops > 120)
+    if(CheckWaterOpp())
+      return 0;
+    elseif(!(AiFlags & AIF_TMP_LOS))
+      move_to_anchor();
+      return 0;
+    else
+      loops := loops - 60;
+    endif
+  endif
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckWaterOpp()
+
+  if(opponent.isa(POLCLASS_NPC))
+    if(GetNpcConfig(opponent).MoveMode["S"])
+      KillWaterOpp();
+    endif
+  elseif(opponent.multi)
+    if(opponent.multi.isa(POLCLASS_BOAT))
+      KillWaterOpp();
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function KillWaterOpp()
+
+  if(GetStandZ(opponent.x, opponent.y, opponent.realm, GSF_GETMAPZ) == error)
+    sleepms(500);
+    PerformAction(me, ANIM_CAST_AREA);
+    sleep(2);
+    PlayLightningBoltEffect(opponent);
+    DealDamage(opponent, GetMaxHp(opponent)+1, me);
+    return 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckGuardSleep()
+
+  if(GetObjProperty(me, "NoSleep"))
+	return;
+  endif
+
+  if(CInt(GetObjProperty(me,"WakeUpTime")) < ReadGameClock())
+    curHour := GetHour();
+    if(curHour >= 1 and curHour <= 4)
+      SetObjProperty(me, "Sleeping", 1);
+    else
+      EraseObjProperty(me, "Sleeping");
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CloseDistance(opponent)
+
+  if(IsArcherGuard)
+    if(!CheckLineOfSight(me,opponent))
+      return !SmartRunToward(opponent);
+    endif
+
+    if(Distance(me,opponent) < 5)
+      TurnToward(opponent);
+      return 1;
+    endif
+  endif
+
+  if(!CheckLineOfSight(me, opponent))
+    if(IsInBuilding(opponent.x,opponent.y,opponent.realm) or RandomInt(30) == 1)
+      OpenDoors();
+    endif
+    return !SmartRunToward(opponent);
+  endif
+
+  case (Distance( me, opponent ))
+    1:
+    0:       SmartRunMobSucceded(opponent);
+             return 1;
+
+    default:
+             if(IsInBuilding(opponent.x,opponent.y,opponent.realm) or RandomInt(30) == 1)
+               Opendoors();
+             endif
+               
+             return !SmartRunToward(opponent);
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckEntered(who)
+
+  if(who.dead or who.hidden or who.concealed or who.cmdlevel or me.frozen or IsJailed(who))
+    return;
+  endif
+    
+  if(IsPlayer(who))
+    if(who.criminal and IsAttackingPlayer(who))
+      MemReason := GMR_PLAYER_ATTACK;
+      Fight(who);
+      return;
+    elseif(IsAttackingSkGuarded(who))
+      MemReason := GMR_PLAYER_ATTACK;
+      Fight(who);
+      return;
+  elseif(IsCastingOffensiveNear(who, 15, ICN_ONLYCITY))
+      MemReason := GMR_MAGIC_CAST;
+      Fight(who);
+      return;
+    endif
+  endif
+
+  if(MeHaveFlag("GuardOnlyPvp"))
+
+    if(IsPlayer(who))
+      var Victim := GetAggressivePlayer(who, GAP_CRIMINAL);
+
+      if(IsPlayer(Victim) and !Victim.murderer and !Victim.criminal)
+        Say(Victim.name+", a ty co sobie tutaj urzadzasz?!");
+        MemReason := GMR_PLAYER_ATTACK;
+        Fight(who);
+        return;
+      endif
+
+    endif
+
+    return;
+  endif
+
+  if(IsPlayerTamed(who))
+    if(GetObjProperty(who, "SummonOffensive"))
+      MemReason := GMR_MAGIC_CAST;
+      return 1;
+    endif
+  endif
+  
+  if(IsInMemory(who) and GetRememberTime(who) + CHASE_TIME > ReadGameClock())
+    if(IsPlayer(who) and MeHaveFlag("NoPlayerAttack"))
+      return;
+    endif
+
+    MemReason := GMR_INMEMORY;
+    Say("Mowil"+ggm(me,8)+" cos!");
+    Fight(who);
+  elseif(BeingChased(who))
+    MemReason := GMR_CHASING;
+    Say("Aha !");
+    Fight(who);
+  elseif(!me.murderer and who.murderer and IsPlayer(who) and GetMurdersCount(who) >= 10)
+ 
+    if(MeHaveFlag("NoPlayerAttack"))
+      return;
+    endif
+    
+    var cfgElem := GetNpcConfig(me);
+
+    if(CInt(cfgElem.GuardIgnoreSkReq))
+      if(GetBaseSkill(who, CInt(cfgElem.GuardIgnoreSkReq)) >= 40)
+        return;
+      endif
+    endif
+    MemReason := GMR_MURD;
+    Fight(who);
+
+  elseif(MeHaveFlag("GuardEveryWhere"))
+    CheckGuardFight(who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SeekNextTarget()
+
+  foreach Mob in ListMobilesInLineOfSight(me,HALT_THRESHOLD)
+    if(Mob != opponent)
+      if(CanFightWith(Mob))
+        Fight(Mob);
+        return 1;
+      endif
+    endif
+  endforeach
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+  
+function BeingChased(who)
+
+  if(GetObjProperty(who,"#BeingChased"))
+    var ChGuard := FindNpcBySerial(GetObjProperty(who,"#BeingChased"));
+    if(ChGuard)
+      if(CInt(GetObjProperty(ChGuard,"#Chasing")) == who.serial and me.murderer == ChGuard.murderer)
+        return 1;
+      endif
+    endif
+  endif
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GuardWakeUp()
+
+  if(IsSleeping(me))
+    SetObjProperty(me,"WakeUpTime",ReadGameClock() + WAKE_UP_TIME);
+    TurnTowardLocation(me.x + 1,me.y);
+    sleepms(100);
+    TurnTowardLocation(me.x - 1,me.y);
+    sleepms(100);
+    TurnTowardLocation(me.x,me.y + 1);
+    sleepms(100);
+    TurnTowardLocation(me.x,me.y - 1);
+    sleepms(100);
+    if(!LookForCriminals())
+      if(RandomInt(100) < 5)
+        Say("Oippss!");
+        sleepms(300);
+        Say("Jeszcze raz i dostaniesz po lbie!");
+      else
+        Say("*grrr*");
+        sleepms(600);
+        Say("*wzdycha*");
+        sleepms(900);
+        Say("Po co mnie budzisz na darmo!");
+        sleepms(500);
+      endif
+    endif
+    EraseObjProperty(me,"Sleeping");
+    return 1;
+  else
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

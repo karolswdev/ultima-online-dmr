@@ -1,0 +1,120 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/buffs";
+include "../pkg/magic/magiceffects/modcore";
+include "include/poison";
+include "include/proc";
+include "include/finding";
+include "include/client/sounds";
+include "include/client/effects";
+include "include/checks/stdchecks";
+
+include "../pkg/systems/combat/combat";
+include "artifacts";
+
+//--------------------------------------------------------------------------------
+
+const CHARGE_TIME := 14;
+const MIN_ACTIVITY_TIME := 3600;
+
+//--------------------------------------------------------------------------------
+
+program ArtifactControl(Item)
+
+  var UserSer := CInt(GetObjProperty(Item,"equipped"));
+  var User    := FindPlayerBySerial(UserSer);
+  
+  if(!User)
+    return;
+  endif
+
+  if(ExPid(GetObjProperty(Item,"#Pid")))
+    return;
+  endif
+  
+  SetObjProperty(Item,"#Pid",GetPid());
+  IncRevision(Item);
+  
+  var Mods    := GetArtMods(Item);
+  var Charges := GetArtCharges(Item);
+  var ItemSer := item.serial;
+  var MinTime := ReadGameClock() + MIN_ACTIVITY_TIME;
+  var done := 0;
+  
+  if(User and Charges > 0 and Mods)
+    var ev;
+    
+    PlaySoundEffect(User,SFX_SPELL_MANA_VAMPIRE);
+    PlayObjectCenteredEffect(User,FX_MARK_EFFECT,0x1a,0x1a);
+    PlayObjectCenteredEffect(User,FX_HEAL_EFFECT,0x1a,0x1a);
+    
+    ApplyArtMods(User,Mods,Item);
+
+    while((User.isa(POLCLASS_NPC) or IsLoggedIn(User)) and Item)
+
+      ev := wait_for_event(12);
+
+      case(ev.type)
+        EVID_EQUIP:     
+          PlaySoundEffect(User,SFX_SPELL_MANA_VAMPIRE);
+          PlayObjectCenteredEffect(User,FX_MARK_EFFECT,0x1a,0x1a);
+          PlayObjectCenteredEffect(User,FX_HEAL_EFFECT,0x1a,0x1a);
+          
+          User := ev.source;
+          UserSer := User.serial;
+
+          if(User)
+            ApplyArtMods(User,Mods,Item);
+            done := 0;
+          endif
+
+        EVID_UNEQUIP:   
+        
+          PlaySoundEffect(User,SFX_SPELL_PARALYZE);
+          UndoArtMods(User,Mods,ItemSer);
+          done := 1;
+      endcase
+
+      if(!Item)
+        PlaySoundEffect(User,SFX_SPELL_PARALYZE);
+        UndoArtMods(User,Mods,ItemSer);
+        done := 1;
+        break;
+      endif
+
+      if(MinTime < ReadGameClock() and done)
+        break;
+      endif
+      
+      Charges := Charges - 1;
+      SetArtCharges(Item,Charges);
+      if(Charges <= 0)
+        break;
+      endif
+      
+    endwhile
+  endif
+  
+  var ChName := ReadConfigFile(ITEMS_CFG)[Item.objtype].ChName;
+  if(Charges <= 0)
+    SendSysMessage(User, GetName(Item) + " wyczarpal" + ChName  + " swoja moc i rozpadl" + ChName + " sie.", FONT_NORMAL, COLOR_RED);
+    DestroyItem(Item);
+  endif
+  
+  if(!User)
+    User := FindPlayerBySerial(UserSer);
+  endif
+  
+  EraseObjProperty(Item,"#Pid");
+  IncRevision(Item);
+
+endprogram
+
+//--------------------------------------------------------------------------------

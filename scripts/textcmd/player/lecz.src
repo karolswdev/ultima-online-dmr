@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include ":healing:healing";
+include "include/objtypes/misc";
+include "include/items/containers";
+
+//-----------------------------------------------------------------------------
+
+program HealCmd(who, text)
+
+  if(text and text != "czyste" and text != "zakrwawione")
+    SendSysMessage(who, ".lecz czyste/zakrwawione", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var objtype;
+
+  if(text == "czyste")
+    objtype := UOBJ_BANDAGE;
+  elseif(text == "zakrwawione")
+    objtype := UOBJ_BLOODYBANDAGES;
+  elseif(IsVampire(who))
+    objtype := UOBJ_BLOODYBANDAGES;
+  else
+    objtype := UOBJ_BANDAGE;
+  endif
+
+
+  if(text)
+    UseBandage(who , objtype);
+  else
+    UseBandage(who, objtype, who.serial);
+  endif
+    
+
+endprogram
+
+//-----------------------------------------------------------------------------

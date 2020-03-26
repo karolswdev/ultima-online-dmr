@@ -1,0 +1,98 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/findcity";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+var Points := GetDefaultPointsValue(SKILLID_TRACKING);
+
+//-----------------------------------------------------------------------------
+
+program UseWood( who, wood )
+
+  var x,y,z;
+
+  if(!StandardItemCheck(who,wood))
+    return;
+  endif
+
+  if (wood.container)
+    SendSysMessage( who, "Poloz to na ziemie najpierw!",FONT_NORMAL,COLOR_RED );
+    return;
+  endif
+
+  NoLongerBusy(who);
+
+  if(GetObjProperty(who, "#camptimer"))
+    if(GetObjProperty(who, "#camptimer") > ReadGameClock())
+      SendSysMessage(who, "Musisz chwilke odczekac.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  var SkVal := GetBaseSkill(who, SKILLID_TRACKING);
+
+  if (CheckSkill( who, SKILLID_TRACKING, 10, Points ))
+    var Rlm := wood.realm;
+    x := wood.x;
+    y := wood.y;
+    z := wood.z;
+
+    Detach();
+    var campfire := CreateItematLoc( x, y, z, UOBJ_CAMPFIRE, 1, Rlm );
+    
+    var City := FindCity(who);
+    if(City)
+      SetCriminal(who, 1, "Camping", "Rozpalil"+ggm(who,4)+" ognisko ["+campfire.serial+"] w miescie "+City+".");
+    endif
+       
+    SubtractAmount(wood,1);
+    
+    SetObjProperty(who, "#camptimer", ReadGameClock()+5);
+    if(wood)
+      ReleaseItem(wood);
+    endif
+
+    Detach();
+    SetScriptController(0);
+
+    var Time := 30 + CalcSkillExponential(who, SKILLID_TRACKING, 100);
+    var Delay := Max(5000 - CalcSkillExponential(who, SKILLID_TRACKING, 100)*20, 2000);
+
+    if(SkVal >= 40)
+      var Sleeper := ReadGameClock();
+      while((Sleeper + Time) > ReadGameClock() and campfire)
+        foreach Mob in ListMobilesNearLocation(campfire.x,campfire.y,campfire.z,2,Rlm)
+          if(IsPlayer(Mob) or IsTamed(Mob))
+            HealMobile(Mob,1, who);
+            HealStamina(Mob,1, who);
+          endif
+        endforeach
+        var Campfires := ListItemsNearLocationOfType(campfire.x,campfire.y,campfire.z,4,UOBJ_CAMPFIRE,Rlm);
+
+        if(Campfires.size() > 1)
+          sleepms(Delay + (Campfires.size()-1)*1000);
+        else
+          sleepms(Delay);
+        endif
+      endwhile
+    else
+      sleep(CInt(Time/2));
+    endif
+
+    DestroyItem(campfire);
+
+    campfire := CreateItemAtLoc(x,y,z,UOBJ_ASHES,1,Rlm);
+    sleep(60);
+    DestroyItem(campfire);
+  else
+    SendSysMessage(who, "Nie udalo Ci sie rozpalic ogniska.", FONT_NORMAL,COLOR_RED);
+    SetObjProperty(who, "#camptimer", ReadGameClock()+5);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

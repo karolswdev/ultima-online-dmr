@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "../pkg/systems/weather/weather";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 27;
+
+//-----------------------------------------------------------------------------
+
+program VwBloodPower(Parms)
+
+  VampireRuneCast(Parms, VW_WCID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  PlaySoundEffect(Caster, SFX_SPELL_BLESS);
+  PlaySoundEffect(Caster, SFX_FEINT);
+  PlayPcEffect(Caster, FX_MARK_EFFECT, 40, 0xF, 0xF, 3);
+  
+  var ModAmount := CInt(GetBaseSkill(Caster,SKILLID_VAMPIRE) / 10) + CInt(GetBaseSkill(Caster,SKILLID_SPIRITSPEAK) / 10) - 4 + RandomInt(4); //maks 20 hp
+  var Duration  := CInt(ModAmount * 15); //maksymalnie 5 min
+  var ModFlags  := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  if(CanMod(Caster, MOD_LIFE))
+    GainWarcastPoints(Caster, Caster, VW_WCID, WCGAIN_DEFENSIVE);
+  endif
+
+  DoMod(Caster, MOD_LIFE, CInt(ModAmount), Duration, 0, ModFlags);
+
+ /* if(CanMod(Caster, MOD_STR) == 0)
+    ModifyMod(Caster, MOD_STR, 1 + CInt(ModAmount*0.15), CInt(Duration*0.2));
+  else
+    DoMod(Caster, MOD_STR, ModAmount, Duration);
+  endif
+ */ 
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

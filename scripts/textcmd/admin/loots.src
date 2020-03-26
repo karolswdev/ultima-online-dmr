@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/misc";
+include "include/loots";
+include "include/items";
+include "include/items/creation";
+
+//-----------------------------------------------------------------------------
+
+program loot(who, text)
+
+	if(!text)
+		SendSysMessage(who, "Uzycie: .loots [numer-grupy]", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	var backpack := CreateItemInPack(who, "backpack", 1);
+	SetObjProperty(backpack, "Created", who.serial);
+	backpack.name := "Loot " + text;
+	
+	if(backpack)
+		CreateLoot(backpack, 111);
+	endif
+	
+	foreach item in ListRootItemsInContainer(backpack)
+		SetObjProperty(item, "Created", who.serial);
+	endforeach
+	
+	SendSysMessage(who, "Stworzono loot: " + text, FONT_NORMAL, COLOR_GREEN);
+	
+
+endprogram
+
+//-----------------------------------------------------------------------------

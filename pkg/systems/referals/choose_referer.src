@@ -1,0 +1,162 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/gump_utils";
+include "include/client/fonts";
+include "include/const/props";
+include "include/bits";
+include "include/accounts";
+include "include/player/misc";
+include "include/cmds/misc";
+include "include/cmds/cmds";
+include "include/clock";
+include "include/gumpboxes";
+include "include/checks/geometry";
+
+include ":referals:referals";
+include ":referals:common";
+
+//-----------------------------------------------------------------------------
+
+program ScChooseReferer(who)
+  
+  while(IsInStartLocation(who) or !IsCharCreationFinished(who))
+    sleep(10);
+  endwhile
+
+  if(HaveBeenInvited(who))
+    SendSysMessage(who, "Juz ustawil"+ggm(who,3)+" osobe, ktora Cie zaprosila.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Res;
+  var ErrText, CharName;
+
+  while(IsLoggedIn(who))
+    BuildReferals(who, CharName, ErrText);
+
+    Res := GSend(who);
+
+    if(Res.butid != 10)
+      Res := 0;
+      break;
+    else
+      CharName := CroppedId(Res.text[5]);
+      Res := VerifyCharacter(who, CharName);
+
+      if(Res == error)
+        ErrText := Res.errortext;
+      else
+        break;
+      endif
+    endif
+  endwhile
+
+  if(!Res)
+    SendSysMessage(who, "Anulowano wybor.", FONT_NORMAL, COLOR_RED);
+  else
+  
+    if(HaveBeenInvited(who))
+      SendSysMessage(who, "Juz ustawil"+ggm(who,3)+" osobe, ktora Cie zaprosila.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    ChooseReferer(who, Res);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildReferals(who, CharName, ErrText)
+
+  GInit(100,50);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,3600,500,260);
+  GButton(465,15,0xA94,0xA95,0);
+  GTextLine(210,18,560,"Zaproszenie");
+  GGumpPic(15, 42, 0xBB9);
+  GGumpPic(245, 42, 0xBB9);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+  
+  GTextLine(30, 58, 550, ToUnicode("Czy zosta³"+ggm(who, 3)+" zaproszony przez kogoœ?"));
+  GTextLine(30, 78, 550, ToUnicode("Jeœli tak, wpisz pe³ne imie tej osoby. Na pewno bêdzie Ci wdziêczna."));
+  GTextLine(30, 108, 999, ToUnicode("Jeœli wolisz, mo¿esz zrobiæ to póŸniej u¿ywaj¹c komendy .zaproszenia"));
+  GTextLine(30, 128, 999, ToUnicode("Miej jednak na uwadze, ¿e opcja ta mo¿liwa jest jedynie przez"));
+  GTextLine(30, 148, 999, ToUnicode("nastêpna realna godzinê ¿ycia Twojej postaci."));
+
+  if(ErrText)
+    GTextLine(30, 180, 1211, ToUnicode("B³¹d: "+ErrText));
+  endif
+
+  BQGAddTextBox(70, 210, 210, 20, FCLR_TEBOX, CharName, BQG_EDITABLE, 1, 5);
+
+  GTextLine( 30, 210, 998, ToUnicode("Imiê:" ));
+
+  GButton( 350, 210, 0x81a, 0x81b, 10 );
+  GButton( 410, 210, 0x817, 0x818, 1 );
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseReferer(who, referer)
+
+  if(AddReferal(who, referer))
+    SendSysMessage(who, "Ustawil"+ggm(who,3)+" osobe, ktora Cie zaprosila na "+GetRealName(referer)+"!", FONT_NORMAL, COLOR_WHITE);
+
+    if(IsLoggedIn(Referer))
+      SendSysMessage(who, "Osoba "+GetRealName(who)+" ustawila Cie jako osobe zapraszajaca!", FONT_NORMAL, COLOR_WHITE);
+    endif
+  else
+    SendSysMessage(who, "Wystapil blad podczas ustawiania, sprobuj pozniej.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckCharacter(who, CharName)
+
+  if(!CharName)
+    return RetError("Nie wpisano imienia postaci.");
+  endif
+
+  var Char := FindCharacterByName(CharName, 1);
+
+  if(!Char or IsStaff(Char))
+    return RetError("Niestety postaæ o takim imieniu nie istnieje!");
+  endif
+
+  if(Char.acctname == who.acctname)
+    return RetError("Nie mo¿esz sam"+ggm(who,4)+" siebie zaprosiæ!");
+  endif
+
+  if(IsAlreadyRefered(Char, who))
+    return RetError("Ty juz zaprosil"+ggm(who,3)+" osobe "+GetRealName(Char)+"!");
+  endif
+
+  return Char;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifyCharacter(who, CharName)
+
+  var Char := CheckCharacter(who, CharName);
+
+  if(!Char)
+    return Char;
+  endif
+
+  if(!YesNoEx(who, "Wybral"+ggm(who,3)+" postac o imieniu "+GetRealName(Char)+".|Czy jestes pewn"+ggm(who,6)+", ze to ta osoba Cie zaprosila?"))
+    return 0;
+  endif
+
+  return CheckCharacter(who, CharName);
+
+endfunction
+
+//-----------------------------------------------------------------------------

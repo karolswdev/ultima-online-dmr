@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumps";
+
+include ":housing:common";
+include "rolls";
+
+//-----------------------------------------------------------------------------
+
+program RollTapestry(who,tap)
+
+  if(!StandardItemCheck(who, tap, NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+  
+  if(!IsGm(who))
+    if(!tap.multi)
+      if(!IsOwner(who, tap))
+        SendSysMessage(who,"Ta gobelina nie nalezy do Ciebie.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    elseif(!IsHouseOwner(who,tap.multi) and !IsHouseCoOwner(who,tap.multi) and !IsOwner(who, tap))
+      SendSysMessage(who,"Nie mozesz zwinac tej gobeliny.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(CarpetRollBack(tap, who.backpack))
+    SendSysMessage(who, "Zwin"+ggm(who,5)+" gobeline.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Nie udalo sie zwinac gobeliny!", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

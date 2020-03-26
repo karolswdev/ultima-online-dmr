@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+
+include "guild";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+var Guilds,Timers,EGuild;
+
+//-----------------------------------------------------------------------------
+
+program GuildControl(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+  
+  while(1)
+    sleep(360);
+    Guilds := ListGuilds();
+
+    foreach Guild in Guilds
+
+      Timers := GetAllyDecs(Guild);
+      foreach Timer in Timers
+        EGuild := FindGuild(_Timer_iter);
+        if(!EGuild)
+          Timers.erase(_Timer_iter);
+          SetAllyDecs(Guild,Timers);
+        elseif(Timer + GUILD_DECEXPIRE < ReadGameClock())
+          Timers.erase(_Timer_iter);
+          SetAllyDecs(Guild,Timers);
+        endif
+      endforeach
+
+      Timers := GetEnemyDecs(Guild);
+      foreach Timer in Timers
+        EGuild := FindGuild(_Timer_iter);
+        if(!EGuild)
+          Timers.erase(_Timer_iter);
+          SetEnemyDecs(Guild,Timers);
+        elseif(Timer + GUILD_DECEXPIRE < ReadGameClock())
+          if(!Guild.isenemyguild(EGuild))
+            Guild.addenemyguild(EGuild);
+            RefreshGuildsStat(Guild);
+            RefreshGuildsStat(EGuild);
+            AlarmMembers(Guild,"Wojna z Gildia "+GetGuildName(EGuild)+" rozpoczeta!");
+            AlarmMembers(EGuild,"Wojna z Gildia "+GetGuildName(Guild)+" rozpoczeta!");
+          endif
+          Timers.erase(_Timer_iter);
+          SetEnemyDecs(Guild,Timers);
+        endif
+      endforeach
+
+      if(!Guild.GetProp("MembersChecked"))
+        if(GetGuildCreateTime(Guild) + GD_MEMB_CHECK_DELAY < ReadGameClock())
+          if(Guild.members.size() < MIN_GUILD_MEMBERS)
+            var Stone := GetStoneFromGuild(Guild);
+            DestroyItem(Stone);
+          else
+            Guild.SetProp("MembersChecked", ReadGameClock());
+          endif
+        endif
+      elseif(Guild.members.size() < MIN_GUILD_MEMBERS)
+        if(!Guild.GetProp("MembersLeft"))
+          Guild.SetProp("MembersLeft", ReadGameClock());
+        endif
+
+        if(Guild.GetProp("MembersLeft") + GD_MEMBLEFT_CHECK_DELAY < ReadGameClock())
+          if(Guild.members.size() < MIN_GUILD_MEMBERS)
+            var Stone := GetStoneFromGuild(Guild);
+            DestroyItem(Stone);
+          else
+            Guild.EraseProp("MembersLeft");
+          endif
+        elseif(((ReadGameClock() - Guild.GetProp("MembersLeft")) % GD_MEMBLEFT_NOTIFY_DELAY) < 360)
+          var Master := FindGuildGm(Guild);
+          if(IsLoggedIn(Master))
+            SendSysMessage(Master, "Pozostalo Ci "+GameTime((Guild.GetProp("MembersLeft") + GD_MEMB_CHECK_DELAY) - ReadGameClock())+" czasu, zanim Twa Gildia zostanie zniszczona z powodu braku czlonkow.", FONT_NORMAL, COLOR_RED_LIGHT);
+          endif
+        endif
+      endif
+
+    endforeach
+  
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

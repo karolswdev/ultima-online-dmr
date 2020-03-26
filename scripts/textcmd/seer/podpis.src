@@ -1,0 +1,23 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+
+program textcmd_createSignature(who, text);
+
+	if(!text)
+		SendSysMessage(who, "Uzycie: .podpis To bedzie nowy podpis", FONT_NORMAL, COLOR_GREEN);
+		return;
+	endif
+
+	SendSysMessage(who, "Wybierz cel:", FONT_NORMAL, COLOR_GREEN);
+	var trg := Target(who);
+	
+	if(trg)
+		if(trg.isA(POLCLASS_ITEM))
+			SetObjProperty(trg, "SpecialTag", text);
+			SetName(trg, trg.name);
+		endif
+	endif
+
+endprogram

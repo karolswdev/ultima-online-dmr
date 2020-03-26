@@ -1,0 +1,562 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/items";
+include "include/log";
+include "include/move";
+include "include/std";
+include "include/player/target";
+include "include/cmds/itemsgump";
+include "include/cmds/cancmd";
+include "include/coords";
+
+include ":baseitems:creation";
+include ":wmtools:common";
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+program StaticsManager(who,text)
+
+  if(!CanUseCmd(who, "stc"))
+    return;
+  endif
+
+  SetLogRunCycles(LST_CMD);
+ 
+  text := SplitWords(text);
+  
+  case(text[1])
+    "add":     AddStc(who,text[2],CInt(text[3]));
+    "addex":   SetStc(who,0);
+    "era":     DelStc(who);
+    "eranear": DelStcNear(who,CInt(text[2]));
+    "addexne": SetStcNear(who,CInt(text[2]),CInt(text[3]));
+    "inf":     SendStcInfo(who);
+    "srch":    SearchStatics(who, text);
+    "isallstc":IsAllStatic(who, text);
+
+    "cx":      CreateComplexItems(who, text, CRI_TO_STC);
+    "set":     MakeItemsFromSet(who, text, CRI_TO_STC);
+    "copy":    CopyStatics(who, text);
+
+    "list":    ListStaticsInGump(who, CInt(text[2]));
+    "jump":    StaticsJump(who, CInt(text[2]), CInt(text[3]));
+    "near":    ListNearStatics(who, text);
+
+    "?":       SendSysMessage(who,".stc [add/addex/addexne/era/eranear/inf/srch/cx/set/isallstc/near]",FONT_NORMAL,COLOR_RED);
+    default:   SendSysMessage(who,"Zla opcja [.stc ?]",FONT_NORMAL,COLOR_RED);
+  endcase
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddStc(who,Obj,ModZ := 0)
+
+  var Item := CreateItemAtLoc(who.x,who.y,who.z+ModZ,Obj,1,who.realm);
+
+  if(!Item)
+    SendSysMessage(who,"Blad - "+Item,FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!SetStc(who,Item))
+    DestroyItem(Item);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetStc(who,Targ)
+
+  if(!Targ)
+    Targ := ObjTarget(who);
+  endif
+  
+  var Res := CanBeStcItem(Targ);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    return Res;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(ItemCfg[Targ.objtype].Script or ItemCfg[Targ.objtype].ControlScript)
+    SendSysMessage(who,"Przedmiot jest uzywalny, na pewno?",FONT_NORMAL,COLOR_GREEN);
+    if(!YesNo(who,"Tak ?"))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  Res := SetItemStc(Targ, who);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    return Res;
+  endif
+  
+  SendSysMessage(who,"Zaznaczono ["+Targ.desc+"] jako static.",FONT_NORMAL,COLOR_BLUE);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelStc(who)
+
+  var Targ := ObjTarget(who);
+
+  if(!Targ.isa(POLCLASS_ITEM))
+    SendSysMessage(who,"To nie przedmiot.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!DelItemStc(Targ))
+    SendSysMessage(who,"Przedmiot ["+Targ.desc+"] nie jest zaznaczony jako static.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Przedmiot ["+Targ.desc+"] nie jest juz zaznaczony jako static.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelStcNear(who, Range)
+
+  var Num := 0, na := 0;
+
+  if(Range > 10)
+    if(!IsAdmin(who))
+      SendSysMessage(who, "Za duzy zasieg.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+  endif
+
+  foreach Item in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    if(Item.isa(POLCLASS_ITEM))
+      if(IsStc(Item))
+        Num := Num + 1;
+        DelItemStc(Item);
+      endif
+      na := na + 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Odznaczono ["+Num+"] przedmiotow. Wszystkich: "+na,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetStcNear(who,Range,All)
+
+  var Num    := 0;
+  var ne     := 0;
+  var na     := 0;
+  var nb     := 0;
+  var Errors := dictionary;
+
+  if(Range > 10)
+    if(!IsAdmin(who))
+      SendSysMessage(who, "Za duzy zasieg.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+  endif
+  
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  
+  foreach Item in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    if(Item.isa(POLCLASS_ITEM))
+      if(!All)
+        if(ItemCfg[Item.objtype].Script or ItemCfg[Item.objtype].ControlScript)
+          ne := ne + 1;
+          continue;
+        endif
+      endif
+    
+      var Res := SetItemStc(Item);
+
+      if(Res)
+        Num := Num + 1;
+      else
+        nb := nb + 1;
+        if(Res.errortext)
+          Errors[Res.errortext] := CInt(Errors[Res.errortext])+1;
+        endif
+      endif
+    
+      na := na + 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Zaznaczono ["+Num+"] przedmiotow. Wszystkich: "+na+", Uzywalnych: "+ne+" Niedodawalne: "+nb,FONT_NORMAL,COLOR_BLUE);
+
+  foreach Err in Errors
+    SendSysMessage(who,"["+Err+"]: "+_Err_iter, FONT_NORMAL, COLOR_RED);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendStcInfo(who)
+
+  var Targ := ObjTarget(who);
+
+  if(!Targ.isa(POLCLASS_ITEM))
+    SendSysMessage(who,"To nie przedmiot.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Res := IsStc(Targ);
+  if(Res)
+    SendSysMessage(who,"Przedmiot zaznaczony jako static ["+Res+"].",FONT_NORMAL,COLOR_GREEN);
+    return;
+  else
+    SendSysMessage(who,"Przedmiot nie jest zaznaczony jako static.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SearchStatics(who, text)
+
+  var Statics := array;
+  var Rlms    := Realms();
+  var Obj     := CInt(text[2]);
+  var sX      := CInt(text[3]);
+  var sY      := CInt(text[4]);
+  var eX      := CInt(text[5]);
+  var eY      := CInt(text[6]);
+  var Realm   := who.realm;
+  var Width   := Rlms[Realm].width;
+  var Height  := Rlms[Realm].height;
+  var x,y,tx,ty;
+
+  if(!Obj)
+    SendSysMessage(who, "Nie podano ObjType. .stc srch objtype x_set y_set x_end y_end.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!eX)
+    eX := Width;
+  endif
+
+  if(!eY)
+    eY := Height;
+  endif
+
+  if(eX-sX > 512 or eY-sY > 512)
+    SendSysMessage(who, "Zakres za duzy, max 512.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(eX < sX or eY < sY)
+    SendSysMessage(who, "Bledny zakres, koncowa wspolrzedna wieksza od startowej.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  for(x:=sX;x<=eX;x:=x+64)
+    tx := x + 63;
+    if(tx > eX)
+      tx := eX;
+    endif
+
+    for(y:=sY;y<=eY;y:=y+64)
+      ty := y + 63;
+      if(ty > eY)
+        ty := eY;
+      endif
+
+      foreach Static in ListStaticsInBox(x, y, -128, tx, ty, 128, ITEMS_IGNORE_MULTIS, Realm)
+        if(Static.objtype == Obj)
+          Statics.append(Static);
+        endif
+      endforeach
+    endfor
+    SendSysMessage(who, "Szukanie X:"+x+" Found: "+Statics.size()+" Pid: "+GetPid(), FONT_NORMAL, COLOR_GREEN);
+  endfor
+
+  var Nr;
+  while(IsLoggedIn(who))
+    Nr := ShowItemsInGump(who, Statics);
+    if(Nr)
+      MoveObject(who, Statics[Nr].x, Statics[Nr].y, Statics[Nr].z, Realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListStatics(who, RlmId, byref List)
+
+  var x,y,n := 0,na := 0;
+      List  := array;
+  
+  var Realm  := GetRealmById(RlmId);
+  var Width  := Realms()[Realm].width;
+  var Height := Realms()[Realm].height;
+  var lProc, Proc;
+
+  SendSysMessage(who,"Realm: "+Realm,FONT_NORMAL,COLOR_GREEN);
+  
+  for(x:=0;x<Width;x:=x+32)
+    for(y:=0;y<Height;y:=y+32)
+      foreach Item in ListObjectsInBox(x,y,-127,x+31,y+31,127,Realm)
+        if(Item.isa(POLCLASS_ITEM))
+          if(IsStc(Item))
+            n := n + 1;
+            List.append(Item);
+          endif
+          na := na + 1;
+        endif
+      endforeach
+    endfor
+
+    Proc := (x * 100) / Width;
+
+    if(lProc != Proc and !(Proc % 10))
+      SendSysMessage(who,"["+Proc+"%] Stc: "+n+" All: "+na,FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    lProc := Proc;
+  endfor
+
+  SendSysMessage(who,"[100%] Stc: "+n+" All: "+na,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListStaticsInGump(who, RlmId)
+
+  var List;
+  ListStatics(who, RlmId, List);
+
+  var Realm := GetRealmById(RlmId);
+
+  var Nr;
+  while(IsLoggedIn(who))
+    Nr := ShowItemsInGump(who, List);
+    if(Nr)
+      MoveObject(who, List[Nr].x, List[Nr].y, List[Nr].z, Realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StaticsJump(who, RlmId, Set)
+
+  var Item, i, List;
+  ListStatics(who, RlmId, List);
+
+  if(Set <= 0)
+    Set := 1;
+  endif
+
+  for(i:=Set;i<=List.size();i:=i+1)
+    Item := List[i];
+    SendSysMessage(who, "Nr: ["+i+"] ["+Item.x+","+Item.y+","+Item.z+" "+Item.realm+"]", FONT_NORMAL, COLOR_GREEN);
+    MoveObject(who, Item.x, Item.y, Item.z, Item.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    if(!YesNo(who, "Next?"))
+      SendSysMessage(who, "Przerwano na Nr: ["+i+"]", FONT_NORMAL, COLOR_RED);
+      break;
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CopyStatics(who, text)
+
+  var Stcs := array;
+
+  var sx    := CInt(text[2]);
+  var sy    := CInt(text[3]);
+  var ex    := CInt(text[4]);
+  var ey    := CInt(text[5]);
+  var Realm := GetRealmById(CInt(text[6]));
+  var minx  := -1;
+  var maxx  := -1;
+  var miny  := -1;
+  var maxy  := -1;
+  var minz  := -128;
+
+  if(sx >= ex or sy >= ey)
+    SendSysMessage(who, "Bledne coordy ["+sx+" >= "+ex+" or "+sy+" >= "+ey+"]", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!Realm)
+    SendSysMessage(who, "Bledny RealmID.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  foreach Stc in ListStaticsInBox(sx, sy, -127, ex, ey, 127, 0, Realm)
+    Stcs.append(Stc);
+    if(minx > Stc.x or minx == -1)
+      minx := Stc.x;
+    endif
+    if(miny > Stc.y or miny == -1)
+      miny := Stc.y;
+    endif
+    if(maxx < Stc.x)
+      maxx := Stc.x;
+    endif
+    if(maxy < Stc.y)
+      maxy := Stc.y;
+    endif
+    if(minz > Stc.z or minz == -128)
+      minz := Stc.z;
+    endif
+  endforeach
+
+  if(!Stcs.size())
+    SendSysMessage(who, "W obszarze ["+sx+"x"+sy+"-"+ex+"x"+ey+"] nie ma zadnych statikow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Stc ["+Stcs.size()+"]: Gdzie skopiowac?", FONT_NORMAL, COLOR_GREEN);
+  var Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var cx  := CInt( (maxx+minx)/2 );
+  var cy  := CInt( (maxy+miny)/2 );
+  var Err := 0;
+
+  foreach Stc in Stcs
+    if(!CreateItemAtLoc(Loc.x+(Stc.x-cx), Stc.y+(Loc.y-cy), Loc.z+(Stc.z-minz), Stc.objtype, 1, who.realm))
+      Err := Err + 1;
+    endif
+  endforeach
+
+  SendSysMessage(who,"["+sx+"x"+ex+" "+sy+"x"+ey+"] Skopiowano ["+(Stcs.size()-Err)+"] Blednow: ["+Err+"]", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsAllStatic(who, text)
+
+  var Box := GetBoxCoordsFromText(who, text, "stc");
+
+  if(!Box)
+    return 0;
+  endif
+
+  var List := array;
+
+  foreach Item in ListObjectsInBox(Box.sX, Box.sY, -128, Box.eX, Box.eY, 128, Box.Realm)
+    if(CanBeStcItem(Item))
+      List.append(Item);
+    endif
+    Sleepms(1);
+  endforeach
+
+  if(!List.size())
+    SendSysMessage(who, "Nie znaleziono itemow, ktore mozna dodac do staticow.", FONT_NORMAL, COLOR_BLUE);
+    return 1;
+  endif
+
+  SendSysMessage(who, "Znaleziono ["+List.size()+"] itemow, ktore mozna dodac do staticow.", FONT_NORMAL, COLOR_GREEN_LIGHT);
+
+  var TempList, Nr;
+
+  while(IsLoggedIn(who))
+    TempList := array;
+
+    Nr := ShowItemsInGump(who, List);
+    if(Nr)
+      MoveObject(who, List[Nr].x, List[Nr].y, List[Nr].z, Box.Realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    else
+      break;
+    endif
+
+    foreach Item in List
+      if(CanBeStcItem(Item))
+        TempList.append(Item);
+      endif
+    endforeach
+
+    List := TempList;
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListNearStatics(who, text)
+
+  var Box := GetBoxCoordsFromText(who, text, "stc");
+
+  if(!Box)
+    return 0;
+  endif
+
+  var List := array;
+
+  foreach Item in ListObjectsInBox(Box.sX, Box.sY, -128, Box.eX, Box.eY, 128, Box.Realm)
+    if(Item.isa(POLCLASS_ITEM))
+      if(IsStc(Item))
+        List.append(Item);
+      endif
+    endif
+    Sleepms(1);
+  endforeach
+
+  if(!List.size())
+    SendSysMessage(who, "Nie znaleziono Staticow.", FONT_NORMAL, COLOR_RED);
+    return 1;
+  endif
+
+  SendSysMessage(who, "Znaleziono ["+List.size()+"] Staticow.", FONT_NORMAL, COLOR_GREEN);
+
+  var TempList, Nr;
+
+  while(IsLoggedIn(who))
+    TempList := array;
+
+    Nr := ShowItemsInGump(who, List, "Stc");
+    if(Nr)
+      MoveObject(who, List[Nr].x, List[Nr].y, List[Nr].z, Box.Realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    else
+      break;
+    endif
+
+    foreach Item in List
+      if(IsStc(Item))
+        TempList.append(Item);
+      endif
+    endforeach
+
+    List := TempList;
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

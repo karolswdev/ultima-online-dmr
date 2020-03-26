@@ -1,0 +1,350 @@
+//-----------------------------------------------------------------------------
+
+include "magicitems";
+
+include "include/attributes/main";
+include "include/tempmods";
+include "include/objtypes/skills";
+
+include ":hiding:hiding";
+include ":magiceffects:modcore";
+
+//-----------------------------------------------------------------------------
+
+const EQUIP_TIME       := 5;
+const INVIS_EQUIP_TIME := 600;
+const MIN_ACTIVITY_TIME := 1800;
+
+//-----------------------------------------------------------------------------
+
+var PrefixCharges := 0;
+var SuffixCharges := 0;
+var ChargesTime   := 0;
+var ItemSer       := 0;
+
+var gMagicPrefixMod,gMagicSuffixMod,gMagicLevel;
+var g_IsWeapon;
+
+//-----------------------------------------------------------------------------
+
+program MagicUpKeep(Parms)
+
+  var Who  := Parms[1];
+  var Item := Parms[2];
+
+  if(!who or !item)
+    return;
+  endif
+  
+  ItemSer := Item.serial;
+
+  // odczytujemy wczesniej, jakby przypadkiem wyparowalo bron 
+  g_IsWeapon := item.isa(POLCLASS_WEAPON) or item.objtype == UOBJ_CLAWS;
+
+  var whoser := who.serial;
+
+  if(!IsMagicItem(item) or !IsEquipped(who,item) or !IsIdentified(item))
+    return;
+  endif
+
+  gMagicPrefixMod        := GetMagicItemPrefixMod(item);
+  gMagicSuffixMod        := GetMagicItemSuffixMod(item);
+  gMagicLevel            := GetMagicItemLevel(item);
+
+  if((CInt(GetObjProperty(item,"#EquipTime"))) >= ReadGameClock())
+    return;
+  endif
+  
+  if(ExPid(GetObjProperty(Item,"#Pid")))
+    return;
+  endif
+  
+  SetObjProperty(Item,"#Pid",GetPid());
+  IncRevision(Item);
+
+  case(gMagicSuffixMod)
+    MAGICMOD_ARMOR: Item.ar_mod  := CInt(gMagicLevel);
+    MAGICMOD_DMG:   Item.dmg_mod := CInt(gMagicLevel / 2);
+  endcase
+
+  SetObjProperty(item,"#EquipTime",ReadGameClock() + EQUIP_TIME);
+
+
+  sleepms(200);
+  PlaySoundEffect(who, SFX_SPELL_BLESS);
+  PlayObjectCenteredEffect( who, FX_BLESS_EFFECT, 10,10);
+
+  PrefixCharges            := GetMagicItemPrefixCharges(item);
+  SuffixCharges            := GetMagicItemSuffixCharges(item);
+  ChargesTime              := ReadGameClock() + CHARGE_TIME;
+
+  var PrefixTimeCharges    := 0;
+  var SuffixTimeCharges    := 0;
+  
+  if(CheckMagicPrefixItemCharges(item,who))
+    PrefixTimeCharges      := DoPrefixMagicMod(who,item);
+  endif
+  
+  if(CheckMagicSuffixItemCharges(item,who))
+    SuffixTimeCharges      := DoSuffixMagicMod(who,item);
+  endif
+
+  if(!PrefixTimeCharges and !SuffixTimeCharges)
+    Sleepms(500);
+    UndoPrefixMagicMod(who);
+    UndoSuffixMagicMod(who);
+    return;
+  endif
+
+  var ev,done := 0;
+  var MinTime := ReadGameClock() + MIN_ACTIVITY_TIME;
+
+  while(who)
+
+    ev := wait_for_event(CHARGE_TIME);
+
+    case(ev.type)
+      EVID_EQUIP:     
+        done := 0;
+        who := ev.source;
+        whoser := who.serial;
+
+        if(who)
+          DoPrefixMagicMod(who,item);
+          DoSuffixMagicMod(who,item);
+        endif
+
+      EVID_UNEQUIP:   
+        UndoPrefixMagicMod(who);
+        UndoSuffixMagicMod(who);
+        done := 1;
+    endcase
+
+    if(MinTime < ReadGameClock() and done)
+      break;
+    endif
+
+    if(!Item)
+      UndoPrefixMagicMod(who);  
+      UndoSuffixMagicMod(who);
+      break;
+    endif
+  
+    if(ChargesTime <= ReadGameClock())
+      if(PrefixTimeCharges and GetMagicItemPrefixMod(item))
+        PrefixCharges := PrefixCharges - 1;
+        SetMagicItemPrefixCharges(item,PrefixCharges);
+        if(!CheckMagicPrefixItemCharges(item,who))
+          UndoPrefixMagicMod(who);
+        endif
+      endif
+
+      if(SuffixTimeCharges and GetMagicItemSuffixMod(item))
+        SuffixCharges := SuffixCharges - 1;
+        SetMagicItemSuffixCharges(item,SuffixCharges);
+        if(!CheckMagicSuffixItemCharges(item,who))
+          UndoSuffixMagicMod(who);
+        endif
+      endif
+      EraseToolTipProp(item,"Moc");
+      ChargesTime := ReadGameClock() + CHARGE_TIME;
+    endif
+
+    if(!PrefixTimeCharges)
+      if(!CheckMagicPrefixItemCharges(item,who))
+        if(HasMagicItemMod(who, gMagicPrefixMod))
+          UndoPrefixMagicMod(who);
+        endif
+      endif
+    endif
+
+    if(!SuffixTimeCharges)
+      if(!CheckMagicSuffixItemCharges(item,who))
+        if(HasMagicItemMod(who, gMagicSuffixMod))
+          UndoSuffixMagicMod(who);
+        endif
+      endif
+    endif
+  
+  endwhile
+  
+  if(!who)
+    who := SystemFindObjectBySerial(whoser,SYSFIND_SEARCH_OFFLINE_MOBILES);
+  endif
+  
+  UndoPrefixMagicMod(who);
+  UndoSuffixMagicMod(who);
+
+  EraseObjProperty(Item,"#Pid");
+  IncRevision(Item);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DoPrefixMagicMod(who,item)
+
+  var IDMagicMod        := IdentifyMagicMod(gMagicPrefixMod);
+  var TimeCharges       := IDMagicMod[2];
+
+  if(CheckMagicPrefixItemCharges(item,who))
+    case(gMagicPrefixMod)
+      MAGICMOD_LIFE:             if(CanGetMagicStatMod(who)) 
+                                   DoMagicMod(who,item,MOD_LIFE,gMagicLevel);
+                                 endif
+
+      MAGICMOD_MANA:             if(CanGetMagicStatMod(who)) 
+                                   DoMagicMod(who,item,MOD_MANA,gMagicLevel);
+                                 endif
+
+      MAGICMOD_STAMINA:          if(CanGetMagicStatMod(who)) 
+                                   DoMagicMod(who,item,MOD_STAMINA,gMagicLevel);
+                                 endif
+
+      MAGICMOD_INVIS:            if((CInt(GetObjProperty(who,"#MagicEquipTime"))) >= ReadGameClock())
+                                   return;
+                                 endif
+
+                                 if(!GetEquipmentByLayer(who,LAYER_MOUNT))
+                                   if(CanHide(who))
+                                     SetObjProperty(who,"#InvisPid",GetPid());
+                                     HidePlayer(who);
+                                     who.stealthsteps := gMagicLevel;
+                                     SetObjProperty(who,"#MagicEquipTime",ReadGameClock() + INVIS_EQUIP_TIME);
+                                   endif
+                                 endif
+
+      MAGICMOD_LIGHT:            DoMagicMod(who,item,MOD_LIGHT,gMagicLevel);
+    endcase
+  endif
+
+  return TimeCharges;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcMagicSkillMod()
+
+  return __ifelse(g_IsWeapon, CInt((gMagicLevel+1)*0.5), gMagicLevel);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoSuffixMagicMod(who,item)
+
+  var IDMagicMod        := IdentifyMagicMod(gMagicSuffixMod);
+  var TimeCharges       := IDMagicMod[2];
+
+  if(CheckMagicSuffixItemCharges(item,who))
+    case(gMagicSuffixMod)
+      MAGICMOD_STRENGTH:         if(CanGetMagicStatMod(who)) 
+                                   DoMagicMod(who,item,MOD_STR,          gMagicLevel);
+                                 endif
+
+      MAGICMOD_DEXTERITY:        if(CanGetMagicStatMod(who)) 
+                                   DoMagicMod(who,item,MOD_DEX,          gMagicLevel);
+                                 endif
+
+      MAGICMOD_INTELLIGENCE:     if(CanGetMagicStatMod(who)) 
+                                   DoMagicMod(who,item,MOD_INT,          gMagicLevel);
+                                 endif
+
+      MAGICMOD_FIRERESIST:       DoMagicMod(who,item,MOD_FIRERESIST,   gMagicLevel);
+      MAGICMOD_COLDRESIST:       DoMagicMod(who,item,MOD_COLDRESIST,   gMagicLevel);
+      MAGICMOD_LIGHTRESIST:      DoMagicMod(who,item,MOD_LIGHTRESIST,  gMagicLevel);
+    endcase
+
+
+    if(gMagicSuffixMod >= MAGICMOD_SKILLMOD and gMagicSuffixMod <= MAGICMOD_SKILLMOD + GetMaxSkillId())
+      DoMagicSkillMod(who,item,(gMagicSuffixMod - MAGICMOD_SKILLMOD), CalcMagicSkillMod());
+    endif
+  endif
+
+  return TimeCharges;
+
+endfunction
+  
+//-----------------------------------------------------------------------------
+
+function UndoPrefixMagicMod(who)
+
+  case(gMagicPrefixMod)
+    MAGICMOD_LIFE:             UnMagicMod(who, ItemSer, MOD_LIFE,    gMagicLevel);
+    MAGICMOD_MANA:             UnMagicMod(who, ItemSer, MOD_MANA,    gMagicLevel);
+    MAGICMOD_STAMINA:          UnMagicMod(who, ItemSer, MOD_STAMINA, gMagicLevel);
+    MAGICMOD_INVIS:            if(CInt(GetObjProperty(who,"#InvisPid")) == GetPid())
+                                 who.hidden := 0;
+                                 who.stealthsteps := 0;
+                               endif
+    MAGICMOD_LIGHT:            UnMagicMod(who, ItemSer, MOD_LIGHT,   gMagicLevel);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UndoSuffixMagicMod(who)
+
+  case(gMagicSuffixMod)
+    MAGICMOD_STRENGTH:         UnMagicMod(who, ItemSer, MOD_STR,        gMagicLevel);
+    MAGICMOD_DEXTERITY:        UnMagicMod(who, ItemSer, MOD_DEX,        gMagicLevel);
+    MAGICMOD_INTELLIGENCE:     UnMagicMod(who, ItemSer, MOD_INT,        gMagicLevel);
+    MAGICMOD_FIRERESIST:       UnMagicMod(who, ItemSer, MOD_FIRERESIST, gMagicLevel);
+    MAGICMOD_COLDRESIST:       UnMagicMod(who, ItemSer, MOD_COLDRESIST, gMagicLevel);
+    MAGICMOD_LIGHTRESIST:      UnMagicMod(who, ItemSer, MOD_LIGHTRESIST,gMagicLevel);
+  endcase
+
+  if(gMagicSuffixMod >= MAGICMOD_SKILLMOD and gMagicSuffixMod <= MAGICMOD_SKILLMOD + GetMaxSkillId())
+    UndoMagicSkillMod(who,ItemSer,(gMagicSuffixMod - MAGICMOD_SKILLMOD), CalcMagicSkillMod());
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HasMagicItemMod(who, MagicMod)
+
+  var Mod := 0;
+
+  case(MagicMod)
+    MAGICMOD_LIFE:             Mod := MOD_LIFE;
+    MAGICMOD_MANA:             Mod := MOD_MANA;
+    MAGICMOD_STAMINA:          Mod := MOD_STAMINA;
+    MAGICMOD_INVIS:            if(CInt(GetObjProperty(who, "#InvisPid")) == GetPid() and who.hidden)
+                                 return 1;
+                               else
+                                 return 0;
+                               endif
+    MAGICMOD_LIGHT:            Mod := MOD_LIGHT;
+
+    MAGICMOD_STRENGTH:         Mod := MOD_STR;
+    MAGICMOD_DEXTERITY:        Mod := MOD_DEX;
+    MAGICMOD_INTELLIGENCE:     Mod := MOD_INT;
+    MAGICMOD_FIRERESIST:       Mod := MOD_FIRERESIST;
+    MAGICMOD_COLDRESIST:       Mod := MOD_COLDRESIST;
+    MAGICMOD_LIGHTRESIST:      Mod := MOD_LIGHTRESIST;
+  endcase
+
+  if(Mod)
+    if(GetMagicModItemSerial(who, Mod) == ItemSer)
+      return 1;
+    else
+      return 0;
+    endif
+  endif
+
+  if(MagicMod >= MAGICMOD_SKILLMOD and MagicMod <= MAGICMOD_SKILLMOD + GetMaxSkillId())
+    if(GetMagicSkModItemSerial(who, MagicMod - MAGICMOD_SKILLMOD) == ItemSer)
+      return 1;
+    else
+      return 0;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

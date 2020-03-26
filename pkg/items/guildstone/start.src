@@ -1,0 +1,14 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(":guildstone:guildctl", "Guild Ctrl");
+  StartGlobCtrlScript(":guildstone:guildctl");
+
+endprogram
+
+//-----------------------------------------------------------------------------

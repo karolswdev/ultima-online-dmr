@@ -1,0 +1,99 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 56;
+
+//-----------------------------------------------------------------------------
+
+program CastPolymorph( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(IsInGa(Caster.x, Caster.y, Caster.realm))
+    Fizzle(Caster,"Nie mozesz zmienic tu formy.");
+    return;
+  endif
+
+  if(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+    Fizzle(Caster, "Na wierzchowcu ciezko Ci bedzie zmienic ksztalt!");
+    return;
+  endif
+  
+  if(!CanMod(Caster,MOD_GRAPHIC))
+    Fizzle(Caster,"Jestes juz pod wplywem czaru!");
+    return;
+  endif
+
+  if(!CanMod(Caster, MOD_INCO))
+    Fizzle(Caster, "Teraz nie mozesz sie przemienic.");
+    return;
+  endif
+  
+  var CasterMagery  := CInt(GetEffectiveSkill(caster, SKILLID_MAGERY));
+  var CasterMed     := CInt(GetEffectiveSkill(caster, SKILLID_MEDITATION));
+  var CasterEvalInt := CInt(GetEffectiveSkill(caster, SKILLID_EVALINT));
+
+  var Template;
+  var ModAmount     := RandomInt(CasterMagery/20) + 1 + CasterEvalInt/10 + CasterMed/10;
+  var Duration      := GetSpellDur( Caster );
+  
+  var critter       := CInt(CasterEvalInt / 20) + CInt(CasterMagery / 20) + RandomInt(5) + CInt(CasterMagery / 100);
+  
+  case(critter)
+    0:  Template := "bird";
+    1:  Template := "eagle";
+    2:  Template := "mongbat";
+    3:  Template := "orc1";
+    4:  Template := "lizardman2";
+    5:  Template := "harpy";
+    6:  Template := "earthelemental";
+    7:  Template := "waterelemental";
+    8:  Template := "fireelemental";
+    9:  Template := "troll5";
+    10: Template := "ogre";
+    11: Template := "cyclopse";
+    12: Template := "gargoyle";
+    13: Template := "reddrake";
+    14: Template := "reddragon";
+    15: Template := "daemon";
+    default: Template := "lizardman1";
+  endcase
+
+  var cfgElem := GetNpcConfig(Template);
+
+  var Name := ConvertName(cfgElem.Name,CInt(cfgElem.ObjType),CInt(cfgElem.NameIdx));
+  
+  if(Name)
+    DoMod(Caster,MOD_INCO,    Name      ,Duration);
+    DoMod(Caster,MOD_TPREFIX, ""        ,Duration);
+    DoMod(Caster,MOD_TSUFFIX, ""        ,Duration);
+    DoMod(Caster,MOD_TGUILD,  ""        ,Duration);
+    DoMod(Caster,MOD_TRACE,   ""        ,Duration);
+  endif
+  
+  case(cfgElem.alignment)
+    CITYAL_GOOD:     DoMod(Caster,MOD_STATUS,1,Duration);
+    CITYAL_EVIL:     DoMod(Caster,MOD_STATUS,3,Duration);
+    default:         DoMod(Caster,MOD_STATUS,2,Duration);
+  endcase
+  
+  DoMod(Caster,MOD_GRAPHIC,CInt(cfgElem.ObjType), Duration);
+  DoMod(Caster,MOD_AR,     ModAmount,Duration);
+  DoMod(Caster,MOD_STR,    ModAmount,Duration);
+  DoMod(Caster,MOD_DEX,    ModAmount,Duration);
+  DoMod(Caster,MOD_INT,    ModAmount,Duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

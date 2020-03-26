@@ -1,0 +1,276 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/npccast";
+include "include/poison";
+include "include/npcspeech";
+include "include/merc";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include "include/resurrect";
+include "include/faith";
+include "include/reputation/murderer";
+
+include ":character:race_validation";
+
+//-----------------------------------------------------------------------------
+
+const REACT_THRESHOLD     := 1;
+
+//-----------------------------------------------------------------------------
+
+CheckHealerStatus();
+
+//-----------------------------------------------------------------------------
+
+program Healer_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents( EVID_ENGAGED + EVID_DISENGAGED + EVID_DAMAGED );
+  EnableEvents( EVID_ENTEREDAREA, REACT_THRESHOLD );
+  EnableEvents( EVID_SPEECH, SPEECH_RANGE );
+  EnableEvents( EVID_ITEM_GIVEN );
+
+  SetWarMode( 0 );
+
+  while (me)
+   
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+
+    StdCityNpcEventLoop();
+     
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_ENTEREDAREA:           if(!ev.source.npctemplate)
+                                  HealerStuff(ev.source);
+                                  ev := 0;
+                                  return 1;
+                                endif
+  endcase
+
+  return StdCityNpcHandleEvent(ev);
+     
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who,text)
+
+  TurnToward(who);
+  if(text["ucz"])
+    if(CanNpcSpeakWith(who))
+      TrainSkill(me,who);
+    endif
+  elseif(text["chce odkupic winy"] and GetObjProperty(me,"HealerStatus") == "neutral")
+    Redemption(who);
+  else
+    return 0;
+  endif
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HealerStuff(mobile)
+
+  SetMana(me,GetMaxMana(me));
+  if( len(ListHostiles(me)) > 0 )
+    Say("Nie moge ci pomoc poniewaz tu jest zbyt niebezpiecznie!");
+  else
+
+    case(GetObjProperty(me,"HealerStatus"))
+      "evil": if(!mobile.murderer and !mobile.criminal)
+                say("Nie moge Ci pomoc");
+                return;
+              endif
+      "good": if(mobile.murderer)
+                say("Nie moge Ci pomoc");
+                return;
+              endif
+    endcase
+    
+    if(CheckLineOfSight(me,mobile))
+    
+      if( mobile.dead)
+      
+        if(mobile.warmode)
+          if(IsWalking())
+            SetWalkPause();
+          endif
+
+          TurnToward(mobile);
+          if(!CanResurrect(mobile))
+            Say("Twa dusza jest za slaba");
+            return;
+          endif
+
+          CastSpell( me , mobile, RES_SPID );
+          sleep(2);
+
+          if(!mobile.dead)
+            SetObjProperty(mobile,"Ressurected",{me.serial,ReadGameClock()});
+			DoMod(mobile, MOD_HP_REGEN, 6000, 120);
+			DoMod(mobile, MOD_MANA_REGEN, 6000, 120);
+			DoMod(mobile, MOD_MONSTER_AR, 200, 120);
+          else
+            case(RandomInt(3))
+              1: UniSay("Gdzie ¿eœ polaz³"+ggm(mobile,4)+"!?");
+              2: UniSay("Po co sie oddalasz jak cie wskrzeszam!");
+              default: UniSay("Stój nieruchomo obok mnie!");
+            endcase
+          endif
+        endif
+       
+      elseif( GetPoisonLevel(mobile) > 0)
+
+        if(IsWalking())
+          SetWalkPause();
+        endif
+        
+        TurnToward(mobile);
+        if(Len(ListHostiles(mobile,20)) or Len(ListHostiles(me,20)) or ((CInt(GetObjProperty(mobile,"#CombatBusy")) + 180) > ReadGameClock()))
+          Say("Tu jest zbyt niebezpiecznie.");
+          return;
+        endif
+
+        Say("Poswiecenie oczyszcza dusze i cialo!");
+        CastSpell( me , mobile, ARCHCURE_SPID );
+        sleep(1);
+
+      elseif(GetHp(mobile) < GetMaxHp(mobile))
+
+        if(IsWalking())
+          SetWalkPause();
+        endif
+
+        if(GetObjProperty(mobile,"ResTimer") and CInt(GetObjProperty(mobile,"ResTimer")) - RES_TIME + 30 > ReadGameClock())
+          TurnToward(mobile);
+          Say("Wspolczucie leczy wszystko!");
+          
+          CastSpell( me , mobile, GHEAL_SPID );
+          SetStamina( mobile, GetMaxStamina(mobile));
+          
+          sleep(1);
+        endif
+
+      endif
+      
+    endif
+    
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckHealerStatus()
+
+  if(!GetObjProperty(me,"HealerStatus"))
+    SetObjProperty(me,"HealerStatus","good");
+  endif
+ 
+  case(GetObjProperty(me,"HealerStatus"))
+    "evil":     if(!me.name["Znachor"])
+                  me.name := me.name + " Znachor";
+                endif
+    "good":     if(!me.name["Uzdrowiciel"])
+                  me.name := me.name + " Uzdrowiciel";
+                endif
+    "neutral":  if(!me.name["Uzdrowiciel"])
+                  me.name := me.name + " Wedrowny Uzdrowiciel";
+                endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Redemption(who)
+
+  if(!IsRealMurderer(who))
+    Say("Hm.. nie widze bys byl"+ggm(who,4)+" morderca.");
+    return;
+  elseif(GetObjProperty(who, "Redemptioned"))
+    Say("Hm.. znow chcesz odkupic swoje winy?! Drugi raz tego nie uczynisz, won stad grzeszniku!");
+    return;
+  endif
+
+  var Cfg := ReadConfigFile(":mcfg:redemption");
+  var Elem := Cfg["Items"];
+
+  Say("Chcial"+ggm(who,1)+" odkupic swoje winy...");
+  Say("Powiedzmy, ze jest to mozliwe, ale nie ma nic za darmo!");
+  Say("Potrzebuje troche skladnikow oraz troche zlota.");
+  Say("Zapewne wiesz jakie? tak?");
+
+   var goldAmt := CInt(Cfg["Gold"].Amount);
+
+  if(!NpcYesNo(who))
+    if(goldAmt)
+      Say("Potrzebuje "+goldAmt+" sztuk zlota");
+      sleepms(850);
+    endif
+
+    foreach Reagent in GetReagentsList(Elem)
+      Say(Reagent);
+      sleepms(650);
+    endforeach
+  endif
+  
+  sleepms(250);
+  Say("Czy masz w takim razie wymagane przedmioty? Chcesz kontynuowac, tak?");
+
+  if(!NpcYesNo(who))
+    Say("Cos nie mozesz sie zdecydowac.. przyjdz pozniej!");
+    return;
+  endif
+
+  if(!HaveGold(who, goldAmt))
+    Say("Nie masz "+goldAmt+" sztuk zlota!");
+    return;
+  endif
+
+  if(!TakeReagents(who, Elem))
+    Say("Brakuje Ci skladnikow!");
+    return;
+  endif
+
+  if(!SpendGold(who, goldAmt))
+    Say("Woohaa.. jak to mozliwe? Przed chwila mial"+ggm(who,3)+" zloto a juz nie masz?! Oszukac mnie chcesz?!");
+    return;
+  endif
+
+  SetObjProperty(who, "Redemptioned", ReadGameClock());
+  if(GetBaseSkill(who, SKILLID_FANATICISM))
+    SetBaseSkill(who, SKILLID_PALADINISM, GetBaseSkill(who, SKILLID_FANATICISM));
+    SetBaseSkill(who, SKILLID_FANATICISM, 0);
+  endif
+  EraseMurderer(who);
+
+  Say("Twoje winy zostaly odkupione!");
+  Say("Mozesz isc z czystym sumieniem, powodzenia!");
+
+endfunction
+
+//-----------------------------------------------------------------------------

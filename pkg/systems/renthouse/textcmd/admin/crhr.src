@@ -1,0 +1,64 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+
+include "../../renthouse";
+
+//-----------------------------------------------------------------------------
+
+program CreateRentHouses(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var City := 0;
+
+  if(text)
+    if(text in GetCities())
+      City := text;
+    else
+      SendSysMessage(who,"Nie znaleziono miasta "+text+".",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+  
+  if(City)
+    SendSysMessage(who,"Chcesz stworzyc HR w miescie "+City+"?",FONT_NORMAL,COLOR_GREEN);
+    if(!YesNo(who,"Napewno?"))
+      return;
+    endif
+    CreateHrInCity(who,City);
+    return;
+  else
+    SendSysMessage(who,"Chcesz stworzyc HR we wszystkich miastach ?",FONT_NORMAL,COLOR_GREEN);
+    if(!YesNo(who,"Napewno?"))
+      return;
+    endif
+    foreach City in GetCities()
+      CreateHrInCity(who,City);
+    endforeach
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateHrInCity(who,City)
+
+  var Houses := GetCityHouses(City);
+  var Sign,Cont;
+
+  SendSysMessage(who,"Tworzenie "+Houses.size()+" domow w miescie "+City+".",FONT_NORMAL,COLOR_GREEN);
+
+  foreach House in Houses
+    Sign := FindHrSign(House);
+    Cont := FindHrCont(Sign);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

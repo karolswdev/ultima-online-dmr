@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magicatt";
+include "include/finding";
+include "include/attack";
+include "include/effects";
+include "include/const/props";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 47;
+
+//-----------------------------------------------------------------------------
+
+program ParalyzeFieldControl( Field )
+  
+  var Circle    := GetSpellValue(SPELL_ID,"Circle");
+  var SpellType := GetSpellValue(SPELL_ID,"SpellType");
+
+  if(!Circle)
+    Circle := 3;
+  endif
+
+  var CasterSer  := CInt(GetObjProperty(field, PROP_SUMMONED_FIELD));
+  var Caster     := FindPlayerBySerial(CasterSer);
+  var Duration   := CInt(CalcModDuration( Caster ) / 35),i;
+  var Charges    := 0;
+  var MaxCharges := 2 + (GetEffectiveSkill(Caster, SKILLID_MAGERY) / 25);
+  var fx         := field.x;
+  var fy         := field.y;
+  var fz         := field.z;
+  var fRealm     := field.realm;
+  
+  SetScriptController(Caster);
+
+  if(!Duration)
+    Duration := 1;
+  endif
+  
+  while(Field and Caster)
+  
+    foreach CastOn in ListMobilesNearLocation(fx, fy, fz, 0, fRealm)
+      
+      if(GetNpcConfig(CastOn).WallsImmune or !CanDamageWall(Caster,CastOn))
+        continue;
+      endif
+
+      if(Reflected(CastOn, Caster))
+        continue;
+      endif
+
+      if(!CastOn.dead and CanMod(CastOn,MOD_PARA))
+        if(Resisted(CastOn, Caster, Duration, Circle, SpellType, NO_RESIST_GAIN) == Duration and RandomInt(10) < 7)
+          PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_CURSE_EFFECT, 10, 0xa, 0, CastOn.realm );
+          PlaySoundEffect( CastOn, SFX_SPELL_PARALYZE );
+          if(!CastOn.criminal and !CastOn.murderer)
+            SetCriminal(Caster, 1, "ParaField", "Sparalizowanie przez sciane.");
+          endif
+          DoMod(CastOn,MOD_PARA,1,Duration);
+          Charges := Charges + 1;
+        elseif(RandomInt(100) < 15)
+          PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_CURSE_EFFECT, 10, 0xa, 0, CastOn.realm );
+          PlaySoundEffect( CastOn, SFX_SPELL_PARALYZE );
+          if(!CastOn.criminal and !CastOn.murderer)
+            SetCriminal(Caster, 1, "ParaField", "Sparalizowanie przez sciane.");
+          endif
+          DoMod(CastOn,MOD_PARA,1,Duration);
+          Charges := Charges + 1;
+        endif
+        SendDelayedEvent(CastOn, Caster, EVID_ENGAGED, 3);
+      endif
+    endforeach
+    
+    for(i:=1;i<=15;i:=i+1)
+      sleepms(100);
+      if(GetObjProperty(Field,"WalkOn"))
+        EraseObjProperty(Field,"WalkOn");
+        break;
+      endif
+    endfor
+
+    if(Charges >= MaxCharges)
+      DestroyItem(Field);
+    endif
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------

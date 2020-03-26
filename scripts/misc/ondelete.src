@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include ":banking:common";
+include "include/escrow";
+include "include/finding";
+
+include ":mail:mail";
+
+//-----------------------------------------------------------------------------
+
+program OnCharDelete(who)
+
+  who := FindPlayerBySerial(who.serial);
+  
+  foreach item in ListEquippedItems(who)
+    DestroyItem(item);
+  endforeach
+
+  WipeBankBox(who);
+  WipeStoreBox(who);
+  WipeMailBox(who);
+  WipeEscrowBoxes(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

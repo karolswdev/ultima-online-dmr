@@ -1,0 +1,110 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/finding";
+include "include/msgs";
+include "include/items/containers";
+include "include/move";
+include "include/loots";
+include "include/findcity";
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":ngd_npcs:common";
+include ":miniquests:mqdata";
+include ":mq_npcs:common";
+include ":mq_npcs:quests";
+include ":npcguilds:guilds";
+
+//-----------------------------------------------------------------------------
+
+program NpcMiniQuestGiveQuest(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!CanNpcHaveMiniQuest(Data.npc))
+    return -1;
+  endif
+
+  var NpcData := GetNpcMiniQuestData(Data.npc);
+  var MiniQuest := GetMiniQuestByNpc(Data.npc);
+
+  if(!(NpcData.Flags & MQNF_QUEST_CREATED))
+    NpcSpeechSay(Data.npc, Data.source, "MQNoNeedHelp");
+    return 1;
+  endif
+
+  var MQPlayerData := GetObjProperty(Data.source, MQPROP_DATA);
+
+  if(NpcData.Flags & MQNF_QUEST_GIVEN)
+    if(Data.source.serial == NpcData.Player)
+      if(MQPlayerData.Flags & MQNF_QCOMPLETED)
+        NpcSpeechJustSay(Data.npc, Data.source, "Ooo...");
+        case(MQPlayerData.Type)
+          MQTYPE_TAKEITEM:     var Item := FindItemBySerial(MQPlayerData.Targ.ItemSer);
+                               if(!Item)
+                                 NpcSpeechJustSay(Data.npc, Data.source, "Ekhm.. a co zrobil"+ggm(Data.source,3)+" z przedmiotem?");
+                                 return 1;
+                               elseif(GetTopCont(Item) != Data.source.backpack)
+                                 NpcSpeechJustSay(Data.npc, Data.source, "Nie widze bys mial"+ggm(Data.source,4)+" potrzebny mi przedmiot przy sobie.");
+                                 return 1;
+                               endif
+
+                               DestroyItem(Item);
+        endcase
+
+        EraseObjProperty(Data.source, MQPROP_DATA);
+        CreateMQuestReward(Data.npc, Data.source);
+        SayMQNpcText(Data.npc, Data.source, MQPlayerData, MiniQuest, MQPROP_SUCCTEXT);
+        ResetMQuestData(Data.npc);
+      else
+      
+        NpcSpeechSay(Data.npc, Data.source, "MQWaiting");
+
+      endif
+    else
+
+      NpcSpeechSay(Data.npc, Data.source, "MQBadPerson");
+
+    endif
+    return 1;
+  endif
+
+  if(MQPlayerData)
+
+    NpcSpeechSay(Data.npc, Data.source, "MQGotQuest");
+    return 1;
+
+  endif
+  
+  case(NpcData.QuestData.Type)
+    MQTYPE_CARRYITEM:       var Item := CrMQuestItem(Data.npc, NpcData.QuestData);
+                            if(!Item)
+                              ResetMQuestData(Data.npc);
+                              NpcSpeechJustSay(Data.npc, Data.source, "Zesz... zgubil"+ggm(Data.npc,8)+" gdzies ten przedmiot!");
+                              NpcSpeechJustSay(Data.npc, Data.source, "*rozpacza*");
+                              return 1;
+                            else
+                              MoveToPack(Item, Data.source);
+                            endif
+  endcase
+
+  SetBitOn(NpcData.Flags, MQNF_QUEST_GIVEN);
+  NpcData.Player := Data.source.serial;
+  NpcData.QuestData.StartTime := ReadGameClock();
+  SetObjProperty(Data.source, MQPROP_DATA, NpcData.QuestData);
+  SetObjProperty(Data.npc, MQPROP_DATA, NpcData);
+  SayMQNpcText(Data.npc, Data.source, NpcData.QuestData, MiniQuest, MQPROP_MAINTEXT);
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

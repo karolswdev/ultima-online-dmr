@@ -1,0 +1,156 @@
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/skills/gumps";
+include "include/skills/skillwin";
+include "include/items";
+include "include/player/target";
+
+
+var who;
+
+
+
+program Darkfires(_who, text)
+
+  who := _who; 
+  var res := BuildDarkfiresGump();
+
+  if(!res)
+    return;
+    SendSysMessage(who,"Anulowano");
+  endif
+
+  case(res)
+    1:    CreateDfChest();
+
+    2:    DeleteDfChest();
+
+    3:    StartDf();
+
+    4:    StopDf();
+  endcase 
+
+endprogram
+
+
+//-------------------------------------------------------
+
+function CreateDfChest()
+  
+  var df_chests := GetGlobalProperty("DfChests");
+
+  if(!df_chests)
+    df_chests := array;
+  endif
+  
+  if(df_chests.size() > 1)
+    SendSysMessage(who,"Maksymalnie 2 skrzynie!");
+    return;
+  endif
+
+  var Loc := TargetCoordinates(who);
+  var chest := CreateItemAtLocation(loc.x,loc.y,loc.z,0xa35);
+
+  if(chest)
+    chest.movable := 0;
+  else
+    SendSysMessage(who,"Anulowano");
+    return;
+  endif
+
+  df_chests.append(chest.serial);
+
+  SetGlobalProperty("DfChests", df_chests);
+
+endfunction
+
+//--------------------------------------------------------
+
+function DeleteDfChest()
+
+  var df_chests := GetGlobalProperty("DfChests");
+
+  if(!df_chests)
+    SendSysMessage(who,"Nie stworzyles jeszcze zadnej skrzyni");
+    return;
+  endif
+
+  foreach item in df_chests
+    item := FindItemBySerial(item);
+    DestroyItem(item);
+  endforeach
+
+  EraseGlobalProperty("DfChests");
+
+  
+endfunction
+
+//------------------------------------------------------------
+
+function StartDf()
+
+  var df_chest := GetGlobalProperty("DfChests");
+
+  if(!df_chest or df_chest.size() < 2)
+    SendSysMessage(who,"Nie stworzyles wystarczajacej ilosci skrzyn!");
+    return;
+  endif
+
+  SetGlobalProperty("Df_state",1);
+
+  
+
+  foreach chest in df_chest
+    start_script(":darkfires:ctrldarkfires", chest);
+    PrintTextAbove(chest,"*cos sie poruszylo*");
+  endforeach
+
+
+endfunction
+
+//-------------------------------------------------------------
+
+function StopDf()
+
+  EraseGlobalProperty("Df_state");
+
+  var df_chests := GetGlobalProperty("DfChests");
+
+  foreach chest in df_chests
+    chest := FindItemBySerial(chest);
+    foreach Item in EnumerateItemsInContainer( chest )
+        DestroyItem( Item );
+    endforeach
+  endforeach
+
+endfunction
+
+//-------------------------------------------------------------
+
+function BuildDarkfiresGump()
+
+  GInit(30,100);
+  GResPic(0,0,3600,300,260);
+  GTextLine(70,25,40,"Mroczne ognie!");
+
+  GTextLine  (70,  75,  500,  "Stworz skrzynie");
+  GButton    (30,  75,  2710, 2711, 1);
+
+  GTextLine  (70,  100,  500,  "Skasuj skrzynie");
+  GButton    (30,  100,  2710, 2711, 2);
+
+  GTextLine  (70,  125,  500,  "Wystartuj event");
+  GButton    (30,  125,  2710, 2711, 3);
+
+  GTextLine  (70,  150,  500,  "Zatrzymaj event");
+  GButton    (30,  150,  2710, 2711, 4);
+
+  var res := CInt(GSend(who)[0]);
+
+  return res;
+
+
+endfunction
+
+
+

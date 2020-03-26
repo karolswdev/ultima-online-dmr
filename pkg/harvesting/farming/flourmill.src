@@ -1,0 +1,163 @@
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/client/sounds";
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/items";
+include "include/dirs";
+
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+var MillUp,MillMid;
+
+//-----------------------------------------------------------------------------
+  
+program FlourMill(who,Crank)
+
+  if(!StandardItemCheck(who,Crank,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  if(Distance(who,Crank) > 1)
+    Sendsysmessage(who, "Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  FindRestPieces(who,Crank);
+
+  var InAmount, ObjType, PropName;
+  
+  if(GetObjProperty(MillUp,"WheatAmount"))
+    InAmount := CInt(GetObjProperty(MillUp,"WheatAmount"));
+    ObjType  := UOBJ_FLOUR;
+    Propname := "WheatAmount";
+  else
+    InAmount := CInt(GetObjProperty(MillUp,"CornAmount"));
+    ObjType  := UOBJ_CORNFLOUR;
+    Propname := "CornAmount";
+  endif
+
+  if(InAmount <= 0)
+    SendSysMessage(who,"Ten mlyn jest pusty.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!GetObjProperty(Crank, "#Milling"))
+  
+    InAmount := InAmount - 1;
+    if(InAmount >= 1)
+      MillUp.graphic := CInt(ItemCfg[MillUp.objtype].GraphicHalf);
+    else
+      MillUp.graphic := MillUp.objtype;
+    endif
+  
+    SetObjProperty(MillUp, PropName, InAmount);
+    
+  endif
+
+  MillMid.graphic := CInt(ItemCfg[MillMid.objtype].AnimGraphic);
+  Crank.graphic   := CInt(ItemCfg[Crank.objtype].AnimGraphic);
+  
+  SetObjProperty(Crank,"#Milling",who.serial);
+
+  var lMax := 5 - CInt(GetOverSkill(who, SKILLID_FARMING)/10);
+  
+  for i := 1 to lMax
+    TurnCharToward(who,Crank);
+    PlaySoundEffect(who,SFX_MILL);
+    sleepms(1500);
+    if(Distance(who,Crank) > 1)
+      SendSysMessage(who,"Oddalil"+ggm(who,3)+" sie.",FONT_NORMAL,COLOR_RED);
+      MillMid.graphic := CInt(ItemCfg[MillMid.objtype].GraphicFull);
+      Crank.graphic   := Crank.objtype;
+      return;
+    endif
+  endfor
+
+  EraseObjProperty(Crank,"#Milling");
+  
+  MillMid.graphic := MillMid.objtype;
+  Crank.graphic   := Crank.objtype;
+
+  if(HarvestOverflowed(who))
+
+    SendSysMessage(who, "Prawie cos zmielil"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+
+  elseif(CheckSkill(who,SKILLID_FARMING,50,15))
+    var itmDesc := GetHarvestDescriptor(ObjType, who);
+    var Flour := CreateItemInPack(who,itmDesc,1);
+    if(Flour)
+      SendSysMessage(who,"Zmielil"+ggm(who,3)+" make i wlozyl"+ggm(who,3)+" ja do plecaka.",FONT_NORMAL,COLOR_GREEN);
+    endif
+  else
+    SendSysMessage(who,"Nie udalo Ci sie zmielic maki.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindRestPieces(who,Crank)
+
+  MillUp  := FindItemBySerial(GetObjProperty(Crank,"MillUp"));
+  MillMid := FindItemBySerial(GetObjProperty(Crank,"MillMid"));
+
+  if(!MillUp or !MillMid)
+  
+    case(Crank.objtype)
+      UOBJ_MILLCRANK_E:   foreach Item in ListItemsAtLocation(Crank.x-1,Crank.y,Crank.z,Crank.realm)
+                            if(Item.objtype == UOBJ_MILLMID_E)
+                              MillMid := Item;
+                              break;
+                            endif
+                          endforeach
+                          
+                          foreach Item in ListItemsAtLocation(Crank.x-2,Crank.y,Crank.z,Crank.realm)
+                            if(Item.objtype == UOBJ_FLOURMILL_UP_E)
+                              MillUp := Item;
+                              break;
+                            endif
+                          endforeach
+                          
+      UOBJ_MILLCRANK_N:  foreach Item in ListItemsAtLocation(Crank.x,Crank.y-1,Crank.z,Crank.realm)
+                            if(Item.objtype == UOBJ_MILLMID_N)
+                              MillMid := Item;
+                              break;
+                            endif
+                          endforeach
+
+                          foreach Item in ListItemsAtLocation(Crank.x,Crank.y-2,Crank.z,Crank.realm)
+                            if(Item.objtype == UOBJ_FLOURMILL_UP_N)
+                              MillUp := Item;
+                              break;
+                            endif
+                          endforeach
+    endcase
+    
+    if(MillUp and MillMid)
+      SetObjProperty(Crank,"MillUp",MillUp.serial);
+      SetObjProperty(Crank,"MillMid",MillMid.serial);
+    else
+      if(Crank)
+        DestroyItem(Crank);
+      endif
+      if(MillUp)
+        DestroyItem(MillUp);
+      endif
+      if(MillMid)
+        DestroyItem(MillMid);
+      endif
+      
+      SendSysMessage(who,"Ten mlyn jest nie kompletny.",FONT_NORMAL,COLOR_RED);
+      exit;
+    endif
+    
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

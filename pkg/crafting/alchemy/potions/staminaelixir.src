@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseStaminaElixir(who, elixir)
+
+  if(!StandardItemCheck(who,elixir,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanMod(who,MOD_STAMINA) or !CanMagicMod(who, MOD_STAMINA))
+    SendSysMessage(who,"Jestes juz pod wplywem czaru.");
+    return;
+  endif
+
+  if(!CanDrink(who,elixir))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(elixir.objtype);
+  var ExpMod   := GetExpPotionMod(elixir);
+  var QualMod  := GetPotionQualMod(elixir);
+
+  Strength     := CalcPotStrength(Strength,ExpMod);
+
+  if(!EmptyBottle(who,elixir))
+    return;
+  endif
+
+  DoMod(who,MOD_STAMINA,Strength, STANDARD_POTION_MOD_DUR * QualMod + (ExpMod * 30));
+
+endprogram
+
+//-----------------------------------------------------------------------------

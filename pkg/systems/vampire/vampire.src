@@ -1,0 +1,136 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/objtypes/magic";
+include "include/npcs";
+
+include "vampire";
+
+//--------------------------------------------------------------------------------
+
+const MAX_CORPSE_USE := 15;
+
+//--------------------------------------------------------------------------------
+
+program VampireUse(who)
+
+  if(!IsVampire(who))
+    SendSysMessage(who,"Nie jestes wampirem...",FONT_NORMAL,COLOR_RED + 1);
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz cel.",FONT_NORMAL,COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  
+  if(Targ.isa(POLCLASS_ITEM))
+    CheckItemTarg(who,Targ);
+  elseif(Targ.isa(POLCLASS_MOBILE))
+    CheckMobTarg(who,Targ);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function CheckItemTarg(who,Targ)
+
+  if(!StandardItemCheck(who,Targ,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(Distance(who, Targ) > 1)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Targ.objtype == UOBJ_CORPSE)
+    var Temp := GetObjProperty(Targ, PROP_NPCTEMP);
+    if(Temp)
+      if(IsNpcElemental(Temp, NPCELEM_UNDEAD))
+        SendSysMessage(who, "W tych zwlokach zdaje sie nie ma krwi...", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+
+    var Amt := CInt(GetEffectiveSkill(who,SKILLID_VAMPIRE) / 20);
+    if(!Amt)
+      Amt := 1;
+    endif
+    var CAmt := 0,i;
+    var PastUse := CInt(GetObjProperty(Targ,"VampUse"));
+    if(PastUse >= MAX_CORPSE_USE)
+      SendSysMessage(who,"W tych zwlokach nie zostala juz nawet kropla krwi.",FONT_NORMAL,COLOR_RED);
+    else
+      var EVial := FindItemInContainer(who.backpack,UOBJ_EMPTY_VIAL);
+      if(!EVial)
+        SendSysMessage(who,"Nie masz fiolek.",FONT_NORMAL,COLOR_RED);
+        return;
+      elseif(!ReserveItem(EVial))
+        SendSysMessage(who,"Nie masz fiolek.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      SendSysMessage(who,"Probujesz wyssac troche krwi...",FONT_NORMAL,COLOR_GREEN);
+      if(!MakeNoise(who, 0, 750))
+        return;
+      endif
+      if(CheckMoreSkill(who,SKILLID_VAMPIRE, -1, 10))
+        for(i:=1;i<=Amt;i:=i+1)
+          if(PastUse + CAmt >= MAX_CORPSE_USE)
+            break;
+          endif
+          if(SubtractAmount(EVial,1))
+            if(CreateItemInPack(who,UOBJ_VAMP_BLOOD,1))
+              CAmt := CAmt + 1;
+            endif
+          else
+            break;
+          endif
+        endfor
+        if(CAmt)
+          SendSysMessage(who,"Napelnil"+ggm(who,3)+" "+GetVialDesc(CAmt)+" krwia.",FONT_NORMAL,COLOR_GREEN);
+          PastUse := PastUse + CAmt;
+        else
+          SendSysMessage(who,"Nie udalo Ci sie wyssac krwi ze zwlok.",FONT_NORMAL,COLOR_RED);
+          PastUse := PastUse + 1;
+        endif
+      else
+        SendSysMessage(who,"Nie udalo Ci sie wyssac krwi ze zwlok.",FONT_NORMAL,COLOR_RED);
+        PastUse := PastUse + 1;
+      endif
+      SetObjProperty(Targ,"VampUse",PastUse);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckMobTarg(who,Targ)
+
+  if(!StandardMobCheck(who,Targ))
+    return;
+  endif
+
+  SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetVialDesc(Amt)
+
+  case(Amt)
+    1:       return "fiolke";
+    2:
+    3:
+    4:       return Amt + " fiolki";
+    default: return Amt + " fiolek";
+  endcase
+  
+endfunction
+
+//--------------------------------------------------------------------------------

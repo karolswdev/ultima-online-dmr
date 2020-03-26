@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/const/cfgs";
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+var FoodCfg := ReadConfigFile(FOOD_CFG);
+
+//-----------------------------------------------------------------------------
+
+program CanTroughInsert(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(backpack);
+  __ParamUnused(movetype);
+  __ParamUnused(inserttype);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(CStr(Item.objtype) in GetConfigStringArray(FoodCfg["all"],"food"))
+    return 1;
+  endif
+  SendSysMessage(who,"Nie mozesz tego tu wlozyc.",FONT_NORMAL,COLOR_RED);
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------

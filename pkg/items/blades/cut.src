@@ -1,0 +1,35 @@
+//--------------------------------------------------------------------------------
+
+include "include/items";
+include "include/player/misc";
+include "include/tools";
+include "include/effects";
+include "include/move";
+include "include/events";
+include "include/dirs";
+
+include ":blades:cutting";
+include ":crafting:creation";
+
+//--------------------------------------------------------------------------------
+
+program UseBlade(who, blade)
+
+  if(!StandardItemCheck(who,blade,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!IsToolEquipped(who , blade))
+    return;
+  endif
+
+  SendSysMessage(who, "Na czym chcial"+ggm(who,1)+" to uzyc?",FONT_NORMAL,COLOR_GREEN);
+    
+  var Loc := LocTarget(who);
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK | NO_ITEMCONT_CHECK | NO_DIST_CHECK | NEW_DIST_CHECK, 1))
+    return;
+  endif
+    
+  CheckOtherChop(who,blade,Loc);
+  
+endprogram

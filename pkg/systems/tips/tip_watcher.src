@@ -1,0 +1,233 @@
+//-----------------------------------------------------------------------------
+// Modified: 2006-11-22
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "tips";
+include "include/proc";
+include "include/checks/stdchecks";
+include "include/move";
+include "include/player/basic";
+
+include ":quests:crquest";
+include ":character:common";
+
+//-----------------------------------------------------------------------------
+
+const TW_LIFE_TIME           := 300;
+const TIP_INTERVAL           := 20;
+
+//-----------------------------------------------------------------------------
+
+var pData, tData, who, lastTime, LastTipTime;
+
+//-----------------------------------------------------------------------------
+
+program TipWatcher(_who)
+
+  who := _who;
+  var Proc := GetProc(GetObjProperty(who, "#TipWatcherPid"));
+
+  if(Proc)
+    return;
+  endif
+
+  SetObjProperty(who, "#TipWatcherPid", GetPid());
+
+  tData := GetTipsData();
+  pData := GetTipPlayerData(who);
+  LastTipTime := ReadGameClock() + TIP_INTERVAL; //
+
+  if(!tData)
+    return;
+  endif
+
+  var ev;
+  lastTime := ReadGameClock() + TW_LIFE_TIME;
+
+  while(IsLoggedIn(who) and lastTime > ReadGameClock())
+    ev := wait_for_event(10);
+
+    case(ev.type)
+      TWE_PROC_EVENT:        ProcessTipEvent(CInt(ev.eId), CInt(ev.tFlags));
+                             lastTime := ReadGameClock() + TW_LIFE_TIME;
+      
+      TWE_PROC_TIP:          ProcessTip(CInt(ev.tId), ev.tFlags);
+                             lastTime := ReadGameClock() + TW_LIFE_TIME;
+    endcase
+
+    CheckPendingTips();
+  endwhile
+
+  EraseObjProperty(who, "#TipWatcherPid");
+
+  SetTipPlayerData(who, pData);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ProcessTipEvent(eventId, tFlags)
+
+  if(!tFlags)
+    tFlags := TWPTF_CHECK_CLASS;
+  endif
+
+  var TipsIds := GetTipsIdsByEvent(eventId);
+
+  if(TipsIds.size())
+    foreach tId in TipsIds
+      
+      ProcessTip(CInt(tId), tFlags);
+
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessTip(tipId, tFlags)
+
+  if(!(tFlags & TWPTF_FORCE))
+    if(pData.Pending.exists(tipId) or pData.Showed.exists(tipId))
+      return;
+    endif
+  endif
+
+  var nTip, Elem;
+  InitTipEntryData(nTip);
+  Elem := tData.FindElement(TIP_TITLE + tipId);
+
+  nTip.startTime := GetOnlineTimer(who);
+  nTip.Id        := CInt(tipId);
+  nTip.tFlags    := tFlags;
+
+  if(tFlags & TWPTF_IMMED)
+    nTip.Delay := 0;
+  else
+    nTip.Delay := CInt(Elem.GetProp(TIPROP_DELAY));
+  endif
+
+  var rFlags := 0;
+
+  if(tFlags & TWPTF_CHECK_CLASS)
+    rFlags := CInt(Elem.GetProp(TIAPROP_FLAGS)) & TPF_ALL_CLASSES;
+  elseif(tFlags & TWPTF_MY_CLASS)
+    rFlags := (CInt(tFlags) & TPF_ALL_CLASSES);
+  endif
+
+  if(rFlags)
+    case(GetCharClass(who))
+      CLASS_ARCHER:   if(!(rFlags & TPF_ARCHER))
+                        return;
+                      endif
+
+      CLASS_WARRIOR:  if(!(rFlags & TPF_WARRIOR))
+                        return;
+                      endif
+
+      CLASS_MAGE:     if(!(rFlags & TPF_MAGE))
+                        return;
+                      endif
+    endcase
+  endif
+
+  if(!pData.Pending.exists(tipId))
+    pData.Pending[tipId] := nTip;
+    SetTipPlayerData(who, pData);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPendingTips()
+
+  if(LastTipTime < ReadGameClock())
+    return;
+  endif
+
+  var curTime := GetOnlineTimer(who);
+
+  foreach Tip in (pData.Pending)
+
+    if(Tip.startTime + Tip.Delay <= curTime)
+      Tip.+showTime := curTime;
+      Tip.+sysTime := PolCore().systime;
+      CreateQuestTutorial(Tip);
+
+      pData.Showed[_Tip_iter] := Tip;
+      pData.Pending.erase(_Tip_iter);
+      SetTipPlayerData(who, pData);
+      ShowTip(_Tip_iter, Tip.tFlags);
+      return;
+    endif
+
+  endforeach
+
+  if(pData.Pending.size() > 0)
+    lastTime := ReadGameClock() + TW_LIFE_TIME;
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateQuestTutorial(byref Tip)
+
+  if(pData.Showed.exists(Tip.Id))
+    SetBitOn(Tip.tFlags, TWPTF_QUEST_CREATED);
+    return;
+  endif
+
+  var Elem := tData.FindElement(TIP_TITLE + Tip.Id);
+  var QuestId := CInt(Elem.GetProp(TIPROP_QUEST_ID));
+
+  if(QuestId)
+    var Quest := CreateQuest(QGROUP_TUTORIALS, QuestId, 0, who, QGLOCF_GOOD | QGLOCF_NEUTRAL);
+
+    if(Quest)
+      MoveToPack(Quest, who);
+      UniSendSysMessage(who, ToUnicode("Otrzymal"+ggm(who,3)+" zadanie: '") + GetQuestTitle(QGROUP_TUTORIALS, QuestId) + ToUnicode("'!"), FONT_NORMAL, COLOR_WHITE);
+      SetBitOn(Tip.tFlags, TWPTF_QUEST_CREATED);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTip(tId, tFlags)
+
+  var Tip;
+  AssignTipData(tId, Tip);
+
+  if(Tip.Flags & TPF_ONDEMAND)
+    CreateTipTicket(who, tId, Tip);
+  else
+    start_script(":tips:show_tip", array(who, tId, tFlags & TWPTF_FORCE));
+  endif
+
+  LastTipTime := ReadGameClock() + TIP_INTERVAL; //
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateTipTicket(who, TipId, Tip)
+
+  var Item := CreateItemInPack(who, 0xc738);
+
+  if(Item)
+    SetName(Item, ToAscii(Tip.Name));
+    SetObjProperty(Item, "TipId", TipId);
+    UniSendSysMessage(who, ToUnicode("Otrzyma³"+ggm(who,3)+" now¹ wskazówkê '")+Tip.Name+ToUnicode("'!"), FONT_NORMAL, COLOR_WHITE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

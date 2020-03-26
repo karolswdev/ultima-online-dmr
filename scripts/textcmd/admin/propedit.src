@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/finding";
+include "include/client/fonts";
+include "include/cmds/propgump";
+include "include/names";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program PropEditCmd(who,text)
+
+  var Object;
+  
+  if(CInt(text))
+    Object := FindPlayerBySerial(text);
+  else
+    SendSysMessage(who,"Wybierz obiekt.",FONT_NORMAL,COLOR_GREEN);
+    Object := ObjTarget(who);
+  endif
+  
+  if(Object)
+    if(Object.isa(POLCLASS_ITEM))
+      ReserveItem(Object);
+    endif
+
+    BuildCpropGump(who,Object);
+
+    if(!Object)
+      SendSysMessage(who,"Cel nie istnieje.",FONT_NORMAL,COLOR_RED);
+    elseif(Object.isa(POLCLASS_ITEM))
+      ReleaseItem(Object);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

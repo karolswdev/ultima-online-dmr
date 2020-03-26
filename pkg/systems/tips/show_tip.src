@@ -1,0 +1,207 @@
+//--------------------------------------------------------------------------------
+// Modified: 2006-11-22
+//--------------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/player/misc";
+include "tip_data";
+
+//--------------------------------------------------------------------------------
+
+var who;
+
+//--------------------------------------------------------------------------------
+
+program ShowTip(Params)
+
+  who     := Params[1];
+  var tId := Params[2];
+
+  if(!who or !tId)
+    return;
+  endif
+
+  if(GetObjProperty(who, "DontShowTips") and !Params[3])
+    return;
+  endif
+
+  var curTip := GetObjProperty(who, "#curTipPid");
+  var curId  := GetObjProperty(who, "#curTipId");
+
+  if(curTip)
+    CloseGumpEx(who, curTip);
+  endif
+
+  if(!curId)
+    curId := tId;
+  endif
+
+  SetObjProperty(who, "#curTipPid", GetPid());
+
+  var Tip;
+  var bDone := 0;
+  var IsNew := (curId != tId);
+  var pData  := GetTipPlayerData(who);
+
+  while(who and !bDone)
+    AssignTipData(curId, Tip);
+
+    if(!Tip)
+      break;
+    endif
+
+    BuildTip(curId, Tip, IsNew, pData.Showed.size() >= MIN_TIPS_TO_TURNOFF);
+    SetObjProperty(who, "#curTipId", curId);
+
+    var Res := GSend(who);
+
+    case(Res.butid)
+      1:             pData  := GetTipPlayerData(who);
+                 var curIdx := GetTipIndex(pData, curId);
+                 var Ids    := GetTipIds(pData);
+
+                 if(curIdx > 1)
+                   curId := Ids[curIdx-1];
+                 else
+                   bDone := 1;
+                 endif
+
+      2:             pData  := GetTipPlayerData(who);
+                 var curIdx := GetTipIndex(pData, curId);
+                 var Ids    := GetTipIds(pData);
+
+                 if(curIdx < Ids.size())
+                   curId := Ids[curIdx+1];
+                 else
+                   bDone := 1;
+                 endif
+
+      3:         if(!ToggleShowTips())
+                   return;
+                 endif
+
+      default:   bDone := 1;
+    endcase
+
+    IsNew := 0;
+
+  endwhile
+
+  if(GetObjProperty(who, "#curTipPid") == GetPid())
+    EraseObjProperty(who, "#curTipPid");
+    EraseObjProperty(who, "#curTipId");
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function BuildTip(tId, byref Tip, IsNew, bTurnOff)
+
+  var pData  := GetTipPlayerData(who);
+  var curIdx := GetTipIndex(pData, tId);
+
+  GInit(10, 40);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GPage();
+  GResPic(0, 0, 0x24A4, 365, 270);
+  GGumpPic(325, 3, 0x4cb);
+  GAddPageData(325,60,0x824,0x824,325,222,0x825,0x825);
+
+  GResPic(30, 35, 0x2454, 310, 25);
+  GResPic(30, 65, 0x2454, 310, 165);
+
+  GTextLine(150, 5, 999, CAscZ("Wskazówka"));
+  GTextLine(40, 37, 670, Tip.Name);
+
+  if(curIdx > 1)
+    GButton(30, 247, 0x15a1, 0x15a2, 1);
+  endif
+
+  if(curIdx < pData.Showed.size())
+    GButton(110, 247, 0x15a4, 0x15a5, 2);
+    if(IsNew)
+      GTextLine(140, 247, 1152, "Nowe!");
+    endif
+  endif
+
+  if(bTurnOff)
+    GButton(200, 250, 2117, 2118, 3);
+
+    if(GetObjProperty(who, "DontShowTips"))
+      GTextLine(220, 247, 999, "Wlacz wskazowki");
+    else
+      GTextLine(220, 247, 999, "Wylacz wskazowki");
+    endif
+  endif
+
+  GTextLine(60, 247, 999, curIdx+"/"+pData.Showed.size());
+
+  foreach Line in (Tip.Text)
+    GCheckNextPage(8);
+    GTextLine(35, 67+GNPCount()*20, 0, Line);
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetTipIds(byref pData)
+
+  var Keys   := dictionary;
+  var Ids    := array;
+  
+  foreach Tip in (pData.Showed)
+    if(!Keys.exists(Tip.showTime))
+      Keys[Tip.showTime] := array(_Tip_iter);
+    else
+      Keys[Tip.showTime].append(_Tip_iter);
+    endif
+  endforeach
+
+  foreach Elem in Keys
+    foreach tId in Elem
+      Ids.append(tId);
+    endforeach
+  endforeach
+
+  return Ids;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetTipIndex(byref pData, tId)
+
+  var Idx := 1;
+  var Ids := GetTipIds(pData);
+
+  foreach tipId in Ids
+    if(tipId == tId)
+      return Idx;
+    endif
+    Idx := Idx + 1;
+  endforeach
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ToggleShowTips()
+
+  if(GetObjProperty(who, "DontShowTips"))
+    EraseObjProperty(who, "DontShowTips");
+    return 1;
+  endif
+
+  SetObjProperty(who, "DontShowTips", ReadGameClock());
+  SendSysMessage(who, "Mozesz wlaczyc z powrotem wskazowki uzywajac komendy .wskazowki.", FONT_NORMAL, COLOR_GREEN);
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------

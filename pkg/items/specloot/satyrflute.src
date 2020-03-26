@@ -1,0 +1,38 @@
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/effects";
+include ":alchemy:potion";
+
+include ":musicianship:music";
+
+program SatyrFlute(who, Flute)
+
+  if(!StandardItemCheck(who,Flute,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(CInt(GetObjProperty(Flute, "#SatyrFluteDelay")) > ReadGameClock())
+    SendSysMessage(who, "Jeszcze nie mozesz tego uzyc... musisz chwile odczekac.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  PlaySoundEffect(who, 0x5B9);
+  sleep(1);
+  SetObjProperty(Flute, "#SatyrFluteDelay", ReadGameClock() + 300);
+  SubItemUses(Flute, 1);
+
+  foreach TheTarg in ListMobilesNearLocation(who.x, who.y, who.z, 6, who.realm)
+    if(TheTarg.warmode and CheckSpecialLos(who, TheTarg))
+      if(IsPlayer(TheTarg))
+        TheTarg.setwarmode(0);
+        PrintTextAbove(thetarg, thetarg.name + " jest zachwycon"+ggm(TheTarg,6)+" wspaniala muzyka!");
+      else
+        SendChEvent(TheTarg,who,EVID_PEACEMADE);
+        PrintTextAbove(thetarg, "Stworzenie " + thetarg.name + " jest zachwycone wspaniala muzyka!");
+      endif
+    endif
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

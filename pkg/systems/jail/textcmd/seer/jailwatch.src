@@ -1,0 +1,230 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/clock";
+include "../../jail";
+include "include/move";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program JailWatch(who)
+
+  var OnlineChars := EnumerateOnlineCharacters();
+  var Jailed      := GetGlobalProperty(PROP_JAILEDPERSONS);
+
+  var whoSerial, i, JailPerson, WhoJailing, Reason, JailProps;
+  var IsOnline := "Nie";
+
+  GInit( 0 , 30 );
+
+  GPage();
+  GResPic(0,0,3600,820,480);
+  GAddPageData(785,17,2650,2651,785,443,2648,2647);
+  
+  GTextLine(335, 22, 999, "Osoby zamkniete w wiezieniu.");
+
+  if(!Jailed.size() or !Jailed)
+    GTextLine(35, 60, 500, "Ha! Nikt nie siedzi w wiezieniu. Czyzby wszyscy gracze przestrzegali zasad?");
+    GTextLine(35, 80, 500, "Czy moze GMowie zaniedbuja swoje obowiazki?!");
+  endif
+
+  i := 1;
+
+  foreach JailEntry in Jailed
+  
+    whoSerial := _JailEntry_iter;
+
+    IsOnline := "Nie";
+    Reason   := "brak";
+
+    JailPerson := FindPlayerBySerial(whoSerial);
+
+    if(JailPerson)
+
+      GCheckNextPage(20);
+
+      GButton( 15 , (50+(GNPCount()*20)) , 2714, 2715, 1000+i);
+      GTextLine(35,(50+(GNPCount()*20)), 999, "cela");
+
+      GTextLine(75,(50+(GNPCount()*20)),540, JailEntry["Cell"][1]+" Nr: "+CInt(JailEntry["Cell"][2]));
+
+      JailProps  := GetJailProps(JailPerson);
+
+      if(JailPerson in OnlineChars)
+        IsOnline := "Tak";
+      endif
+
+      WhoJailing := FindPlayerBySerial(JailProps[5]);
+
+      if(WhoJailing)
+        WhoJailing := WhoJailing.name;
+      else
+        WhoJailing := "nieznany";
+      endif
+
+      Reason := JailProps[4];
+      if(!Reason)
+        Reason := "brak";
+      endif
+
+      GTextLine(215, (50+(GNPCount()*20)),650, JailPerson.name + "/" + JailPerson.acctname);
+      GTextLine(400,(50+(GNPCount()*20)),999, "Online:");
+      GTextLine(450,(50+(GNPCount()*20)),550, IsOnline);
+      GTextLine(500,(50+(GNPCount()*20)),999, "Czas:");
+      GTextLine(540,(50+(GNPCount()*20)),550, RealHourTime(JailProps[3]));
+      GTextLine(600,(50+(GNPCount()*20)),640, RealTime((JailProps[2] + JailProps[3]) - ReadGameClock()));
+      
+      GCheckNextPage(20);
+
+      if(IsGm(who) or JailProps[5] == who.serial)
+        GButton( 95 , (50+(GNPCount()*20)) , 2714, 2715, 3000+i);
+        GTextLine(115, (50+(GNPCount()*20)),999, "wiecej");
+      endif
+
+      GButton( 15, (50+(GNPCount()*20)),2714,2715, 2000+i);
+      GTextLine(35,(50+(GNPCount()*20)), 999, "miejsce");
+
+      GTextLine(215,(50+(GNPCount()*20)),999, "Zamknal:");
+      GTextLine(275,(50+(GNPCount()*20)),550, WhoJailing);
+      GTextLine(400,(50+(GNPCount()*20)),999, "Powod:");
+      GTextLine(450,(50+(GNPCount()*20)),550, Reason);
+
+    endif
+
+    i := i + 1;
+
+  endforeach
+
+  i := 1;
+  var JailEntry;
+
+  var res := GSend(who)[0];
+
+  if(res)
+
+    foreach tJail in Jailed
+
+      if((res % 1000) == i)
+        JailEntry := tJail;
+        JailEntry["Person"] := _tJail_iter;
+        break;
+      endif
+
+      i := i + 1;
+
+    endforeach
+
+  endif
+
+  if(res > 1000 and res < 2000)
+    GoToCellPlace(who, JailEntry);
+  elseif(res > 2000 and res < 3000)
+    GoToLastPlace(who, JailEntry);
+  elseif(res > 3000 and res < 4000)
+    ShowSpec(who, JailEntry);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GoToCellPlace(who, JailEntry)
+
+  var Coords := JailEntry["Coords"];
+  MoveObject(who, Coords[1]+3, Coords[2], Coords[3], Coords[4], MOVECHAR_FORCELOCATION);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToLastPlace(who, JailEntry)
+
+  var JailPerson := FindPlayerBySerial(JailEntry["Person"]);
+
+  if(!JailPerson)
+    SendSysMessage(who,"Nie znaleziono osoby w wiezieniu.",FONT_NORMAL,COLOR_RED);
+  endif
+
+  var JailProps := GetJailProps(JailPerson);
+
+  if(!JailProps[1][4])
+    JailProps[1][4] := _DEFAULT_REALM;
+  endif
+
+  if(JailProps[1][1] and JailProps[1][2])
+    MoveObject(who,JailProps[1][1],JailProps[1][2],JailProps[1][3],JailProps[1][4],MOVECHAR_FORCELOCATION);
+  else
+    SendSysMessage(who,"Nie znaleziono ostatniej lokacji.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowSpec(who, JailEntry)
+
+  var JailPerson := FindPlayerBySerial(JailEntry["Person"]);
+  var JailProps  := GetJailProps(JailPerson);
+  var WhoJailing := FindPlayerBySerial(JailProps[5]);
+
+  GInit( 30 , 30 );
+
+  GPage();
+  GResPic(0,0,3600,420,200);
+
+  GButton(30,50,2714, 2715,1);
+  GTextLine(50,50,560,"Powod");
+  GTextLine(150,50,570,JailProps[4]);
+
+  GButton(30,80,2714, 2715,2);
+  GTextLine(50,80,560,"Czas");
+  GTextLine(150,80,570,RealHourTime(JailProps[3]));
+
+  GTextLine(50,110,560,"Zamykal");
+  GTextLine(150,110,570,ClStr(WhoJailing.name));
+
+  GButton(30,150,2714, 2715,3);
+  GTextLine(50,150,560,"Wypusc");
+
+  var Res := GSend(who)[0];
+
+  case(Res)
+    1:  var NewReason := SendTextEntryGump(who, "Wpisz nowy powod", TE_CANCEL_ENABLE, TE_STYLE_NORMAL, 180);
+        if(NewReason)
+          SendSysMessage(who,"Zmienil"+ggm(who,3)+" powod na "+NewReason,FONT_NORMAL,COLOR_GREEN);
+          JailProps[4] := NewReason;
+          SetJailProps(JailPerson,JailProps);
+
+          var JailMsg   := "Zmiana powodu: "+GetRealName(JailPerson)+" czas: "+RealHourTime(JailProps[3])+" powod: '"+NewReason+"'.";
+          AddPlayerNote(who, JailPerson, NOTETYPE_JAILMOD, JailMsg);
+          
+          var Scroll   := FindItemBySerial(JailProps[6]);
+          SetScrollName(Scroll,WhoJailing,JailPerson,JailProps[4],JailProps[3]);
+        else
+          SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        endif
+    2:  var NewTime := SendTextEntryGump(who,"Wpisz nowy czas w godz.",TE_CANCEL_ENABLE);
+        NewTime     := CDbl(NewTime);
+        if(NewTime and CInt(NewTime * 3600))
+          SendSysMessage(who,"Zmienil"+ggm(who,3)+" czas na "+NewTime+"h",FONT_NORMAL,COLOR_GREEN);
+          JailProps[3] := CInt(NewTime * 3600);
+          SetJailProps(JailPerson,JailProps);
+
+          var JailMsg   := "Zmiana czasu: "+GetRealName(JailPerson)+" czas: "+RealHourTime(JailProps[3])+" powod: '"+JailProps[4]+"'.";
+          AddPlayerNote(who, JailPerson, NOTETYPE_JAILMOD, JailMsg);
+
+          var Scroll   := FindItemBySerial(JailProps[6]);
+          SetScrollName(Scroll,WhoJailing,JailPerson,JailProps[4],JailProps[3]);
+        else
+          SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        endif
+    3:  FreeFromJail(JailPerson);
+          SendSysMessage(who,"Wypuscil"+ggm(who,3)+" gracza "+GetRealName(JailPerson)+".",FONT_NORMAL,COLOR_GREEN);
+          var JailMsg   := "Wybaczenie: "+GetRealName(JailPerson)+" czas: "+RealHourTime(JailProps[3])+" powod: '"+JailProps[4]+"'.";
+          AddPlayerNote(who, JailPerson, NOTETYPE_JAILMOD, JailMsg);        
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

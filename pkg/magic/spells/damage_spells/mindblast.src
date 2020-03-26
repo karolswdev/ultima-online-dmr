@@ -1,0 +1,72 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/mobile/npcs/specs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 37;
+
+//-----------------------------------------------------------------------------
+
+program CastMindBlast( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  var MyInt  := CInt(GetIntelligence(Caster));
+  var HisInt := CInt(GetIntelligence(CastOn));
+
+  if(Reflected(CastOn, Caster))
+    CastOn := caster;
+  endif
+
+  var Dmg;
+  if(IsPlayer(CastOn) and IsPlayer(Caster))
+    Dmg := CInt((MyInt - HisInt) / 1.5);
+  else
+    Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+  endif
+
+  if(Dmg > 50)
+    Dmg := 50;
+  elseif(Dmg < 1)
+    Dmg := 1;
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_MIND_BLAST);
+  PlayObjectCenteredEffect(CastOn, FX_CURSE_EFFECT, 7,0x10);
+
+  var Res;
+
+  if(GetBaseSkillBaseValue(CastOn, SKILLID_BARBARIAN))
+    Res := DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type, NO_RESIST);
+  else
+    Res := DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+  endif
+  
+  if(Res > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+  if(CastOn.isa(POLCLASS_NPC))
+    var Res := BreakNpcSpecial(CastOn, NSPEC_MINDRAGE);
+    if(Res > 0)
+      SendSysMessage(Caster, "Przelamal"+ggm(Caster,3)+" koncetracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_WHITE);
+    elseif(Res < 0)
+      SendSysMessage(Caster, "Prawie przelamal"+ggm(Caster,3)+" koncentracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_ORANGE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

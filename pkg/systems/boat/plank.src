@@ -1,0 +1,111 @@
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/move";
+include "plankutil";
+
+//-----------------------------------------------------------------------------
+
+program UsePlank(mob, plank)
+
+  Detach();
+  var owner := GetObjProperty(plank, "owner");
+  
+  if (mob.serial == owner)
+    var tillermanid := GetObjProperty(plank, "tillermanid");
+    var tillerman := SystemFindObjectBySerial( tillermanid );
+    if (tillerman)
+      var decay := GetObjProperty(tillerman, "decay");
+       if((decay - ReadGameClock() ) < 860000)
+          SendSysMessage(mob, "Statek zostal odswiezony.",FONT_NORMAL,COLOR_GREEN);
+       endif
+       SetObjProperty( tillerman,"decay",(ReadGameClock()+ 864000));
+    endif
+  endif
+  
+  if(Distance(mob,plank) > 3)
+    SendSysMessage(mob,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(mob.multi.serial == plank.multi.serial)
+    TimedOpenClose(plank);
+  elseif(!plank.locked)
+    if(!IsExtended(plank))
+      TimedOpenClose(plank);
+    else
+      YankOntoBoat(mob,plank);
+    endif
+  elseif(FK(mob, plank))
+    if(!IsExtended(plank))
+      TimedOpenClose(plank);
+    else
+      YankOntoBoat(mob,plank);
+    endif
+  else
+    PrintTextAbovePrivate(plank, "*zamkniete*", mob,FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function TimedOpenClose(plank)
+
+  if(IsExtended(plank))
+  
+    if(!IsPlankOccupied(plank))
+      Retract(plank);
+      EraseObjProperty(plank, "#WhenOpened");
+    endif
+    
+  else
+  
+    var whenopened := ReadGameClock();
+    SetObjProperty(plank, "#WhenOpened", whenopened);
+    Extend(plank);
+    repeat
+    sleep(6);
+    until(!(plank and IsPlankOccupied(plank)));
+    
+    if(GetObjProperty(plank, "#WhenOpened") == whenopened)
+      Retract(plank);
+      EraseObjProperty(plank, "#WhenOpened");
+    endif
+    
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function YankOntoBoat(mob, plank)
+
+  var dx := 0;
+  var dy := 0;
+  
+  case(plank.graphic)
+    GID_PLANK_EXTENDED_FACING_WEST:
+    GID_PLANK_RETRACTED_FACING_WEST:    dx := 1;
+                                        dy := 0;
+    GID_PLANK_EXTENDED_FACING_EAST:
+    GID_PLANK_RETRACTED_FACING_EAST:    dx := -1;
+                                        dy := 0;
+
+    GID_PLANK_EXTENDED_FACING_NORTH:
+    GID_PLANK_RETRACTED_FACING_NORTH:   dx := 0;
+                                        dy := 1;
+    GID_PLANK_EXTENDED_FACING_SOUTH:
+    GID_PLANK_RETRACTED_FACING_SOUTH:   dx := 0;
+                                        dy := -1;
+  endcase
+  
+  if(GetStandingHeight(plank.x + dx, plank.y + dy, plank.z,plank.realm).z)
+    MoveObject(mob, plank.x + dx, plank.y + dy, plank.z);
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

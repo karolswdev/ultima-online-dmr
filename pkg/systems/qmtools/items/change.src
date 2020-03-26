@@ -1,0 +1,18 @@
+use uo;
+
+include "include/checks/objchecks";
+
+program ChangeItem(who, item)
+
+    if(!StandardItemCheck(who,item,NO_MOVABLE_CHECK))
+      return;
+    endif
+
+    case (item.graphic)
+      7885: item.graphic := 7888;
+      7888: item.graphic := 7885;
+    endcase
+
+    sleep(1);
+
+endprogram

@@ -1,0 +1,35 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/packets";
+include "include/proc";
+
+//--------------------------------------------------------------------------------
+
+program InfoPackets()
+
+  return 1;
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+exported function InfoPacket(who, byref Packet)
+
+  if(Packet.GetInt32(4))
+    var Pid := GetProcess(Packet.GetInt32(4));
+    if(Pid)
+      var ev     := struct;
+      ev.+packet := Packet;
+      Pid.sendevent(ev);
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

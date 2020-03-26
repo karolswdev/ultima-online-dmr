@@ -1,0 +1,85 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/client/fonts";
+include "include/const/props";
+include "include/bits";
+include "include/accounts";
+include "include/player/misc";
+include "include/cmds/misc";
+include "include/cmds/cmds";
+include "include/clock";
+include "include/gumpboxes";
+include ":toplist:toplist";
+include ":tips:tips";
+
+//-----------------------------------------------------------------------------
+
+program DebugSettings(who)
+  
+  var res, i;
+  
+  do
+  
+    var Props := GetDebugProps(who);
+
+    GInit(100,50);
+    GResPic(0,0,3600,300,260);
+    GButton(265,15,0xA94,0xA95,0);
+    GTextLine(40,25,40,"Debug:");
+
+    i := 0;
+    
+    foreach Prop in Props
+      GTextLine(50,50+i*20,50, Prop.Name);
+      if(Prop.Value)
+        GButton(220,54+i*20,2361,2360,1001+i);
+      else
+        GButton(220,54+i*20,2360,2361,1001+i);
+      endif
+      i += 1;
+    endforeach
+    
+    res := GSend(who);
+
+    if(res[0] > 1000 and res[0] <= 1000+Props.size())
+      var Prop := Props[res[0]-1000];
+      if(GetObjProperty(who, Prop.ObjName))
+        EraseObjProperty(who, Prop.ObjName);
+        SendSysMessage(who,Prop.Name+": wylaczone",FONT_NORMAL,COLOR_GREEN);
+      else
+        SetObjProperty(who, Prop.ObjName,  1);
+        SendSysMessage(who,Prop.Name+": wlaczone",FONT_NORMAL,COLOR_BLUE);
+      endif
+    endif
+    
+  dowhile(res and IsLoggedIn(who));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetDebugProps(who)
+
+  var Props := array;
+
+  Props.append(struct{"Name":= "Debug gornictwa", "ObjName":= "MineDebug"});
+  Props.append(struct{"Name":= "Debug drwalstwa", "ObjName":= "LumberDebug"});
+  Props.append(struct{"Name":= "Debug likantropii", "ObjName":= "WWDebug"});
+  Props.append(struct{"Name":= "Debug wampiryzmu", "ObjName":= "VWDebug"});
+  Props.append(struct{"Name":= "Debug wyjatkow", "ObjName":= "ExpDebug"});
+  Props.append(struct{"Name":= "Debug szansy na wyjatek", "ObjName":= "ExpChance"});
+  Props.append(struct{"Name":= "Debug otrzymania bulka", "ObjName":= "#BulkForce"});
+  Props.append(struct{"Name":= "Debug gaina bulka", "ObjName":= "BulkDebug"});
+  Props.append(struct{"Name":= "Debug szansy rzemiosla", "ObjName":= "CraftDebug"});
+  
+
+  foreach Prop in Props
+    Prop.+Value := GetObjProperty(who, Prop.ObjName);
+  endforeach
+
+  return Props;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,5 @@
+use basicio;
+include ":teleporters:moongates";
+
+print("Inicjalizacja Moongatow");
+CreateMoongates();

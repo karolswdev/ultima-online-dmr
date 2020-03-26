@@ -1,0 +1,91 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include "include/names";
+
+include ":ngd_npcs:common";
+include ":ngd_npcs:membership";
+include ":npcguilds:ngd_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program GuildNpcPromotion(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!IsGuildNpc(Data.npc))
+    return -1;
+  endif
+
+  var PlayerData := GetObjProperty(Data.source, PROP_NGDDATA);
+  var NpcData    := GetObjProperty(Data.npc, PROP_NGDDATA);
+
+  if(PlayerData)
+    if(PlayerData.Guilds.exists(NpcData.GuildId))
+      if(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_MEMBER)
+        if(CanNGnSpeakWith(Data.npc, Data.source))
+          PlayerData.Guilds[NpcData.GuildId].LastVisit := ReadGameClock();
+          SetObjProperty(Data.source, PROP_NGDDATA, PlayerData);
+          SayGuildGradeText(Data.npc, Data.source, PlayerData.Guilds[NpcData.GuildId]);
+        endif
+        return 1;
+      endif
+    endif
+  endif
+
+  NpcSpeechJustSay(Data.npc, Data.source, "Hm.. nie widze bys nalezal"+ggm(Data.source, 4)+" do mojej gildii.");
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetGuildGradePerc(byref GuildData)
+
+  var MinVal := BaseToRawSkill((GuildData.Level)*200);
+  var MaxVal := BaseToRawSkill((GuildData.Level+1)*200);
+
+  var MaxExp := MaxVal - MinVal;
+  var CurExp := GuildData.Exp - MinVal;
+
+  return (CurExp * 100) / MaxExp;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SayGuildGradeText(Npc, who, byref GuildData)
+
+  var Lvl := CInt(GetGuildGradePerc(GuildData) / 20);
+
+  case(Lvl)
+    1:          NpcSpeechJustSay(Npc, who, "Ostatnio zaniedbujesz swoje obowiazki w gildii.");
+
+    2:          NpcSpeechJustSay(Npc, who, "Starasz sie, ale to za malo bys mogl"+ggm(who,4)+" awansowac.");
+    3:          NpcSpeechJustSay(Npc, who, "No no, widac u ciebie postepy oby tak dalej.");
+    4:
+    5:          NpcSpeechJustSay(Npc, who, "Widze, ze angazujesz sie we wszystkie sprawy gildii, niebawem powin"+ggm(who,7)+" awansowac.");
+
+    default:    if(!GuildData.Level)
+                  NpcSpeechJustSay(Npc, who, "*Smieje sie*");
+                  NpcSpeechJustSay(Npc, who, "Prawie nic nie zrobil"+ggm(who,3)+" w gildii a liczysz na awans?");
+                else
+                  NpcSpeechJustSay(Npc, who, "Nie dawno awansowal"+ggm(who,3)+", jeszcze za wczesnie na kolejny raz.");
+                endif
+
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

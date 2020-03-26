@@ -1,0 +1,301 @@
+//-----------------------------------------------------------------------------
+
+include "include/findcity";
+include "include/std";
+include "include/player/misc";
+
+include "../../renthouse";
+
+//-----------------------------------------------------------------------------
+
+program AddRentHouseCmd(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  var City := FindCity(who);
+  
+  var MElem := {};
+  var pElem := {};
+  
+  pElem.+pname;
+  pElem.+pvalue;
+  
+  var Cities := GetCities();
+  
+  if(!City)
+    City := ChooseOne(who,Cities);
+    City := Cities[City];
+  endif
+  
+  UnloadConfigFile(":rhousecfg:"+lower(City));
+  var Cfg := ReadConfigFile(":rhousecfg:"+lower(City));
+  
+  if(!Cfg)
+    SendSysMessage(who,"Nie mozna znalezc konfiga miasta "+City+"!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Nr := GetConfigMaxIntKey(Cfg) + 1;
+  
+  pElem.pname := "HouseNr";
+  pElem.pvalue := Nr;
+  
+  mElem.append(pElem);
+  
+  pElem.pname := "City";
+  pElem.pvalue := City;
+  
+  mElem.append(pElem);
+  
+  var Loc;
+  
+  SendSysMessage(who,"Stan w lokacji startowej (NW)",FONT_NORMAL,COLOR_GREEN);
+  
+  if(!YesNo(who,"Juz?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  Loc := who;
+
+  pElem.pname := "HouseXS";
+  pElem.pvalue := Loc.x;
+  mElem.append(pElem);
+
+  pElem.pname := "HouseYS";
+  pElem.pvalue := Loc.y;
+  mElem.append(pElem);
+
+  SendSysMessage(who,"Stan w lokacji koncowej (SE)",FONT_NORMAL,COLOR_GREEN);
+
+  if(!YesNo(who,"Juz?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  Loc := who;
+
+  pElem.pname := "HouseXE";
+  pElem.pvalue := Loc.x;
+  mElem.append(pElem);
+
+  pElem.pname := "HouseYE";
+  pElem.pvalue := Loc.y;
+  mElem.append(pElem);
+
+  SendSysMessage(who,"Stan w miejscu glownym domu (kolo drzwi)",FONT_NORMAL,COLOR_GREEN);
+
+  if(!YesNo(who,"Juz?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  Loc := who;
+
+  pElem.pname := "Mx";
+  pElem.pvalue := Loc.x;
+  mElem.append(pElem);
+
+  pElem.pname := "My";
+  pElem.pvalue := Loc.y;
+  mElem.append(pElem);
+  
+  SendSysMessage(who,"Wskaz drzwi 1.",FONT_NORMAL,COLOR_GREEN);
+  
+  Loc := LocTarget(who);
+  
+  if(!Loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  pElem.pname := "Door1X";
+  pElem.pvalue := Loc.x;
+  mElem.append(pElem);
+
+  pElem.pname := "Door1Y";
+  pElem.pvalue := Loc.y;
+  mElem.append(pElem);
+
+  pElem.pname := "Door1Z";
+  pElem.pvalue := Loc.z;
+  mElem.append(pElem);
+
+  SendSysMessage(who,"Wskaz drzwi 2 (ESC jak nie ma).",FONT_NORMAL,COLOR_GREEN);
+
+  Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who,"Ominieto drugie drzwi.",FONT_NORMAL,COLOR_RED);
+  else
+    pElem.pname := "Door2X";
+    pElem.pvalue := Loc.x;
+    mElem.append(pElem);
+
+    pElem.pname := "Door2Y";
+    pElem.pvalue := Loc.y;
+    mElem.append(pElem);
+
+    pElem.pname := "Door2Z";
+    pElem.pvalue := Loc.z;
+    mElem.append(pElem);
+  endif
+  
+  SendSysMessage(who,"Wskaz miejsce znaku (Z normal).",FONT_NORMAL,COLOR_GREEN);
+
+  Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  pElem.pname := "SignX";
+  pElem.pvalue := Loc.x;
+  mElem.append(pElem);
+
+  pElem.pname := "SignY";
+  pElem.pvalue := Loc.y;
+  mElem.append(pElem);
+
+  pElem.pname := "SignZ";
+  pElem.pvalue := Loc.z;
+  mElem.append(pElem);
+  
+  var Arr  := {"Light N","Light W","Dark N","Dark W"};
+  
+  Loc := ChooseOne(who,Arr,"znak");
+  
+  Loc := Arr[Loc];
+  
+  pElem.pname := "SignDir";
+  pElem.pvalue := Loc[len(Loc)];
+  mElem.append(pElem);
+
+  pElem.pname := "SignType";
+  pElem.pvalue := Loc[1,len(Loc)-2];
+  mElem.append(pElem);
+  
+  Arr := {"WoodPost","DWoodPost","IronPost1","IronPost2","IronPost3"};
+  
+  Loc := ChooseOne(who,Arr,"post");
+  
+  pElem.pname := "PostType";
+  pElem.pvalue := Arr[Loc];
+  mElem.append(pElem);
+  
+  SendSysMessage(who,"Wskaz miejsce skrzyni.",FONT_NORMAL,COLOR_GREEN);
+
+  Loc := LocTarget(who);
+
+  pElem.pname := "HrContX";
+  pElem.pvalue := Loc.x;
+  mElem.append(pElem);
+
+  pElem.pname := "HrContY";
+  pElem.pvalue := Loc.y;
+  mElem.append(pElem);
+
+  pElem.pname := "HrContZ";
+  pElem.pvalue := Loc.z;
+  mElem.append(pElem);
+
+  Arr := {"N","W"};
+  
+  Loc := ChooseOne(who,Arr,"kierunek skrzyni");
+
+  Loc := Arr[Loc];
+  
+  pElem.pname := "HrContDir";
+  pElem.pvalue := Loc;
+  mElem.append(pElem);
+  
+  Loc := SendTextEntryGump(who,"Wpisz cene.",TE_CANCEL_ENABLE);
+
+  Loc := CInt(Loc);
+  
+  if(!Loc)
+    SendSysMessage(who,"Nie podano ceny.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  pElem.pname := "Price";
+  pElem.pvalue := Loc;
+  mElem.append(pElem);
+  
+  AddRentHouse(who,mElem);
+  UnloadConfigFile(":rhousecfg:"+lower(City));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ChooseOne(who,Arr,Msg := "z posrod")
+
+  GInit(50,50);
+  GResPic(0,0,3600,400,380);
+  GPage();
+  GTextLine(120,20,550, "Wybierz "+Msg+" :");
+  GTextLine(60,340,550,"Anuluj");
+  GButton(30,340,2714, 2715,0);
+
+  GAddPageData(367,19,2650,2651,367,343,2648,2647);
+
+  var i := 1;
+
+  foreach Elem in Arr
+    GCheckNextPage(14);
+    GTextLine(60,(GNPCount()*20)+50,560,i + ".");
+    GTextLine(90,(GNPCount()*20)+50,570,Elem);
+    GButton(30,(GNPCount()*20)+50,2714, 2715,i);
+    i := i + 1;
+  endforeach
+  
+  var Res := GSend(who)[0];
+  
+  if(!Res)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    exit;
+  endif
+  
+  return Res;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddRentHouse(who,mElem)
+
+  GInit(50,50);
+  GResPic(0,0,3600,400,380);
+  GPage();
+  GTextLine(120,20,550, "Dane :");
+  GTextLine(60,340,550,"Dodaj");
+  GTextLine(260,340,550,"Anuluj");
+  GButton(30,340,2714, 2715,1);
+  GButton(230,340,2714, 2715,0);
+
+  GAddPageData(367,19,2650,2651,367,343,2648,2647);
+
+  var i := 1;
+
+  foreach Elem in mElem
+    GCheckNextPage(14);
+    GTextLine(60,(GNPCount()*20)+50,570,Elem.pname);
+    GTextLine(140,(GNPCount()*20)+50,570,Elem.pvalue);
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  if(!Res)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    exit;
+  endif
+
+  AppendConfigFileElem(lower(mElem[2].pvalue),"House",mElem[1].pvalue,mElem);
+  SendSysMessage(who,"Dodano dom w miescie "+mElem[2].pvalue+" Nr: "+mElem[1].pvalue+".",FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseRedPotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+  ////
+  if(ExPid(GetObjProperty(who, RED_POTION_EFFECT_PID)))
+    SendSysmessage(who, "Wypicie mikstury nie przyniesie efektu.", FONT_NORMAL, COLOR_RED);
+    EraseObjProperty(who,"#Drinking"+potion.graphic);
+    EraseObjProperty(who,"#DrinkingOverall");
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+
+  Strength     := CalcPotStrength(Strength,ExpMod);
+  
+  var Add   := 0;
+  var Delay := 650 - (150 * QualMod);
+  
+  if(IsCharClass(who, CLASS_ARCHER))
+    Delay := Delay - GetStrength(who) * 1.25;
+  elseif(IsCharClass(who, CLASS_MAGE))
+    Delay := Delay - GetStrength(who) * 0.75;
+  else
+    Delay := Delay - GetStrength(who) * 2.5;
+  endif
+  
+  if (GetPotionStrength(potion.objtype) > 20)
+    Add := CInt(GetMaxStamina(who)) + CInt(ExpMod);
+  else
+    Add := CInt(GetMaxStamina(who)/2)+ CInt(ExpMod);
+  endif
+  
+  Delay := CInt(Delay);
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  PlaySoundEffect( who,  SOUND_EFFECT_HEAL );
+
+  start_script(":alchemy:potions/redpotioneffect", array{who,CInt(Add),Delay});
+  
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 120;
+
+//-----------------------------------------------------------------------------
+
+program KnPersist(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!CanMod(Caster, MOD_STAM_REGEN))
+    WcFizzleId(Caster, "Jestes juz pod wplywem mikstury!", KN_WCID);
+    return;
+  endif
+
+  var Duration := GetWarCastDuration(Caster, WCT_KENSAI);
+  var SkKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var ModAmt   := (SkKensai + SkTact) * 2;
+
+  GainWarcastPoints(Caster, Caster, KN_WCID, WCGAIN_DEFENSIVE);
+  DoMod(Caster, MOD_STAM_REGEN, ModAmt, Duration);
+
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 1000, 0x10, 0x10);
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 1000, 0x1A, 0x10);
+  PlaySoundEffect(Caster, SFX_SPELL_RECALL);
+  PlaySoundEffect(Caster, SFX_SPELL_INVISIBILITY);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

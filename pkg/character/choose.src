@@ -1,0 +1,279 @@
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/loots";
+include "include/objects/location";
+include "include/move";
+include "include/checks/objchecks";
+include "include/player/young";
+include "include/mobile/titles";
+include "include/reputation/murderer";
+include ":banking:common";
+include "include/checks/geometry";
+include ":tips:tips";
+
+include ":character:name_check";
+include ":character:common";
+include ":character:creation";
+include ":character:creation_gumps";
+include ":character:creation_process";
+include ":character:race_validation";
+
+//-----------------------------------------------------------------------------
+
+program ChooseCharacter(Params)
+  
+  var who := Params[1];
+  var Data := DefineChooseData();
+
+  if(Params.size() == 2)
+    PrepareChooseDataFor(who, Data, Params[2]);
+  else
+    PrepareChooseDataFor(who, Data);
+  endif
+
+  var Res;
+  TriggerTipEvent(who, TEID_CHOOSING_CLASS);
+
+  while(IsLoggedIn(who))
+
+    case(Data.curStage)
+      1: Res := ProcessStep1(who, Data);
+      2: Res := ProcessStep2(who, Data);
+    endcase
+
+    if(Res == -1)
+      Data.curStage -= 1;
+    elseif(!Res)
+      break;
+    else
+      if(Data.curStage == Data.maxStages and Data.Flags)
+        if(YesNoEx(who, "Czy wybor jest ostateczny?|Nie bedziesz w stanie wybrac takich wlasciwosci|jak rasa, klasa, kolor czy imie postaci ponownie.|Zastanow sie, czy wybrane wlasciwosci sa prawidlowe."))
+          Data.curStage += 1;
+        endif
+      else
+        Data.curStage += 1;
+      endif
+    endif
+
+    if(Data.curStage > Data.maxStages)
+      break;
+    endif
+
+  endwhile
+
+  if(Data.curStage > Data.maxStages)
+    ProcessCreationData(who, Data);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ProcessStep1(who, byref Data)
+
+  var Res, butRes;
+  var doChoose := 0;
+
+  while(IsLoggedIn(who) and doChoose == 0)
+
+    BuildCreationGump(Data);
+    Res := GSend(who);
+    butRes := CInt(Res.butid);
+
+    if(Data.Flags & CRF_NAME)
+      Data.CharName := CroppedId(Res.text[5]);
+    endif
+
+    case(butRes)
+      10:
+        var Gender := SelectGenderGump(who);
+        if(Gender)
+          SetDataGender(Data, Gender);
+        endif
+
+      11:
+        var Class := SelectClassGump(who, Data);
+        
+        if(Class != -1)
+          SetDataClass(Data, Class, who.acct);
+        endif
+      12:
+        var Race := SelectRaceGump(who, Data);
+
+        if(Race != -1)
+          SetDataRace(Data, Race);
+        endif
+        
+      13:
+        SelectColorGump(who, Data);
+
+      100:
+        var Res := ValidateStep1(who, Data);
+
+        if(!Res)
+          ShowInfoEx(who, Res.errortext);
+        else
+          doChoose := 1;
+        endif
+      
+      99:
+      default:
+        if(!(Data.Flags & CRF_CANT_QUIT))
+          if(YesNoEx(who, "Czy chcesz przerwac tworzenie?"))
+            doChoose := -1;
+          endif
+        endif
+
+    endcase
+
+  endwhile
+
+  if(doChoose == 1)
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ValidateStep1(who, byref Data)
+
+  if((Data.Flags & CRF_NAME) and (Data.CharName != Data.oldName or !Data.CharName))
+    var Res := IsBad(who, Data.CharName, BNF_CHECK_BOTH | BNF_CHECK_SECNAME);
+
+    if(!Res)
+      Data.CharName := Data.oldName;
+      return RetError("Blad podczas walidacji imienia:|"+Res.errortext);
+    endif
+
+    var Fixed := FixName(Data.CharName);
+
+    if(Fixed != Data.CharName)
+      Data.CharName := Fixed;
+      return RetError("Wykryto, ze wpisane przez Ciebie imie jest blednie sformatowane.|Zostalo to automatycznie poprawione.|Upewnij sie, czy imie jest odpowiednie.");
+    endif
+
+  endif
+
+  if(!Data.RaceID)
+    return RetError("Nie wybrano rasy!");
+  endif
+  
+  if(!Data.ClassID)
+    return RetError("Nie wybrano klasy!");
+  endif
+  
+  if(!Data.Color)
+    return RetError("Nie wybrano koloru!");
+  endif
+
+  if(!Data.Gender)
+    return RetError("Nie wybrano plci!");
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// Step 2
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+function ProcessStep2(who, byref Data)
+
+  var Res, butRes;
+  var doChoose := 0;
+  var MaxSkills := GetCreationMaxSkills(who.acct);
+  var startSkills := GetCreationStartSkills();
+
+  while(IsLoggedIn(who) and doChoose == 0)
+
+    BuildSkillsGump(who, Data);
+    Res := GSend(who);
+    butRes := CInt(Res.butid);
+
+    if(butRes > 10 and butRes < 40)
+      var MaxStats := GetCreationMaxStats(who.acct);
+      ChangeStatValue(Data, butRes, MaxStats);
+    elseif(butRes >= 200 and butRes <= 200 + SKILLID__HIGHEST)
+      Data.Skills.erase(butRes-200);
+    elseif(butRes >= 300 and butRes <= 300 + SKILLID__HIGHEST)
+      ModifySkillData(Data, butRes-300, -5, MaxSkills);
+    elseif(butRes >= 400 and butRes <= 400 + SKILLID__HIGHEST)
+      ModifySkillData(Data, butRes-400, 5, MaxSkills);
+    else
+
+      case(butRes)
+        50:
+          if(Data.Skills.size() >= CR_MAX_SKILLS)
+            SendSysMessage(who, "Nie mozesz dodac wiecej umiejetnosci.", FONT_NORMAL, COLOR_RED);
+          else
+            var SkillId := SelectClassSkillGump(who, Data, startSkills);
+            if(SkillId != error)
+              ModifySkillData(Data, SkillId, CInt(GetCreationConfig().MaxSkillVal), MaxSkills);
+            endif
+          endif
+
+        101:
+          return -1;
+
+        100:
+          var Res := ValidateStep2(who, Data);
+
+          if(!Res)
+            ShowInfoEx(who, Res.errortext);
+          else
+            doChoose := 1;
+          endif
+
+        99:
+        default:
+          if(!(Data.Flags & CRF_CANT_QUIT))
+            if(YesNoEx(who, "Czy chcesz przerwac tworzenie?"))
+              doChoose := -1;
+            endif
+          endif
+
+      endcase
+       
+    endif
+
+  endwhile
+
+  if(doChoose == 1)
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ValidateStep2(who, byref Data)
+
+  if(GetArraySum(Data.Stats) != GetCreationMaxStats(who.acct))
+    return RetError("Nie przydzielono wszystkich|dostepnych punktow statystyk!");
+  endif
+  
+  if(!Data.Skills.size())
+    return RetError("Nie wybrano umiejetnosci!");
+  endif
+  
+  if(GetArraySum(Data.Skills) != GetCreationMaxSkills(who.acct))
+    return RetError("Nie przydzielono wszystkich|dostepnych punktow umiejetnosci!");
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

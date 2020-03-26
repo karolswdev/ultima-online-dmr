@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-27
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cancmd";
+include "include/client/fonts";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program CmdPacket(who, text)
+
+  if(!CanUseCmd(who, "packet"))
+    return;
+  endif
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "send":    if(!text[2])
+                 SendSysMessage(who, "Nie wpisano pakietu.", FONT_NORMAL, COLOR_RED);
+               else
+                 SendSysMessage(who, "Wskaz osobe.", FONT_NORMAL, COLOR_GREEN);
+                 var Targ := who;
+                 if(!("me" in text))
+                   Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+                 endif
+
+                 if(IsPlayer(Targ))
+                   if(SendPacket(Targ, text[2]))
+                     SendSysMessage(who, "Wyslano pakiet ["+text[2]+"] - "+Targ.name, FONT_NORMAL, COLOR_GREEN);
+                   else
+                     SendSysMessage(who, "Nie udalo sie wyslac pakietu." ,FONT_NORMAL, COLOR_RED);
+                   endif
+                 else
+                   SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+                 endif
+               endif
+
+    "?":       SendSysMessage(who, ".packet [send]", FONT_NORMAL, COLOR_RED);
+
+    default:   SendSysMessage(who, "Zla opcja [.packet ?]", FONT_NORMAL, COLOR_RED);
+    
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

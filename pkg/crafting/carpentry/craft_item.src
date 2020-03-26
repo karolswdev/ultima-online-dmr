@@ -1,0 +1,302 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/key";
+include "include/buildings";
+
+include ":lumberjacking:trees";
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+include ":crafting:exceptional";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+var gSkillCfg    := ReadConfigFile(":carpentry:carpentry");
+var gItemCfg     := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program CarpentryCraftItem(Params)
+
+  var who := Params[1];
+  var Tool := Params[2];
+  var CraftData := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Tool))
+    return;
+  endif
+
+  var Materials;
+  var Cont := GetContForTool(who, Tool);
+
+  if(!PrepareCraft(who, Cont, CraftData.objtype, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_CARPENTRY, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Tool, CraftData.objtype, IterData, Materials, Cont))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, byref Cont, ObjType, byref Materials)
+
+  Materials := DefineCraftMaterialsFromCfg(who, gSkillcfg[ObjType], "material", Cont);
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+
+  if(!Materials)
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, tool, ObjType, byref IterData, byref Materials, Cont)
+
+  var ExpMod     := 0;
+  var CanExp     := gSkillCfg[ObjType].exchk;
+  var MySkill    := GetEffectiveSkill(who,SKILLID_CARPENTRY);
+  var MyBSkill   := GetBaseSkill(who,SKILLID_CARPENTRY);
+  var ChkSkill   := gSkillCfg[ObjType].skill;
+  var AmountType := gSkillCfg[ObjType].AmountType;
+  var Points     := GetCraftPoints(SKILLID_CARPENTRY, ChkSkill);
+  var SkID2      := 0;
+  var Skill2     := 0;
+  var Kind       := gItemCfg[objtype].Kind;
+  var TheItem    := 0;
+  var ProdAmount := 1;
+  var MultAmount := gSkillCfg[ObjType].MultAmount;
+  var CraftLevel := CInt(gSkillCfg[ObjType].CraftLevel);
+  var harvData   := GetHarvested(Materials.mainMat);
+
+  if(gSkillCfg[ObjType].skill2)
+    SkID2        := gSkillCfg[ObjType].skill2;
+    SkID2        := SplitWords(SkID2);
+    Skill2       := Cint(SkID2[2]);
+    SkID2        := Cint(SkID2[1]);
+  endif
+
+  case(AmountType)
+    "Harvest":
+       ProdAmount := GetHarvestAmount(who, SKILLID_CARPENTRY);
+  endcase
+
+  case(MultAmount)
+    "Skill":
+      MultAmount := Max(CInt(MySkill / 10), 1);
+    "HalfSkill":
+      MultAmount := Max(CInt(MySkill / 20), 1);
+  endcase
+
+  if(MySkill >= ChkSkill)
+    ExpMod := ExpMod + Cint(MySkill - Cint(ChkSkill /3));
+  endif
+
+  if(Materials.mainSkill == error and Materials.mainMat)
+    Materials.+mainSkill := gItemCfg[Materials.mainObj].Skill;
+    Materials.+mainKind := GetKindOfLog(Materials.mainObj);
+  endif
+
+  ExpMod := ExpMod + (GetStrength(who) / 6);
+  ExpMod := ExpMod - Cint(Materials.mainSkill / 10);
+  ExpMod := ExpMod + CheckItemQuality(tool);
+
+  if(ObjType != UOBJ_NORMALBOARD)
+    if(!Kind and Materials.mainKind != 1 and Materials.mainKind)
+      SendSysMessage(who,"To mozesz zrobic tylko ze zwyklego drewna.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    elseif(Materials.mainKind > Kind and Kind and Materials.mainKind)
+      SendSysMessage(who,"Z tego drewna nie zrobisz tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  if(MyBSkill < Materials.mainSkill - 5)
+     SendSysMessage(who, "Twa wiedza jest za mala by moc cos z tego zrobic.",FONT_NORMAL,COLOR_RED);
+     return 0;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  var FinalAmount := ProdAmount;
+
+  if(MultAmount)
+    FinalAmount := FinalAmount * MultAmount;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount, MultAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, 0x23E))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, tool, SKILLID_CARPENTRY, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!(CheckSkill(who, SKILLID_CARPENTRY, ChkSkill, 0) and CheckSkill(who, SkID2, Skill2, 0)))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Pila wyskoczyla i zniszczyl"+ggm(who, 3)+" troche materialu!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, 0x23E))
+    return 0;
+  endif
+  
+  var ItemName := GetDps(Materials.mainObj, ObjType);
+  var itmDesc;
+
+  if(ObjType == UOBJ_NORMALBOARD)
+    var BoardTypes := GetBoardObjTypes();
+    itmDesc := GetHarvestDescriptorForData(BoardTypes[Materials.mainKind], harvData);
+  else
+    itmDesc := GetItemDescriptor(ObjType);
+    var propMade := GenMade(who, MTYPE_LOG, Materials.mainKind);
+    itmDesc.CProps.insert(PROP_MADE, propMade);
+  endif
+
+  if(IsStackableObj(ObjType) or FinalAmount == 1)
+    TheItem := CreateItemInCont(cont, itmDesc, FinalAmount, who);
+  else
+    for i := 1 to FinalAmount
+      var curItem := CreateItemInCont(cont, itmDesc, 1, who);
+      if(!curItem)
+        break;
+      endif
+
+      if(!TheItem)
+        TheItem := array;
+      endif
+
+      TheItem.append( curItem);
+    endfor
+  endif
+
+  if(!TheItem)
+    SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  AwardPoints(who,SKILLID_CARPENTRY,Points,GAIN_RESTRICT,ChkSkill);
+
+  if(TheItem.isa(POLCLASS_ITEM))
+    TheItem.movable := 1;
+  endif
+
+  if(Kind and TheItem.isa(POLCLASS_ITEM))
+    TheItem.color := Materials.mainColor;
+    if(ItemName)
+      ItemName := ItemName + " " + GetDescForItem(theitem.objtype);
+
+      if(IsStackableObj(ObjType))
+        ItemName := ItemName + "%%";
+      endif
+
+      SetName(TheItem,ItemName);
+    endif
+    if(theitem.isa(POLCLASS_WEAPON))
+     TheItem.dmg_mod := (Materials.mainKind/2);
+    elseif(theitem.isa(POLCLASS_ARMOR))
+     TheItem.ar_mod := (Materials.mainKind/2);
+    endif
+  endif
+
+  var ExpData;
+  
+  if(CanExp and TheItem.isa(POLCLASS_ITEM))
+    ExpData := CraftExceptional(who, SKILLID_CARPENTRY, ExpMod, CraftLevel);
+  endif
+
+  if(CanExp and ExpData.makeExp)
+    TheItem.quality := EXP_QUALITY_MULTIPLIER;
+
+    if(ExpData.makeNamed)
+      SetName(TheItem, EXP_ITEM_NAME + " " + CutDesc(TheItem.desc) + " [wykonal"+ggm(who, 4)+" " + GetRealName(who) + "]");
+    else
+      SetName(TheItem, EXP_ITEM_NAME + " " + CutDesc(TheItem.desc));
+    endif
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Zrobil"+ggm(who, 3)+" Wyjatkowej Jakosci "+GetCraftProductDesc(TheItem.objtype, FinalAmount)+" i wlozyl"+ggm(who, 3)+".",FONT_NORMAL,COLOR_BLUE);
+  elseif((RandomInt(100) >= Cint(MySkill)) and CanExp)
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who, 3)+" "+GetCraftProductDesc(TheItem.objtype, FinalAmount)+" sredniej jakosci." ,FONT_NORMAL,COLOR_ORANGE);
+    case((RandomInt(2) + 1))
+      1: theitem.quality := 0.7;
+      2: theitem.quality := 0.8;
+      3: theitem.quality := 0.9;
+    endcase
+  else
+    if(TheItem.isa(POLCLASS_ITEM))
+      TheItem.quality := 1.0;
+    endif
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who, 3)+" "+GetCraftProductDesc(ObjType, FinalAmount)+"." ,FONT_NORMAL,COLOR_GREEN);
+  endif
+  
+  	if(expData.inscribe)
+		start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, TheItem});
+	endif
+	
+	if(expData.changeColor)
+		start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, TheItem});
+	endif
+  
+  if(!IsStackableObj(ObjType) and TheItem.isa(POLCLASS_ITEM))
+    SetItemHp(TheItem, GetItemMaxHp(TheItem));
+  endif
+
+  if(TheItem.isa(POLCLASS_ITEM) and TheItem.objtype in GetLockAbleItems() and !gSkillCfg[ObjType].nolock)
+    if(CheckSkill(who, SKILLID_TINKERING, 40, 0))
+      var key  := CreateItemInCont(TheItem,UOBJ_COPPER_KEY,1);
+      var Diff := GetEffectiveSkill(who,SKILLID_TINKERING) - 10;
+      if(!key)
+        SendSysMessage(who, "Nie mial"+ggm(who,3)+" miejsca na klucz w plecaku.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      else
+        SetItemLocked(TheItem,key,Cint(Diff));
+        TheItem.locked := 0;
+        SendSysMessage(who, GetCraftIterDesc(IterData) + " Wlozyl"+ggm(who, 3)+" klucz do pojemnika.",FONT_NORMAL,COLOR_GREEN);
+      endif
+    endif
+  endif
+
+  if(TypeOf(TheItem) == VAR_ARRAY)
+    foreach Item in TheItem
+      SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_CARPENTRY, array(Item, Materials.mainObj));
+    endforeach
+  else
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_CARPENTRY, array(TheItem, Materials.mainObj));
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

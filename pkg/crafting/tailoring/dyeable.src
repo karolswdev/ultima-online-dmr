@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/effects";
+
+//-----------------------------------------------------------------------------
+
+program DyeItem(who, dyetub)
+
+  if(who.cmdlevel >= 2)
+    var item := ObjTarget(who);
+    if(!item)
+      SendSysMessage(who, "Anulowano.");
+      return;
+    endif
+    item.color := dyetub.color;
+    PlaySoundEffect(who, 0x23F);
+    return;
+  endif
+
+  if(dyetub.color > 1001)
+    dyetub.color := 38;
+  endif
+
+  if(!StandardItemCheck(who,dyetub))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz przedmiot do zafarbowania.",FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+  var cfg  := ReadConfigFile( ITEMS_CFG );
+
+  if(!StandardItemCheck(who,item))
+    return;
+  endif
+
+  var element  := FindConfigElem(cfg,  item.objtype);
+  var dyeable  := GetConfigInt(element, "dyeable");
+  if(dyeable)
+    if((item.objtype == UOBJ_DYETUB) and (dyetub.color == 1))
+      return;
+    else
+      item.color := dyetub.color;
+      PlaySoundEffect(who, 0x23f);
+    endif
+  else
+    SendSysMessage( who, "Ten przedmiot nie moze zostac zafarbowany.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

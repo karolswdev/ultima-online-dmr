@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 7;
+
+//-----------------------------------------------------------------------------
+
+program WwRegeneration(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastLoc)
+
+  var WWSkill  := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  //var Range    := 2 + CInt(WWSkill / 20) + CInt(ALSkill / 30);
+  var Amount   := CInt((WWSkill + ALSkill) / 10);
+  var Rlm              := Caster.realm;
+  
+  var loops := CInt((CInt(WWSkill) + CInt(ALskill))/3) ;
+  var x := Caster.x;
+  var y := Caster.y;
+  var z := Caster.z;
+  
+  foreach Item in ListItemsNearLocation(x, y,  LIST_IGNORE_Z , 30, Rlm)
+    if (Item.objtype == 0x14cb) 
+      SendSysMessage(Caster, "Nie mozesz wyczarowac kregu w poblizu innego kregu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endforeach
+
+  GainWarcastPoints(Caster, Caster, WW_WCID, WCGAIN_NORMAL);
+
+  PlaySoundEffect(Caster, SFX_SPELL_MANA_VAMPIRE);
+  PlayPcEffect(Caster, FX_SMOKE, 51, 0xF, 0x1A, 4);
+
+  // lewa strona ZROBIONE
+  var lefttop := CreateItemAtLoc (Caster.x - 1, Caster.y + 1, Caster.z, 0x14c7, 1,Rlm); //ok
+  var midtop := CreateItemAtLoc (Caster.x, Caster.y + 1, Caster.z, 0x14c8, 1,Rlm); //ok to ten czubek 1 pikslowy ma tu byc 307C -DOBRE
+  var righttop := CreateItemAtLoc (Caster.x + 1, Caster.y + 1, Caster.z, 0x14c9, 1,Rlm); //ok DOBRE dol dolny srodek
+
+  
+  //SRODEK 
+  var leftmid := CreateItemAtLoc (Caster.x - 1, Caster.y , Caster.z, 0x14ca, 1,Rlm); //ok
+  var midmid := CreateItemAtLoc (Caster.x, Caster.y , Caster.z, 0x14cb, 1,Rlm); //ok DOBRE
+  var rightmid := CreateItemAtLoc (Caster.x + 1, Caster.y , Caster.z, 0x14cc, 1,Rlm); //ok DOBRE
+
+  var leftbot := CreateItemAtLoc (Caster.x - 1, Caster.y - 1 , Caster.z, 0x14cd, 1,Rlm); //ok
+  var midbot := CreateItemAtLoc (Caster.x, Caster.y - 1 , Caster.z, 0x14ce, 1,Rlm); //ok
+  var rightbot := CreateItemAtLoc (Caster.x + 1, Caster.y - 1 , Caster.z, 0x14cf, 1,Rlm); //ok
+ 
+  var i;
+  for (i:=0; i <= loops; i:=i+1)
+    foreach Mobile in ListMobilesNearLocation(x, y, z, 1, Caster.realm)
+    
+        if(IsFriend(Caster, Mobile)  or Mobile == Caster)
+          PlaySoundEffect(Mobile, SFX_SPELL_HEAL);
+          PlayPcEffect(Mobile, FX_HEAL_EFFECT, 51, 0xF, 0x1A, 4);
+          HealMana(Mobile, 1, Caster);
+        endif
+   
+    endforeach
+  
+    sleepms (1500 - (Amount * 10) );
+  endfor
+  
+  DestroyItem (lefttop);
+  DestroyItem (midtop);
+  DestroyItem (righttop);
+  DestroyItem (leftmid);
+  DestroyItem (midmid);
+  DestroyItem (rightmid);
+  DestroyItem (leftbot);
+  DestroyItem (midbot);
+  DestroyItem (rightbot);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

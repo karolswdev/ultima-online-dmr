@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/packets";
+
+include "../pkg/warcasts/warcasts";
+include "../pkg/systems/weather/weather";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 41;
+
+//-----------------------------------------------------------------------------
+
+program PdLightRay(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!IsDayLight())
+    WcFizzleId(Caster, "Nie uda Ci sie odbic promieni swiatla podczas nocy!", PD_WCID);
+    return 0;
+  endif
+
+  var Duration := CInt(GetWarCastDuration(Caster, WCT_PALADIN) / 5);
+  var Range    := CInt(GetEffectiveSkill(Caster, SKILLID_PALADINISM) / 20 + GetEffectiveSkill(Caster, SKILLID_ZEAL) / 30);
+  var i;
+
+  for(i:=1;i<=5;i:=i+1)
+    PerformAction(Caster, ANIM_STAND_2HAND);
+    sleepms(100);
+  endfor
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(Mobile.murderer and IsPlayer(Mobile))
+      PlaySoundEffect(Mobile, SFX_SPELL_ICE_BOLT);
+      PlayPcEffect(Mobile, FX_SMOKE, 52, 0xF, 0xE, 3);
+      sleepms(100);
+      UndoMod(Mobile, MOD_LIGHT, UMDF_WAIT);
+      DoMod(Mobile, MOD_LIGHT, 30, Duration);
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

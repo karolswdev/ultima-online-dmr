@@ -1,0 +1,20 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+const RANDOM_MAKROCHECK_SCNAME := ":makro:randomMacro";
+
+program StartUp()
+
+  AddGlobCtrlScript(MAKROCHECK_SCNAME, "Makro Check");
+  StartGlobCtrlScript(MAKROCHECK_SCNAME);
+  
+  AddGlobCtrlScript(RANDOM_MAKROCHECK_SCNAME, "Random Makro Check");
+  StartGlobCtrlScript(RANDOM_MAKROCHECK_SCNAME);
+
+endprogram
+
+//-----------------------------------------------------------------------------

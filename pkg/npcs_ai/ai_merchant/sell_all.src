@@ -1,0 +1,67 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":ai_merchant:const";
+include ":ai_merchant:utils/misc";
+include ":ai_merchant:utils/packets";
+
+include "include/gumpboxes";
+
+//-----------------------------------------------------------------------------
+
+program NpcSpeechSellAll(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  if(!CanNpcSpeekWith(Data.npc, Data.source))
+    return 1;
+  endif
+
+  var sItems := array;
+  var aPrice := 0;
+  var RepLvl := GetPlayerNpcGuildCityLvl(Data.source, Data._AI_Merchant.City);
+  
+  foreach Item in EnumerateItemsInContainer(Data.source.backpack)
+    if(Item.container == Data.source.backpack)
+      if(CanBuyItem(Item))
+        if(CInt(Data._AI_Merchant.BuyItems[hex(Item.objtype)]))
+          sItems.append({Item.serial,Item.amount});
+          aPrice += GetItemBuyPrice(Item, RepLvl) * Item.amount;
+        endif
+      endif
+    endif
+  endforeach
+  
+  if(!sItems.size())
+    PrintTextAbovePrivate(Data.npc, "Nie masz nic w plecaku co by mnie interesowalo.", Data.source);
+    return;
+  endif
+  
+  if(!NpcAskYesNo(Data.npc, Data.source, "Czy chcesz sprzedac wszystkie "+sItems.size()+" przedmiot"+Gam(sItems.size(), GAM_OW)+" w cenie "+aPrice+" gp?"))
+    NpcSpeechSay(Data.npc, Data.source, AI_SPID_GOODBYE);
+    return 1;
+  endif
+  
+  var Event := struct;
+  Event.+type   := EVID_CMERC_SOLD;
+  Event.+source := Data.source;
+  Event.+items  := sItems;
+  
+  SendEvent(Data.npc, Event);
+
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

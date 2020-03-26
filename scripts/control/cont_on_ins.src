@@ -1,0 +1,102 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-24
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/objtypes/magic";
+include "include/client/fonts";
+include "include/items/containers";
+include "include/items";
+include "include/bits";
+include ":banking:gold";
+include "include/checks/stdchecks";
+include ":quests:quest_ctrl";
+include "../pkg/systems/party/party";
+
+//-----------------------------------------------------------------------------
+
+program on_insert(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(movetype);
+
+  StdOnContainerInsert(who, backpack, adding_item, existing_stack);
+
+  var Item := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    Item := existing_stack;
+  endif
+
+  if(Item.objtype == UOBJ_GOLDCOIN)
+    if(GetObjProperty(Item, "#SplitGold"))
+      EraseObjProperty(Item, "#SplitGold");
+
+      if(backpack.objtype != UOBJ_CORPSE)
+        SplitGold(who, Item);
+      endif
+    endif
+  endif
+
+  if(IsPlayer(who))
+    var ownerserial := GetObjProperty(backpack, PROP_OWNER);
+    if(item.isa(POLCLASS_CONTAINER) and ownerserial)
+      SetObjProperty(item, PROP_OWNER, ownerserial);
+    endif
+
+    var TopCont := GetTopCont(backpack);
+    if(!TopCont)
+      TopCont := backpack;
+    endif
+
+    if(TopCont.container == who)
+      if(item.objtype == UOBJ_CHEQUE or item.isa(POLCLASS_CONTAINER))
+        SendGoldCheck(who);
+      elseif(item.objtype == UOBJ_QUESTTICKET)
+        AddQuestTicketToPack(who, Item);
+      endif
+    endif
+  endif
+
+  if(GetObjProperty(backpack, "NoRemove"))
+    SetObjProperty(Item, "GivenFrom", CInt(who.serial));
+  endif
+  
+  if(item.isa(POLCLASS_CONTAINER) and GetObjProperty(backpack,"#BeingSnoop"))
+    SetObjProperty(item,"#BeingSnoop",GetObjProperty(backpack,"#BeingSnoop"));
+  endif
+  
+  if(ReadConfigFile(ITEMS_CFG)[backpack.objtype].signinsert)
+    if(IsPlayer(who))
+      SetToolTipProp(Item, "Wlozone przez", GetRealName(who));
+    endif
+  endif
+
+  if(!GetObjProperty(backpack,"#BeingSnoop"))
+    if(item.objtype == UOBJ_GOLDCOIN)
+      case(backpack.objtype)
+        UOBJ_BACKPACK:
+        UOBJ_STAFFPACK:
+        UOBJ_BAG:
+                      if(Item.amount == 1)
+                        PlaySoundEffect(who,0x2E5);
+                      elseif(Item.amount < 100)
+                        PlaySoundEffect(who,0x2E6);
+                      else
+                        PlaySoundEffect(who,0x2E7);
+                      endif
+        default:
+                      if(Item.amount == 1)
+                        PlaySoundEffect(who,0x36);
+                      elseif(Item.amount < 100)
+                        PlaySoundEffect(who,0x37);
+                      else
+                        PlaySoundEffect(who,0x38);
+                      endif
+      endcase
+    endif
+  endif
+
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

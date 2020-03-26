@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 93;
+
+//-----------------------------------------------------------------------------
+
+program CastFireSnakes( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+
+  var CasterDruid     := GetEffectiveSkill(Caster,SKILLID_DRUID);
+  var CasterAl        := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var Amount          := Cint(CasterDruid/50) + RandomInt(Cint(CasterAl/25)) + 1;
+  var Duration        := GetDruidSpellDur( Caster );
+  
+  var oparms          := {};
+  oparms.+controlable := 1;
+  oparms.+name        := "ognisty waz";
+  oparms.+nosleep     := 1;
+  oparms.+maxamt      := 1 + CInt(GetMindSkillValue(Caster, SpellGlob.Type)/20);
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+skillsmod   := array(GetMagicSkillId(SpellGlob.Type), GetMindSkillId(SpellGlob.Type));
+
+  SummonCreatureGroup(Caster, array("firesnake"), Amount, CastLoc, Duration, oparms);
+
+  GainSpellPoints(Caster, CastLoc, MAGICGAIN_NORMAL);
+
+endfunction
+
+//-----------------------------------------------------------------------------

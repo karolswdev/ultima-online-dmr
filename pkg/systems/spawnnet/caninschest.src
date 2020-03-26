@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+
+include "spawnrune";
+
+//-----------------------------------------------------------------------------
+
+program CanInsertToSpawnChest(who,Chest, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(inserttype);
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(who)
+    if(CInt(GetObjProperty(Chest, "#InsertTime")) < ReadGameClock())
+      DelaySpawn(Chest);
+      SetObjProperty(Chest, "#InsertTime", ReadGameClock() + 180);
+    endif
+
+    if(Chest.item_count > 25)
+      SendSysMessage(who,"Wiecej sie nie zmiesci w tym pojemniku.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    elseif(Item.isa(POLCLASS_CONTAINER))
+      SendSysMessage(who,"Nie mozesz wlozyc tutaj pojemnika.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

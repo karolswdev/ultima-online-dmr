@@ -1,0 +1,361 @@
+//-----------------------------------------------------------------------------
+
+
+include "include/skills/std";
+include "include/skills/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/repair";
+include "include/tempmods";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/tools";
+
+include ":crafting:creation";
+include ":crafting:receptures";
+include ":crafting:exceptional";
+include ":bulks:common";
+
+//-----------------------------------------------------------------------------
+
+program Carpentry(who, tool)
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT))
+    SendSysMessage(who ,"Musisz zejsc z wierzchowca by cos stworzyc.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who, tool))
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_CARPENTRY);
+  var CraftData := CarpentryGump(who);
+
+  if(!CraftData)
+    return;
+  endif
+
+  start_script(":carpentry:craft_item", array(who, tool, CraftData));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CarpentryGump(who)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_CARPENTRY);
+   
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":carpentry:carpentry", SKILLID_CARPENTRY);
+    SkillGlob.expPropName := "exchk";
+
+    BuildMainCarpGump(LastCraft.iters);
+
+    case(butRes)
+      2:   BuildMaterialsGump();
+      3:   BuildTablesGump();
+      4:   BuildChairsGump();
+      5:   BuildLargeFurnGump();
+      6:   BuildContGump();
+      7:   BuildPlateGump();
+
+      10:  BuildInstrumentsGump();
+      11:  BuildStaffGump();
+      12:  BuildMiscGump();
+      13:  BuildDeedsGump();
+      14:  BuildDeedsGump2();
+    endcase
+
+    BuildMainCarpEndGump();
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie robil"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        break;
+        
+      97: 
+        RepairThis(who);
+        doCraft := -1;
+  
+      98:
+        LastCraft.gumpType := !CInt(LastCraft.gumpType);
+
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_CARPENTRY, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainCarpGump(ProdIters)
+
+  BuildMainGump();
+  GTextLine(200,  90, 1153, "Menu Stolarstwa");
+
+  GButton( 70, 384,   3, 4,   1);
+  GTextLine( 90, 380, 900, "To co ostatnio");
+
+  GButton(410, 380, 243, 241, 99);
+
+  GTextLine( 90, 410, 900, "Napraw przedmiot");
+  GButton( 70, 414,   3, 4,   97);
+
+  GTextLine(250, 408, 670, "Powtorz:");
+  BQGAddTextBox(320, 408, 60, 20, 1410, ProdIters, BQG_EDITABLE, 1, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainCarpEndGump()
+
+  var Buttons   := struct;
+  Buttons.+Up   := dictionary;
+  Buttons.+Down := dictionary;
+
+  Buttons.Up[2]    := "Materialy";
+  Buttons.Up[3]    := "Stoly";
+  Buttons.Up[4]    := "Krzesla";
+  Buttons.Up[5]    := "Polki";
+  Buttons.Up[6]    := "Pojemniki";
+  Buttons.Up[7]    := "Kuchenne";
+
+  Buttons.Down[10] := "Instrumenty";
+  Buttons.Down[11] := "Laski";
+  Buttons.Down[12] := "Rozne";
+  Buttons.Down[13] := "Deedy";
+  Buttons.Down[14] := "Deedy";
+
+  BuildSkillMenu(Buttons);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMaterialsGump()
+
+     AddGumpElem( 7127, 90,  175, 60,   200, 110, 200 ,0 , 7127);
+     AddGumpElem( 7608, 230, 175, 210,  200, 260, 200 ,0 , 7608);
+     AddGumpElem( UOBJ_BLANKMAP, 340, 175, 340,  200, 390, 200 ,0 , UOBJ_BLANKMAP);
+
+     AddGumpElem( 7858, 120, 270, 120,  295, 170, 295 ,0 , 7858);
+     AddGumpElem( 3636, 270, 270, 270,  295, 320, 295 ,0 , 3636);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTablesGump()
+
+     AddGumpElem( 2874, 90,  155, 100,  180, 150, 180 ,0 , 2874);
+     AddGumpElem( 2879, 260, 155, 250,  175, 300, 180 ,0 , 2879);
+
+     AddGumpElem( 2941, 100, 240, 70,   260, 150, 265 ,0 , 2941);
+     AddGumpElem( 2940, 260, 240, 210,  260, 300, 265 ,0 , 2940);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildChairsGump()
+
+     AddGumpElem( 0xa2a, 65,  160, 60,   185, 110, 185);
+     AddGumpElem( 0xb2c, 170, 160, 160,  185, 210, 185);
+     AddGumpElem( 0xb2f, 290, 160, 260,  185, 310, 185);
+     AddGumpElem( 0xb33, 390, 160, 345,  185, 410, 185);
+
+     AddGumpElem( 0xb4e, 70,  255, 45,   275, 110, 280);
+     AddGumpElem( 0xb56, 170, 255, 170,  280, 210, 280);
+     AddGumpElem( 0xb5a, 270, 255, 275,  280, 310, 280);
+     AddGumpElem( 0x45c, 360, 255, 360,  280, 410, 280);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildInstrumentsGump()
+
+     AddGumpElem( 3761, 65,  175, 35,   200, 110, 200 ,0 , 3761);
+     AddGumpElem( 3762, 190, 175, 150,  200, 210, 200 ,0 , 3762);
+     AddGumpElem( 3763, 285, 175, 260,  200, 310, 200 ,0 , 3763);
+     AddGumpElem( 3740, 370, 175, 360,  200, 410, 200 ,0 , 3740);
+
+     AddGumpElem( 3741, 65,  270, 60,   295, 110, 295 ,0 , 3741);
+     AddGumpElem( 3742, 160, 270, 160,  295, 210, 295 ,0 , 3742);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLargeFurnGump()
+
+     AddGumpElem( 0xa34, 50,  150, 55,   175, 100, 175);
+     AddGumpElem( 0xa38, 50,  250, 50,   275, 100, 275);
+
+     AddGumpElem( 0xa53, 180, 175, 150,  200, 200, 200);
+     AddGumpElem( 0xa51, 280, 175, 250,  200, 300, 200);
+     AddGumpElem( 0xa9e, 390, 175, 350,  200, 400, 200);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildContGump()
+
+     AddGumpElem( 3711, 40,  155, 30,   180,  80,  180);
+     AddGumpElem( 3715, 140, 155, 105,  180,  155, 180);
+     AddGumpElem( 3703, 215, 155, 190,  180,  240, 180);
+     AddGumpElem( 3709, 285, 155, 270,  180,  320, 180);
+     AddGumpElem( 3650, 385, 155, 350,  180,  410, 180);
+
+     AddGumpElem( 3710, 30,  250, 30,   275,  80,  275);
+     AddGumpElem( 3646, 125, 250, 130,  275,  180, 275);
+     AddGumpElem( 3644, 260, 250, 255,  275,  305, 275);
+     AddGumpElem( 3708, 360, 250, 350,  275,  410, 275);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPlateGump()
+
+    AddGumpElem( 5354,  70,   150, 70,  180, 120, 190 , "lopata do pieca");
+	  AddGumpElem( 5637,  220,  150, 205, 180, 260, 190 , "waza na zupe");
+
+    AddGumpElem( 4323,  70,   210, 60,  240, 120, 240 , "makutra");
+	  AddGumpElem( 5624, 220,   210, 215, 240, 260, 240 , "drewniana miska");
+
+	  AddGumpElem( 4163,  70,   280, 75,  310, 120, 310 , "walek");
+	  AddGumpElem( 4329,  200,  280, 215, 310, 260,310  , "drewniana lyzka");
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+function BuildStaffGump()
+
+     AddGumpElem( 5113, 65,  175, 45,   200, 110, 200);
+     AddGumpElem( 3713, 180, 175, 160,  200, 210, 200, 0, 3714);
+     AddGumpElem( 3722, 305, 175, 260,  200, 310, 200);
+     AddGumpElem( 3568, 400, 175, 360,  200, 410, 200);
+
+     AddGumpElem(0x2D25, 75,  270, 60,   295, 110, 295, 0, 0x2D31); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMiscGump()
+
+     AddGumpElem( 3519, 85,  165, 35,   190, 110, 190 ,0 , 3520);
+     AddGumpElem( 3782, 155, 165, 160,  190, 210, 190);
+     AddGumpElem( 3940, 285, 165, 260,  190, 310, 190);
+     AddGumpElem( 5043, 390, 165, 360,  190, 410, 190);
+
+     AddGumpElem( 7956, 100, 260, 60,   285, 110, 285);
+     AddGumpElem( 7034, 190, 260, 160,  285, 210, 285);
+     AddGumpElem( 7032, 265, 260, 250,  285, 310, 285);
+     AddGumpElem( 2890, 390, 260, 360,  285, 410, 285);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildDeedsGump()
+
+     AddGumpElem( 45058,65,  150, 0,    0,    40,  150);
+     AddGumpElem( 45059,65,  175, 0,    0,    40,  175);
+     AddGumpElem( 45060,65,  200, 0,    0,    40,  200);
+     AddGumpElem( 45064,65,  225, 0,    0,    40,  225);
+     AddGumpElem( 45065,65,  250, 0,    0,    40,  250);
+     AddGumpElem( 45075,65,  275, 0,    0,    40,  275);
+     AddGumpElem( 45074,65,  300, 0,    0,    40,  300);
+     AddGumpElem( 45071,65,  325, 0,    0,    40,  325);
+
+     AddGumpElem( 45066,295, 150, 0,    0,    270, 150);
+     AddGumpElem( 45067,295, 175, 0,    0,    270, 175);
+     AddGumpElem( 45057,295, 200, 0,    0,    270, 200);
+     AddGumpElem( 45063,295, 225, 0,    0,    270, 225);
+     AddGumpElem( 45056,295, 250, 0,    0,    270, 250);
+     AddGumpElem( 45091,295, 275, 0,    0,    270, 275);
+     AddGumpElem( 45092,295, 300, 0,    0,    270, 300);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildDeedsGump2()
+
+     AddGumpElem( 45069,65,  150, 0,    0,    40,  150);
+     AddGumpElem( 45073,65,  175, 0,    0,    40,  175);
+     AddGumpElem( 45081,65,  200, 0,    0,    40,  200);
+     AddGumpElem( 45082,65,  225, 0,    0,    40,  225);
+     AddGumpElem( 45083,65,  250, 0,    0,    40,  250);
+     AddGumpElem( 45084,65,  275, 0,    0,    40,  275);
+
+     AddGumpElem( 45094,295, 150, 0,    0,    270, 150);
+     AddGumpElem( 45093,295, 175, 0,    0,    270, 175);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RepairThis(who)
+
+  SendSysMessage(who, "Wybierz przedmiot do naprawy.",FONT_NORMAL,COLOR_GREEN);
+  var ItemToRepair := ObjTarget(who);
+  if(!StandardItemCheck(who,ItemToRepair))
+    return;
+  endif
+
+  var LogType  := GetItemMakeMod(ItemToRepair);
+  if(!LogType)
+    LogType := 1;
+  endif
+
+  var BoardObj := GetBoardObjTypes()[LogType];
+  if(IsArtifact(ItemToRepair) or GetBulkLevel(ItemToRepair))
+    BoardObj := UOBJ_MYSTICBOARD;
+  endif
+
+  RepairItem( who, ItemToRepair, SKILLID_CARPENTRY, BoardObj, 0x23E);
+
+endfunction
+
+//-----------------------------------------------------------------------------

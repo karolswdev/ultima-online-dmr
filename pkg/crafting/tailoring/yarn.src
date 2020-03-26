@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+include "include/effects";
+
+include ":crafting:creation";
+
+//-----------------------------------------------------------------------------
+
+program UseYarn(who, yarn)
+
+  if(!StandardItemCheck(who,yarn))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz narzedzie tkackie lub kolowrotek.",FONT_NORMAL,COLOR_GREEN);
+  var UseOn := ObjTarget( who );
+
+  if(!StandardItemCheck(who,UseOn,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  if(Distance(who,UseOn) > 1)
+    SendSysMessage(who,"Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var obj := UseOn.objtype;
+
+  if((obj >= UOBJ_LOOM_START) and (obj <= UOBJ_LOOM_END) and yarn.objtype == UOBJ_YARN)
+    start_script(":blades:cut_item", array(who, UseOn, yarn, "UseYarnCloth", CRAFT_MAX_ITERATIONS));
+  elseif(((obj >= UOBJ_WHELL_START) && (obj <= UOBJ_WHELL_END)) or ((obj >= UOBJ_WHELL_START2) && (obj <= UOBJ_WHELL_END2)))
+    start_script(":blades:cut_item", array(who, UseOn, yarn, "UseYarnThread", CRAFT_MAX_ITERATIONS));
+  elseif(yarn.objtype == UOBJ_YARN)
+    SendSysMessage(who, "Przedze mozesz nawinac tylko na narzedziu tkackim lub kolowrotku.",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who, "Len mozesz przerobic na nici jedynie na kolowrotku.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

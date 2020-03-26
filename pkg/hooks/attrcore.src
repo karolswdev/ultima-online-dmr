@@ -1,0 +1,479 @@
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/attributes/main";
+include "include/attributes/caps";
+include "include/checks/stdchecks";
+include "include/player/misc";
+include "include/player/happygain";
+include "include/reputation/murderer";
+include "include/std";
+include "include/str";
+include "include/mobile/age";
+
+include ":character:race_validation";
+
+//-----------------------------------------------------------------------------
+
+var SkillCap, StatCap;
+var SkillSum, StatSum, ev, gCurId, who, whoSer;
+var RawSkillArr, RawStatArr, SkillArr, StatArr, SkMaxArr, SkMoreNames;
+var noobMaxAge, maxAgeMsgTimer;
+var boostMult, happyStatMin, happyMult;
+var boostStrLimit, boostDexLimit, boostIntLimit;
+
+//-----------------------------------------------------------------------------
+
+set_event_queue_size(75);
+
+//-----------------------------------------------------------------------------
+
+program AttributeCore(_who)
+
+  SetLogRunCycles(LST_HOOK);
+
+  who    := _who;
+  whoSer := who.serial;
+
+  if(!IsPlayer(who))
+    return;
+  endif
+
+  SetObjProperty(who, PROP_ATTRCORE_PID, GetPid());
+  sleep(1);
+
+  InitCfg();
+  BuildAttrArrays();
+  SkillCap := GetSkillCap(who);
+  StatCap  := GetStatCap(who);
+  
+  if(!isHappyGain(who))
+    EraseObjProperty(who,"HappyGain");
+  endif
+
+  while(IsLoggedIn(who) and who)
+
+    ev := wait_for_event(120);
+
+    if(!who)
+      who := FindPlayerBySerial(whoSer);
+    endif
+
+    if(!who)
+      break;
+    endif
+
+    if(GetObjProperty(who, PROP_ATTRCORE_PID) != GetPid())
+      break;
+    endif
+
+    if(ev)
+      case(ev.type)
+        EVID_SK_AWARD: AwardSkill();
+        EVID_ST_AWARD: AwardStat();
+        EVID_SK_SET:   SetSkill();
+        EVID_ST_SET:   SetStat();
+        EVID_AT_REC:   BuildAttrArrays();
+      endcase
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+// Skills & Stats (Always tenth)
+//-----------------------------------------------------------------------------
+
+function AwardSkill()
+
+  if(!ev.attid)
+    return;
+  endif
+
+  /* goqsane - we don't want to block people from being able to max out their skills in one realm
+  if(who.realm == BRITA_REALM)
+    if(noobMaxAge <= GetRealAge(who))
+      if(maxAgeMsgTimer < ReadGameClock())
+        SendSysMessage(who, "W tym miejscu nic wiecej sie nie nauczysz...", FONT_NORMAL, COLOR_RED_LIGHT);
+        maxAgeMsgTimer := ReadGameClock() + 15;
+      endif
+      return;
+    endif
+  endif
+  */
+
+  gCurId := GetSkillIdByAttributeId(ev.attid);
+
+  if(gCurId != error)
+    ev.+RawVal := RawSkillArr[gCurId+1] + CInt(ev.Val);
+    ev.Val     := RawToBaseSkill(ev.RawVal);
+
+    if(ev.Val < CORE_SETTINGS_MIN_ATTRIBUTE)
+      ev.Val    := CORE_SETTINGS_MIN_ATTRIBUTE;
+      ev.RawVal := BaseToRawSkill(ev.Val);
+    elseif(ev.Val >= CORE_SETTINGS_MAX_ATTRIBUTE)
+      ev.Val    := CORE_SETTINGS_MAX_ATTRIBUTE;
+      ev.RawVal := BaseToRawSkill(ev.Val);
+    endif
+
+    if(ev.Val - SkillArr[gCurId+1] > MAX_GAIN_BASE_VALUE)
+      ev.Val    := SkillArr[gCurId+1] + MAX_GAIN_BASE_VALUE;
+      ev.RawVal := BaseToRawSkill(ev.Val);
+    endif
+
+    SetSkillValue();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AwardStat()
+
+  case(ev.attid)
+    ATTRIBUTEID_STRENGTH:      gCurId := 1;
+    ATTRIBUTEID_DEXTERITY:     gCurId := 2;
+    ATTRIBUTEID_INTELLIGENCE:  gCurId := 3;
+    default:                   return;
+  endcase
+
+  /*
+  if(who.realm == BRITA_REALM)
+    if(noobMaxAge <= GetRealAge(who))
+      if(maxAgeMsgTimer < ReadGameClock())
+        SendSysMessage(who, "W tym miejscu nic wiecej sie nie nauczysz...", FONT_NORMAL, COLOR_RED_LIGHT);
+        maxAgeMsgTimer := ReadGameClock() + 15;
+      endif
+      return;
+    endif
+  endif
+  */ 
+
+  ev.Val := CInt(ev.Val);
+  
+
+  case(ev.attid)
+    ATTRIBUTEID_STRENGTH:       if(GetBaseStrength(who) < boostStrLimit)
+                                  ev.Val := CInt(ev.Val * boostMult);
+                                endif
+    ATTRIBUTEID_DEXTERITY:     if(GetBaseDexterity(who) < boostDexLimit)
+                                  ev.Val := CInt(ev.Val * boostMult);
+                                endif
+    ATTRIBUTEID_INTELLIGENCE:  if(GetBaseIntelligence(who) < boostIntLimit)
+                                  ev.Val := CInt(ev.Val * boostMult);
+                                endif
+  endcase
+  
+
+
+  if(CheckHappyGainTime(who) and StatSum >= happyStatMin and !ev.NoStatBoost)
+    
+    ev.Val := CInt(ev.Val * happyMult);
+  
+  endif
+
+  ev.+RawVal := RawStatArr[gCurId] + ev.Val;
+  ev.Val     := RawToBaseSkill(ev.RawVal);
+
+  if(ev.Val < CORE_SETTINGS_MIN_ATTRIBUTE)
+    ev.Val    := CORE_SETTINGS_MIN_ATTRIBUTE;
+    ev.RawVal := BaseToRawSkill(ev.Val);
+  elseif(ev.Val >= CORE_SETTINGS_MAX_ATTRIBUTE)
+    ev.Val    := CORE_SETTINGS_MAX_ATTRIBUTE;
+    ev.RawVal := BaseToRawSkill(ev.Val);
+  endif
+
+  if(ev.Val - StatArr[gCurId] > MAX_GAIN_BASE_VALUE)
+    ev.Val    := StatArr[gCurId] + MAX_GAIN_BASE_VALUE;
+    ev.RawVal := BaseToRawSkill(ev.Val);
+  endif
+
+  SetStatValue();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetSkill()
+
+  if(!ev.attid)
+    return;
+  endif
+
+  gCurId := GetSkillIdByAttributeId(ev.attid);
+
+  if(gCurId != error)
+    ev.Val     := MinMax(CInt(ev.Val), CORE_SETTINGS_MIN_ATTRIBUTE, CORE_SETTINGS_MAX_ATTRIBUTE);
+    ev.+RawVal := BaseToRawSkill(ev.Val);
+
+    SetSkillValue();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetStat()
+
+  case(ev.attid)
+    ATTRIBUTEID_STRENGTH:      gCurId := 1;
+    ATTRIBUTEID_DEXTERITY:     gCurId := 2;
+    ATTRIBUTEID_INTELLIGENCE:  gCurId := 3;
+    default:                   return;
+  endcase
+
+  ev.Val     := MinMax(CInt(ev.Val), CORE_SETTINGS_MIN_ATTRIBUTE, CORE_SETTINGS_MAX_ATTRIBUTE);
+  ev.+RawVal := BaseToRawSkill(ev.Val);
+
+  SetStatValue();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetSkillValue()
+
+  var Diff := ev.Val - SkillArr[gCurId+1];
+  var IsCraft := IsCraftHarvestAttribute(ev.attid);
+
+  if(!who.cmdlevel)
+    if(ev.Val >= SkMaxArr[gCurId+1])
+      ev.Val    := SkMaxArr[gCurId+1];
+      ev.RawVal := BaseToRawSkill(SkMaxArr[gCurId+1]);
+      Diff      := ev.Val - SkillArr[gCurId+1];
+    endif
+
+    var CurCap := SkillCap;
+    var CurSum := SkillSum[1];
+
+    if(IsCraft)
+      CurCap += SK_CRAFT_SKILLCAP_ADD;
+      CurSum += SkillSum[2];
+    else
+      CurSum += Max(SkillSum[2] - SK_CRAFT_SKILLCAP_ADD, 0); // dodajemy, ale odejmujac 100% z rzemiosla
+    endif
+
+    if(CurSum + Diff > CurCap)
+      if(Diff > 0)
+        if(!GetObjProperty(who,PROP_SKILLCAP))
+          SendSysMessage(who,"Nie uda ci sie nauczyc az tyle.",FONT_NORMAL,COLOR_RED);
+          SetObjProperty(who, PROP_SKILLCAP, 1+IsCraft);
+        endif
+
+        Diff      := (CurCap - CurSum);
+        ev.Val    := SkillArr[gCurId+1] + Diff;
+        ev.RawVal := BaseToRawSkill(ev.Val);
+
+        if(ev.Val == SkillArr[gCurId+1])
+          return;
+        endif
+      endif
+
+    elseif(CurSum == CurCap)
+
+      if(Diff < 0)
+        EraseObjProperty(who,PROP_SKILLCAP);
+      else
+        if(!GetObjProperty(who,PROP_SKILLCAP))
+          SetObjProperty(who,PROP_SKILLCAP,1+IsCraft);
+          SendSysMessage(who,"Twoj umysl nie zmiesci juz nic wiecej.",FONT_NORMAL,COLOR_RED);
+        endif
+        return;
+      endif
+
+    elseif(GetObjProperty(who,PROP_SKILLCAP))
+      EraseObjProperty(who, PROP_SKILLCAP);
+    endif
+
+  endif
+
+  if(ev.Val >= DEF_SK_MAX_VALUE)
+    SetSkillMastered(who, GetSkillIdByAttributeId(ev.attid));
+  endif
+
+  RawSkillArr[gCurId+1] := ev.RawVal;
+  _SetRawAttributeValue(who, ev.attid, ev.RawVal);
+
+  if(Diff != 0)
+    NotifySkillChange(gCurId, ev.Val, Diff);
+  endif
+
+  SetAttributeBaseValue(who, ev.attid, ev.Val);
+  SkillSum[1+IsCraft] += Diff;
+  SkillArr[gCurId+1] := ev.Val;
+  SetObjProperty(who, PROP_SKILLSUM, SkillSum);
+
+  if(Diff != 0)
+    AfterSkillChange(gCurId);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function NotifySkillChange(SkID, SkVal, Diff)
+
+  if(SkID > SKILLID__NORMAL_HIGHEST)
+    if(SkVal > SkillArr[SkID+1])
+      SendSysMessage(who,"Twa umiejetnosc "+SkMoreNames[gCurId - SKILLID__NORMAL_HIGHEST]+" wzrosla o "+Cdbl(Diff*0.1)+"% do wartosci "+Cdbl(SkVal*0.1)+"%.",FONT_NORMAL,COLOR_BLUE);
+    elseif(SkVal < SkillArr[SkID+1])
+      SendSysMessage(who,"Twa umiejetnosc "+SkMoreNames[gCurId - SKILLID__NORMAL_HIGHEST]+" zmalala o "+Abs(Cdbl(Diff*0.1))+"% do wartosci "+Cdbl(SkVal*0.1)+"%.",FONT_NORMAL,COLOR_BLUE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AfterSkillChange(SkID)
+
+  if(GetSkillConfigElem(SkID).MakesEvil)
+    ValidateRace(who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetStatValue()
+
+  var Diff := ev.Val - StatArr[gCurId];
+
+  if(!who.cmdlevel)
+
+    if(ev.Val < 100)
+      ev.Val    := 100;
+      ev.RawVal := BaseToRawSkill(ev.Val);
+      Diff      := ev.Val - StatArr[gCurId];
+	    elseif(ev.Val >= 1000)
+      ev.Val    := 1000;
+      ev.RawVal := BaseToRawSkill(ev.Val);
+	  Diff      := ev.Val - StatArr[gCurId];
+	    endif
+
+    if(StatSum + Diff > StatCap)
+
+      if(Diff > 0)
+        if(!GetObjProperty(who, PROP_STATCAP))
+          SetObjProperty(who, PROP_STATCAP,1);
+          SendSysMessage(who,"Nie uda ci sie az tak mocno wycwiczyc.",FONT_NORMAL,COLOR_RED);
+        endif
+
+        Diff      := (StatCap - StatSum);
+        ev.Val    := StatArr[gCurId] + Diff;
+        ev.RawVal := BaseToRawSkill(ev.Val);
+
+        if(!Diff)
+          return;
+        endif
+      endif
+
+    elseif(StatSum == StatCap)
+
+      if(Diff < 0)
+        EraseObjProperty(who, PROP_STATCAP);
+      else
+        if(!GetObjProperty(who, PROP_STATCAP))
+          SetObjProperty(who, PROP_STATCAP, ReadGameClock());
+          SendSysMessage(who,"Nie zdolasz sie mocniej wycwiczyc.",FONT_NORMAL,COLOR_RED);
+        endif
+        return;
+      endif
+
+    elseif(GetObjProperty(who, PROP_STATCAP))
+      EraseObjProperty(who, PROP_STATCAP);
+    endif
+  endif
+
+  RawStatArr[gCurId] := ev.RawVal;
+  _SetRawAttributeValue(who, ev.attid, ev.RawVal);
+
+  StatSum += Diff;
+  StatArr[gCurId] := ev.Val;
+  SetAttributeBaseValue(who, ev.attid, ev.Val);
+  SetObjProperty(who, PROP_STATSUM, StatSum);
+
+  if(Diff != 0)
+    RecalcVitals(who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+// Caps
+//-----------------------------------------------------------------------------
+
+function BuildAttrArrays()
+
+  SkMaxArr    := array;
+  SkMoreNames := array;
+  RawSkillArr := array;
+  RawStatArr  := array;
+  SkillArr    := array;
+  StatArr     := array;
+  SkillSum    := array(0, 0);
+  StatSum     := 0;
+
+  var maxSkId := GetMaxSkillId();
+  var i;
+
+  for(i:=0;i<=maxSkId;i:=i+1)
+    var AttrId := GetAttributeIdBySkillId(i);
+    RawSkillArr[i+1] := GetRawAttributeValue(who, AttrId);
+    SkillArr[i+1]    := RawToBaseSkill(RawSkillArr[i+1]);
+
+    if(IsCraftHarvestAttribute(AttrId))
+      SkillSum[2] := SkillSum[2] + SkillArr[i+1];
+    else
+      SkillSum[1] := SkillSum[1] + SkillArr[i+1];
+    endif
+
+    SkMaxArr[i+1]    := GetSkillBaseMaxValue(who, i);
+
+    if(i > SKILLID__NORMAL_HIGHEST)
+      SkMoreNames[i - SKILLID__NORMAL_HIGHEST] := ClStr(GetSkillConfigElem(i).Name);
+    endif
+  endfor
+
+  RawStatArr[1] := GetRawAttributeValue(who, ATTRIBUTEID_STRENGTH);
+  RawStatArr[2] := GetRawAttributeValue(who, ATTRIBUTEID_DEXTERITY);
+  RawStatArr[3] := GetRawAttributeValue(who, ATTRIBUTEID_INTELLIGENCE);
+
+  for(i:=1;i<=3;i:=i+1)
+    StatArr[i] := RawToBaseSkill(RawStatArr[i]);
+    StatSum    := StatSum + StatArr[i];
+  endfor
+
+  SetObjProperty(who, PROP_SKILLSUM, SkillSum);
+  SetObjProperty(who, PROP_STATSUM, StatSum);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitCfg()
+
+  var BeginCfg := ReadConfigFile(ATTR_CFG);
+  var cfgClass := GetCharClassConfig(who);
+ 
+  boostStrLimit := CInt(cfgClass.StrLimit);
+  boostDexLimit := CInt(cfgClass.DexLimit);
+  boostIntLimit := CInt(cfgClass.IntLimit);
+  boostMult     := CDbl(cfgClass.BoostMultiplier);
+  
+  happyStatMin := CInt(BeginCfg["HappyGain"].MinStatSum) * 10;
+  happyMult    := CDbl(BeginCfg["HappyGain"].Multiplier);
+
+  if(!boostMult) 
+    boostMult := 1;
+  endif
+
+  if(!happyMult) 
+    happyMult := 1;
+  endif
+
+  maxAgeMsgTimer := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

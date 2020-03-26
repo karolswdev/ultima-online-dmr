@@ -1,0 +1,12 @@
+use uo;
+include "bomberman";
+
+program canDestroy(item)
+    
+    if (GetObjProperty(item,BA_CND))
+      return 0;
+    else
+      return 1;
+    endif
+
+endprogram

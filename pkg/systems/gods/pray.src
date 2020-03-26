@@ -1,0 +1,79 @@
+use os;
+use uo;
+
+include "include/cmds/cmds";
+
+const PROP_LAST_PRAY := "#LastPray";
+const PRAY_LENGTH     := 180;
+
+program pray(who)
+  
+
+  if(CInt(GetObjProperty(who, PROP_LAST_PRAY)) + PRAY_LENGTH < ReadGameClock())
+    if(!StayAtPlace(who, RandomInt(4) + 3))
+      return;
+    endif
+    if(RandomInt(5))
+      PrayAccepted(who);
+    else
+      PrayDeclined(who);
+    endif
+  else
+    if(!StayAtPlace(who, 1))
+      return;
+    endif
+    PrayDeclined(who,GetMaxHp(who)-20);
+  endif
+
+  SetObjProperty(who, PROP_LAST_PRAY, ReadGameClock());
+
+endprogram
+
+//-------------------------------------------------------------------------------
+
+function PrayDeclined(who, extradmg := 0)
+
+  PlaySoundEffect(who, 0x5CF);
+  sleep(1);
+  PlayLightningBoltEffect( who );
+  PlayLightningBoltEffect( who );
+  DealDamage(who,RandomInt(20)+10 + extradmg);
+
+endfunction
+
+//-------------------------------------------------------------------------------
+
+function PrayAccepted(who)
+  
+  PlayObjectCenteredEffectEx( who, 0x373A, 0, 16, 0, 2);
+  foreach mod in {MOD_LIGHT, MOD_STR, MOD_DEX, MOD_INT} 
+    if(CanMod(who, mod))
+      DoMod(who, mod, RandomInt(3)+4, PRAY_LENGTH);
+    endif
+  endforeach
+  PlaySoundEffect(who, 0x5CA);
+  sleep(1);
+  PlayObjectCenteredEffectEx( who, 0x3763, 1, 16, 0, 2);
+
+endfunction
+
+//-------------------------------------------------------------------------------
+
+function StayAtPlace(who, time := 1)
+
+  var x := who.x;
+  var y := who.y;
+  
+  for i := 1 to time
+    sleep(1);
+    if(who.x != x or who.y != y)
+      SendSysMessage(who, "Oddalil" + Ggm(who,3) + " sie.", FONT_NORMAL, COLOR_ORANGE);
+      return 0;
+    endif
+  endfor
+
+  return 1;
+
+endfunction
+
+//-------------------------------------------------------------------------------

@@ -1,0 +1,44 @@
+use uo;
+use os;
+
+include ":housing:housing";
+include "include/client/fonts";
+include "include/key";
+include ":banking:common";
+include "include/findcity";
+include "include/tempmods";
+include "include/checks/objchecks";
+include "include/items/containers";
+include "include/clock";
+
+
+program customHouseSign(parms)
+
+	var who := parms[1];
+	var house := parms[2];
+	
+	var bankKey := SystemFindObjectBySerial(CInt(GetObjProperty(house, "bankkey")));
+	var packKey := SystemFindObjectBySerial(CInt(GetObjProperty(house, "packkey")));
+	
+	var lockid := AllocLockId();
+	
+	SetItemLockID( bankKey,lockid );
+	SetItemLockID( packKey,lockid );
+  
+  foreach item in (house.components)
+	PrintTextAbove(who, "* " + item.serial);
+    if( Item.isa(POLCLASS_DOOR) or item.objtype == UOBJ_TENT_CHEST )
+      SetItemLockID(item, lockid);
+    endif
+  endforeach
+
+  foreach item in (house.items)
+  PrintTextAbove(who, "* " + item.serial);
+    if( Item.isa(POLCLASS_DOOR) or item.objtype == UOBJ_TENT_CHEST )
+      SetItemLockID(item, lockid);
+	endif
+  endforeach
+  
+  
+ endprogram
+  

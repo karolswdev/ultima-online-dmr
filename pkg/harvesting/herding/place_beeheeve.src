@@ -1,0 +1,87 @@
+//--------------------------------------------------------------------------------
+
+include "include/findcity";
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+
+include "beeheeve";
+include ":housing:common";
+
+//--------------------------------------------------------------------------------
+
+program PlaceBeeHeeve(who,deed)
+
+  if(!StandardItemCheck(who,deed))
+    return;
+  endif
+  
+  if(!CheckBeeHeeves(who))
+    SendSysMessage(who,"Nie mozesz postawic wiecej uli.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(GetEffectiveSkill(who,SKILLID_HERDING) < 50 and !IsGm(who))
+    SendSysMessage(who,"Nie wiesz jak rozlozyc ul.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+ 
+  var place := LocTarget(who);
+ 
+  if(!StandardLocCheck(who, place))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var x := place.x;
+  var y := place.y;
+  var z := place.z;
+
+  var house := GetNearestHouseOf(place.x, place.y, place.z, who.realm, 15, GNHOF_OWNER | GNHOF_COOWNER, who);
+  if(!IsGm(who))
+    if(!house)
+      SendSysMessage(who, house.errortext, FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  
+    if(FindCity(place))
+      SendSysMessage(who,"Nie mozesz postawic ula w miescie!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+ 
+    if(ListItemsAtLocation(x, y, z, who.realm).size())
+      SendSysMessage(who,"Nie mozesz postawic ula w tym miejscu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+ 
+  var basicul := CreateItemAtLoc(x, y, z, UOBJ_BBEEHEEVE, 1, who.realm);
+  if(!basicul)
+    SendSysMessage(who,"Nie mozesz postawic tu ula.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ul := CreateItemAtLoc(x, y, z+3, UOBJ_BEEHEEVE, 1, who.realm);
+  if(!ul)
+    SendSysMessage(who,"Nie mozesz postawic tu ula.",FONT_NORMAL,COLOR_RED);
+    DestroyItem(basicul);
+    return;
+  endif
+  
+  AddBeeHeeve(who,Ul);
+  SendSysMessage(who,"Postawil"+ggm(who,3)+" ul.");
+  SetObjProperty(ul,"UlOwner",who.serial);
+  SetObjProperty(ul,"BasicSer",basicul.serial);
+  SetObjProperty(ul,"UlSer",ul.serial);
+
+  if(House)
+    SetHouseItem(BasicUl, House);
+    SetHouseItem(Ul, House);
+  endif
+
+  DestroyItem(deed);
+
+endprogram
+
+//--------------------------------------------------------------------------------

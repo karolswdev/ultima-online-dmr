@@ -1,0 +1,91 @@
+use uo;
+use os;
+
+include "include/msgs";
+include "include/move";
+include "include/names";
+include "include/clock";
+include "include/effects";
+include "include/buildings";
+include "include/checks/locchecks";
+include "include/checks/objchecks";
+include "include/client/effects";
+include "include/client/sounds";
+
+const DELAY := 60;
+
+program deathrune(who, rune)
+  
+  if(rune.container != who.backpack)
+    SendSysMessage(who,"Runo musi byc w twoim plecaku.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var available := CInt(GetObjProperty(rune, "available"));
+
+  if(ReadGameClock() > available)
+    SendSysMessage(who,"To runo stracilo swoja waznosc.", FONT_NORMAL, COLOR_RED_LIGHT);
+    rune.color := 0;
+    SetName(rune, "Bezuzyteczne runo");
+    Detach();
+    ReleaseItem(rune);
+    DestroyItem(rune);
+    return;
+  endif
+
+  var loc     := struct;
+  loc.+x      := who.x;
+  loc.+y      := who.y;
+  loc.+z      := who.z;
+  loc.+realm  := who.realm;
+
+  if(who.dead == 0)    // jak jest zywy
+    
+    if(who.multi or NoTeleportZone(loc.x,loc.y,loc.z,loc.realm))
+      SendSysMessage(who,"Tutaj nie mozesz zaznaczyc runa.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    if(IsWaterInRange(Loc.x,Loc.y,Loc.z,Loc.Realm, 10))
+      SendBad(who, "Nie mozesz zaznaczyc tutaj runa, jestes zbyt blisko wody.");
+      return;
+    endif
+
+    if(!MakeNoise(who, 0, 600, 0, 10, FX_HEAL_EFFECT))
+      return;
+    endif
+
+    
+    PlaySoundEffect(who, SFX_SPELL_MARK);
+    SetObjProperty(rune, "loc", loc);
+    SetToolTipProp(rune, "Lokacja", ToSextant(loc.x,loc.y,loc.realm));
+    SendSysMessage(who,"Zaznaczyl" + ggm(who,3) + " runo.", FONT_NORMAL, COLOR_BLUE);
+  else                  // jak jest martwy
+    var destloc := GetObjProperty(rune,"loc");
+    if(!destloc)
+      SendSysMessage(who,"Runo nie jest zaznaczone.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(CInt(GetObjProperty(rune, "#delay")) >= ReadGameClock())
+      SendSysMessage(who,"Musisz chwile odczekac, zanim uzyjesz runa drugi raz.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    SetObjProperty(rune, "#delay", ReadGameClock() + DELAY);
+
+    for i:= 1 to 6
+      PlayObjectCenteredEffect(who, FX_HEAL_EFFECT, 0x10, 0x18);
+      sleep(1);
+      if(who.x != loc.x or who.y != loc.y or who.z != who.z)
+        SendSysMessage(who,"Oddalil" + ggm(who,3) + " sie.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endfor
+
+    MoveObject( who, destloc.x, destloc.y, destloc.z, destloc.realm);
+    PlayStationaryEff( loc.x, loc.y, loc.z, FX_SMOKE, 0xa, 0xa, 0, loc.realm);
+    PlayStationaryEff( who.x, who.y, who.z, FX_SMOKE, 0xa, 0xa, 0, who.realm);
+
+  endif
+
+endprogram

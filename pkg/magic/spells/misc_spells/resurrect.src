@@ -1,0 +1,71 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/resurrect";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 59;
+
+//-----------------------------------------------------------------------------
+
+program CastRessurection( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_DEAD, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsPlayer(Caster) and IsPlayer(CastOn) and !CastOn.warmode)
+    Fizzle(Caster, "Anulowano.");
+    return;
+  endif
+
+  if(Distance(Caster, CastOn) > 1 and Caster.acctname)
+    Fizzle(Caster,"Wybrany cel jest za daleko!");
+    return;
+  endif
+
+  PlaySoundEffect(Caster, SFX_SPELL_RESSURECTION);
+  PlaySoundEffect(CastOn, SFX_SPELL_RESSURECTION);
+
+  if(CastOn.isA(POLCLASS_NPC))
+
+    if(!CastOn.murderer and !CastOn.criminal) // a moze sie zdarzyc, zapewne przy tamed trupach nekro.
+      SetCriminal(Caster, 1, "Ressurect", "Atak na order trupa.");
+    endif
+
+    PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_HEAL_EFFECT, 0xa, 0xa );
+    SendChEvent(CastOn,Caster,EVID_PEACEMADE);
+    SendChEvent(CastOn,Caster,EVID_ENGAGED);
+    PlayObjectCenteredEffect(CastOn, FX_GLOW, 0x03, 0x0a);
+    var Dmg := CalcSpellDamage(SpellGlob.Circle,Caster,CastOn, SpellGlob.Type);
+    if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+      GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+    endif
+
+  else
+
+    if(IsPlayer(CastOn))
+
+      if(Distance(CastOn,caster) > 1)
+        SendSysMessage(caster, "Jestes za daleko!",FONT_NORMAL,COLOR_RED);
+      else
+        if(CastOn.murderer or CastOn.criminal)
+          SetCriminal(Caster, 1, "Ressurect", "Wskrzeszenie kryminalisty lub mordercy.");
+        endif
+        if(Resurrection(CastOn,1))
+          GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+          SetStamina(CastOn, GetMaxStamina(CastOn)/4);
+        endif
+      endif
+    endif
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

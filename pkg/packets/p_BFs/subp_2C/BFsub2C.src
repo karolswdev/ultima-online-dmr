@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+include ":healing:healing";
+include "include/objtypes/misc";
+include "include/items/containers";
+
+//-----------------------------------------------------------------------------
+
+program BFsub2CHook()
+
+  print("[0xBF::0x2C]: BandageSelf Macro Hook");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function BandageSelfMacro(who, byref Packet)
+  
+  var objtype;
+  if(IsVampire(who))
+    objtype := UOBJ_BLOODYBANDAGES;
+  else
+    objtype := UOBJ_BANDAGE;
+  endif
+
+  UseBandage(who, objtype, Packet.GetInt32(9));
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

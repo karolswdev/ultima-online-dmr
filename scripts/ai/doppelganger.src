@@ -1,0 +1,108 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "ai/main/sleepmode";
+include "ai/main/loot";
+include "ai/setup/spellsetup";
+include "ai/main/killpcsloop";
+include "ai/combat/dgangercombatevent";
+include "ai/combat/fight";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 8;
+
+//-----------------------------------------------------------------------------
+
+var runaway   := 100;
+var spellcast := 0;
+
+//-----------------------------------------------------------------------------
+
+program DoppelGanger_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  me.hidden := 1;
+  SetWarMode( 0 );
+  main_AI_loop();
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function InitRun(opponent)
+
+  InitSmartRunMob(opponent);
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CloseDistance(opponent)
+    
+  if(me.frozen or me.paralyzed)
+    return 1;
+  endif
+
+  if(runaway < 100)
+    if(Distance(me, opponent) <= 4)
+
+      RunAwayFrom(opponent);
+      runaway := runaway + 1;
+      if (runaway > 50)
+        runaway := 100;
+        RunToward( opponent );
+      endif
+
+      return 0;
+
+    elseif(Distance(me, opponent) > 10)
+
+      return !SmartRunToward(opponent);
+
+    else
+
+      SmartRunMobSucceded(opponent);
+      runaway := 0;
+      return 1;
+
+    endif
+  else
+
+    if(!CheckLineOfSight(me, opponent))
+      return !SmartRunToward(opponent);
+    endif
+
+    case (Distance( me, opponent ))
+      0:
+               WalkAwayFrom(opponent);
+      1:
+               SmartRunMobSucceded(opponent);
+               TurnToward(opponent);
+               return 1;
+              
+      default: return !SmartRunToward(opponent);
+
+    endcase
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsMoving()
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

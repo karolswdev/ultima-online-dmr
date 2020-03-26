@@ -1,0 +1,31 @@
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/nutrition";
+include "include/attack";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program CheckHunger(who,text)
+
+  if(!text)
+    text := "";
+  endif
+  text := lower(text);
+
+  case(text)
+    "":           SendNutrMsg(who, GetNutrValue(who, NVI_HUNGER), SNMF_DONT_HURT);
+    "wszystko":   var arr, NV, NVS, NF;
+                  arr := {{"Glod: ", NVI_HUNGER},{"Bialka: ", NVI_PROTEIN},{"Witaminy: ", NVI_VITAMIN},{"Weglowodany: ", NVI_SUGAR}};
+                  foreach param in arr
+                    NV  :=  GetNutrValue(who, param[2]);
+                    NVS :=  GetNutrValState(NV);
+                    NF  :=  GetNutrFactor(NV);
+                    SendSysMessage(who, param[1] + NVS, FONT_NORMAL, NutrMsgColor(NF));
+                  endforeach
+    default:      SendSysMessage(who, ".glod wszystko?", FONT_NORMAL, COLOR_RED);
+  endcase
+ 
+endprogram

@@ -1,0 +1,123 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/effects";
+include "include/objtypes/magic";
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/mobile/npcs/attack";
+include "include/attributes/main";
+include "include/mobile/npcs/specs";
+
+include ":magic:magicatt";
+
+//-----------------------------------------------------------------------------
+
+const MGTO_COLOR_DARK        := 1336;
+const MGTO_COLOR_LIGHT       := 1328;
+
+//-----------------------------------------------------------------------------
+
+program EnergyOrb(Parms)
+
+  var Caster := Parms[1];
+  var Orb    := Parms[2];
+  var SpellID := Parms[3];
+  var Dmg     := Parms[4];
+  var SpellsCfg := ReadConfigFile(SPELLS_CFG);
+
+  if(!IsPlayer(Caster))
+    return;
+  endif
+
+  if(SpellsCfg[SpellID].Element != SPELLELEM_LIGHT)
+    PrintTextAbove(Orb, "*psss*");
+    SendSysMessage(Caster, "Ten czar wydaje sie nie oddzialywac na orb...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  UniPrintTextAbove(Orb, "*poch³ania energiê*");
+  PlaySoundEffect(Orb, SFX_ARCANE_POWER_UP);
+  Detach();
+  sleepms(100);
+
+  ChangeOrbColor(Orb, MGTO_COLOR_DARK, MGTO_COLOR_LIGHT);
+  PlayStationaryEff(Orb.x, Orb.y, Orb.z, FX_MARK_EFFECT, 0x10, 0x10, 0, Orb.realm);
+  sleepms(700);
+
+  var Mobs := FindEnergyMobiles(Orb);
+  var bFound := 0;
+
+  if(Mobs)
+    foreach Mob in Mobs
+      if(BreakNpcSpecial(Mob, NSPEC_ENERGYSHIELD, Dmg))
+        UniPrintTextAbove(Orb, "*orb zaczyna oddzia³ywaæ na "+GetName(Mob)+"*");
+        PlayLightningBoltEffect(Mob);
+        PlaySoundEffect(Mob, SFX_SPELL_LIGHTNING);
+        bFound := 1;
+      endif
+      
+      PlayPcEffect(Mob, FX_MARK_EFFECT, 1321, 16, 16, 3);
+      PlaySoundEffect(Orb, SFX_ARCANE_POWER_DOWN);
+    endforeach
+  endif
+
+  if(!bFound)
+    UniPrintTextAbove(Orb, "*energia rozproszy³a siê*");
+    ChangeOrbColor(Orb, MGTO_COLOR_LIGHT, MGTO_COLOR_DARK);
+    return;
+  endif
+
+  ChangeOrbColor(Orb, MGTO_COLOR_LIGHT, MGTO_COLOR_DARK);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindEnergyMobiles(Orb)
+
+  var Mobs := array;
+  var FoundMobs := ListObjectsInBox(Orb.x-15, Orb.y-15, -127, Orb.x+15, Orb.y+15, 127, Orb.realm);
+
+  foreach Mob in FoundMobs
+    if(Mob.isa(POLCLASS_NPC) and GetNpcConfig(Mob.npctemplate).EnergyShield)
+      Mobs.append(Mob);
+    endif
+  endforeach
+
+  if(Mobs.size())
+    return Mobs;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeOrbColor(Orb, ClSet, ClEnd)
+
+  var i;
+
+  if(ClSet > ClEnd)
+    for(i:=ClSet; i>=ClEnd; i-=1)
+      sleepms(100);
+      Orb.color := i;
+    endfor
+  else
+    for(i:=ClSet; i<=ClEnd; i+=1)
+      sleepms(100);
+      Orb.color := i;
+    endfor
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

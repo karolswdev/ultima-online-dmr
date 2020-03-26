@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "../pkg/systems/weather/weather";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 24;
+
+//-----------------------------------------------------------------------------
+
+program VwIceBarrier(Parms)
+
+  VampireRuneCast(Parms, VW_WCID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  PlaySoundEffect(Caster, SFX_SPELL_PROTECTION);
+  PlaySoundEffect(Caster, SFX_SPELL_ICE_BOLT);
+  PlayPcEffect( Caster, FX_BLESS_EFFECT, 1151, 0x10, 0x10);
+
+  var ModAmount := CInt(GetEffectiveSkill(Caster,SKILLID_VAMPIRE) / 10) + CInt(GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK) / 10) + RandomInt(3) + 3;
+  var Duration  := GetVampireWarSpDur(Caster);
+  var ModFlags  := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  if(CanMod(Caster, MOD_COLDRESIST))
+    GainWarcastPoints(Caster, Caster, VW_WCID, WCGAIN_NORMAL);
+  endif
+  
+  DoMod(Caster, MOD_COLDRESIST,  ModAmount, Duration, 0, ModFlags);
+  DoMod(Caster, MOD_LIGHTRESIST, ModAmount, Duration, 0, ModFlags);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

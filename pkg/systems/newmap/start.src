@@ -1,0 +1,8 @@
+use uo;
+use os;
+
+program start_newmap()
+
+	print("NewMap:: Started logon script for characters");
+	
+endprogram

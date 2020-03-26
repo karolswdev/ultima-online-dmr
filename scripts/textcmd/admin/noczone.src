@@ -1,0 +1,96 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/checks/locchecks";
+
+//-----------------------------------------------------------------------------
+
+program NocZone(who,text)
+
+  text := SplitWords(text);
+  
+  case(text[1])
+    "add":     AddZone(who,text);
+    "show":    ShowZones(who);
+    "del":     DeleteZone(who,text);
+    "on":      SetGlobalProperty("NocZone",1);
+               SendSysMessage(who,"Wlaczono No Combat Zone.",FONT_NORMAL,COLOR_GREEN);
+    "off":     EraseGlobalProperty("NocZone");
+               SendSysMessage(who,"Wylaczono No Combat Zone.",FONT_NORMAL,COLOR_RED);
+    "status":  SendSysMessage(who,"Status Noc Zone: "+CInt(GetGlobalProperty("NocZone")),FONT_NORMAL,COLOR_GREEN);
+    "in":      if(IsInNocZone(who))
+                 SendSysMessage(who,"NocZone.",FONT_NORMAL,COLOR_GREEN);
+               else
+                 SendSysMessage(who,"None.",FONT_NORMAL,COLOR_RED);
+               endif
+    default:   SendSysMessage(who,".noczone [add/show/del/on/off/status/in]",FONT_NORMAL,COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddZone(who,text)
+
+  if(text[2] and text[3] and text[4] and text[5])
+    var Zones := GetGlobalProperty("NocZones");
+    if(!Zones or !Zones.size())
+      Zones := array;
+    endif
+
+    if(!text[6])
+      text[6] := who.realm;
+    endif
+    
+    Zones.append({CInt(text[2]),CInt(text[3]),CInt(text[4]),CInt(text[5]),text[6]});
+    SetGlobalProperty("NocZones",Zones);
+    SendSysMessage(who,"Dodano strefe - "+Zones[Zones.size()],FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Bledne dane - .noczone add [x1 y1 x2 y2]",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowZones(who)
+
+  var Zones := GetGlobalProperty("NocZones");
+  
+  if(!Zones or !Zones.size())
+    SendSysMessage(who,"Nie ma zadnych stref.",FONT_NORMAL,COLOR_RED);
+  else
+    var n := 1;
+    foreach Zone in Zones
+      SendSysMessage(who,n+". x1: "+Zone[1]+" y1: "+Zone[2]+" x2: "+Zone[3]+" y2: "+Zone[4]+" Rlm; "+Zone[5],FONT_NORMAL,COLOR_GREEN);
+      n:=n+1;
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteZone(who,text)
+
+  var Zones := GetGlobalProperty("NocZones");
+
+  if(!Zones or !Zones.size())
+    SendSysMessage(who,"Nie ma zadnych stref.",FONT_NORMAL,COLOR_RED);
+  elseif(!Zones[CInt(text[2])])
+    SendSysMessage(who,"Strefa nie istnieje - .noczone del [nr].",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"Skasowano strefe nr: "+CInt(text[2])+" - "+Zones[CInt(text[2])],FONT_NORMAL,COLOR_GREEN);
+    Zones.erase(CInt(text[2]));
+    SetGlobalProperty("NocZones",Zones);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,374 @@
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/checks/objchecks";
+include "include/move";
+include "include/gumpboxes";
+
+include ":housing:housing";
+include ":renthouse:common";
+
+//-----------------------------------------------------------------------------
+
+var MainCfg := ReadConfigFile("deeds");
+var Created := {};
+var NewItem;
+
+//-----------------------------------------------------------------------------
+
+program PlaceDeed(who, deed)
+
+  if(!StandardItemCheck(who,deed))
+    return;
+  endif
+
+  if(deed.container != who.backpack)
+    SendSysMessage(who, "Musisz miec to w plecaku!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Element := MainCfg[deed.objtype];
+
+  if(!Element)
+    SendSysMessage(who, "Z tym nic nie zrobisz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  
+  if(Element.MaxCreate)
+    if(!CheckMaxCreate(who,deed.objtype,Element.MaxCreate))
+      SendSysMessage(who,"Nie uda Ci sie zbudowac tego wiecej.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  SendSysMessage(who, "Gdzie chcial"+ggm(who,1)+" to postawic?",FONT_NORMAL,COLOR_GREEN);
+  var Loc := LocTarget(who);
+  
+  if(!StandardLocCheck(who,Loc))
+    return;
+  endif
+  
+  var NewLoc := struct;
+  NewLoc.+x  := Loc.x;
+  NewLoc.+y  := Loc.y;
+  NewLoc.+z  := GetStandZ(Loc.x,Loc.y,who.realm,Loc.z);
+  Loc        := NewLoc;
+
+  if(NewLoc.z == error)
+    if(who.cmdlevel)
+      NewLoc.z := Loc.z;
+    else
+      SendSysMessage(who, "To miejsce nie jest dostepne.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(coordist(who.x,who.y,Loc.x,Loc.y) > 4)
+    SendSysMessage(who, "Wybrane miejsce jest za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var House  := GetNearestHouseOf(Loc.x, Loc.y, Loc.z, who.realm, 15, GNHOF_OWNER | GNHOF_COOWNER, who);
+  var HrSign := 0;
+
+  if(Element.InHouse and !who.cmdlevel)
+    if(!house)
+
+      if(Element.OnlyHouse)
+
+        SendSysMessage(who, "Ten przedmiot mozesz postawic tylko w swoim domu.", FONT_NORMAL, COLOR_RED);
+        return;
+
+      else
+
+        house := CheckNearHr(who.x, who.y, who.z, who.realm);
+
+        if(!house)
+          SendSysMessage(who, "Musisz byc niedaleko swojego domu by postawic ten przedmiot.",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+
+        HrSign  := House;
+        House   := GetHr(GetHrCity(HrSign), GetHrNr(HrSign));
+
+        if(!IsInHr(Loc.x, Loc.y, Loc.z, who.realm,House) or !CanControlHr(who,HrSign))
+          SendSysMessage(who, "Mozesz postawic ten przedmiot tylko w swoim domu!",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+      endif
+
+    elseif(Element.OnlyHouse)
+
+      var ObjTypes := SplitWords(Element.OnlyHouse);
+      MakeIntArray(ObjTypes);
+      var Stand := GetStand(NewLoc.x, NewLoc.y, who.realm, NewLoc.z);
+
+      if(!Stand.multi)
+        SendSysMessage(who, "Ten przedmiot mozesz postawic tylko w domu.", FONT_NORMAL, COLOR_RED);
+        return;
+      elseif(IsOutsideHouse(Stand.multi, NewLoc.x, NewLoc.y, NewLoc.z))
+        SendSysMessage(who, "Ten przedmiot mozesz postawic tylko wewnatrz domu.", FONT_NORMAL, COLOR_RED);
+        return;
+      elseif(!(house.objtype in ObjTypes))
+        SendSysMessage(who, "Nie mozesz postawic tego przedmiotu w tym domu.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+
+  endif
+
+  if(Element.PerHouse and House)
+    var MaxAmt  := CInt(Element.PerHouse);
+    var MainObj := CInt(Element.MainObjType);
+    var Items   := FindItemsInHouseArea(House, MainObj);
+    var ExAmt   := 0;
+
+    foreach Item in Items
+      if(CInt(GetObjProperty(Item, "DeedObjType")) == deed.objtype)
+        ExAmt += 1;
+      endif
+    endforeach
+
+    if(ExAmt >= MaxAmt)
+      SendSysMessage(who, "W tym domu nie mozna postawic wiecej przedmiotow tego typu.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+  endif
+
+  var ObjTypes  := {0,0,0,0};
+  if(Element.ObjType_S)
+    ObjTypes[1]   := SplitWords(Element.ObjType_S);
+  endif
+  if(Element.ObjType_E)
+    ObjTypes[2]   := SplitWords(Element.ObjType_E);
+  endif
+  if(Element.ObjType_N)
+    ObjTypes[3]   := SplitWords(Element.ObjType_N);
+  endif
+  if(Element.ObjType_W)
+    ObjTypes[4]   := SplitWords(Element.ObjType_W);
+  endif
+  
+  var Direction := MakeAndProcessMenu(who, ObjTypes);
+  if(!Direction)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Mods      := {0,0,0,0};
+  if(Element.Mods_S)
+    Mods[1]       := SplitWords(Element.Mods_S);
+  endif
+  if(Element.Mods_E)
+    Mods[2]       := SplitWords(Element.Mods_E);
+  endif
+  if(Element.Mods_N)
+    Mods[3]       := SplitWords(Element.Mods_N);
+  endif
+  if(Element.Mods_W)
+    Mods[4]       := SplitWords(Element.Mods_W);
+  endif
+  
+  var MainOT      := ObjTypes[Direction];
+  var MainMods    := Mods[Direction];
+  var XMod,YMod,i := 0;
+  
+  if(!who.cmdlevel)
+    if(!CheckLocation(who,Loc,MainMods))
+      SendSysMessage(who, "Tutaj jest za malo miejsca na ten przedmiot.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  i := 1;
+  foreach ObjType in MainOT
+    if(!AddItemToArray(who,Loc.x+CInt(MainMods[i]),Loc.y+CInt(MainMods[i+1]),Loc.z+CInt(MainMods[i+2]),ObjType))
+      DestroyCreated();
+      return 0;
+    endif
+    i := i + 3;
+  endforeach
+  
+  var Serials := {};
+  foreach Item in Created
+    Serials.append(Item.serial);
+  endforeach
+
+  if(Element.MaxCreate and !who.cmdlevel)
+    AddToMaxCreate(who,deed.objtype,Serials[1]);
+  endif
+  
+  foreach Item in Created
+    if(House.isa(POLCLASS_MULTI))
+      SetHouseItem(Item,House);
+    elseif(HrSign)
+      AddItemToHr(Item,HrSign);
+    endif
+    SetObjProperty(Item,"DeedObjType" ,deed.objtype);
+    SetObjProperty(Item,"PartsSerials",Serials);
+    SetItemOwner(Item,who);
+    Item.invisible := 0;
+  endforeach
+
+  DestroyItem(Deed);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MakeAndProcessMenu(who, ObjTypes)
+  
+  var menu := CreateMenu("Wybierz kierunek");
+  var i,Ids := {},label := "";
+  for(i := 1; i <= len(ObjTypes); i := i + 1)
+    case(i)
+      1:  label := "Poludnie";
+      2:  label := "Wschod";
+      3:  label := "Polnoc";
+      4:  label := "Zachod";
+    endcase
+    if(ObjTypes[i])
+      Ids.append(i);
+      AddMenuItem(menu, CInt(ObjTypes[i][1]), label);
+    endif
+  endfor
+  if(!Ids.size())
+    return 0;
+  endif
+
+  if(len(Ids) == 1)
+    return CInt(Ids[1]);
+  endif
+
+  var choice := SelectMenuItem2(who, menu).index;
+
+  if(!choice)
+    return 0;
+  endif
+
+  return CInt(Ids[choice]);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckLocation(who,Loc,Mods)
+
+  var i,x,y;
+  for(i:=1;i<=len(Mods);i:=i+3)
+    x := Loc.x+CInt(Mods[i]);
+    y := Loc.y+CInt(Mods[i+1]);
+    if(!CheckPlace(who, x, y, GetStandZ(x, y, who.realm, Loc.z), Loc.z))
+      return 0;
+    endif
+  endfor
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPlace(who,x,y,z,Sz)
+
+  if(z == error)
+    return 0;
+  endif
+
+  if(len(ListItemsNearLocation(x,y,z, 0,who.realm)) > 0 or len(ListMobilesNearLocation(x,y,z, 0,who.realm)))
+    SendSysMessage(who, "Nie mozesz tego tu zbudowac.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(!CheckLosAt(who,x,y,z))
+    SendSysMessage(who, "Nie widzisz tego miejsca.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  if(z != Sz)
+    SendSysMessage(who, "Ten teren nie jest rowny.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddItemToArray(who,x,y,z,ObjType)
+
+  if(who.cmdlevel >= 3)
+    NewItem := CreateItemAtLoc(6107,1187,0,CInt(ObjType),1);
+    if(!MoveObject(NewItem,CInt(x),CInt(y),CInt(z),who.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE))
+      DestroyItem(NewItem);
+    endif
+  else
+    NewItem := CreateItemAtLoc(x,y,z,CInt(ObjType),1,who.realm);
+  endif
+  
+  if(!NewItem)
+    SendSysMessage(who,"Cos przeszkadza w rozlozeniu tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  NewItem.movable   := 0;
+  NewItem.invisible := 1;
+  Created.append(NewItem);
+  return NewItem;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyCreated()
+
+  foreach Item in Created
+    DestroyItem(Item);
+  endforeach
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMaxCreate(who, DeedObj, cMax)
+
+  var MaxCreate := GetObjProperty(who,"DeedMaxCreate_"+DeedObj);
+  if(!MaxCreate or !MaxCreate.size())
+    return 1;
+  endif
+  
+  var i := 1;
+  foreach Cr in GetObjProperty(who,"DeedMaxCreate_"+DeedObj)
+    if(!SystemFindObjectBySerial(CInt(Cr)))
+      MaxCreate.erase(i);
+    else
+      i := i + 1;
+    endif
+  endforeach
+
+  SetObjProperty(who,"DeedMaxCreate_"+DeedObj,MaxCreate);
+  if(MaxCreate.size() >= cMax)
+    return 0;
+  endif
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddToMaxCreate(who,DeedObj,Ser)
+
+  if(Ser)
+    var MaxCreate := GetObjProperty(who,"DeedMaxCreate_"+DeedObj);
+    if(!MaxCreate or !MaxCreate.size())
+      MaxCreate := {};
+    endif
+    MaxCreate.append(Ser);
+    SetObjProperty(who,"DeedMaxCreate_"+DeedObj,MaxCreate);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,125 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/mobile/misc";
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 21;
+
+//-----------------------------------------------------------------------------
+
+program CastTelekinesis( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_OBJECT, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  PlaySoundEffect( Caster, SFX_SPELL_TELEKINESIS );
+
+  if(Caster == CastOn)
+    Fizzle(Caster, "Ten czar nie bedzie oddzialywac na Ciebie.");
+    return;
+  endif
+
+  if(CastOn.isa(POLCLASS_MOBILE))
+
+    if(NpcHaveFlag(CastOn, "CityNpc"))
+      Fizzle(Caster, "Tej osoby nie przesuniesz!");
+      return;
+    endif
+
+    if(Reflected(CastOn, Caster))
+      CastOn := Caster;
+    endif
+
+    PlaySoundEffect(CastOn, SFX_SPELL_TELEKINESIS);
+    PlayObjectCenteredEffect(CastOn, FX_GLOW, 0x03, 0x0a);
+    
+    var CasterMag := GetEffectiveSkill(caster, SKILLID_MAGERY);
+
+    if(GetBaseSkill(caster, SKILLID_MAGERY) >= 100)
+      var BaseLoc := GetLocStruct(CastOn);
+      SendGood(Caster, "Gdzie chcesz przeniesc "+CastOn.name+"?");
+      var Loc := LocTarget(Caster);
+      var Clock := ReadGameClock();
+      var MaxDist := __IfElse(CasterMag >= 115, 2, 1);
+      
+      if(GetLocDist(BaseLoc, GetLocStruct(CastOn)) != 0)
+        SendBad(Caster, "Cel zdazyl sie poruszyc!");
+      elseif(Clock + 15 < ReadGameClock())
+        Fizzle(Caster, "Za dlugo czekal"+ggm(Caster, 3)+"! Czar prysl.");
+      else
+        var Dist := GetLocDist(BaseLoc, Loc);
+        if(Dist > MaxDist or Dist == error or Abs(BaseLoc.z - Loc.z) > 20)
+          Fizzle(Caster, "Za daleko, nie dasz rady przesunac celu tak daleko.");
+          return;
+        endif
+        
+        if(CheckLosAt(CastOn, Loc.x, Loc.y, Loc.z) and !Loc.multi.isa(POLCLASS_BOAT))
+          PlayPcStEffect(CastOn.x, CastOn.y, CastOn.z, CastOn.realm, FX_SMOKE, 0, 0x10, 0x10);
+          PlaySoundEffect(CastOn, SFX_SPELL_TELEPORT);
+          MoveObject(CastOn, Loc.x, Loc.y, Loc.z);
+        else
+          Fizzle(Caster, "To miejsce jest poza zasiegiem!");
+        endif
+      endif
+    else
+    
+      var Dmg := RandomInt(CasterMag / 10);
+      DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+
+      var movex := CastOn.x + RandomInt(3) - RandomInt(3);
+      var movey := CastOn.y + RandomInt(3) - RandomInt(3);
+      var movez := GetStandZ(movex, movey, CastOn.realm);
+      if(movez != error)
+        if(CheckLosAt(CastOn, movex, movey, movez))
+          PlayPcStEffect(CastOn.x, CastOn.y, CastOn.z, CastOn.realm, FX_SMOKE, 0, 0x10, 0x10);
+          PlaySoundEffect(CastOn, SFX_SPELL_TELEPORT);
+          MoveObject(CastOn, movex, movey, movez);
+        else
+          Fizzle(Caster, "To miejsce jest poza zasiegiem!");
+        endif
+      else
+        Fizzle(Caster, "To miejsce jest niedostepne!");
+      endif
+      
+    endif
+    
+  elseif(CheckIsHouseItem(CastOn))
+
+    SendSysMessage(caster, "Nie mozesz podniesc przedmiotow znajdujacych sie w domu.",FONT_NORMAL,COLOR_RED);
+
+  elseif(CastOn.container)
+
+    SendSysMessage(caster, "Nie mozesz podniesc przedmiotow znajdujacych sie w pojemniku.",FONT_NORMAL,COLOR_RED);
+
+  elseif(CastOn.isa(POLCLASS_CORPSE) or (CastOn.isa(POLCLASS_CONTAINER) and CastOn.movable))
+    if(CastOn.locked)
+      PrintTextAbovePrivate(CastOn,"*zamkniete*",Caster,FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    foreach Item in EnumerateItemsInContainer(CastOn)
+      if(MoveItemToContainer(Item,Caster.backpack))
+        PrintTextAbovePrivate(caster, "*podnosisz przedmiot sila umyslu*", caster);
+        return;
+      endif
+    endforeach
+    SendSysMessage(Caster,"Pojemnik wydaje sie byc pusty.",FONT_NORMAL,COLOR_RED);
+  else
+    if(MoveItemToContainer( CastOn, caster.backpack ))
+      PrintTextAbovePrivate(caster, "*podnosisz przedmiot sila umyslu*", caster);
+    else
+      PrintTextAbovePrivate(caster, "*nie mozesz sprawic aby przedmiot sie poruszyl*", caster);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

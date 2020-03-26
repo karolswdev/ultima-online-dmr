@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "../../jail";
+include "include/client/fonts";
+include "include/finding";
+include "include/move";
+include "include/effects";
+include "include/gumpboxes";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program ForgiveCmd(who, text)
+
+  var Targ;
+
+  if(CInt(Text))
+
+    Targ := FindPlayerBySerial(CInt(Text));
+
+    if(Targ)
+
+      if(!IsJailed(Targ))
+        SendSysMessage(who, "Osoba "+Targ.name+" nie jest w wiezieniu.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+      SendSysMessage(who,"Chcesz wypuscic osobe "+targ.name+" z wiezienia?",FONT_NORMAL,COLOR_GREEN);
+
+      if(!YesNo(who,"Tak ?"))
+        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    else
+      SendSysMessage(who, "Nie znaleziono osoby o serialu "+CInt(text)+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  
+  endif
+
+  if(!Targ)
+    SendSysMessage(who, "Komu chcesz przebaczyc ?",FONT_NORMAL,COLOR_GOOD);
+    Targ := ObjTarget(who);
+  endif
+
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!targ.acctname)
+    SendSysMessage(who, "Cel nie posiada konta.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!IsJailed(targ))
+    SendSysMessage(who, "Ta osoba nie siedzi w wiezieniu.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Przebaczyl"+ggm(who,3)+" grzechy osoby "+targ.name+".",FONT_NORMAL,COLOR_GOOD);
+
+  var JailProps  := GetJailProps(targ);
+  var JailMsg   := "Wybaczenie: "+GetRealName(targ)+" powod: '"+JailProps[4]+"'.";
+  AddPlayerNote(who, targ, NOTETYPE_JAILMOD, JailMsg); 
+
+  FreeFromJail(Targ);
+     
+
+endprogram
+
+//-----------------------------------------------------------------------------

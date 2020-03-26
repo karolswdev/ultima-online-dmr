@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-01
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/staff";
+include "include/checks/stdchecks";
+
+//--------------------------------------------------------------------------------
+
+program StaffCoreCmd(who, text)
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "notify":   case(text[2])
+                  "all":   SetObjProperty(who, PROP_STAFFNOTIFY, 2);
+                  "gm":    EraseObjProperty(who, PROP_STAFFNOTIFY);
+                  "none":  SetObjProperty(who, PROP_STAFFNOTIFY, 1);
+                  default: SendSysMessage(who, "Bledna opcja [all/gm/none]", FONT_NORMAL, COLOR_RED);
+                           return;
+                endcase
+
+                SendSysMessage(who, "Zmiana powiadamiania o logowaniu na ["+text[2]+"].", FONT_NORMAL, COLOR_GREEN);
+                return;
+
+    "res":      if(IsAdmin(who))
+                  SendSysMessage(who, "Restartowanie rdzenia.", FONT_NORMAL, COLOR_GREEN);
+                  var Pid := GetStaffCore();
+                  if(Pid)
+                    Pid.kill();
+                  endif
+                  start_script("sc");
+                  return;
+                endif
+  endcase
+
+  SendSysMessage(who, "Bledna komenda [notify].", FONT_NORMAL, COLOR_RED);
+
+endprogram
+
+//--------------------------------------------------------------------------------

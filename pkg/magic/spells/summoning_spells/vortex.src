@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 58;
+
+//-----------------------------------------------------------------------------
+
+program CastEnregyVortex( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var Duration        := CalcModDuration( Caster ) / 2;
+  var oparms          := {};
+  oparms.+onlyone     := 1;
+  oparms.+sumaction   := 12;
+  oparms.+alwayscrim  := 1;
+  oparms.+spellparms  := SpellGlob.Parms;
+  
+  PlayStationaryEff(CastLoc.x,CastLoc.y,CastLoc.z-3,FX_DEATH_FUNNEL,0xa,0xf);
+  var Summon := SummonCreature( caster, "vortex", CastLoc, Duration, oparms );
+
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

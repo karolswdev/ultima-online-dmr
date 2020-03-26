@@ -1,0 +1,169 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/misc";
+include "../pkg/warcasts/wcbook";
+
+//-----------------------------------------------------------------------------
+
+var who, Book, Res;
+var WarCfg := GetWarCastCfg();
+var WcIds;
+
+//-----------------------------------------------------------------------------
+
+program PaladinCastBook(_who, _Book)
+
+  who  := _who;
+  Book := _Book;
+  GetSortedWcIDsByDiff(WcIds, PD_WCID_START, PD_WCID_END);
+
+  if(GetObjProperty(who, "#ViewPdBook"))
+    var Proc := GetProc(GetObjProperty(who, "#ViewPdBook"));
+    if(Proc)
+      CloseGumpEx(who, Proc.pid);
+      Proc.kill();
+    endif
+    EraseObjProperty(who, "#ViewPdBook");
+  endif
+
+  if(!StandardItemCheck(who, Book, NO_BUSY_DELAY_CHECK | NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  Detach();
+  NoLongerBusy(who);
+  SetObjProperty(who, "#ViewPdBook", GetPid());
+
+  BuildMainGump();
+
+  while(IsLoggedIn(who) and Book)
+    Res := CInt(GSend(who)[0]);
+
+    if(Res >= PD_WCID_START and Res <= PD_WCID_END)
+      if(StartWarCast(who, Res))
+        sleep(2);
+      endif
+      BuildMiniGump();
+      continue;
+    elseif(Res >= 100+PD_WCID_START and Res <= 100+PD_WCID_END)
+      DescribeReagents(Res-100);
+    elseif(Res == 1)
+      BuildMiniGump();
+      continue;
+    elseif(Res == 9999 and who.cmdlevel)
+      AddAllCasts();
+    elseif(Res != 2)
+      break;
+    endif
+
+    BuildMainGump();
+
+  endwhile
+
+  EraseObjProperty(who, "#ViewPdBook");
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGump()
+
+  GInit(50, 50);
+  GGumpPic(0, 0, 0x2B01);
+  GTextLine(102, 15,1153, "Modlitwy");
+
+  if(who.cmdlevel)
+    GButton(195, 15, 2117, 2118, 9999);
+  endif
+
+  var h := 0;
+  var s := 0;
+
+  foreach Id in WcIds
+    if(h == 6)
+      s := 160;
+      h := 0;
+    endif
+
+    if(!WarCfg[Id])
+      continue;
+    endif
+
+    if(IsInWarCastBook(Book, Id))
+      GButton(55+s,42+(h*25),2104,2103,Id);
+      GButton(68+s,39+(h*25), 0x1523, 0x1523,100+Id);
+      GTextCrop(88+s,37+(h*25), 100, 20, 650, WarCfg[Id].Name);
+      h := h + 1;
+    endif
+  endforeach
+
+  GButton(3, 103, 0x8B0, 0x8B0, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMiniGump()
+
+  GInit(50, 50);
+  GGumpPic(0, 0, 0x2B04);
+  GButton(32, 20, 0x8AF, 0x8AF, 2);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescribeReagents(wcId)
+
+  GInit(50, 50);
+  GPage();
+  GGumpPic(0, 0, 0x2B01);
+  
+  var Reagents := GetConfigStringArray(WarCfg[wcId], "reagent");
+  var Amount   := 0;
+  var h        := 0;
+  var wName    := WarCfg[wcId].Name;
+  var Desc;
+
+  GTextLine(130-len(wName)*3.5,15,999, wName);
+  GTextLine(100,40,650,"Skladniki");
+
+  if(Reagents and Reagents.size())
+
+    foreach Reagent in Reagents
+      Reagent  := SplitWords(Reagent);
+      Desc     := GetDescForItem(Reagent[1]);
+      Amount   := Cint(Reagent[2]);
+      if(!Amount)
+        Amount := 1;
+      endif
+      if(!Desc)
+        Desc := "nieznany skladnik";
+      else
+        Desc := Amount + " " + Desc;
+      endif
+      GTextLine(70,65+(h*20),500,Desc);
+      h := h + 1;
+    endforeach
+  else
+    GTextLine(110,65,1419,"Brak");
+  endif
+
+  GButton(3, 103, 0x8B0, 0x8B0, 1);
+
+  GSend(who);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddAllCasts()
+
+  for i := PD_WCID_START to PD_WCID_END
+    AddToWarCastBook(Book, i);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------

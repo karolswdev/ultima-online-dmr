@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include "include/names";
+
+include ":ngd_npcs:common";
+include ":ngd_npcs:membership";
+include ":npcguilds:ngd_ctrl";
+
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program GuildNpcHello(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!IsGuildNpc(Data.npc))
+    return -1;
+  endif
+
+  var PlayerData := GetObjProperty(Data.source, PROP_NGDDATA);
+  var NpcData := GetObjProperty(Data.npc, PROP_NGDDATA);
+
+  if(PlayerData)
+    if(PlayerData.Guilds.exists(NpcData.GuildId))
+      if(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_MEMBER)
+        if(CanNGnSpeakWith(Data.npc, Data.source))
+          PlayerData.Guilds[NpcData.GuildId].LastVisit := ReadGameClock();
+          SetObjProperty(Data.source, PROP_NGDDATA, PlayerData);
+
+          NpcSpeechJustSay(Data.npc, Data.source, "Witaj "+Data.source.name);
+        endif
+      endif
+    endif
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

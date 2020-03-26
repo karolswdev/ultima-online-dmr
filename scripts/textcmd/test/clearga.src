@@ -1,0 +1,87 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/npcs";
+include "include/gumpboxes";
+
+//-----------------------------------------------------------------------------
+
+var inum := 0;
+var mnum := 0;
+var snum := 0;
+var sp   := {};
+var Np   := {};
+var It   := {};
+
+//-----------------------------------------------------------------------------
+
+program ClearGa(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!YesNo(who,"Na pewno?"))
+    return;
+  endif
+  
+  foreach Obj in ListObjectsInBox(5367,1025,-127,6144,1280,127)
+    CheckObj(Obj);
+  endforeach
+
+  foreach Obj in ListObjectsInBox(5888,510,-127,6144,1270,127)
+    CheckObj(Obj);
+  endforeach
+
+  foreach Obj in ListObjectsInBox(5632,1771,-127,6142,2294,127)
+    CheckObj(Obj);
+  endforeach
+
+  foreach Obj in ListObjectsInBox(5135,2048,-127,6142,2294,127)
+    CheckObj(Obj);
+  endforeach
+
+  foreach Obj in ListObjectsInBox(5120,256,-127,5375,515,127)
+    CheckObj(Obj);
+  endforeach
+
+  foreach S in Sp
+    SendSysMessage(who,"Sp - "+s.serial,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+
+  foreach I in It
+    SendSysMessage(who,"Item - "+i.serial,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+
+  foreach N in Np
+    SendSysMessage(who,"Mob - "+n.serial,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+
+  SendSysMessage(who,"Mob - "+mnum,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Item - "+inum,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Sp - "+snum,FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckObj(Obj)
+
+  if(GetObjProperty(Obj,"Spawnnet"))
+    snum := snum + 1;
+    sp.append(Obj);
+  elseif(Obj.isa(POLCLASS_ITEM))
+    if(!DestroyItem(Obj))
+      It.append(Obj);
+    endif
+    inum := inum + 1;
+  elseif(Obj.isa(POLCLASS_NPC))
+    if(!KillNpc(Obj))
+      Np.append(Obj);
+    endif
+    mnum := mnum + 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

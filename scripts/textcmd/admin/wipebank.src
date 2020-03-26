@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include ":banking:common";
+include "../pkg/systems/mail/mail";
+
+
+//-----------------------------------------------------------------------------
+
+program WipeBankCmd(who, text)
+
+  SendSysMessage(who, "Czyja skrzynke chcesz wyczyscic?", FONT_NORMAL, COLOR_GREEN);
+
+  var whom := ObjTarget(who);
+
+  if(text == "mail")
+    if(WipeMailBox( whom ))
+      SendSysMessage(who, "Skrzynka pocztowa osoby "+whom.name+" wyczyszczony.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Nie udalo sie wyczyscic skrzynki pocztowej osoby "+whom.name+".", FONT_NORMAL, COLOR_RED);
+    endif
+  elseif(text == "store")
+    if(WipeStoreBox( whom ))
+      SendSysMessage(who, "Magazyn osoby "+whom.name+" wyczyszczony.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Nie udalo sie wyczyscic magazynu osoby "+whom.name+".", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    if(WipeBankBox( whom ))
+      SendSysMessage(who, "Bank osoby "+whom.name+" wyczyszczony.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Nie udalo sie wyczyscic banku osoby "+whom.name+".", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

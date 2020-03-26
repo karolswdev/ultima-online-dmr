@@ -1,0 +1,101 @@
+use uo;
+use os;
+use cfgfile;
+
+include ":moongates:old-gumps";
+include ":moongates:gumpUtil";
+
+gfref.x := 50;
+gfref.y := 50;
+
+var townarray := {};
+
+program gumptest(who, item)
+  var city := GetObjProperty(item, "City");
+  if(!city)
+    return;
+  endif
+  
+  // goqsane 02-20-2018: wow, this is soooooooooo inefficient it blows my mind.
+  /* Keeping it here for ridiculousness 
+  
+      "Nowa Britannia": townarray := array("Britain", "Jhelom", "Yew", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Iceport":  townarray := array("Moonglow", "Jhelom", "Yew", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Castle Rock":   townarray := array("Moonglow", "Britain", "Yew", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Heartrock":      townarray := array("Moonglow", "Britain", "Jhelom", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Haddinge":    townarray := array("Moonglow", "Britain", "Jhelom", "Yew", "Trinsic", "Skara Brae", "Magincia");
+    "Morska Osada":  townarray := array("Moonglow", "Britain", "Jhelom", "Yew", "Minoc", "Skara Brae", "Magincia");
+	
+  */
+  
+  
+  
+  townarray := array("Nowa Britannia", "Iceport", "Castle Rock", "Heartrock", "Haddinge", "Morska Osada");
+  
+  for i := 1 to townarray.Size()
+	if(townarray[i] == city)
+		townarray.Erase(i);
+		break;
+	endif
+  endfor
+  
+  
+
+  case(city)
+    "Nowa Britannia": townarray := array("Britain", "Jhelom", "Yew", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Iceport":  townarray := array("Moonglow", "Jhelom", "Yew", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Castle Rock":   townarray := array("Moonglow", "Britain", "Yew", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Heartrock":      townarray := array("Moonglow", "Britain", "Jhelom", "Minoc", "Trinsic", "Skara Brae", "Magincia");
+    "Haddinge":    townarray := array("Moonglow", "Britain", "Jhelom", "Yew", "Trinsic", "Skara Brae", "Magincia");
+    "Morska Osada":  townarray := array("Moonglow", "Britain", "Jhelom", "Yew", "Minoc", "Skara Brae", "Magincia");
+  endcase
+  
+  GFInitGump(0, 0);
+  GFPage(0);
+  GFResizePic(100, 100, BKGND_STONESLAB, 350, 300);
+  GFTextLine(110, 110, 0, "Wybierz cel:");
+  GFSetRadioGroup(1);
+  GFRadioButton(300, 140, 210, 211, 1);
+  GFRadioButton(300, 165, 210, 211, 0);
+  GFRadioButton(300, 190, 210, 211, 0);
+  GFRadioButton(300, 215, 210, 211, 0);
+  GFRadioButton(300, 240, 210, 211, 0);
+  GFRadioButton(300, 265, 210, 211, 0);
+  GFRadioButton(300, 290, 210, 211, 0);
+  GFTextLine(330, 140,   0, townarray[1]);
+  GFTextLine(330, 165,   0, townarray[2]);
+  GFTextLine(330, 190,   0, townarray[3]);
+  GFTextLine(330, 215,   0, townarray[4]);
+  GFTextLine(330, 240,   0, townarray[5]);
+
+  /*var ok :=*/ GFButtonID(110, 315, 4005, 4007, 1);
+  var cancel := GFButtonID(110, 340, 4005, 4007, 1);
+  GFTextLine(145, 315,   0, "OKAY");
+  GFTextLine(145, 340,   0, "ANULUJ");
+  var res := GFSendGump(who);
+  if(res[cancel.keyid])
+    SendSysMessage(who, "Anulowano");
+    return;
+  else
+    var holder;
+    foreach thing in (res.keys)
+      if((thing != 0) and (thing != 1025))
+        holder := thing;
+        break;
+      endif
+    endforeach
+    if((who.x == item.x) and (who.y == item.y) and (who.z == item.z))
+      case(townarray[Cint(holder - 2048)])
+        "Nowa Britannia": MoveObjectToLocation(who, 769, 1431,   0, who.realm, MOVEOBJECT_FORCELOCATION);
+		"Iceport":  MoveObjectToLocation(who, 1747, 552,   0, who.realm, MOVEOBJECT_FORCELOCATION);
+		"Castle Rock":   MoveObjectToLocation(who, 1703, 907,   0, who.realm, MOVEOBJECT_FORCELOCATION);
+		"Heartrock":      MoveObjectToLocation(who, 1301, 1948,   -1, who.realm, MOVEOBJECT_FORCELOCATION);
+		"Haddinge":    MoveObjectToLocation(who, 1998, 2547,   1, who.realm, MOVEOBJECT_FORCELOCATION);
+		"Morska Osada":  MoveObjectToLocation(who, 1522, 1681,   0, who.realm, MOVEOBJECT_FORCELOCATION);
+      endcase
+    else
+      SendSysMessage(who, "Anulowano");
+      return;
+    endif
+  endif
+endprogram

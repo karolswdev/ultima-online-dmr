@@ -1,0 +1,183 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include ":banking:common";
+include ":banking:gold";
+include "ai/include/npch";
+include "ai/include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include "include/mobile/age";
+
+//-----------------------------------------------------------------------------
+
+program MuzeumKeeper_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+  EnableEvents(EVID_ITEM_GIVEN);
+
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(NextWander < ReadGameClock())
+      DefWander();
+      CityNpcLookAround();
+    endif
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case (ev.type)
+    EVID_ITEM_GIVEN:         if(CanTakeItemToMuzeum(ev.source, ev.item))
+                               if(MoveItemToContainer(ev.item, me.backpack))
+                                 SetObjProperty(ev.item, "mGivenFrom", ev.source.serial);
+                                 SetObjProperty(ev.item, "mGivenTime", ReadGameClock());
+                                 ev := 0;
+                                 return 1;
+                               else
+                                 Say("Oh.. Przykro mi, ale nie mam na razie miejsca, przyjdz pozniej.");
+                                 EraseObjProperty(ev.item, "mOwner");
+                                 MoveToPack(ev.item, ev.source);
+                                 ev := 0;
+                                 return 1;
+                               endif
+                             endif
+  endcase
+
+  return StdCityNpcHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["wita"])
+
+    TurnToward(who);
+    Say("Witaj "+who.name+", jesli chcesz oddac jakis przedmiot do muzeum, po prostu daj mi go.");
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanTakeItemToMuzeum(who, Item)
+
+  var MinAge := 55;
+
+  if(Item.desc[EXP_ITEM_NAME])
+    if(!Item.desc["wykonal"] and !Item.desc["Wykonal"] and !Item.desc["uszyl"] and !Item.desc["roztarl"])
+      Say("Przyjmuje tylko podpisane wyjatkowe przedmioty.");
+      return 0;
+    endif
+    MinAge := 40;
+  elseif(Item.objtype != UOBJ_PORTRAIT and !Item.desc["Napisal"])
+    Say("Przyjmuje do muzeum tylko wyjatkowe przedmioty i portrety.");
+    return 0;
+  endif
+  
+  if(Item.desc["Napisal"])
+    MinAge := 40;
+  endif
+
+  if(Item.isa(POLCLASS_CONTAINER) and Item.objtype != UOBJ_RUNEBOOK)
+    Say("Po co mi pojemnik?");
+    return 0;
+  endif
+
+  if(Item.amount > 1)
+    Say("Nie przyjmuje takich ilosci do muzeum.");
+    return 0;
+  endif
+
+  var Owner := GetItemOwner(Item);
+  var OwnerAge := CInt(GetRealAge(Owner));
+
+  if(!OwnerAge)
+    Say("Hm... nie znam tej osoby, jesli ma ona chociaz "+MinAge+" lat, to przedmiot zostanie wystawiony, jesli nie, to nic z tego.");
+    Say("Jestes pewn"+ggm(who,6)+" ze chcesz zostawic ten przedmiot u mnie?");
+
+    if(!NpcYesNo(who))
+      Say("Dobrze, jesli nie, to nie zmuszam.");
+      return 0;
+    endif
+
+  elseif(OwnerAge < MinAge)
+
+    Say("Osoba ta jest za mloda, musi miec chociaz "+MinAge+" lat.");
+    return 0;
+
+  endif
+
+  SetObjProperty(Item, "mOwner", CInt(Owner.serial));
+  Say("Dobrze, wezme ten przedmiot. Mozesz spodziewac sie go niedlugo w muzeumm jesli wszystko sie zgadza.");
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetItemOwner(Item)
+
+  var Serial := GetItemMakerSerial(Item);
+  var Owner  := 0;
+
+  if(Serial)
+    return FindPlayerBySerial(Serial);
+  endif
+
+  if(!Owner)
+    var Pos := find(Item.desc, "Napisal", 1);
+    if(!Pos)
+      Pos := find(Item.desc, "oztarl", 1);
+    endif
+
+    if(Pos)
+      Pos := find(Item.desc, " ", Pos)+1;
+      var ePos := find(Item.desc, "]", Pos);
+      var Name := Item.desc[Pos, ePos-Pos];
+      Owner    := FindCharacterByName(Name);
+    elseif(Item.objtype == UOBJ_PORTRAIT)
+      var Name := GetObjProperty(Item, "WhoName");
+      if(Name)
+        Owner := FindCharacterByName(Name);
+      endif
+    endif
+  endif
+
+  return Owner;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_BASE;
+const WW_WCID                := 3;
+
+//-----------------------------------------------------------------------------
+
+program WwWolfScream(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var WWSkill  := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  var Range    := CInt((WWSkill + ALSkill) / 4);
+  var Dir, Dist;
+
+  PlaySoundEffect(Caster, SFX_WOLF_SCREAM);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    
+    PlaySoundEffect(Mobile, SFX_WOLF_SCREAM);
+
+    if(Mobile != Caster and IsWearWolf(Mobile))
+      Dir := GetDirDesc(GetDirFromObjToObj(Mobile, Caster));
+      if(Dir)
+        Dist := coordist(Caster.x, Caster.y, Mobile.x, Mobile.y);
+        if(Dist > 25)
+          Dist := "daleko";
+        elseif(Dist > 15)
+          Dist := "blisko";
+        else
+          Dist := "bardzo blisko";
+        endif
+        SendSysMessage(Mobile, "Slyszysz okrzyk pochodzacy z kierunku "+Dist+" na "+Dir, FONT_NORMAL, COLOR_GREEN_LIGHT);
+      endif
+    endif
+
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

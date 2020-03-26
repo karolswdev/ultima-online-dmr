@@ -1,0 +1,129 @@
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cancmd";
+include "include/gumps";
+include "include/client/fonts";
+include "include/const/misc";
+include "include/finding";
+include "include/player/target";
+include "include/names";
+
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+program ShowCriminalsCmd(who, text)
+
+  var Targ := GetTarget(who, text);
+  
+  if(!Targ)
+    return;
+  endif
+
+  var Crims := GetObjProperty(Targ, PROP_LASTCRIMINALSETS);
+
+  if(!Crims or !Crims.size())
+    SendSysMessage(who, "Cel nie ma logow odnosnie krimow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Crims.reverse();
+
+  var GumpWidth  := 800;
+  var GumpHeight := 425;
+  var TextX      := 26;
+  var TextY      := 68;
+  var Delimiter  := 68;
+
+  GInit(0, 40);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, GumpWidth, GumpHeight);
+
+  GTextLine(48, 32, 540, "Ostatnich ["+Crims.size()+"] powodow ustawienia krima");
+
+  if(IsPlayer(Targ))
+    GTextLine(330, 32, 560, "Osoba: "+Targ.name);
+  elseif(Targ.isa(POLCLASS_NPC))
+    GTextLine(330, 32, 560, "Npc: "+Targ.name);
+  else
+    GTextLine(330, 32, 560, "Przedmiot: "+Targ.desc);
+  endif
+
+  GAddPageData(GumpWidth-35,50,2650,2651,GumpWidth-35,GumpHeight-37,2648,2647);
+  GMultiPage();
+
+  foreach Crim in Crims
+    GCheckNextPage(5);
+
+    GTextLine(TextX,     TextY+(GNPCount()*Delimiter),    1212, _Crim_iter);
+    GTextLine(TextX+22,  TextY+(GNPCount()*Delimiter),    675, CUnixTime(Crim[2]));
+    GTextLine(TextX+153, TextY+(GNPCount()*Delimiter),    550, Crim[3]);
+    GTextLine(TextX+22,  TextY+(GNPCount()*Delimiter)+19, 999, "Loc:");
+    GTextLine(TextX+49,  TextY+(GNPCount()*Delimiter)+19, 545, Crim[1][1]+" "+Crim[1][2]+" "+Crim[1][3]+" "+Crim[1][4]);
+    
+    if(Crim[6] and Crim[7])
+      GTextLine(TextX+243, TextY+(GNPCount()*Delimiter)+19, 999, "AttTo:");
+      GTextLine(TextX+284, TextY+(GNPCount()*Delimiter)+19, 545, Crim[6]);
+      GTextLine(TextX+393, TextY+(GNPCount()*Delimiter)+19, 999, "Contr:");
+      GTextLine(TextX+433, TextY+(GNPCount()*Delimiter)+19, 545, Crim[7]);
+    elseif(Crim[6])
+      GTextLine(TextX+243, TextY+(GNPCount()*Delimiter)+19, 999, "AttTo:");
+      GTextLine(TextX+284, TextY+(GNPCount()*Delimiter)+19, 545, Crim[6]);
+    elseif(Crim[7])
+      GTextLine(TextX+243, TextY+(GNPCount()*Delimiter)+19, 999, "Contr:");
+      GTextLine(TextX+283, TextY+(GNPCount()*Delimiter)+19, 545, Crim[7]);
+    endif
+
+    if(CanUseCmd(who, "crims script"))
+      GTextLine(TextX+22,  TextY+(GNPCount()*Delimiter)+38, 999, "CallDepth:");
+      GTextLine(TextX+82,  TextY+(GNPCount()*Delimiter)+38, 545, Crim[5]);
+      GTextLine(TextX+112, TextY+(GNPCount()*Delimiter)+38, 999, "S:");
+      GTextLine(TextX+128, TextY+(GNPCount()*Delimiter)+38, 545, Crim[4]);
+    endif
+  endforeach
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetTarget(who, text)
+
+  var Targ;
+  
+  if(CInt(text))
+    text := CInt(text);
+    if(text < ITEM_START_SERIAL)
+      Targ := FindPlayerBySerial(text);
+      if(!Targ)
+        SendSysMessage(who, "Postac z serialem ["+text+"] nie istnieje.", FONT_NORMAL, COLOR_RED);
+        return 0;
+      endif
+    else
+      Targ := FindItemBySerial(text);
+      if(!Targ)
+        SendSysMessage(who, "Przedmiot z serialem ["+text+"] nie istnieje.", FONT_NORMAL, COLOR_RED);
+        return 0;
+      endif
+    endif
+  elseif(text)
+    Targ := FindCharacterByName(text);
+    if(!Targ)
+      SendSysMessage(who, "Nie znaleziono postaci "+text+".", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  else
+    SendSysMessage(who, "Wybierz cel.", FONT_NORMAL, COLOR_GREEN);
+    Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+    if(!Targ)
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  return Targ;
+
+endfunction
+
+//-----------------------------------------------------------------------------

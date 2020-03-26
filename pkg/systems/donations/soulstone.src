@@ -1,0 +1,169 @@
+use uo;
+
+include "include/gumpboxes";
+include "include/packets";
+include "include/effects";
+include "include/checks/objchecks";
+include "include/client/effects";
+include "include/skills/skillwin";
+include ":housing:common";
+
+var who, item;
+program soulstone(_who,_item)
+
+  who := _who;
+  item := _item;
+
+  if(!StandardItemCheck(who,item, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(GetObjProperty(item, "used"))
+    SendSysMessage(who, "Kamien jest zuzyty.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(item.container or item.movable)
+    SendSysMessage(who, "Kamien Dusz musi byc unieruchomiony.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(item.x != who.x or item.y != who.y-1)
+    SendSysMessage(who, "Musisz stac na przeciwko kamienia.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(GetObjProperty(item,"charge"))
+    ApplyCharge();
+  else
+    Charge();
+  endif
+
+endprogram
+
+function ApplyCharge()
+  var arr := GetObjProperty(item, "charge");
+  if(who.serial != arr[1])
+    SendSysMessage(who, "Ten kamien nie zostal naladowany przez Ciebie.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var ActualValue := GetBaseSkill(who, arr[2]);
+  if(!ActualValue)
+    SendSysMessage(who, "Kamien moze tylko wspomoc umiejetnosci, ktore znasz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var SkillElem := GetSkillConfigElem(arr[2]);
+  if(ActualValue >= arr[3])
+    SendSysMessage(who, "Ten kamien posiada " + arr[3] + "% umiejetnosci " + SkillElem.name +", a Ty znasz ja na poziomie " + ActualValue +"%.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var SkillMaxValue := GetSkillMaxValue(who,arr[2]);
+  if(arr[3] > SkillMaxValue)
+    SendSysMessage(who, "Twoja glowa nie pomiesci umiejetnosci" + SkillElem.name +".", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "Chcesz sie nauczyc sie " + SkillMaxValue +"% umiejetnosci " + SkillElem.name +".", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(who,"Na pewno?"))
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    arr[3] := SkillMaxValue;
+  endif
+
+  var FreeSpace := CInt(who.skillcap)*10 - CountAllSkills(who)*10;
+  var NeededSpace := CInt(arr[3])*10 - GetBaseSkillBaseValue(who, arr[2]); 
+  if(FreeSpace < NeededSpace)
+    SendSysMessage(who, "Twoja glowa nie pomiesci umiejetnosci" + SkillElem.name +".", FONT_NORMAL, COLOR_RED);
+    arr[3] := FreeSpace/10;
+    SendSysMessage(who, "Chcesz sie nauczyc umiejetnosci " + SkillElem.name + " do wysokosci " + arr[3] + "%.", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(who,"Na pewno?"))
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+  
+  SendSysMessage(who, "Chcesz sie nauczyc umiejetnosci: " + SkillElem.name + " w wysokosci " + arr[3] + "%.", FONT_NORMAL, COLOR_GREEN);
+  if(!YesNo(who,"Na pewno?"))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  if(item.x != who.x or item.y != who.y-1)
+    SendSysMessage(who, "Musisz stac na przeciwko kamienia.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  PlaySoundEffect(item,0xF9);
+  item.graphic := 0x2ADD;
+  sleep(8);
+  if(item.x != who.x or item.y != who.y-1)
+    SendSysMessage(who, "Musisz stac na przeciwko kamienia.", FONT_NORMAL, COLOR_RED);
+    item.graphic := 0x2ADC;
+    return;
+  endif
+  PlaySoundEffect(item,0x44C);
+  PlayPcEffect(who, FX_FLAMESTRIKE, 91, 0x10, 0x1F, 3);
+  sleep(2);
+  if(SetBaseSkillBaseValue(who,arr[2],arr[3]*10))
+    SendSysMessage(who, "Moc z kamienia zostala przejeta przez Ciebie.", FONT_NORMAL, COLOR_BLUE);
+    SetObjProperty(item, "used", 0x1);
+    sleep(1);
+    PlaySoundEffect(item,0x38E);
+    item.graphic := 0x2AA4;
+    sleep(1);
+    PlaySoundEffect(item,0x5A8);
+  else
+    SendSysMessage(who, "Nie jest mozliwe nauczenie sie umiejetnosci.", FONT_NORMAL, COLOR_RED);
+  endif
+endfunction
+
+function Charge()
+  
+  var height;
+  var skills := array;
+  var maxSkId := GetMaxSkillId();
+  for i := 0 to maxSkId
+    if(GetBaseSkill(who, i))
+      skills.append(i);
+    endif
+  endfor
+  
+  GInit(100,100);
+  height := CInt(skills.size()*20);
+  GResPic(0,0,BKGND_STONELIGHT,300,100+height);
+  GResPic(10,50,BKGND_SILVERTRIM,280,30+height);
+  GCheckerTrans( 20,60,260,12+height);
+  GTextLine(100,20,COLOR_GREEN,"Kamien Dusz");
+  
+  var SkElem; 
+  if(skills.size())
+    var i := 0;
+    foreach skill in skills
+      i:= i+1;
+      SkElem := GetSkillConfigElem(skill);
+      GTextLine(27,43+i*20,COLOR_BLUE, SkElem.name);
+      GTextLine(187,43+i*20,COLOR_BLUE, CStr(GetBaseSkill(who,skill)));
+      GButton(250, 47+i*20, 0x4B9, 0x4BA,skill+1);
+    endforeach
+  endif
+  item.graphic := 0x2ADD;
+  var res := GSend(who);
+  item.graphic := 0x2ADC;
+  if(res[0])
+    res := res[0]-1;
+    SkElem := GetSkillConfigElem(res);
+    SendSysMessage(who, "Czy chcesz umiescic na kamieniu umiejetnosc " + SkElem.name + "?", FONT_NORMAL, COLOR_GREEN);
+    if(YesNo(who, "Na pewno?"))
+      if(item.x != who.x or item.y != who.y-1)
+        SendSysMessage(who, "Musisz stac na przeciwko kamienia.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+      PlayObjectCenteredEffect(who, FX_HEAL_EFFECT, 0x10, 0x18);
+      PlaySoundEffect(item,0x245);
+      SetToolTipProp(item, "Umiejetnosc", SkElem.name);
+      SetToolTipProp(item, "Wlasciciel", GetRealName(who));
+      SetObjProperty(item, "charge", {who.serial, res, GetBaseSkill(who, res)});
+      item.color := 0;
+    endif
+    
+  endif
+endfunction

@@ -1,0 +1,65 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 11;
+
+//-----------------------------------------------------------------------------
+
+program CastCure( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  PlaySoundEffect(Caster, SFX_SPELL_CURE);
+  PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 10,10 );
+  var plvl := GetPoisonLevel(CastOn);
+
+  var CasterMagery    := GetMagicSkillValue(Caster, SpellGlob.Type, SpellGlob.Circle);
+  var CasterPoisoning := GetEffectiveSkill( Caster, SKILLID_POISONING );
+
+  var potency         := CInt(CasterMagery / 33) + CInt(CasterPoisoning / 33);
+
+  if(CastOn.isA(POLCLASS_NPC))
+    if(IsNpcElemental(CastOn, NPCELEM_POISON))
+      SendChEvent(CastOn,Caster,EVID_PEACEMADE);
+      SendChEvent(CastOn,Caster,EVID_ENGAGED);
+      if(DoMagicDamage(CastOn, Caster, potency, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+        GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+      endif
+      return;
+    endif
+  endif
+
+  if (plvl >= 1)
+    plvl := plvl - potency;
+    if (plvl >= 1)
+      SendSysMessage(Caster, "Wyleczyl"+ggm(Caster, 3)+ " czesciowo trucizne.",FONT_NORMAL,COLOR_GREEN);
+      if(Caster != CastOn)
+        SendSysMessage(CastOn, Caster.name + " czesciowo Cie uzdrawia!",FONT_NORMAL,COLOR_GREEN);
+      endif
+    else
+      if(Caster == CastOn)
+        SendSysMessage(Caster,"Uzdrowil"+ggm(Caster,3)+" sie kompletnie.",FONT_NORMAL,COLOR_BLUE);
+      else
+        SendSysMessage(Caster, CastOn.name + " zostal"+ggm(CastOn,4)+" uzdrowion"+ggm(CastOn,6)+".",FONT_NORMAL,COLOR_BLUE);
+        SendSysMessage(CastOn, Caster.name + " uzdrowil"+ggm(Caster,4)+" Cie kompletnie!",FONT_NORMAL,COLOR_BLUE);
+      endif
+    endif
+    DecreasePoison(CastOn,plvl,SFX_SPELL_CURE);
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+  else
+    SendSysMessage(Caster,"Ta osoba nie jest zatruta.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

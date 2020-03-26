@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/packets";
+include "modcore";
+
+//-----------------------------------------------------------------------------
+
+var Who, WhoSer;
+
+//-----------------------------------------------------------------------------
+
+program UndoOffMobMod(Parms)
+
+  Who    := Parms.source;
+  WhoSer := who.serial;
+
+  case(Parms.type)
+    EVID_UNDOMOD:      if(ExPid(GetObjProperty(who, "#UndoOffMod_"+Parms.modtype)))
+                         return;
+                       endif
+                       SetObjProperty(who, "#UndoOffMod_"+Parms.modtype, GetPid());
+                       UndoTempMod(Parms);
+                       EraseObjProperty(who, "#UndoOffMod_"+Parms.modtype);
+
+    EVID_UNDOSKMOD:    if(ExPid(GetObjProperty(who, "#UndoOffSkMod_"+Parms.skid)))
+                         return;
+                       endif
+                       SetObjProperty(who, "#UndoOffSkMod_"+Parms.skid, GetPid());
+                       UndoSkillTempMod(Parms);
+                       EraseObjProperty(who, "#UndoOffSkMod_"+Parms.skid);
+  endcase
+
+  if(Parms.flags & UMDF_WAIT)
+    var Proc := GetProc(Parms.pid);
+
+    if(Proc)
+      var retEv := struct;
+      retEv.+undoDone := 1;
+
+      Proc.sendevent(retEv);
+    endif
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

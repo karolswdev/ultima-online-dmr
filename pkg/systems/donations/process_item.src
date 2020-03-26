@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include "include/move";
+
+include "common";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+var DonateCfg := ReadConfigFile(":donations:donationitems");
+
+program HandlerRoyalMerchantProcessItem(Data)
+  
+  if(!AIHandler_Init(Data))
+    return AIH_RES_UNKNOWN;
+  endif
+
+  if(Data.npc.script != ":donations:ai_royalmerchant")
+    return AIH_RES_UNKNOWN;
+  endif
+  
+  if(ItemCfg[Data.param.objtype].donatecolor)
+    sleep(1);
+    var arr := SplitWords(GetConfigString(DonateCfg["colors"],ItemCfg[Data.param.objtype].name));
+    if(arr.size() == 0)
+      PrintTextAbove(Data.npc, "*hmm*");
+      return AIH_RES_UNKNOWN;
+    endif
+    
+    Data.param.color := CInt(arr[RandomInt(arr.size())+1]);
+    case(RandomInt(3))
+      0: PrintTextAbove(Data.npc, "Moze w tym kolorze ci sie spodoba");
+      1: PrintTextAbove(Data.npc, "Coz... nie tak latwo komus dogodzic, moze to?");
+      2: PrintTextAbove(Data.npc, "Hmm a moze w tym kolorze?");
+    endcase
+    
+    
+   return AIH_RES_SUCCESS; // tak tak przetworzylismy sobie ten item
+
+  endif
+  PrintTextAbove(Data.npc, "Na co mi to?");
+  return AIH_RES_UNKNOWN; // przedmiot nie dotyczy nas
+
+endprogram

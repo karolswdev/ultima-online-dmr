@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include "include/staff";
+include "include/gumps";
+include "include/names";
+include "include/mobile/npcs/name";
+
+//-----------------------------------------------------------------------------
+
+program OnlineCmd(who)
+  
+  GInit(50,20);
+  GResPic(50,0,3600,300,525);
+  GCheckerTrans( 66,16,272,497 );
+  GGumpPic(0,30,0x28C8);
+  GGumpPic(315,30,0x28C9);
+  GAddPageData(315,20,2650,2651,315,490,2648,2647);
+  GPage();
+  GTextLine(115,25,63,"Zyjace osoby na swiecie:");
+  var i := 0;
+  var arr := array;
+  foreach Player in EnumerateOnlineCharacters()
+    if(Player.cmdlevel)
+	  arr.append(AssignName("", MALE_IDX));
+	else
+		if(!GetObjProperty(Player, "online_anonymous"))
+			arr.append(AssignName("", MALE_IDX));
+		else
+			arr.append(GetRealName(Player));
+		endif
+	endif
+	i := i + 1;
+  endforeach
+  GTextLine(275,25,560,CStr(i));
+  arr.sort();
+  foreach Player in arr
+    GCheckNextPage(20);
+    GTextLine(85, (70+(GNPCount()*20)),1153,Player);
+  endforeach
+ 
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

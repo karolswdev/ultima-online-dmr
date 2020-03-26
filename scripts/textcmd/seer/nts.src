@@ -1,0 +1,190 @@
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/clock";
+include "include/gumps";
+
+include "include/player/notes";
+include "include/skills/skillwin";
+
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program PlayerNotes(who, text)
+
+  var Res;
+  var split := SplitWords(text);
+  var Targ, TargAcc;
+  var nType, i;
+
+  if(CInt(Text))
+    Targ := FindPlayerBySerial(Text);
+  endif
+
+  for(i:=1; i<=Split.size(); i+=1)
+    case(split[i])
+       "acc":   Targ := 0;
+                TargAcc := FindAccount(split[i+1]);
+
+                i+=1;
+
+       "sr":    var AllChars := array;
+                var Vals     := struct;
+
+                if(!split[i+1])
+                  SendSysMessage(who, ".nts sr [czesc_imienia]", FONT_NORMAL, COLOR_RED);
+                  return 0;
+                endif
+
+                SearchAllChars(who,split, Vals, AllChars);
+                SendSysMessage(who,"Znaleziono "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+                SendSysMessage(who,"Kryteria: "+Vals.sname+" gdzie: "+ClStr(Vals.value), FONT_NORMAL, COLOR_BLUE);
+
+                if(AllChars.size())
+                  Targ := ShowCharsSelection(who, AllChars, Vals.sname+": "+ClStr(Vals.value));
+                endif
+
+                if(!Targ)
+                  return 0;
+                endif
+
+                i+=1;
+
+       "nt":    nType := split[i+1];
+
+                i+=1;
+    endcase
+  endfor
+
+
+  if(!Targ and !TargAcc)
+    Targ := ObjTarget(who);
+    if(!Targ or !IsPlayer(Targ))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!TargAcc)
+    TargAcc := Targ.acct;
+  endif;
+
+  BuildNotes(TargAcc, nType);
+
+  while(who)
+
+    Res := GSend(who);
+
+    if((!TargAcc or !TargAcc.isa(POLCLASS_MOBILE)) and !TargAcc)
+      SendSysMessage(who,"Cel nie istnieje.",FONT_NORMAL,COLOR_RED);
+      break;
+    endif
+
+    if(!Res[0])
+      break;
+    endif
+
+    case(Res[0])
+      1000:     BuildAddNote(TargAcc);
+                continue;
+      1001:     AddNote(who, TargAcc, Res);
+
+      9999:     who := 0;
+
+    endcase
+
+    BuildNotes(TargAcc, nType);
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildAddNote(TargAcc)
+
+  StandSkLayout(5,30);
+  GPage();
+
+  GButton(  625,187,2453,2454,9998);
+  GTextLine(160,30, 610,"Uwagi konta : ["+TargAcc.name+"]");
+
+  GTextLine(60,87,550,"Uwaga:");
+  GTextEntry(60,107,650,20,550,10,"");
+
+  GTextLine(120,189,505,"Dodaj");
+  GButton( 100, 193, 2117, 2118, 1001);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildNotes(TargAcc, filterType)
+
+  var Notes := TargAcc.GetProp("Notes");
+
+  StandSkLayout(20,31);
+  GPage();
+
+  GTextLine(160,30, 610,"Uwagi konta: ["+TargAcc.name+"] ["+Notes.size()+"]");
+
+  GAddPageData(765,55,2650,2651,765,463,2648,2647);
+
+  GTextLine(50, 70,590,"Typ");
+  GTextLine(100, 70,590,"Data");
+  GTextLine(230, 70,590,"Kto?");
+  GTextLine(350, 70,590,"Uwaga");
+
+  GTextLine(120,489,505,"Dodaj");
+  GButton( 100, 493, 2117, 2118, 1000);
+  GButton(  625,487,2453,2454,9999);
+
+  var NoteType, NoteColor;
+  Notes.reverse();
+
+  foreach Note in Notes
+
+    if(Note[5] != filterType and filterType)
+      continue;
+    endif
+
+    GCheckNextPage(18);
+
+    case(Note[5])
+      NOTETYPE_GM:    NoteType := "Gm";   NoteColor := 1309;
+      NOTETYPE_JAIL:  NoteType := "Jail"; NoteColor := 1204;
+      NOTETYPE_JAILMOD:  NoteType := "JailMod"; NoteColor := 1215;
+      default:        NoteType := "Unk";  NoteColor := 1409;
+    endcase
+
+    GTextLine(50, (90+(GNPCount()*20)),NoteColor,NoteType);
+
+    if(CInt(Note[4]))
+      GTextLine(100, (90+(GNPCount()*20)),1410,CUnixTime(CInt(Note[4])));
+    endif
+
+    GTextLine(230, (90+(GNPCount()*20)),550,Note[1]+"/"+Note[2]);
+    GTextLine(350,(90+(GNPCount()*20)),570,Note[3]);
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddNote(who, TargAcc, Res)
+
+  var NoteText := CroppedId(Res[10]);
+
+  var aRes := AddPlayerNote(who, TargAcc, NOTETYPE_GM, NoteText);
+
+  if(aRes == error)
+    SendSysMessage(who,"Blad: "+aRes.errortext,FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"Dodano uwage do konta "+TargAcc.name+": '"+NoteText+"'.",FONT_NORMAL,COLOR_BLUE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,556 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/gumpboxes";
+include "include/cmds/cancmd";
+include "../../teleporters";
+include "include/std";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+var CurPage;
+
+//-----------------------------------------------------------------------------
+
+program TeleMenuCmd(who)
+  
+  if(!CanUseCmd(who, "telemenu"))
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_CMD);
+ 
+  var keeprun := 1, Res;
+
+  while(keeprun and who)
+    BuildMainTeleGump(who);
+
+    Res := GSend(who)[0];
+    case(Res)
+      1:            ShowAll(who);
+      2:            ShowNotCreated(who);
+      3:            CreateNC(who);
+      4:            DeleteS(who);
+      5:            DeleteSelected(who);
+      8:            Show(who);
+      9:            Hide(who);
+      10:           GlobalShow(who);
+      11:           GlobalHide(who);
+      12:           AddNewTele(who);
+      16:           ShowAllInConfig(who);
+      17:           GenerateConfig(who);
+      18:           ExportConfig(who);
+      19:           DestroyAllFromGlob(who);
+      20:           DestroyAllTele(who);
+      21:           ShowWorldTele(who);
+      22:           DestroyWorldTele(who);
+      default:      keeprun := 0;
+    endcase
+
+  endwhile
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+ 
+function BuildMainTeleGump(who)
+
+  GInit();
+  GPage();
+  GResPic(40,40,5120,320,180);
+  GTextLine(150,45, 270,"Menu Portali");
+
+  GTextLine(50, 70, 590,"Pokaz wszystkie teleporty");
+  GButton(  300,73, 2117,2118,1);
+  GTextLine(50, 90, 590,"Pokaz jeszcze nie stworzone");
+  GButton(  300,93, 2117,2118,2);
+  GTextLine(50, 110,590,"Stworz nie istniejace");
+  GButton(  300,113,2117,2118,3);
+  GTextLine(50, 130,590,"Skasuj wybrany");
+  GButton(  300,133,2117,2118,4);
+  GTextLine(50, 150,590,"Skasuj wybrany(celownik)");
+  GButton(  300,153,2117,2118,5);
+
+  GResPic(40,225,5120,320,140);
+  GTextLine(175,230,270,"Opcje");
+
+  GTextLine(50, 250,590,"Odkryj portale w poblizu");
+  GButton(  300,253,2117,2118,8);
+  GTextLine(50, 270,590,"Ukryj portale w poblizu");
+  GButton(  300,273,2117,2118,9);
+  GTextLine(50, 290,590,"Odkryj wszystkie portale");
+  GButton(  300,293,2117,2118,10);
+  GTextLine(50, 310,590,"Ukryj wszystkie portale");
+  GButton(  300,313,2117,2118,11);
+  GTextLine(50, 330,590,"Dodaj portal");
+  GButton(  300,333,2117,2118,12);
+
+  if(IsAdmin(who))
+    GResPic(370,40,5120,330,180);
+    GTextLine(500,45,270,"Inne");
+
+    GTextLine(380,65, 590,"Pokaz portale w konfigu");
+    GButton(  640,68, 2117,2118,16);
+    GTextLine(380,85, 590,"Wygeneruj konfig");
+    GButton(  640,88, 2117,2118,17);
+    GTextLine(380,105,590,"Exportuj portale z konfiga");
+    GButton(  640,108,2117,2118,18);
+    GTextLine(380,125,590,"Skasuj wszystkie portale");
+    GButton(  640,128,2117,2118,19);
+    GTextLine(380,145,590,"Zniszcz wszystkie portale");
+    GButton(  640,148,2117,2118,20);
+    GTextLine(380,165,590,"Wylicz istniejace portale na swiecie");
+    GButton(  640,168,2117,2118,21);
+    GTextLine(380,185,590,"Zniszcz wszystkie portale na swiecie");
+    GButton(  640,188,2117,2118,22);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAll(who)
+
+  var Data  := GetTeleData();
+  var Elem, Tele;
+  var Teles := dictionary;
+
+  InitTeleData(Tele);
+
+  var Keys := Data.Keys();
+  Keys.sort();
+
+  foreach TeleNr in (Keys)
+    if(CInt(TeleNr))
+      Elem := Data.FindElement(CStr(TeleNr));
+      if(Elem)
+        Tele.realm := Elem.GetProp("Rlm");
+        if(!Tele.realm)
+          Tele.realm := _DEFAULT_REALM;
+        endif
+        Tele.x  := Elem.GetProp("X");
+        Tele.y  := Elem.GetProp("Y");
+        Tele.z  := Elem.GetProp("Z");
+
+        TeleNr := ZeroFill(TeleNr, 4);
+        Teles[TeleNr] := Tele;
+      endif
+    endif
+  endforeach
+
+  ShowAndMoveToTeleGump(who, Teles);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowNotCreated(who)
+
+  var Data  := GetTeleData();
+  var Elem, Tele;
+  var Teles := dictionary;
+
+  InitTeleData(Tele);
+
+  foreach TeleNr in (Data.Keys())
+    if(CInt(TeleNr))
+      Elem       := Data.FindElement(CStr(TeleNr));
+      
+      if(Elem)
+        if(!FindCreatedTele(TeleNr,Elem))
+          Tele.realm := Elem.GetProp("Rlm");
+          if(!Tele.realm)
+            Tele.realm := _DEFAULT_REALM;
+          endif
+          Tele.x  := Elem.GetProp("X");
+          Tele.y  := Elem.GetProp("Y");
+          Tele.z  := Elem.GetProp("Z");
+
+          TeleNr := ZeroFill(TeleNr, 4);
+          Teles[TeleNr] := Tele;
+        endif
+      endif
+    endif
+  endforeach
+
+  if(!Teles.size())
+    SendSysMessage(who, "Nie ma nie istniejacych portali.",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+
+  ShowAndMoveToTeleGump(who, Teles);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitTeleData(byref Tele)
+
+  Tele := struct;
+  Tele.+x      := 0;
+  Tele.+y      := 0;
+  Tele.+z      := 0;
+  Tele.+realm  := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAndMoveToTeleGump(who, byref Teles)
+
+  var Nr;
+
+  while(IsLoggedIn(who))
+    Nr := ShowTeleGump(who, Teles);
+    if(CInt(Nr))
+      Nr := ZeroFill(Nr, 4);
+      MoveObject(who, Teles[Nr].x, Teles[Nr].y, Teles[Nr].z, Teles[Nr].realm, MOVECHAR_FORCELOCATION, MOVETYPE_TELE);
+      SendSysMessage(who, "Przenoszenie do Tele Nr: ["+Nr+"] ["+Teles[Nr].x+","+Teles[Nr].y+","+Teles[Nr].z+" "+Teles[Nr].realm+"]", FONT_NORMAL, COLOR_GREEN);
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTeleGump(who, byref Teles)
+
+  GInit(30, 30);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 5120, 450, 460);
+  GAddPageData(430, 15, 2435, 2436, 430, 440, 2437, 2438);
+  GMultiPage();
+
+  var i := 1;
+
+  foreach Tele in Teles
+    GCheckNextPage(20);
+    GTextLine(20, 30+GNPCount()*20, 550, i);
+    GButton  (50, 33+GNPCount()*20, 2117, 2118, UnZeroFill(_Tele_iter));
+    GTextLine(90, 30+GNPCount()*20, 670, _Tele_iter);
+    GTextLine(140, 30+GNPCount()*20, 550, Tele.x);
+    GTextLine(190, 30+GNPCount()*20, 550, Tele.y);
+    GTextLine(240, 30+GNPCount()*20, 550, Tele.z);
+    GTextLine(300, 30+GNPCount()*20, 995, Tele.realm);
+    i := i + 1;
+  endforeach
+
+  SetCurMultiPage(CurPage);
+
+  var Res := GSend(who);
+  CurPage := GetCurMultiPage();
+
+  return CInt(Res[0]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateNC(who)
+
+  var Data := GetTeleData();
+  var Elem,num := 0,Err := 0,NewTele;
+
+  foreach Tele in (Data.Keys())
+    if(CInt(Tele))
+      Elem := Data.FindElement(CStr(Tele));
+      if(Elem)
+        NewTele := CreateTele(Tele,Elem);
+        if(NewTele)
+          num := num + 1;
+        elseif(NewTele == error)
+          Err := Err + 1;
+        endif
+      endif
+    endif
+  endforeach
+  SendSysMessage(who,"Stworzone portale: "+num+", bledne: "+Err+", wszystkie: "+(len(Data.Keys())-1)+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteS(who);
+
+  var Nr := SendTextEntryGump(who,"Wpisz numer",TE_CANCEL_ENABLE,TE_STYLE_NUMERICAL,10000);
+  if(!CInt(Nr))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  DeleteTele(Nr,who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteSelected(who);
+
+  
+  var Nr := GetTeleNr(target(who));
+  if(!CInt(Nr))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  DeleteTele(Nr,who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+
+function DestroyAllTele(who)
+
+  if(!YesNo(who,"Jestes pewny?"))
+    return;
+  endif
+
+  var Data := GetTeleData();
+  var num  := 0;
+
+  foreach Tele in (Data.Keys())
+    if(CInt(Tele))
+      if(DestroyTele(Tele))
+        num := num + 1;
+      endif
+    endif
+  endforeach
+  SendSysMessage(who,"Stworzone portale: "+num+", bledne: "+((len(Data.Keys())-1)-num)+", wszystkie: "+(len(Data.Keys())-1)+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyAllFromGlob(who)
+
+  Sendsysmessage(who, "Radze przed skasowaniem pozycji globalnych wygenerowac konfig.",FONT_NORMAL,HIDE_COLOR);
+
+  if(!YesNo(who,"Jestes pewny?"))
+    return;
+  endif
+
+  Sendsysmessage(who, "Czy napewno chcesz skasowac wszystkie pozycje z global ?",FONT_NORMAL,HIDE_COLOR);
+
+  if(!YesNo(who,"Tak?"))
+    return;
+  endif
+
+  UnloadConfigFile(TELE_CFG);
+  var TeleCfg := ReadConfigFile(TELE_CFG);
+  if(!TeleCfg)
+    SendSysMessage(who, "Nie mozna znalezc konfigu! Nadal chcesz skasowac wszystkie portale? "+telecfg,FONT_NORMAL,HIDE_COLOR);
+    if(!YesNo(who,"Tak?"))
+      return;
+    endif
+  elseif(!len(GetConfigStringKeys(TeleCfg)))
+    SendSysMessage(who, "Konfig jest pusty! Nadal chcesz skasowac wszystkie portale? ",FONT_NORMAL,HIDE_COLOR);
+    if(!YesNo(who,"Tak?"))
+      return;
+    endif
+  endif
+
+  var Data := GetTeleData();
+  foreach Tele in (Data.Keys())
+    DestroyTele(Tele);
+    Data.DeleteElement(CStr(Tele));
+  endforeach
+  var Empty := Data.FindElement("Empty");
+  Empty.SetProp("EmptyNumbers",{});
+  SendSysMessage(who, "Skasowano wszystkie portale.",FONT_NORMAL,HIDE_COLOR);
+   
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAllInConfig(who)
+
+  UnloadConfigFile(TELE_CFG);
+
+  var TeleCfg := ReadConfigFile(TELE_CFG);
+  var AllTele := GetConfigStringKeys(TeleCfg);
+
+  if(!len(AllTele) or !TeleCfg)
+    SendSysMessage(who, "Konfig jest pusty!",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+  
+  var Tele;
+  var Teles := dictionary;
+
+  InitTeleData(Tele);
+
+  foreach TeleId in AllTele
+    Tele.realm := TeleCfg[TeleId].FromRlm;
+    if(!Tele.realm)
+      Tele.realm := _DEFAULT_REALM;
+    endif
+    Tele.x  := TeleCfg[TeleId].FromX;
+    Tele.y  := TeleCfg[TeleId].FromY;
+    Tele.z  := TeleCfg[TeleId].FromZ;
+
+    TeleId := ZeroFill(TeleId, 4);
+    Teles[TeleId] := Tele;
+
+  endforeach
+
+  ShowTeleGump(who, Teles);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GenerateConfig(who)
+
+  UnloadConfigFile(TELE_CFG);
+  var TeleCfg := ReadConfigFile(TELE_CFG);
+  if(!TeleCfg)
+    SendSysMessage(who, "Konfig nie istnieje! ["+TELE_CFG+"]",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+  
+  var AllTele := GetConfigStringKeys(TeleCfg);
+  if(len(AllTele))
+    SendSysMessage(who, "Aby wygenerowac konfig musisz najpierw skasowac istniejace dane w nim.",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+
+  var SubElem := {};
+  SubElem.+pname;
+  SubElem.+pvalue;
+  var Elem := {};
+
+  var Data := GetTeleData(),TeleElem,Rlm,DRlm;
+  
+  foreach Tele in (Data.Keys())
+    if(CInt(Tele))
+      TeleElem := Data.FindElement(CStr(Tele));
+      
+      Rlm      := TeleElem.GetProp("Rlm");
+      if(!Rlm)
+        Rlm := _DEFAULT_REALM;
+      endif
+      
+      DRlm     := TeleElem.GetProp("DestRlm");
+      if(!DRlm)
+        DRlm := _DEFAULT_REALM;
+      endif
+      
+      Elem := {};
+      SubElem.pname := "FromX";
+      SubElem.pvalue := CInt(TeleElem.GetProp("X"));
+      Elem.append(SubElem);
+      SubElem.pname := "FromY";
+      SubElem.pvalue := CInt(TeleElem.GetProp("Y"));
+      Elem.append(SubElem);
+      SubElem.pname := "FromZ";
+      SubElem.pvalue := CInt(TeleElem.GetProp("Z"));
+      Elem.append(SubElem);
+      SubElem.pname := "FromRlm";
+      SubElem.pvalue := Rlm;
+      Elem.append(SubElem);
+      SubElem.pname := "DestX";
+      SubElem.pvalue := CInt(TeleElem.GetProp("DestX"));
+      Elem.append(SubElem);
+      SubElem.pname := "DestY";
+      SubElem.pvalue := CInt(TeleElem.GetProp("DestY"));
+      Elem.append(SubElem);
+      SubElem.pname := "DestZ";
+      SubElem.pvalue := CInt(TeleElem.GetProp("DestZ"));
+      Elem.append(SubElem);
+      SubElem.pname := "DestRlm";
+      SubElem.pvalue := DRlm;
+      Elem.append(SubElem);
+      AppendConfigFileElem(TELE_CFG, "Teleporter",Tele, Elem);
+    endif
+  endforeach
+
+  SendSysMessage(who, "Dodano "+(len(Data.Keys())-1)+" portali do konfiga [" +TELE_CFG+ "]",FONT_NORMAL,SHOW_COLOR);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ExportConfig(who)
+
+  UnloadConfigFile(TELE_CFG);
+
+  var TeleCfg := ReadConfigFile(TELE_CFG);
+  if(!TeleCfg)
+    SendSysMessage(who, "Konfig nie istnieje! ["+TeleCfg+"]",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+  var AllTele := GetConfigStringKeys(TeleCfg);
+  if(!len(AllTele))
+    SendSysMessage(who, "Konfig jest pusty!",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+
+  var Data := GetTeleData();
+  if(len(Data.Keys()) == 1)
+    SendSysMessage(who,"Zeby eksportowac musisz najpierw zniszczyc globalne Portale.",FONT_NORMAL,HIDE_COLOR);
+    return;
+  endif
+
+  var Rlm,DRlm;
+  
+  foreach Tele in AllTele
+    Rlm := TeleCfg[Tele].FromRlm;
+    if(!Rlm)
+      Rlm := _DEFAULT_REALM;
+    endif
+    DRlm := TeleCfg[Tele].DestRlm;
+    if(!DRlm)
+      DRlm := _DEFAULT_REALM;
+    endif
+
+    AddTeleToData(TeleCfg[Tele].FromX,TeleCfg[Tele].FromY,TeleCfg[Tele].FromZ,Rlm,TeleCfg[Tele].DestX,TeleCfg[Tele].DestY,TeleCfg[Tele].DestZ,DRlm,who);
+  endforeach
+  SendSysMessage(who, "Dodano "+len(AllTele)+" portali z konfiga ["+TELE_CFG+"]",FONT_NORMAL,SHOW_COLOR);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowWorldTele(who)
+
+  var number := 0;
+  
+  foreach Realm in Realms()
+    foreach item in ListObjectsInBox(0,0,-127,Realm.width,Realm.height,127,_Realm_iter)
+      if(item.isa(POLCLASS_ITEM) and item.objtype == UOBJ_TELE)
+        number := number + 1;
+        sleepms(10);
+      endif
+    endforeach
+  endforeach
+
+  SendSysMessage(who, "Wszystkie portale na swiecie : "+number,FONT_NORMAL,SHOW_COLOR);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyWorldTele(who)
+
+  var number := 0;
+  foreach Realm in Realms()
+    foreach item in ListObjectsInBox(0,0,-127,Realm.width,Realm.height,127,_Realm_iter)
+      if(item.isa(POLCLASS_ITEM) and item.objtype == UOBJ_TELE)
+        DestroyItem(item);
+        number := number + 1;
+        sleepms(10);
+      endif
+    endforeach
+  endforeach
+
+  SendSysMessage(who, "Wszystkie zniszczone portale na swiecie : "+number,FONT_NORMAL,HIDE_COLOR);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,22 @@
+use uo;
+use os;
+
+include ":magic:magic";
+include "include/mobile/misc";
+include ":glyphs:glyphs";
+
+program use_totem(who, totem)
+
+	if(!GetObjProperty(totem, "Inactive"))
+		SetObjProperty(totem, "Inactive", 1);
+		SendSysMessage(who, "Totem zostal wylaczony.", FONT_NORMAL, COLOR_GREEN);
+		return;
+	endif
+	
+	if(GetObjProperty(totem, "Inactive"))
+		EraseObjProperty(totem, "Inactive");
+		SendSysMessage(who, "Totem zostal wlaczony.", FONT_NORMAL, COLOR_GREEN);
+		return;
+	endif
+	
+endprogram

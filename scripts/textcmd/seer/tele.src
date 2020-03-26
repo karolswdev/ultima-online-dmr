@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/client/fonts";
+include "include/coords";
+
+//-----------------------------------------------------------------------------
+
+program TeleCmd( who )
+
+  var where := LocTarget( who );
+
+  if(where)
+
+    var z := GetStandZ(where.x, where.y, who.realm, where.z);
+
+    if(z == error)
+      z := where.z;
+    endif
+      
+    MoveObject( who, where.x, where.y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

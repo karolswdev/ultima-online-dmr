@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+
+include "include/npcs";
+include "include/effects";
+include "include/packets";
+include "include/buffs";
+
+//-----------------------------------------------------------------------------
+
+program DecreaseHealth(Parms)
+
+  var who := Parms[1];
+  var Dmg := Parms[2];
+
+  if(who.isa(POLCLASS_NPC))
+    if(IsNpcElemental(who, NPCELEM_ELEMENTAL) or IsNpcElemental(who, NPCELEM_UNDEAD))
+      return;
+    endif
+  else
+    SendAddBuff(who, BFICON_BLEED, CInt(Dmg / 3), 1075829, 1075830, array(1, Dmg, 2));
+  endif
+  
+  while(Dmg > 0 and !who.dead and who)
+    PlayPcEffect(who, FX_MARK_EFFECT, 31, 0x10, 0x10);
+    PlaySoundEffect(who,SFX_SPELL_HARM);
+    Dmg := CInt(Dmg * 0.5);
+    DealDamage(who, Dmg);
+    
+    CreateItemAtLoc(who.x,who.y,who.z, 38509 ,1,who.realm);
+    //CreateBlood(who.x, who.y, who.z, who.realm, CA_SMALL);
+    if(RandomInt(100) < 40)
+      if (2==1)
+        //CreateBlood(who.x, who.y, who.z, who.realm, CB_SMALL);
+      else
+        //CreateBlood(who.x, who.y, who.z, who.realm, CA_SMALL);
+      endif
+    endif
+    sleep(2);
+  endwhile
+
+  if(IsPlayer(who))
+    SendDelBuff(who, BFICON_BLEED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

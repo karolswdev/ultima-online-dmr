@@ -1,0 +1,153 @@
+//-----------------------------------------------------------------------------
+
+include "msgboard";
+
+include "include/client/fonts";
+include "include/misc";
+include "include/proc";
+include "include/gumps";
+include "include/speech";
+include "include/logerror";
+include "include/msgs";
+
+//-----------------------------------------------------------------------------
+
+var Board, ev;
+
+//-----------------------------------------------------------------------------
+
+program PostBoardMessage(Parms)
+
+  sleepms(100);
+
+  Board := Parms[2];
+
+  ev        := struct;
+
+  ev.+who   := Parms[1];
+  ev.+type  := GMBEVID_POST;
+  ev.+pId   := CInt(Parms[3]);
+  ev.+Lines := array;
+  ev.+Title := "";
+
+  var Res;
+
+  while(IsLoggedIn(ev.who) and Board)
+
+    BuildPostMessage();
+    Res := GSend(ev.who);
+
+    if(Res.butid == 7)
+      if(SendPostMessage(Res))
+        return;
+      endif
+    else
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildPostMessage()
+
+  GInit(280, 280);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GNoClose();
+  GResPic( 0, 0, 0x9d8, 450, 365 );
+  
+  if(ev.pId)
+    var Posts := GetObjProperty(Board, PROP_POSTS);
+    GTextLine( 170, 10, 1340, "Odpowiedz");
+    GTextLine( 30, 50, 998, "Temat:" );
+    GTextCrop( 80, 50, 320, 20, 1000, Posts[ev.pId][5] );
+  else
+    GTextLine( 170, 10, 1340, "Nowa wiadomosc");
+    GTextLine( 30, 50, 998, "Temat:" );
+    GTextEntry( 80, 50, 320, 20, 1000, 5, ev.Title );
+  endif
+  
+  GGumpPic( 30, 70, 0x2455 );
+  GGumpPic( 30, 73, 0x245b );
+  
+  GGumpPic( 180, 70, 0x2455 );
+  GGumpPic( 180, 73, 0x245b );
+
+  GButton( 100, 341, 2103, 2104, 6);
+  GTextLine( 120, 335, 1340, "Anuluj");
+
+  GButton( 300, 341, 2103, 2104, 7);
+  GTextLine( 320, 335, 1340, "Napisz");
+
+  var i, Line;
+  for (i:=0; i<15; i:=i+1)
+    if(ev.Lines[i+1])
+      Line := ev.Lines[i+1];
+    else
+      Line := "";
+    endif
+    GTextEntry( 40, (90+(i*15)), 370, 20, 1000, 10+i, Line);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendPostMessage(Res)
+
+  var Posts := GetObjProperty(Board, PROP_POSTS);
+
+  if(ev.pId)
+    if(!Posts.exists(ev.pId))
+      SendSysMessage(ev.who, "Ten temat nie istnieje.", FONT_NORMAL, COLOR_RED);
+      return 1;
+    endif
+  endif
+  
+  ev.Lines := array;
+  ev.Title := Res.unitext[5];
+  var Line, i;
+
+  for(i:=0;i<15;i:=i+1)
+    if(Res.unitext[10+i] != error)
+      Line := Res.unitext[10+i];
+      if(!Line.size())
+        if(ev.Lines.size())
+          ev.Lines.append(Line);
+        endif
+      else
+        ev.Lines.append(Line);
+      endif
+    endif
+  endfor
+
+  if(!ev.pId)
+    if(!ev.Title.size())
+      SendSysMessage(ev.who, "Brak tytulu.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    elseif(ev.Title.size() < 3)
+      SendSysMessage(ev.who, "Tytul jest za krotki.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    elseif(!CenCheckLine(ev.who, ev.Title))
+      return 0;
+    endif
+  endif
+
+  if(!ev.Lines.size())
+    SendSysMessage(ev.who, "Nie napisal"+ggm(ev.who,3)+" wiadomosci.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(!CenCheckLines(ev.who, ev.Lines))
+    return 0;
+  endif
+
+  SendBoardEvent(Board, ev);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

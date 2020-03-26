@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 42;
+
+//-----------------------------------------------------------------------------
+
+program CastEnergyBolt( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID , TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!CastOn.container)
+    PlayMovingEff( caster, CastOn, FX_ENERGY_BOLT, 0xa, 0x1e );
+  endif
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  PlaySoundEffect( caster, SFX_SPELL_ENERGY_BOLT );
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+    PlayMovingEff( caster, CastOn, FX_ENERGY_BOLT, 0xa, 0x1e );
+    PlaySoundEffect( caster, SFX_SPELL_ENERGY_BOLT );
+  endif
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

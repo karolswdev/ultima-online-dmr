@@ -1,0 +1,25 @@
+//---------------------------------------------------------------------
+
+use uo;
+use os;
+
+include "include/std";
+include "include/gumps";
+
+//---------------------------------------------------------------------
+
+program TimeCloseGump(Data)
+
+  var who := Data[1];
+  var GumpId := Data[2];
+  var Time := Data[3];
+
+  sleep(Time);
+
+  if(ExPid(GumpId) and IsLoggedIn(who))
+    CloseGumpEx(who, GumpId);
+  endif
+
+endprogram
+
+//---------------------------------------------------------------------

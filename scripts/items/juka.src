@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "ai/include/tamed";
+include "include/checks/objchecks";
+include "include/npcs";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program UseJuka(who,Juka)
+
+  if(!StandardItemCheck(who,Juka))
+    return;
+  endif
+
+  var Animal := ObjTarget(who);
+  
+  if(!StandardMobCheck(who,Animal))
+    return;
+  endif
+
+  if(!Animal.isa(POLCLASS_NPC))
+    SendSysMessage(who,"To nie jest zwierze.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Animal.master != who)
+    SendSysMessage(who,"To nie twoje zwierze.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Animal.graphic != CID_BEIGE_HORSE and Animal.graphic != CID_LLAMA)
+    SendSysMessage(who,"To zwierze nie poniesie juki.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(GetEffectiveSkill(who,SKILLID_TAMING) < JUKA_MIN_SKVAL)
+    SendSysMessage(who,"Zwierze odmawia posluszenstwa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  PutJukaOnAnimal(Juka,Animal,who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

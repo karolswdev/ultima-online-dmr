@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include "include/move";
+
+include "bulks";
+
+//-----------------------------------------------------------------------------
+
+program BulkProcessInfo(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+
+  var cfgElem := GetNpcConfig(Data.npc);
+
+  if(cfgElem.BulkSkill == error)
+    NpcSpeechJustSay(Data.npc, Data.source, "Nie daje specjalnych zamowien, przykro mi.");
+    return 1;
+  endif
+
+  var Bulk := GetBulkData(Data.npc, Data.source);
+
+  if(!Bulk[2])
+    NpcSpeechJustSay(Data.npc, Data.source, "Jeszcze nawet nie zaczal"+ggm(Data.source,3)+"! Wytworz cos i pojaw sie wtedy, zapewne zechce to kupic.");
+    return 1;
+  endif
+
+  var curLevel := 0;
+  var curPerc  := CDbl(Bulk[2]) / CDbl(BULK_MIN_COUNT);
+  var Cfg := ReadConfigFile(":bulks:bulk_info");
+
+  foreach Level in GetConfigStringKeys(Cfg)
+    if(curPerc <= CDbl(Cfg[Level].Percent))
+      curLevel := Level;
+      break;
+    endif
+  endforeach
+
+  var Desc := Cfg[curLevel].Message;
+
+  if(Desc)
+    NpcSpeechJustSay(Data.npc, Data.source, Desc);
+  else
+    NpcSpeechJustSay(Data.npc, Data.source, "Wroc pozniej, moze wtedy porozmawiamy o zamowieniu specjalnym.");
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

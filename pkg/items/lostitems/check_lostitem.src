@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include "include/loots";
+
+include "lostitems";
+
+//-----------------------------------------------------------------------------
+
+program HandlerLostProcessItem(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+  
+  var lProps;
+
+  foreach Item in EnumerateItemsInContainer(Data.source.backpack)
+    if(Item.objtype == UOBJ_LOSTITEM)
+      lProps := GetObjProperty(Item, PROP_LOSTITEM);
+      if(lProps[2] == Data.npc.serial)
+        CompleteLostItem(Data.source, Data.npc, Item);
+        return 1;
+      endif
+    endif
+  endforeach
+
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------

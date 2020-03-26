@@ -1,0 +1,412 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/dirs";
+include "include/logerror";
+include "fishing";
+include "include/tools";
+include "include/move";
+
+include ":harvesting:harvest";
+include ":harvesting:harvcont";
+include ":harvesting:iterations";
+
+//-----------------------------------------------------------------------------
+
+var fRegionCfg               := ReadConfigFile(":fishing:fish_regions");
+var fGroupCfg                := ReadConfigFile(":fishing:fish_groups");
+var FishSk, gGroup, gBonusGroup;
+
+//-----------------------------------------------------------------------------
+
+program FishingSkill(who, Tool)
+
+  if(!StandardItemCheck(who, Tool))
+     return;
+  endif
+  
+  if(GetEquipmentByLayer(who, LAYER_MOUNT) and !who.cmdlevel)
+    SendSysMessage(who ,"Musisz zejsc z wierzchowca by moc lowic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsToolEquipped(who, Tool))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(!ItemCfg[Tool.objtype].FishAmount)
+    LogError("[Fishing] FishingSkill: Bledny Tool, ["+hex(Tool.objtype)+"]: Brak FishAmount.", LOGF_SCRIPTS);
+    SendSysMessage(who, "Nie wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  TriggerTipEvent(who, TEID_HARV_FISHING);
+  var Loc := LocTarget(who);
+
+  if(!StandardLocCheck(who, Loc, NO_LOCSPEC_CHECK | NEW_DIST_CHECK | NO_CHECK_SPECLOS, 6))
+    return;
+  endif
+
+  if(SetHarvestContainerFromLoc(who, Loc, SKILLID_FISHING))
+    return;
+  endif
+
+  if(!CheckLocation(who, Loc, Tool))
+    return;
+  endif
+
+  var IterData := DefineHarvestIterations(who, SKILLID_FISHING);
+  var Res;
+
+  while(HarvestIteration(who, IterData))
+    Res := DoFishing(who, Loc, Tool, IterData);
+    
+    if(Res == error)
+      break;
+    endif
+  endwhile
+  
+  FinishHarvestIteration(who, IterData);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DoFishing(who, Loc, Tool, byref IterData)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  FishSk := GetEffectiveSkillBaseValue(who, SKILLID_FISHING) + GetOverSkill(who, SKILLID_FISHING)*2;
+
+  var Data := SelectFish(who, Loc.x, Loc.y, who.realm);
+  var ItemObj := Data[1];
+  var BonusObj := Data[2];
+
+  if(!ItemObj)
+    SendSysMessage(who, "Nie wydaje sie by cos tu mozna bylo zlowic...", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  TurnCharTowardLocation(who, Loc);
+
+  PerformAction(who, ANIM_ATTACK_1HAND_WIDE);
+
+  HarvestIterationGump(who, IterData, "Lowisz ryby...");
+
+  if(!MakeWaterSplash(who, Loc, 0x240))
+    return error;
+  endif
+
+  if(!tool)
+    return error;
+  endif
+
+  CheckToolWear (who, tool, SKILLID_FISHING);
+
+  if(!Tool)
+    return error;
+  endif
+
+  var Diff;
+  var LocInfo := GetMapInfo(Loc.x, Loc.y, who.realm);
+  var Amount  := RandomDiceRoll(ItemCfg[Tool.objtype].FishAmount);
+
+  if(Loc.objtype)
+    Diff := GetHarvestDifficulty("fish", Loc.x, Loc.y, Loc.objtype, who.realm);
+  else
+    Diff := GetHarvestDifficulty("fish", Loc.x, Loc.y, locinfo.landtile, who.realm);
+  endif
+
+  if(Diff == error)
+    SendSysMessage(who, "Wyglada jakby juz tu nie bylo nic do wylowienia.",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  if(IsDebug(who, "CraftDebug"))
+    SendSysMessage(who, "Diff: "+Diff, FONT_SMALL_LIGHT, COLOR_GREEN);
+  endif
+
+
+  
+    if(HarvestOverflowed(who))
+
+	SendSysMessage(who, "Prawie cos zlowil"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+
+    elseif(CheckSkill(who, SKILLID_FISHING, Diff, 0))
+      var FishAmt := HarvestResource("fish", Loc.x, Loc.y, 1, Amount, who.realm);
+	      if(!FishAmt)
+		SendSysMessage(who, "Oops, udalo sie jednej uciec!",FONT_NORMAL,COLOR_RED);
+		return 0;
+	      endif
+
+      var Item;
+      var itmDesc := GetHarvestDescriptor(ItemObj, who);
+
+	      if(IsStackableObj(ItemObj))
+		Item := CreateHarvResource(who, SKILLID_FISHING, itmDesc, FishAmt);
+		if(Item)
+		  SendQuestEvent(who, EVQID_HARVEST, SKILLID_FISHING, Item);
+		endif
+	      else
+		var i;
+		for(i:=1;i<=FishAmt;i:=i+1)
+		  Item := CreateHarvResource(who, SKILLID_FISHING, itmDesc, 1);
+		  if(Item)
+		    SendQuestEvent(who, EVQID_HARVEST, SKILLID_FISHING, Item);
+		  else
+		    break;
+		  endif
+		sleepms(2);
+		endfor
+	      endif
+
+	      if(Item)
+		AwardPoints(who, SKILLID_FISHING, Diff*1.5);
+		SendQuestEvent(who, EVQID_HARVEST, SKILLID_FISHING, Item);
+		var Msg := GetFishGroupMsg(who, gGroup);
+		SendSysMessage(who, Msg, FONT_NORMAL, COLOR_GREEN);
+
+		if(BonusObj)
+			var itmDesc := GetHarvestDescriptor(BonusObj, who);	
+			CreateHarvResource(who, SKILLID_FISHING, itmDesc, 1);
+			var Msg := GetFishGroupMsg(who, gBonusGroup);
+			SendSysMessage(who, Msg, FONT_NORMAL, COLOR_BLUE);
+		endif
+
+	      else
+		SendSysMessage(who, "Nie masz miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+	      endif
+    else
+      AwardPoints(who, SKILLID_FISHING, Diff*0.1);
+      SendSysMessage(who, "Slabo dzis biora...",FONT_NORMAL,COLOR_RED);
+    endif
+
+
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckLocation(who, Loc, Tool)
+
+  if(!IsWater(Loc.x, Loc.y, Loc.z, who.realm))
+    SendSysMessage(who, "To nie wyglada na wode!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectFish(who, x, y, Realm)
+
+  var Range;
+  var IsDeep := IsDeepWater(x, y, Realm);
+
+  var Dict := dictionary;
+  
+  foreach Region in GetConfigStringKeys(fRegionCfg)
+    Dict[ZeroFill(Region, 4)] := Region;
+  endforeach
+
+  foreach Region in Dict
+
+    if(CInt(fRegionCfg[Region].Deep) != IsDeep)
+      continue;
+    endif
+
+    Range := SplitWords(fRegionCfg[Region].Range);
+    Range[1] := CInt(Range[1]);
+    Range[2] := CInt(Range[2]);
+    Range[3] := CInt(Range[3]);
+    Range[4] := CInt(Range[4]);
+
+    if(Range[5] == Realm)
+      if(x >= Range[1] and x <= Range[3] and y >= Range[2] and y <= Range[4])
+      
+        if(IsDebug(who, "CraftDebug"))
+          SendSysMessage(who, "Region: "+Region, FONT_SMALL_LIGHT, COLOR_GREEN); 
+        endif
+      
+        var Data := array;
+        Data[1] := SelectFishFromRegion(who, Region);
+        Data[2] := SelectBonusFromRegion(who, Region);
+        return Data;
+      endif
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetSortedGroups(Region, PropName)
+
+  var Groups := array;
+  var Sort := dictionary;
+
+  foreach Group in GetConfigStringArray(Region, PropName)
+    Group := SplitWords(Group);
+    Sort[ZeroFill(Group[2], 4)+"_"+Group[1]] := array(Group[1], CInt(Group[2]), CInt(Group[3]), CInt(Group[4]));
+  endforeach
+
+  foreach Item in Sort
+    Groups.append(Item);
+  endforeach
+
+  return Groups;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectFishFromRegion(who, RegName)
+
+  var Region  := fRegionCfg[RegName];
+  var SkRange := array;
+  var Chance;
+  var Groups := GetSortedGroups(Region, "Group");
+
+  foreach Group in Groups
+    Chance     := Group[2];
+    SkRange[1] := Group[3] * 10;
+    SkRange[2] := Group[4] * 10;
+
+    if(SkRange[1] or SkRange[2])
+      if(FishSk < SkRange[1])
+        continue;
+      endif
+
+      if(SkRange[2])
+        if(FishSk > SkRange[2])
+          continue;
+        endif
+
+        Chance := CInt( Chance * ((FishSk - SkRange[1]) / (SkRange[2] - SkRange[1])) );
+      endif
+    endif
+    
+    var Rand := RandomInt(1000);
+    
+    if(Rand < Chance)
+      gGroup := Group[1];
+      if(IsDebug(who, "CraftDebug"))
+        SendSysMessage(who, "FishSuccess: "+Chance+" ("+Rand+") ("+gGroup+")", FONT_SMALL_LIGHT, COLOR_WHITE); 
+      endif
+      return SelectObjTypeFromGroup(Group[1]);
+    else
+      if(IsDebug(who, "CraftDebug"))
+        SendSysMessage(who, "FishMissed: "+Chance+" ("+Rand+") ("+Group[1]+")", FONT_SMALL_LIGHT, COLOR_ORANGE);
+      endif 
+    endif
+
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectBonusFromRegion(who, RegName)
+
+  var Region  := fRegionCfg[RegName];
+  var SkRange := array;
+  var Chance;
+  var Groups := GetSortedGroups(Region, "Bonus");
+
+  foreach Group in Groups
+    Chance     := Group[2];
+    SkRange[1] := Group[3] * 10;
+    SkRange[2] := Group[4] * 10;
+
+    if(SkRange[1] or SkRange[2])
+      if(FishSk < SkRange[1])
+        continue;
+      endif
+
+      if(SkRange[2])
+        if(FishSk > SkRange[2])
+          continue;
+        endif
+
+        Chance := CInt( Chance * ((FishSk - SkRange[1]) / (SkRange[2] - SkRange[1])) );
+      endif
+    endif
+
+    var Rand := RandomInt(1000);
+    
+    if(Rand < Chance)
+      gBonusGroup := Group[1];
+      if(IsDebug(who, "CraftDebug"))
+        SendSysMessage(who, "BonusSuccess: "+Chance+" ("+Rand+") ("+gBonusGroup+")", FONT_SMALL_LIGHT, COLOR_WHITE);
+      endif
+      return SelectObjTypeFromGroup(Group[1]);
+    else
+      if(IsDebug(who, "CraftDebug"))
+        SendSysMessage(who, "BonusMissed: "+Chance+" ("+Rand+") ("+Group[1]+")", FONT_SMALL_LIGHT, COLOR_ORANGE);
+      endif 
+    endif
+
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectObjTypeFromGroup(GroupName)
+
+  if(!fGroupCfg[GroupName])
+    var ObjType := GetItemObjType(GroupName);
+    if(!ObjType)
+      LogError("[Fishing] SelectObjTypeFromGroup: Fishing, Bledna Grupa/ObjType ["+GroupName+"]", LOGF_SCRIPTS);
+    endif
+
+    return ObjType;
+  else
+
+    var ObjTypes := GetConfigStringArray(fGroupCfg[GroupName], "Item");
+    if(!ObjTypes.size())
+      LogError("[Fishing] SelectObjTypeFromGroup: Fishing, Brak Itemow w Grupie ["+GroupName+"]", LOGF_SCRIPTS);
+      return 0;
+    endif
+
+    return ObjTypes[RandomInt(ObjTypes.size())+1];
+
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetFishGroupMsg(who, GroupName)
+
+  var Msg, Msgs;
+
+  if(fGroupCfg[GroupName])
+    Msgs := GetConfigStringArray(fGroupCfg[GroupName], "Msg");
+    if(Msgs and Msgs.size())
+      Msg := Msgs[RandomInt(Msgs.size())+1];
+      Msg["%ggm3%"] := ggm(who, 3);
+    endif
+  endif
+
+  if(!Msg)
+    Msg := "Udalo Ci sie cos wylowic...";
+  endif
+
+  return Msg;
+
+endfunction
+
+//-----------------------------------------------------------------------------

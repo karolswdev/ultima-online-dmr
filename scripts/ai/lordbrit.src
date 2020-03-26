@@ -1,0 +1,167 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "setup/setup";
+include "include/lord";
+include "ai/include/npcspeech";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 10;
+
+const PROP_GREETINGS         := "Greetings";
+const GREET_TIME             := 180;
+
+//-----------------------------------------------------------------------------
+
+var Greetings := GetObjProperty(me, PROP_GREETINGS);
+if(!Greetings or !Greetings.size())
+  Greetings := dictionary;
+endif
+
+//-----------------------------------------------------------------------------
+
+program LordBritish_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableMainEvents();
+
+  while(me)
+    ev := wait_for_event(waittime);
+    if(ev)
+
+      case(ev.type)
+        EVID_SPEECH:      CheckSpeech(ev.source,lower(ev.text));
+        EVID_ENGAGED:
+        EVID_DAMAGED:     if(IsWalking())
+                            SetWalkPause();
+                          endif
+                          Say("Smiesz mnie atakowac?!");
+                          Say("Straz, zabic tego nieudacznika!");
+                          CmdGuards(ev.source,EVID_ENGAGED);
+        EVID_ENTEREDAREA: CheckCriminal(ev.source);
+        EVID_LEFTAREA:
+
+      endcase
+
+    endif
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(IsOnThrone())
+      SetWalkPause(1800);
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(who,text)
+
+  if(text["witaj"] or text["witam"])
+    if(!CheckCriminal(who))
+
+      var Data := struct;
+      Data.+npc := me;
+      Data.+source := who;
+
+      if(CheckSpokenName(lower(text)))
+        if(run_script(":mq_npcs:hello", Data) > 0)
+          return 1;
+        endif
+      endif
+
+      if(run_script(":quests:npc_speech", Data) > 0)
+        return 1;
+      endif
+    endif
+
+    return;
+  elseif(!CheckOtherSpeech(who,text))
+    return;
+  endif
+
+  if(IsWalking())
+    SetWalkPause(30);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckCriminal(who)
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  if(who.cmdlevel)
+    return 0;
+  endif
+
+  TurnToward(who);
+
+  if(who.criminal or who.murderer)
+    if(!who.isa(POLCLASS_NPC))
+      Say(who.name+"!");
+      Say("Wynos sie z mego zamku!");
+      Say("Straz przegonic go!");
+    else
+      Say("Straz!");
+      Say("Zabijcie ta kreature!");
+    endif
+    CmdGuards(who,EVID_ENGAGED);
+    return 1;
+  elseif(CheckLineOfSight(me, who) and IsPlayer(who))
+    if(!HaveBeenGreet(who))
+      Say("Witaj w mym zamku "+who.name+".");
+    endif
+    Greetings[who.serial] := ReadGameClock() + GREET_TIME;
+    SetObjProperty(who, PROP_GREETINGS, Greetings);
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HaveBeenGreet(who)
+
+  if(Greetings.exists(who.serial))
+    return (Greetings[who.serial] > ReadGameClock());
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsOnThrone()
+
+  if(me.x == 1323 and me.y == 1624)
+    if(GetObjProperty(me,"IsOnThrone"))
+      return 0;
+    endif
+    SetObjProperty(me,"IsOnThrone",1);
+    return 1;
+  endif
+
+  EraseObjProperty(me,"IsOnThrone");
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

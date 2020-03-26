@@ -1,0 +1,52 @@
+use uo;
+use os;
+
+
+include "include/msgs";
+include "include/npcs";
+include "include/objtypes/misc";
+include "include/gumpboxes";
+include "include/effects";
+
+program WalkOn_HouseTeleporter(who, theTeleporter)
+
+	if(!GetObjProperty(theTeleporter, "TelesTo"))
+		SendSysMessage(who, "Teleport nie moze znalezc swojego odpowiednika.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	if(theTeleporter.movable)
+		SendSysMessage(who, "Teleporter nie jest zablokowany.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	var otherTele := SystemFindObjectBySerial(CInt(GetObjProperty(theTeleporter, "TelesTo")));
+	
+		if(!otherTele)
+			SendSysMessage(who, "Siostrzany teleporter zdaje sie nie istniec.", FONT_NORMAL, RED_COLOR);
+			return;
+		endif
+		
+	if(otherTele.movable)
+			SendSysMessage(who, "Siostrzany teleporter nie jest zablokowany.", FONT_NORMAL, RED_COLOR);
+			return;
+	endif
+		
+		
+	
+	if(Distance(theTeleporter, otherTele) > 80)
+		SendSysMessage(who, "Teleporty dzieli zbyt duza odleglosc.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	PlayMovEffXYZ(who.x, who.y, who.z, otherTele.x, otherTele.y, otherTele.z, FX_SMOKE, 2, 30);
+	MoveObjectToLocation(who, otherTele.x, otherTele.y, otherTele.z, otherTele.realm);
+	PlayStationaryEff(who.x, who.y, who.z, FX_SMOKE, 2, 30);
+	
+endprogram
+	
+	
+		
+	
+	
+	

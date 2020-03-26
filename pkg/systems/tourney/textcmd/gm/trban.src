@@ -1,0 +1,130 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/finding";
+include "include/misc";
+include "include/names";
+include "include/gumps";
+
+include "../../tourney";
+
+//-----------------------------------------------------------------------------
+
+program TourneyBanCmd(who, text)
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "a":      AddBan(who, CInt(text[2]));
+              return;
+    "d":      DelBan(who, CInt(text[2]));
+              return;
+    "?":      SendSysMessage(who, ".trban [a (add)/d (delete)] Serial", FONT_NORMAL, COLOR_RED);
+  endcase
+
+  ShowBans(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddBan(who, Serial)
+
+  if(!Serial)
+    SendSysMessage(who, "Brak seriala.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Mob := FindPlayerBySerial(Serial);
+
+  if(!Mob)
+    SendSysMessage(who, "Postac: "+Serial+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Bans := GetTourneyProp(TRLOC_BANS);
+  if(!Bans)
+    Bans := array;
+  endif
+
+  if(Serial in Bans)
+    SendSysMessage(who, "TrBan na "+GetRealName(Mob)+" / "+Serial+" juz istnieje.", FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+  
+  Bans.append(Serial);
+  
+  SetTourneyProp(Bans, TRLOC_BANS);
+  SendSysMessage(who, "Dodano TrBan: "+GetRealName(Mob)+" / "+Mob.serial+".", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelBan(who, Serial)
+
+  if(!Serial)
+    SendSysMessage(who, "Brak seriala.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Mob     := FindPlayerBySerial(Serial);
+  var Bans    := GetTourneyProp(TRLOC_BANS);
+  var MobName := "";
+
+  if(Mob)
+    MobName := " "+GetRealName(Mob)+" / ";
+  endif
+
+  var Idx  := RetIndex(Bans, Serial);
+
+  if(!Idx)
+    SendSysMessage(who, "TrBan na:"+MobName+" "+Serial+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Bans.erase(Idx);
+  SetTourneyProp(Bans, TRLOC_BANS);
+  SendSysMessage(who, "Skasowano TrBan: "+GetRealName(Mob)+" / "+Mob.serial+".", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowBans(who)
+
+  GInit(50, 50);
+  GPage();
+  GResPic(0, 0, 3600, 400, 380);
+  GTextLine(150, 20, 999, "Bany na turniej");
+  GAddPageData(365,15,2650,2651,365,343,2648,2647);
+
+  var Bans := GetTourneyProp(TRLOC_BANS);
+  var i    := 1;
+  var Mob;
+
+  if(Bans)
+    foreach Ban in Bans
+      GCheckNextPage(15);
+      Mob := FindPlayerBySerial(Ban);
+      GTextLine(25, GNPCount()*20+50, 999, i);
+      if(Mob)
+        GTextLine(130, GNPCount()*20+50, 1419, GetRealName(Mob));
+      else
+        GTextLine(130, GNPCount()*20+50, 1204, "Brak");
+      endif
+      GTextLine(55, GNPCount()*20+50, 550, Ban);
+      i := i + 1;
+    endforeach
+  endif
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

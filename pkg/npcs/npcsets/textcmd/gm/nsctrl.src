@@ -1,0 +1,232 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-21
+// Modified: 2011-04-21
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+
+include ":npcsets:sets";
+include ":npcsets:sets_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program NpcSetsControlCmd(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  var SelId;
+
+  while(IsLoggedIn(who))
+
+    SelId := SelectNpcSetCtrl(who);
+
+    if(SelId == 0)
+      break;
+    elseif(!SelId)
+      continue;
+    endif
+
+    ShowNpcSetCtrlDetails(who, SelId);
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SelectNpcSetCtrl(who)
+
+  var Ids  := GetNsetCtrlIds();
+
+  BQGInit("Globalna kontrola: "+Ids.size(), 650, 500, 0, 1);
+  GAddPageData(615,18,2650,2651,615,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "NpcSet");
+  GTextLine(200, 40, 999, "Dodal");
+  GTextLine(300, 40, 999, "Data");
+  GTextLine(440, 40, 999, "Przedmiotow");
+  GMultiPage();
+
+  foreach ctrlId in Ids
+
+    ctrlId := CInt(ctrlId);
+
+    var Elem := GetNsetCtrlElem(ctrlId);
+
+    GCheckNextPage(20);
+    GButton(70, 63+GNPCount()*20, 2117, 2118, ctrlId);
+    GTextLine(40,60+GNPCount()*20, 550, ctrlId);
+    GTextLine(100,60+GNPCount()*20, 550, Elem.GetProp("SetName"));
+    GTextLine(200,60+GNPCount()*20, 550, Elem.GetProp("Creator"));
+    GTextLine(300,60+GNPCount()*20, 1321, CUnixTime(Elem.GetProp("AddTime")));
+    GTextLine(440,60+GNPCount()*20, COLOR_YELLOW, Elem.GetProp("NpcCount"));
+
+    GButton(510, 63+GNPCount()*20, 2117, 2118, 100000 + ctrlId);
+    GTextLine(527,60+GNPCount()*20, 990, "Mv");
+
+    GButton(550, 63+GNPCount()*20, 2117, 2118, 200000 + ctrlId);
+    GTextLine(567,60+GNPCount()*20, 990, "Rm");
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(!Res.butid)
+    return 0;
+  endif
+
+  if(Res.butid > 200000)
+    CmdRemoveNpcSetCtrl(who, Res.butid-200000);
+    return error;
+  elseif(Res.butid > 100000)
+    CmdMoveNpcSetCtrl(who, Res.butid-100000);
+  elseif(Res.butid)
+    return Res.butid;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowNpcSetCtrlDetails(who, ctrlId)
+
+  var cElem := GetNsetCtrlElem(ctrlId);
+
+  if(!cElem)
+    SendSysMessage(who, "Blad: "+cElem.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  while(IsLoggedIn(who))
+
+    BQGInit("IS Kontrola ID: "+ctrlId+"    Set: "+cElem.GetProp("SetName")+"    (Przedmiotow: "+cElem.GetProp("NpcCount")+")", 700, 500, 0, 1);
+    GAddPageData(665,18,2650,2651,665,467,2648,2647);
+
+    BuildCtrlContents(cElem);
+
+    var Res := GSend(who);
+
+    if(!Res.butid)
+      break;
+    endif
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildCtrlContents(cElem)
+
+  var Npcs := cElem.GetProp("Npcs");
+
+  GTextLine(30, 40, 999, "Lp");
+  GTextLine(70, 40, 999, "Serial");
+  GTextLine(160, 40, 999, "Nazwa");
+  GTextLine(310, 40, 999, "Template");
+  GTextLine(450, 40, 999, "Kolor");
+  GTextLine(540, 40, 999, "Lokacja");
+  GMultiPage();
+
+  var i := 1;
+
+  foreach NpcSer in Npcs
+
+    GCheckNextPage(20);
+
+    var Npc := FindNpcBySerial(NpcSer);
+
+    GTextLine(30,60+GNPCount()*20, 550, _NpcSer_iter);
+    GTextLine(70,60+GNPCount()*20, 999, hex(NpcSer));
+     
+    if(Npc)
+      GTextLine(160,60+GNPCount()*20, 1321, GetName(Npc));
+      GTextLine(310,60+GNPCount()*20, 560, Npc.npctemplate);
+      GTextLine(450,60+GNPCount()*20, __ifelse(Npc.color, Npc.color, 550), Npc.color);
+    else
+      GTextLine(160,60+GNPCount()*20, 1209, "Nie istnieje");
+    endif
+
+    GTextLine(540, 60+GNPCount()*20, 1221, Npc.x+","+Npc.y+","+Npc.z+" "+Npc.realm);
+
+    i := i + 1;
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveNpcSetCtrl(who, ctrlId)
+
+  SendSysMessage(who, "Chcesz usunac npcy z kontroli o ID: "+ctrlId+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Res := DeleteNsetCtrlNpcs(ctrlId);
+
+  if(!Res)
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who, "Usunieto "+Res.npcCount+" npcow. "+Res.nexCount+" npcow nie istnialo.", FONT_NORMAL, COLOR_BLUE);
+
+  Res := RemoveNsetCtrl(ctrlId);
+
+  if(!Res)
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who, "Usunieto kontrole o ID: "+ctrlId+".", FONT_NORMAL, COLOR_BLUE);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdMoveNpcSetCtrl(who, ctrlId)
+
+  SendSysMessage(who, "Chcesz przeniesc wszystkie npcy do swojego plecaka z kontroli o ID: "+ctrlId+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var Res := MoveNsetCtrlToLoc(who, Loc, ctrlId);
+
+  if(!Res)
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who, "Przeniesiono: "+Res.npcCount+" npcow. "+Res.nexCount+" nie istnialo. Wszystkie oznaczono flaga GMa.", FONT_NORMAL, COLOR_BLUE);
+  SendSysMessage(who, "Usunieto kontrole o ID: "+ctrlId+".", FONT_NORMAL, COLOR_BLUE);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

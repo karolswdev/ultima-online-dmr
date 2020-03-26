@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "../../spawnnet";
+include "../../spawnchest";
+include "include/log";
+include "include/findcity";
+include "include/cmds/cancmd";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program CreateSpawnChest(who,text)
+
+  if(!CanUseCmd(who, "spch"))
+    return;
+  endif
+
+  if(!GetGlobalProperty("CanCreateSpawnChest"))
+    SendSysMessage(who, "Nie mozna tworzyc skrzyn. Globalna opcja jest wylaczona.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var Chest;
+
+  case(text)
+    "l":       Chest := CreateItemAtLoc(who.x,who.y,who.z,UOBJ_SCHEST,1,who.realm);
+               LoadChestSpawnData(who,Chest);
+    "i":       Chest := CreateItemAtLoc(who.x,who.y,who.z,UOBJ_SCHEST,1,who.realm);
+               Chest.invisible := 1;
+               Chest.hidden := 1;
+    default:   Chest := CreateItemAtLoc(who.x,who.y,who.z,UOBJ_SCHEST,1,who.realm);
+  endcase
+
+  if(Chest)
+    LogMsg(SPAWN_LOG,who,{GetChestNr(Chest),FindCity(Chest), {who.x, who.y, who.z, who.realm}});
+    SendSysMessage(who, "Stworzono SpawnChest Nr: "+GetChestNr(Chest), FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

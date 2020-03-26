@@ -1,0 +1,78 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/effects";
+include "include/dirs";
+include "farming";
+
+//-----------------------------------------------------------------------------
+
+var MainCfg := ReadConfigFile(":farming:sow");
+
+//-----------------------------------------------------------------------------
+
+program Sowing(who,Seed)
+
+  if(!StandardItemCheck(who,Seed))
+    return;
+  endif
+
+  var Elem         := MainCfg[Seed.objtype];
+  var Skill        := CInt(Elem.Skill);
+  var Points       := CInt(Elem.Points);
+  var Prod         := CInt(Elem.Product);
+
+  if(!Elem or !Skill or !Points or !Prod)
+    SendSysMessage(who,"Z tym nic nie zrobisz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Wskaz ziemie.",FONT_NORMAL,COLOR_GREEN);
+  var Dirt := LocTarget(who).item;
+
+  if(!StandardItemCheck(who,Dirt,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  if(Distance(who,Dirt) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Dirt.objtype != UOBJ_DIRT)
+    SendSysMessage(who,"Siac mozesz tylko na przygotowanej ziemi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(Dirt.color == DIRT_COLOR_E)
+    SendSysMessage(who,"Na tej ziemi juz nic nie wyrosnie.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Dirt.color != 0)
+    SendSysMessage(who,"Ta ziemia nie jest jeszcze gotowa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!EmptyDirt(Dirt))
+    SendSysMessage(who,"Na tej ziemi jest juz cos zasiane.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!MakeNoise(who))
+    return;
+  endif
+  
+  if(SubtractAmount(Seed, 1))
+    if(CheckSkill(who,SKILLID_FARMING,Skill,0))
+      SetDirtProd(Dirt,Prod,CInt(Elem.StayGrown));
+      AwardPoints(who,SKILLID_FARMING,Points);
+      SendSysMessage(who,"Udalo Ci sie zasiac "+Elem.name+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie udalo Ci sie tego zasiac.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Nie udalo Ci sie tego zasiac.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

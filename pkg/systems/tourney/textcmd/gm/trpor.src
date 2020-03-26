@@ -1,0 +1,205 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/move";
+include "include/player/misc";
+
+include "../../tourney";
+
+//-----------------------------------------------------------------------------
+
+var ItemDesc := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program TourneyPortalsCmd(who,text)
+
+  Detach();
+
+  case(text)
+    "main":       CreateMainPortal(who,TRLOC_MAIN);
+                  return;
+    "redmain":    CreateMainPortal(who,TRLOC_RED_ROOM);
+                  return;
+    "bluemain":   CreateMainPortal(who,TRLOC_BLUE_ROOM);
+                  return;
+    "hd":         HidePortals(who);
+    "sh":         ShowPortals(who);
+
+    "setentrpor": if(IsAdmin(who))
+                    SetEntrancePortal(who);
+                  endif
+    "entrhd":     HideEntrancePortal(who);
+    "entrsh":     ShowEntrancePortal(who);
+
+    default:      SendSysMessage(who,".trpor [sh/hd/main/redmain/bluemain/entrhd/entrsh]",FONT_NORMAL,COLOR_RED);
+                  if(IsAdmin(who))
+                    SendSysMessage(who, ".trpor [setentrpor]", FONT_NORMAL, COLOR_RED);
+                  endif
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function HidePortals(who)
+
+  var Portals  := {};
+  var Loc      := GetTourneyProp(TRLOC_MAIN);
+
+  if(!Loc)
+    SendSysMessage(who,"Nie zostala ustawiona pozycja glowna.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  foreach Item in ListItemsNearLocation(Loc[1],Loc[2],Loc[3],20)
+    if(Item.objtype in {0xA244,0xA245})
+      Portals.append(Item);
+    endif
+  endforeach
+
+  foreach Portal in Portals
+    Portal.graphic   := CInt(ItemDesc[Portal.objtype].AnimGrap) + 8;
+  endforeach
+
+  for i := 1 to 7
+    foreach Portal in Portals
+      Portal.graphic := Portal.graphic - 1;
+    endforeach
+    sleepms(300);
+  endfor
+
+  foreach Portal in Portals
+    Portal.invisible := 1;
+  endforeach
+
+  SendSysMessage(who,"Schowano portale.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPortals(who)
+
+  var Portals  := {};
+  var Loc      := GetTourneyProp(TRLOC_MAIN);
+
+  if(!Loc)
+    SendSysMessage(who,"Nie zostala ustawiona pozycja glowna.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  foreach Item in ListItemsNearLocation(Loc[1],Loc[2],Loc[3],20)
+    if(Item.objtype in {0xA244,0xA245})
+      Portals.append(Item);
+    endif
+  endforeach
+
+  foreach Portal in Portals
+    Portal.graphic   := CInt(ItemDesc[Portal.objtype].AnimGrap);
+    Portal.invisible := 0;
+  endforeach
+
+  for i := 1 to 8
+    foreach Portal in Portals
+      Portal.graphic := Portal.graphic + 1;
+    endforeach
+    sleepms(300);
+  endfor
+
+  foreach Portal in Portals
+    Portal.graphic   := CInt(ItemDesc[Portal.objtype].Graphic);
+  endforeach
+
+  SendSysMessage(who,"Odkryto portale.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateMainPortal(who,PrType)
+
+  var Coords := GetTourneyProp(PrType);
+
+  if(!Coords)
+    SendSysMessage(who,"Nie zostala ustalona pozycja glowna.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+  var AnimGrap := CInt(ItemCfg[0xA246].AnimGrap);
+
+  var Portal := CreateItemAtLoc(Loc.x,Loc.y,Loc.z,0xA246);
+
+  if(!Portal)
+    SendSysMessage(who,"Nie mozna bylo stworzyc portalu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SetObjProperty(Portal,"NoDelay",1);
+
+  var Grap := Portal.graphic;
+
+  if(AnimGrap)
+    Portal.graphic := AnimGrap;
+    for i := 1 to 8
+      Portal.graphic := Portal.graphic + 1;
+      sleepms(300);
+    endfor
+  endif
+
+  Portal.graphic := Grap;
+
+  SetObjProperty(Portal,"Coords",Coords);
+
+  sleep(360);
+
+  DestroyItem(Portal);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetEntrancePortal(who);
+
+  var Portal := CInt(GetTourneyProp(TR_ENTRANCE_PORTAL));
+
+  if(Portal)
+    Portal := FindItemBySerial(Portal);
+    if(Portal)
+      SendSysMessage(who, "Aktualnie ustawiony portal wejsciowy: S: "+Portal.serial+" X: "+Portal.x+" Y: "+Portal.y+".", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Aktualnie ustawiony portal wejsciowy o serialu "+CInt(GetTourneyProp(TR_ENTRANCE_PORTAL))+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+    endif
+    Sleepms(500);
+  endif
+  
+  SendSysMessage(who, "Wskaz portal wejsciowy.", FONT_NORMAL, COLOR_GREEN);
+
+  Portal := ObjTarget(who);
+
+  if(!Portal)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!(Portal.objtype in {0xA244, 0xA245, 0xA246}))
+    SendSysMessage(who, "Bledny portal.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetTourneyProp(Portal.serial, TR_ENTRANCE_PORTAL);
+  SendSysMessage(who, "Ustawiono portal wejsciowy: S: "+Portal.serial+" X: "+Portal.x+" Y: "+Portal.y+".", FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

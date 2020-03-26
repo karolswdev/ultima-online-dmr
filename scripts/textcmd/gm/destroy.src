@@ -1,0 +1,64 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/log";
+include "include/cmds/cmds";
+
+include "include/packets";
+
+include ":baseitems:common";
+include ":housing:housing";
+
+//-----------------------------------------------------------------------------
+
+program DestroyCmd( who, text )
+
+  if(text["?"])
+    SendSysMessage(who, ".destroy [bi/hld/hsc/gld/nostc]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage( who, "Co chcesz zniszczyc?", FONT_NORMAL, COLOR_GREEN);
+  var Targ := LocTarget(who);
+
+  if(Targ.item)
+    Targ := Targ.item;
+    
+    var Flags := 0;
+    SetDestroyItemFlags(who, Flags, text);
+
+    var Res := CanDestroyItem(Targ, Flags);
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Desc := Targ.desc;
+    var Obj  := Targ.objtype;
+    var Clr  := Targ.color;
+    
+    var ItemRealm  := Targ.realm;
+    var ItemSerial := Targ.serial;
+
+    LogMsg(DESTROY_LOG,who,Targ);
+    
+    OnDestroyItem(Targ);
+    Res := DestroyItem(Targ);
+
+    if(Res == error)
+      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    elseif( Res == 0 )
+      SendSysMessage(who, "Blad: DestroyScript returs 0", FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" "+Desc+", Obj ["+Obj+"] Clr: ["+Clr+"]",FONT_NORMAL,COLOR_GREEN);
+      if(who.realm != ItemRealm)
+        SendDeleteObjectPacket(who, ItemSerial);
+      endif
+    endif
+  else
+    SendSysMessage( who, "Wybierz przedmiot.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

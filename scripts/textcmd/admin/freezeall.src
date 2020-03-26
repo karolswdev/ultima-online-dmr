@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+program FreezeAll(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  var nr;
+  
+  foreach Player in EnumerateOnlineCharacters()
+    if(!Player.frozen)
+      nr := nr + 1;
+      Player.frozen := 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,nr+" zostalo zamrozonych.",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

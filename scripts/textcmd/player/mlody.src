@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include "include/names";
+include "include/player/target";
+include "include/move";
+include "include/gumps";
+include "include/gumpboxes";
+include "include/effects";
+include "include/clock";
+include "include/player/young";
+include "include/coords";
+include "include/checks/objchecks";
+include ":jail:common";
+
+//-----------------------------------------------------------------------------
+
+const YOUNG_LOC_CFG     := MCFG_PKG + "young_locs";
+
+//-----------------------------------------------------------------------------
+
+program CmdYoung(who, text)
+
+  if(!IsYoung(who) and !who.cmdlevel)
+    SendSysMessage(who, "Nie posiadasz statusu mlodej osoby!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var spText := SplitWords(text);
+
+  case(spText[1])
+    "rezygnuj":     CmdDelYoung(who);
+
+    default:        SendSysMessage(who, "Pozostalo Ci jeszcze: "+RealTime(YOUNG_MAX_ONLINE_TIME - GetOnlineTimer(who))+" czasu aktywnej gry do utraty statusu mlodego.", FONT_NORMAL, COLOR_WHITE);
+
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CmdDelYoung(who)
+
+  SendSysMessage(who, "Rezygnujac ze statusu mlody zrzekasz sie jego przywilejow i ograniczen!", FONT_NORMAL, COLOR_WHITE);
+  SendSysMessage(who, "Czy jestes pewn"+ggm(who,6)+", ze chcesz to zrobic?", FONT_NORMAL, COLOR_WHITE);
+
+  if(YesNo(who, "Na pewno?"))
+    DelYoung(who);
+  else
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

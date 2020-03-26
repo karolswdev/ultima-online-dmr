@@ -1,0 +1,31 @@
+use uo;
+use os;
+use vitals;
+
+include "include/mobile/tamed";
+include "include/client/fonts";
+include "include/const/attributes";
+include "include/attributes/vitals";
+
+program use_happyMushroom(who, shroom)
+
+	var trg := Target(who);
+	SendSysMessage(who, "Wskaz zwierze: ", FONT_NORMAL, COLOR_GREEN);
+	
+	if(!trg || !trg.isA(POLCLASS_MOBILE))
+		SendSysMessage(who, "Blad.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(trg.script["tamed"])
+		DestroyItem(shroom);
+		HealVitalById(trg, VITALID_LIFE, 60000);
+		HealVitalById(trg, VITALID_MANA, 60000);
+		PrintTextAbove(trg, "*Sila*", FONT_NORMAL, COLOR_BLUE);
+		SendSysMessage(who, "Uleczono.", FONT_NORMAL, COLOR_GREEN);
+	endif
+	
+endprogram
+		
+		
+

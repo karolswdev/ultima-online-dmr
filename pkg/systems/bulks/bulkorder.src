@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "bulks";
+include "include/checks/objchecks";
+include "include/gumps";
+
+//-----------------------------------------------------------------------------
+
+program BulkOrder(who,Bulk)
+
+  if(!StandardItemCheck(who,Bulk))
+    return;
+  endif
+
+  var BulkOrder := GetObjProperty(Bulk,"BulkOrder");
+  var Name      := ClStr(BulkOrder[2][1]);
+  var Npc       := FindNpcBySerial(GetObjProperty(Bulk,"BulkNpc"));
+  var NpcName   := "";
+  
+  if(Npc.name)
+    NpcName := " u "+Npc.name;
+  else
+    NpcName := " nieaktualne";
+  endif
+  
+  GInit(20,20);
+  GResPic(0,0,0xDAC,500,250);
+  GResPic(20,20,0xA3C,460,210);
+  GCheckerTrans(25,25,450,200);
+  GResPic(380,130,0xA3C,100,100);
+  if(CInt(BulkOrder[1]))
+    GTilePic(380,150,CInt(BulkOrder[1]));
+  endif
+
+  GTextLine(150,40,560,"Zamowienie"+NpcName);
+  
+  GTextLine(150,100,1152,"Przedmiot do wykonania: ");
+
+  if(BulkOrder[2][3])
+    GTextLine(50,130,1720,"Wyjatkowej jakosci");
+    GTextLine(50,150,1150,Name);
+  else
+    GTextLine(50,130,1150,Name);
+  endif
+  
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

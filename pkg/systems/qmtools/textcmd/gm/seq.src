@@ -1,0 +1,1152 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-05
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/events";
+include "include/coords";
+include "include/effects";
+
+include "include/finding";
+
+//-----------------------------------------------------------------------------
+
+const STRGTYPE_LOC           := "Loc";
+const STRGTYPE_MOB           := "Mob";
+const STRGTYPE_NPC           := "Npc";
+const STRGTYPE_ITEM          := "Item";
+const STRGTYPE_OBJECT        := "Object";
+
+//-----------------------------------------------------------------------------
+
+const SEQ_CFG                := ":mcfg:seq";
+const PROP_SEQUENCES         := "Sequences";
+
+//-----------------------------------------------------------------------------
+
+const BDMODE_ADDING          := 1;
+const BDMODE_VIEWING         := 2;
+const BDMODE_EDITING         := 3;
+const BDMODE_ACTIONS         := 4;
+
+const MAX_SEQ_ACTION_SIZE    := 196;
+
+//-----------------------------------------------------------------------------
+
+var who, bMode, Sequences, Seq, vbMode, _SeqIdx, targLoc := 0, targRealm := _DEFAULT_REALM, targObj := 0, useTarg := 1;
+var SeqCfg := ReadConfigFile(SEQ_CFG);
+
+//-----------------------------------------------------------------------------
+
+program SequencerCmd(_who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  Detach();
+  who := _who;
+  Sequences := GetObjProperty(who, PROP_SEQUENCES);
+  if(!Sequences)
+    Sequences := array;
+  endif
+
+  InitSeqData(Seq);
+
+  var stext := SplitWords(text);
+  var CurPage;
+
+  vbMode := 0;
+
+  case(stext[1])
+    "a":    bMode := BDMODE_ADDING;
+
+    "v":    _SeqIdx  := CInt(stext[2]);
+            if(_SeqIdx > 0 and _SeqIdx <= Sequences.size())
+              Seq    := Sequences[_SeqIdx];
+              bMode  := BDMODE_VIEWING;
+              vbMode := 2;
+            else
+              _SeqIdx := 0;
+            endif
+
+    "e":    _SeqIdx  := CInt(stext[2]);
+            if(_SeqIdx > 0 and _SeqIdx <= Sequences.size())
+              Seq   := Sequences[_SeqIdx];
+              bMode := BDMODE_EDITING;
+            else
+              _SeqIdx := 0;
+            endif
+
+    "acts": bMode := BDMODE_ACTIONS;
+
+    "p":    FindandPlaySeq(stext[2]);
+            return;
+
+    "copy": CopySeqFromTarg(who, CInt(stext[2]));
+            return;
+  endcase
+  
+  while(IsLoggedIn(who))
+
+    case(bMode)
+      BDMODE_ADDING:
+      BDMODE_VIEWING:               
+      BDMODE_EDITING:  BuildSeqInfoGump();
+      BDMODE_ACTIONS:  BuildSeqActionsGump();
+      default:         BuildMainSeqGump();
+    endcase
+
+    if(CurPage)
+      SetCurMultiPage(CurPage);
+    endif
+
+    var Res := GSend(who);
+
+    case(bMode)
+      1:
+      3:               CurPage := GetCurMultiPage();
+                       SaveSeqData(Seq);
+    endcase
+
+    if(Res[0] > 1000 and Res[0] <= 1000+Seq.Entries.size())
+      Seq.Entries.erase(Res[0]-1000);
+      SendSysMessage(who, "Skasowano akcje "+(Res[0]-1000), FONT_NORMAL, COLOR_GREEN);
+    elseif(Res[0] > 2000 and Res[0] <= 2000+Seq.Entries.size())
+      var Idx := Res[0] - 2000;
+      if(Idx > 1)
+        var Entry := Seq.Entries[Idx];
+        Seq.Entries.erase(Idx);
+        Seq.Entries.insert(Idx-1, Entry);
+      endif
+    elseif(Res[0] > 3000 and Res[0] <= 3000+Seq.Entries.size())
+      var Idx := Res[0] - 3000;
+      if(Idx < Seq.Entries.size())
+        var Entry := Seq.Entries[Idx];
+        Seq.Entries.erase(Idx);
+        Seq.Entries.insert(Idx+1, Entry);
+      endif
+    elseif(Res[0] > 5000 and Res[0] <= 5000+Sequences.size())
+      CheckSequence(Res[0]-5000);
+    elseif(Res[0] > 6000 and Res[0] <= 6000+Sequences.size())
+      PlaySequence(Res[0]-6000);
+    elseif(Res[0] > 10000 and Res[0] <= 10000+Sequences.size())
+      _SeqIdx   := Res[0]-10000;
+      Seq    := Sequences[_SeqIdx];
+      bMode  := BDMODE_VIEWING;
+      vbMode := 2;
+    else
+      case(Res[0])
+        5:        InitSeqData(Seq);
+                  bMode  := BDMODE_ADDING;
+                  vbMode := 0;
+        
+        6:        bMode  := BDMODE_EDITING;
+                  vbMode := 0;
+
+        7:        DelSequence();
+                  bMode := 0;
+
+        8:        bMode := BDMODE_ACTIONS;
+
+        9:        CheckSequence(_SeqIdx);
+
+        10:       PlaySequence(_SeqIdx);
+
+        120:      if(bMode == BDMODE_VIEWING)
+                    vbMode := (vbMode + 1) % 3;
+                  else
+                    vbMode := !vbMode;
+                  endif
+        
+        100:      var vRes := VerifySeqData(Seq);
+                  if(!vRes)
+                    SendSysMessage(who, vRes.errortext, FONT_NORMAL, COLOR_RED);
+                  else
+                    SendSysMessage(who, "Weryfikacja pomyslna.", FONT_NORMAL, COLOR_GREEN);
+                  endif
+
+        101:      AddSeqData(Seq);
+
+        102:      if(Seq.Entries.size() >= MAX_SEQ_ACTION_SIZE)
+                    SendSysMessage(who, "Nie mozesz dodac wiecej akcji! Maksymalna liczba to 196.", FONT_NORMAL, COLOR_GREEN);
+                  else
+                    AddSeqEntry(Seq);
+                  endif
+
+        103:      SetSeqData(Seq);
+
+        99:
+        default:  if(bMode)
+                    bMode   := 0;
+                    CurPage := 0;
+                  else
+                    return;
+                  endif
+      endcase
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainSeqGump()
+
+  GInit(30, 30);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 3600, 500, 400);
+  GTextLine(200, 20, 999, "Sekwencje");
+  GAddPageData(465,20,2650,2651,465,363,2648,2647);
+  GMultiPage();
+
+  var i := 1;
+
+  foreach Sequence in Sequences
+    GCheckNextPage(14);
+    GButton(20, 70+GNPCount()*20, 2714, 2715, 10000+i);
+    GTextLine(40, 70+GNPCount()*20, 1424, i+".");
+    GTextLine(70, 70+GNPCount()*20, 999, "("+Sequence.Entries.size()+")");
+    GTextLine(100, 70+GNPCount()*20, 560, Sequence.Name);
+    GTextLine(350,70+GNPCount()*20, 1000, CUnixTime(Sequence.Time));
+    i := i + 1;
+  endforeach
+
+  GButton(40, 360, 2714, 2715, 5);
+  GTextLine(60, 360, 999, "Dodaj");
+  
+  GButton(140, 360, 2714, 2715, 8);
+  GTextLine(160, 360, 999, "Pokaz akcje");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildSeqInfoGump()
+
+  GInit(30, 30);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 3600, 700, 400);
+  GAddPageData(665,20,2650,2651,665,363,2648,2647);
+
+  GTextLine(40, 20, 999, "Nazwa Sekwencji:");
+  if(bMode != BDMODE_VIEWING)
+    GTextEntry(150, 20, 200, 20, 560, 5, Seq.Name);
+  else
+    GTextLine(150, 20, 560, Seq.Name);
+  endif
+
+  GTextLine(85,  50, 998, "Nazwa");
+  GTextLine(350, 50, 998, "ms");
+  GTextLine(390, 50, 998, "Parametry");
+
+  var vText := "Cel";
+
+  case(vbMode)
+    0: vText := "Cel";
+    1: vText := "Drugi Cel";
+    2: vText := "Wykryty Cel";
+  endcase
+
+  GButton(145, 53, 2117, 2118, 120);
+  GTextLine(165, 50, 998, vText);
+
+  if(bMode != BDMODE_VIEWING)
+    GButton(20, 360, 2714, 2715, 102);
+    GTextLine(40, 360, 1000, "Dodaj akcje");
+
+    GButton(140, 360, 2714, 2715, 100);
+    GTextLine(160, 360, 999, "Weryfikuj");
+
+    if(bMode == BDMODE_ADDING)
+      GButton(240, 360, 2714, 2715, 101);
+      GTextLine(260, 360, 999, "Dodaj");
+    elseif(bMode == BDMODE_EDITING)
+      GButton(240, 360, 2714, 2715, 103);
+      GTextLine(260, 360, 999, "Zmien");
+    endif
+  else
+    GButton(140, 360, 2714, 2715, 7);
+    GTextLine(160, 360, 999, "Kasuj");
+
+    GButton(240, 360, 2714, 2715, 6);
+    GTextLine(260, 360, 999, "Zmien");
+
+    GButton(340, 360, 2714, 2715, 9);
+    GTextLine(360, 360, 1000, "Sprawdz");
+    
+    GButton(440, 360, 2714, 2715, 10);
+    GTextLine(460, 360, 1000, "Odegraj");
+  endif
+
+  GButton(610, 360, 2714, 2715, 99);
+  GTextLine(630, 360, 999, "Wroc");
+
+  GMultiPage();
+
+  var i := 0;
+  var trgVal, strgVal, Params, trgColor;
+
+  foreach Entry in (Seq.Entries)
+    GCheckNextPage(14);
+
+    trgColor := 550;
+
+    if(Entry.Targ.Value.size() == error)
+      trgVal := Entry.Targ.Value;
+    else
+      trgVal := CombineWords(Entry.Targ.Value);
+    endif
+
+    if(vbMode == 2)
+      if(Entry.Targ.Type != STRGTYPE_LOC)
+        trgVal := FindPlayerBySerial(trgVal);
+        if(!trgVal)
+          trgVal   := "Brak";
+          trgColor := 1204;
+        else
+          trgVal   := GetName(trgVal);
+          trgColor := 1318;
+        endif
+      endif
+    endif
+
+    if(Entry.sTarg.Value.size() == error)
+      strgVal := Entry.sTarg.Value;
+    else
+      strgVal := CombineWords(Entry.sTarg.Value);
+    endif
+
+    if(Entry.Params.size() == error)
+      Params := Entry.Params;
+    else
+      Params := CombineWords(Entry.Params);
+    endif
+
+    GTextLine(65,  70+GNPCount()*20, 1424, i+1);
+
+    if(bMode != BDMODE_VIEWING)
+      GButton(15, 75+GNPCount()*20, 2103, 2104, 1001+i);
+      GButton(30, 70+GNPCount()*20, 2704, 2705, 2001+i);
+      GButton(45, 70+GNPCount()*20, 2706, 2707, 3001+i);
+      GTextEntry(85,  70+GNPCount()*20, 70, 20, 560, 10+i*5, Entry.Name);
+
+      if(vbMode)
+        GTextEntry(165, 70+GNPCount()*20, 175,20, trgColor, 12+i*5, strgVal);
+      else
+        GTextEntry(165, 70+GNPCount()*20, 175,20, trgColor, 11+i*5, trgVal);
+      endif
+      GTextEntry(350, 70+GNPCount()*20, 30, 20, 545, 13+i*5, Entry.Delay);
+      GTextEntry(390, 70+GNPCount()*20, 250,20, 550, 14+i*5, Params);
+    else
+      GTextLine(85,  70+GNPCount()*20, 560, Entry.Name);
+
+      if(vbMode == 1)
+        GTextLine(165, 70+GNPCount()*20, trgColor, strgVal);
+      else
+        GTextLine(165, 70+GNPCount()*20, trgColor, trgVal);
+      endif
+      GTextLine(350, 70+GNPCount()*20, 545, Entry.Delay);
+      GTextLine(390, 70+GNPCount()*20, 550, Params);
+    endif
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildSeqActionsGump()
+
+  GInit(30, 30);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 3600, 760, 445);
+  GAddPageData(725,20,2650,2651,725,408,2648,2647);
+
+  GTextLine(40, 20, 999, "Mozliwe akcje sekwencji");
+
+  GTextLine(300, 20,998, "i: liczba, s: wyraz, t: tekst, []: dopuszczalne wartosci");
+
+  GTextLine(85,  50, 998, "Nazwa");
+  GTextLine(360, 50, 998, "Parametry");
+
+  if(vbMode)
+    GButton(145, 53, 2117, 2118, 120);
+    GTextLine(165, 50, 998, "Drugi Cel");
+  else
+    GButton(145, 53, 2117, 2118, 120);
+    GTextLine(165, 50, 998, "Cel");
+  endif
+
+  GButton(630, 405, 2714, 2715, 99);
+  GTextLine(650, 405, 999, "Wroc");
+
+  GMultiPage();
+
+  var i := 0;
+
+  foreach Act in GetConfigStringKeys(SeqCfg)
+    GCheckNextPage(14);
+
+    GTextLine(55,  70+GNPCount()*25, 1424, (i+1)+".");
+    GTextLine(85,  70+GNPCount()*25, 560, Act);
+
+    if(!vbMode)
+      GTextLine(165, 70+GNPCount()*25, 550, ClStr(SeqCfg[Act].Targ));
+    else
+      GTextLine(165, 70+GNPCount()*25, 550, ClStr(SeqCfg[Act].sTarg));
+    endif
+
+    if(!SeqCfg[Act].Params)
+      GTextLine(360, 70+GNPCount()*25, 999, "Brak");
+    else
+      GTextLine(360, 70+GNPCount()*25, 550, ClStr(SeqCfg[Act].Params));
+    endif
+
+    GCheckNextPage(14);
+
+    GTextLine(85, 65+GNPCount()*25, 1000, ClStr(SeqCfg[Act].Desc));
+
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitSeqData(byref Seq)
+
+  Seq := struct;
+  Seq.+Name    := "";
+  Seq.+Time    := 0;
+  Seq.+Entries := array;
+  AddSeqEntry(Seq);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddSeqEntry(byref Seq)
+
+  var Entry;
+  InitSeqEntryData(Entry);
+  Seq.Entries.append(Entry);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitSeqEntryData(byref Entry)
+
+  Entry := struct;
+  Entry.+Name   := "";
+  Entry.+Targ;
+  Entry.+sTarg;
+  Entry.+Delay  := 0;
+  Entry.+Params := "";
+
+  InitSeqTargData(Entry.Targ);
+  InitSeqTargData(Entry.sTarg);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitSeqTargData(byref Targ)
+
+  Targ := struct;
+  Targ.+Type  := "";
+  Targ.+Value := "";
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveSeqData(byref Seq)
+
+  var i := 0;
+
+  Seq.Name := GGetEntryData(5);
+
+  foreach Entry in (Seq.Entries)
+    Entry.Name := GGetEntryData(10+i*5);
+    if(!vbMode)
+      Entry.Targ.Value := GGetEntryData(11+i*5);
+    else
+      Entry.sTarg.Value := GGetEntryData(12+i*5);
+    endif
+    Entry.Delay  := CInt(GGetEntryData(13+i*5));
+    Entry.Params := GGetEntryData(14+i*5);
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifySeqData(byref Seq)
+
+  var vRes;
+  var i := 1;
+
+  foreach Entry in (Seq.Entries)
+    vRes := VerifySeqEntry(Entry);
+    if(!vRes)
+      vRes.errortext := vRes.errortext + ", Akcja ["+i+"]";
+      return vRes;
+    endif
+    i := i + 1;
+  endforeach
+
+  if(Seq.Entries.size() == 0)
+    vRes := error;
+    vRes.errortext := "Brak akcji.";
+    return vRes;
+  endif
+
+  if(!Seq.Name)
+    vRes := error;
+    vRes.errortext := "Brak nazwy sekwencji.";
+    return vRes;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifySeqEntry(byref Entry)
+
+  var Err := error;
+  var Res, aTargTypes;
+
+  if(!Entry.Name)
+    Err.errortext := "Brak nazwy";
+    return Err;
+  endif
+
+  if(!SeqCfg[Entry.Name])
+    Err.errortext := "Bledna nazwa ["+Entry.Name+"]";
+    return Err;
+  endif
+
+  Res := IdentifySeqTarg(Entry.Targ);
+  if(!Res)
+    return Res;
+  endif
+
+  Res := IdentifySeqTarg(Entry.sTarg);
+  if(!Res)
+    return Res;
+  endif
+
+  aTargTypes := SplitWords(SeqCfg[Entry.Name].Targ);
+  Res := VerifySeqTarg(Entry.Targ, aTargTypes);
+  if(!Res)
+    Res.errortext := "Glowny Cel: "+Res.errortext;
+    return Res;
+  endif
+
+  aTargTypes := SplitWords(SeqCfg[Entry.Name].sTarg);
+  Res := VerifySeqTarg(Entry.sTarg, aTargTypes);
+  if(!Res)
+    Res.errortext := "Drugi Cel: "+Res.errortext;
+    return Res;
+  endif
+
+  var Params := SplitWords(SeqCfg[Entry.Name].Params);
+
+  if(Entry.Params.size() == error)
+    Entry.Params := SplitWords(Entry.Params);
+  endif
+
+  if(!SeqCfg[Entry.Name].Params)
+    if(Entry.Params.size())
+      Err.errortext := "Nie potrzebne parametry, nie sa zadne wymagane.";
+      return Err;
+    endif
+    return 1;
+  endif
+
+  var pDefs;
+  var i := 1;
+
+  if(Entry.Params.size() < Params.size())
+    Err.errortext := "Bledna liczba parametrow, wymagane: ( "+CombineWords(Params)+" )";
+    return Err;
+  endif
+
+  foreach Param in Params
+    pDefs := 0;
+
+    case(Param[1])
+      "i": Entry.Params[i] := CInt(Entry.Params[i]);
+
+      "s": Entry.Params[i] := CStr(Entry.Params[i]);
+
+      "t": if(i != Params.size())
+             LogError("VerifySeqEntry: Parametr tekstowy nie jest ostatni. Akcja ["+Entry.Name+"]");
+           endif
+
+           var n;
+           var Text := "";
+           for(n:=i;n<=Entry.Params.size();n:=n+1)
+             if(!Text)
+               Text := Entry.Params[n];
+             else
+               Text := Text + " " + Entry.Params[n];
+             endif
+           endfor
+
+           while(Entry.Params.size() > i)
+             Entry.Params.erase(Entry.Params.size());
+           endwhile
+
+           Entry.Params[i] := Text;
+    endcase
+
+    if(Param[1] == "t")
+      break;
+    endif
+
+    if(Param["["])
+      var Pos := find(Param, "[", 1);
+      var EndPos := find(Param, "]", Pos);
+      pDefs := Param[Pos+1, EndPos-Pos-1];
+    endif
+
+    if(pDefs)
+      while(pDefs["/"])
+        pDefs["/"] := " ";
+      endwhile
+
+      pDefs := SplitWords(pDefs);
+
+      var Pass := 0;
+
+      if(!(Entry.Params[i] in pDefs))
+        foreach Def in pDefs
+          if(Def["-"])
+            var sDef := Def;
+            sDef["-"] := " ";
+            sDef := SplitWords(sDef);
+            sDef[1] := CInt(sDef[1]);
+            sDef[2] := CInt(sDef[2]);
+            if(sDef[1] >= sDef[2] or (!sDef[1] and !sDef[2]) or Param[1] != "i")
+              LogError("Bledny DefVal ["+sDef[1]+"-"+sDef[2]+"], pType ["+Param[1]+"] parametru w ["+SEQ_CFG+"], akcja ["+Entry.Name+"] ");
+            elseif(Entry.Params[i] >= sDef[1] and Entry.Params[i] <= sDef[2])
+              Pass := 1;
+              break;
+            endif
+          endif
+        endforeach
+
+        if(!Pass)
+          Err.errortext := "Bledna wartosc parametru ["+i+": "+Entry.Params[i]+"], dopuszczalne ( "+CombineWords(pDefs)+" )";
+          return Err;
+        endif
+      endif
+    endif
+
+    i := i + 1;
+  endforeach
+
+  if(Entry.Params.size() != Params.size())
+    Err.errortext := "Bledna liczba parametrow, wymagane: ( "+CombineWords(Params)+" )";
+    return Err;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IdentifySeqTarg(byref Targ)
+
+  Targ.Type := "";
+
+  if(!Targ.Value)
+    Targ.Value := "";
+    return 1;
+  endif
+
+  var Err    := error;
+  if(Targ.Value.size() == error)
+    Targ.Value := SplitWords(Targ.Value);
+  endif
+
+  Err.errortext := "Bledny typ";
+
+  if(Targ.Value.size() > 1)
+    for i := 1 to 3
+      Targ.Value[i] := CInt(Targ.Value[i]);
+    endfor
+    var Rlms := Realms();
+    if(!Targ.Value[4])
+      Targ.Value[4] := _DEFAULT_REALM;
+    endif
+
+    if(!Rlms[Targ.Value[4]])
+      Err.errortext := "Bledny swiat ["+Targ.Value[4]+"]";
+      return Err;
+    endif
+//    if(!Targ.Value[1] and !Targ.Value[2])
+//      Err.errortext := "Bledna lokacja (XY)";
+//      return Err;
+    if(Targ.Value[1] > Rlms[Targ.Value[4]].width or Targ.Value[2] > Rlms[Targ.Value[4]].height or Targ.Value[3] < -127 or Targ.Value[3] > 127)
+      Err.errortext := "Wspolrzedne poza zasiegiem swiata ["+Targ.Value[4]+"] (XYZ)";
+      return Err;
+//    elseif(Targ.Value[1] < 0 or Targ.Value[2] < 0)
+//      Err.errortext := "Wspolrzedne negatywne! (XY)";
+//      return Err;
+    else
+      Targ.Type := STRGTYPE_LOC;
+    endif
+  else
+    Targ.Value := CInt(Targ.Value[1]);
+
+    if(Targ.Value)
+      var Obj := FindPlayerBySerial(Targ.Value);
+
+      if(Obj)
+        if(Obj.isa(POLCLASS_ITEM))
+          Targ.Type := STRGTYPE_ITEM;
+        elseif(Obj.isa(POLCLASS_NPC))
+          Targ.Type := STRGTYPE_NPC;
+        elseif(Obj.isa(POLCLASS_MOBILE))
+          Targ.Type := STRGTYPE_MOB;
+        else
+          Err.errortext := "Bledny typ obiektu";
+        endif
+      else
+        Err.errortext := "Obiekt Ser: ["+Targ.Value+"] nie znaleziony";
+      endif
+    else
+      Targ.Type := STRGTYPE_OBJECT; // undefined, expected targobj as a prev act
+    endif
+  endif
+
+  if(Targ.Type == "")
+    return Err;
+  else
+    return 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifySeqTarg(byref Targ, byref aTargTypes)
+
+  var Err := error;
+
+  if(!aTargTypes.size() or !aTargTypes)
+    if(Targ.Type)
+      Err.errortext := "Cel nie jest wymagany.";
+      return Err;
+    endif
+  else
+    if(!(Targ.Type in aTargTypes))
+      Err.errortext := "Bledny cel ["+Targ.Type+"]. Mozliwe cele: ["+CombineWords(aTargTypes)+"]";
+      return Err;
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddSeqData(byref Seq)
+
+  var vRes := VerifySeqData(Seq);
+  if(!vRes)
+    SendSysMessage(who, vRes.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Seq.Time := PolCore().systime;
+  Sequences.append(Seq);
+  SetObjProperty(who, PROP_SEQUENCES, Sequences);
+  SendSysMessage(who, "Dodano nowa sekwencje ID ["+Sequences.size()+"] ["+Seq.Name+"]", FONT_NORMAL, COLOR_BLUE);
+  bMode := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetSeqData(byref Seq)
+
+  if(!_SeqIdx)
+    return;
+  endif
+
+  var vRes := VerifySeqData(Seq);
+  if(!vRes)
+    SendSysMessage(who, vRes.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Seq.Time := PolCore().systime;
+  Sequences[_SeqIdx] := Seq;
+  SetObjProperty(who, PROP_SEQUENCES, Sequences);
+  SendSysMessage(who, "Zmieniono sekwencje ID ["+_SeqIdx+"] ["+Seq.Name+"]", FONT_NORMAL, COLOR_BLUE);
+  bMode := BDMODE_VIEWING;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelSequence()
+
+  if(!_SeqIdx)
+    return;
+  endif
+
+  SendSysMessage(who,"Skasowac sekwencje ID: ["+_SeqIdx+"] ["+Seq.Name+"]", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Skasowac?"))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Sequences.erase(_SeqIdx);
+  SetObjProperty(who, PROP_SEQUENCES, Sequences);
+  SendSysMessage(who, "Skasowano sekwencje ID: ["+_SeqIdx+"] ["+Seq.Name+"]", FONT_NORMAL, COLOR_GREEN);
+  _SeqIdx := 0;
+  Seq  := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSequence(_SeqIdx)
+
+  if(_SeqIdx < 1 or _SeqIdx > Sequences.size())
+    return 0;
+  endif
+
+  var Res := CheckSeqIntegrity(Sequences[_SeqIdx]);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Sekwencja sprawdzona pomyslnie.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlaySequence(_SeqIdx)
+ 
+  if(!CheckSequence(_SeqIdx))
+    return;
+  endif
+
+  Seq := Sequences[_SeqIdx];
+
+  var Obj, sObj, i := 0;
+  var Time := ReadGameClock();
+
+  useTarg := 1;
+  targLoc := 0;
+  targObj := 0;
+  targRealm := _DEFAULT_REALM;
+  
+  foreach Entry in (Seq.Entries)
+    i := i + 1;
+    sleepms(Entry.Delay);
+
+    Obj  := GetSeqTarg(Entry.Targ);
+    sObj := GetSeqTarg(Entry.sTarg);
+
+    if(Obj == error or sObj == error)
+      SendSysMessage(who, "Akcja "+Entry.Name+" ["+i+"]: Nie odnaleziono celu.", FONT_NORMAL, COLOR_RED);
+      continue;
+    endif
+
+    case(Entry.Name)
+      "move":       MoveObject(Obj, sObj.x, sObj.y, sObj.z, sObj.realm, MOVEOBJECT_FORCELOCATION | MOVEITEM_IGNOREMOVABLE, MOVETYPE_CMD);
+                  
+       "run":       SendChEvent(Obj, sObj, EVID_RUN, "priormax");
+
+       "walk":      SendChEvent(Obj, sObj, EVID_WALK, "priormax");
+
+       "act":       PerformAction(Obj, Entry.Params[1]);
+       
+       "light":     PlayLightningBoltEffect(Obj);
+       
+       "eff":       PlayObjectCenteredEffect(Obj, Entry.Params[1], Entry.Params[2], Entry.Params[3]);
+
+       "steff":     PlayStationaryEff(Obj.x, Obj.y, Obj.z, Entry.Params[1], Entry.Params[2], Entry.Params[3], Entry.Params[4], Obj.realm);
+
+       "moveff":    if(Obj.isa(POLCLASS_MOBILE) and sObj.isa(POLCLASS_MOBILE))
+                      PlayMovingEff(Obj, sObj, Entry.Params[1], Entry.Params[2], Entry.Params[3], Entry.Params[4]);
+                    else
+                      PlayMovEffXYZ(Obj.x, Obj.y, Obj.z, sObj.x, sObj.y, sObj.z, Entry.Params[1], Entry.Params[2], Entry.Params[3], Entry.Params[4], Obj.realm);
+                    endif
+
+       "ceff":      PlayPcEffect(Obj, Entry.Params[1], Entry.Params[2], Entry.Params[3], Entry.Params[4], Entry.Params[5]);
+
+       "csteff":    PlayPcStEffect(Obj.x, Obj.y, Obj.z, Obj.realm, Entry.Params[1], Entry.Params[2], Entry.Params[3], Entry.Params[4], Entry.Params[5]);
+
+       "cmoveff":   PlayPcMovEffect(Obj, sObj, Entry.Params[1], Entry.Params[2], Entry.Params[3], Entry.Params[4], Entry.Params[5], Entry.Params[6]);
+
+       "sound":     PlaySoundEffect(Obj, Entry.Params[1]);
+
+       "opropset":  Obj.set_member(Entry.Params[1], Entry.Params[2]);
+
+       "sayabove":  PrintTextAbove(Obj, Entry.Params[1]);
+
+       "smsgnear":  foreach Mob in ListMobilesNearLocation(Obj.x, Obj.y, Obj.z, Entry.Params[1], Obj.realm)
+                      if(IsPlayer(Mob))
+                        SendSysMessage(Mob, Entry.Params[2], FONT_NORMAL, COLOR_STONE);
+                      endif
+                    endforeach
+
+       "targloc":   targLoc := TargetCoordinates(who);
+                    targRealm := who.realm;
+                    sleepms(10);
+       
+       "targobj":   targObj := Target(who, 0);
+                    sleepms(10);
+
+       "targon":    useTarg := 1;
+       
+       "targoff":   useTarg := 0;
+    endcase
+  endforeach
+
+  SendSysMessage(who, "Sekwencja ["+Seq.Name+"] wykonana w ["+(ReadGameClock()-Time)+"] sec.", FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetSeqTarg(byref Targ)
+
+  case(Targ.Type)
+    STRGTYPE_LOC:    return GetSeqLocStruct(Targ.Value);
+
+    STRGTYPE_MOB:    
+    STRGTYPE_NPC:
+    STRGTYPE_ITEM:   var Obj := FindPlayerBySerial(Targ.Value);
+
+                     if(!Obj)
+                       return error;
+                     endif
+
+                     return Obj;
+                     
+    STRGTYPE_OBJECT: return targObj;
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetSeqLocStruct(byref oLoc)
+
+  var Loc    := struct;
+  Loc.+x     := CInt(oLoc[1]);
+  Loc.+y     := CInt(oLoc[2]);
+  Loc.+z     := CInt(oLoc[3]);
+  Loc.+realm := oLoc[4];
+
+  if(!Loc.realm)
+    Loc.realm := _DEFAULT_REALM;
+  endif
+
+  if(targLoc and useTarg)
+    Loc.x := Loc.x + targLoc.x;
+    Loc.y := Loc.y + targLoc.y;
+    Loc.z := Loc.z + targLoc.z;
+    Loc.realm := targRealm;
+  endif
+
+  return Loc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSeqIntegrity(byref Seq)
+
+  var Err     := error;
+  var Objects := dictionary;
+  var i := 1;
+
+  foreach Entry in (Seq.Entries)
+    Err := CheckSeqTarg(Entry.Name, Entry.Targ);
+    if(!Err)
+      Err.errortext := Err.errortext + ", Akcja ["+i+"]";
+      return Err;
+    elseif(Err.isa(POLCLASS_UOBJECT))
+      if(!Objects.exists(Err.serial))
+        var Obj;
+        InitCheckObjData(Obj, Err);
+        Objects[Err.serial] := Obj;
+      endif
+    endif
+
+    Err := CheckSeqTarg(Entry.Name, Entry.sTarg);
+    if(!Err)
+      Err.errortext := "Akcja "+Entry.Name+" ["+i+"]: "+Err.errortext;
+      return Err;
+    endif
+
+    if(Entry.Targ.Type != STRGTYPE_OBJECT and Entry.sTarg.Type != STRGTYPE_OBJECT)
+
+      case(Entry.Name)
+        "move":    Objects[Entry.Targ.Value].x     := Entry.sTarg.Value[1];
+                   Objects[Entry.Targ.Value].y     := Entry.sTarg.Value[2];
+                   Objects[Entry.Targ.Value].z     := Entry.sTarg.Value[3];
+                   Objects[Entry.Targ.Value].realm := Entry.sTarg.Value[4];
+
+        "run":
+        "walk":    if(Objects[Entry.Targ.Value].realm != Entry.sTarg.Value[4])
+                     Err := error;
+                     Err.errortext := "Akcja "+Entry.Name+" ["+i+"]: Swiaty NPCa i lokacji sie nie zgadzaja! ["+Objects[Entry.Targ.Value].realm+" != "+Entry.sTarg.Value[4]+"]";
+                     return Err;
+                   else
+                     var Range := coordist(Objects[Entry.Targ.Value].x, Objects[Entry.Targ.Value].y, Entry.sTarg.Value[1], Entry.sTarg.Value[2]);
+
+                     if(Range > CInt(SeqCfg[Entry.Name].Range))
+                       Err := error;
+                       Err.errortext := "Akcja "+Entry.Name+" ["+i+"]: Zasieg za duzy ["+Range+"] Max: ["+SeqCfg[Entry.Name].Range+"]";
+                       return Err;
+                     endif
+                   endif
+
+                   Objects[Entry.Targ.Value].x     := Entry.sTarg.Value[1];
+                   Objects[Entry.Targ.Value].y     := Entry.sTarg.Value[2];
+                   Objects[Entry.Targ.Value].z     := Entry.sTarg.Value[3];
+                   Objects[Entry.Targ.Value].realm := Entry.sTarg.Value[4];
+      endcase
+    endif
+
+    i := i + 1;
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSeqTarg(byref Name, byref Targ)
+    
+  var Err := error;
+
+  case(Targ.Type)
+    STRGTYPE_LOC:    if(SeqCfg[Name].CheckZ)
+                       var sZ := GetStandZ(Targ.Value[1], Targ.Value[2], Targ.Value[4], Targ.Value[3]);
+                       if(sZ == error)
+                         Err.errortext := "Bledna lokacja, nie osiagalna";
+                         return Err;
+                       endif
+                     endif
+
+    STRGTYPE_MOB:    
+    STRGTYPE_NPC:
+    STRGTYPE_ITEM:   var Obj := FindPlayerBySerial(Targ.Value);
+
+                     if(!Obj)
+                       Err.errortext := "Bledny serial ["+Targ.Value+"], obiekt nie istnieje";
+                       return Err;
+                     endif
+
+                     return Obj;
+                     
+    STRGTYPE_OBJECT: return 1;
+  endcase
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InitCheckObjData(byref Obj, rObj)
+
+  Obj         := struct;
+  Obj.+x      := rObj.x;
+  Obj.+y      := rObj.y;
+  Obj.+z      := rObj.z;
+  Obj.+realm  := rObj.realm;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindandPlaySeq( sName )
+
+  _SeqIdx := 0;
+  var i := 1;
+  var lsName := lower(sName);
+
+  foreach Seq in Sequences
+    if(lower(Seq.Name)[lsName])
+      _SeqIdx := i;
+      break;
+    endif
+    i := i + 1;
+  endforeach
+
+  if(!_SeqIdx and CInt(sName))
+    if(CInt(sName) > 1 and CInt(sName) <= Sequences.size())
+      _SeqIdx := CInt(sName);
+    endif
+  endif
+
+  if(!_SeqIdx)
+    SendSysMessage(who, "Nie znaleziono sekwencji "+sName+".", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Odgrywanie sekwencji ID: ["+_SeqIdx+"] ["+Sequences[_SeqIdx].Name+"]", FONT_NORMAL, COLOR_BLUE);
+  PlaySequence(_SeqIdx);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CopySeqFromTarg(who, Id)
+
+  if(!Id)
+    SendSysMessage(who, ".seq copy id", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Od kogo skopiowac sekwencje ID: ["+Id+"]", FONT_NORMAL, COLOR_GREEN);
+  var Targ := ObjTarget(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  else
+    var tSequences := GetObjProperty(Targ, PROP_SEQUENCES);
+    if(!tSequences)
+      SendSysMessage(who, "Ta osoba nie posiada sekwencji.", FONT_NORMAL, COLOR_RED);
+    elseif(tSequences.size() < Id)
+      SendSysMessage(who, "Ta osoba nie ma sekwencji ID ["+Id+"].", FONT_NORMAL, COLOR_RED);
+    else
+      Sequences.append(tSequences[Id]);
+      SetObjProperty(who, PROP_SEQUENCES, Sequences);
+      SendSysMessage(who, "Skopiowano sekwencje ID ["+Id+"] ["+tSequences[Id].Name+"] na ID ["+Sequences.size()+"]", FONT_NORMAL, COLOR_GREEN);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

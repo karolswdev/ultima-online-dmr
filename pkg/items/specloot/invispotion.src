@@ -1,0 +1,48 @@
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/effects";
+include ":alchemy:potion";
+
+program InsivibilityPotion(who, Potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(CInt(GetObjProperty(who,"#ThrowTime")) > ReadGameClock())
+    SendSysMessage(who,"Musisz chwile odczekac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Loc := LocTarget( who );
+
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(coordist(Loc.x, Loc.y, who.x, who.y) > 7)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetObjProperty(who,"#ThrowTime",ReadGameClock() + 7);
+
+  if(!ThrowPotion(who,Loc,Potion,-1))
+    return;
+  endif
+
+  foreach Mob in ListMobilesNearLocation(Loc.x, Loc.y, Loc.z, 3, who.realm)
+    if(IsPlayer(Mob))
+      HidePlayer(Mob);
+    endif
+  endforeach
+
+  var i;
+
+  for(i:=0; i<20; i+=1)
+    PlayStationaryEff(Loc.x-3+RandomInt(6), Loc.y-3+RandomInt(6), Loc.z, FX_SMOKE, 0xf, 0xf, 4, who.realm); 
+  endfor
+
+endprogram
+
+//-----------------------------------------------------------------------------

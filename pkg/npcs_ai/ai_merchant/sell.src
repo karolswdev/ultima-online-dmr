@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+
+include ":ai_merchant:const";
+include ":ai_merchant:utils/misc";
+include ":ai_merchant:utils/packets";
+
+//-----------------------------------------------------------------------------
+
+program NpcSpeechSell(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  var MercBox := GetMercBox(Data.npc.npctemplate);
+  var OldBox  := GetMercOldBox();
+
+  var sItems  := array;
+  var dItems  := ListItemsToSell(Data.source, Data._AI_Merchant.City, Data._AI_Merchant.BuyItems);
+
+  foreach Item in dItems
+    sItems.append( array(Item[1][1], Item[2], Item[3]) );
+  endforeach
+
+  if(sItems.size() == 0)
+    NpcSpeechSay(Data.npc, Data.source, AI_SPID_EMPTY_SELL);
+    return;
+  endif
+
+  var Res := SendSellPacket(Data.source, Data.npc, MercBox, OldBox, sItems);
+
+  if(!Res)
+    LogError("[AI:"+Data.npc.serial+"/"+Data.npc.npctemplate+"]: Wystapil blad podczas wysylania gumpa sprzedazy: "+Res, LOGF_SCRIPTS);
+  else
+    sleep(2); // aby wydluzyc czas handlera
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

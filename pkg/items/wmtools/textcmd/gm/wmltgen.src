@@ -1,0 +1,108 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-26
+// Modified: 2011-04-26
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/items/utils";
+include "include/objects/location";
+
+include ":itemsets:definition";
+
+include ":wmtools:wml_common";
+include ":wmtools:wmultis";
+include ":wmtools:statics";
+
+//-----------------------------------------------------------------------------
+
+const MULTIS_CFG := SHARECFG_PKG + "multis";
+
+//-----------------------------------------------------------------------------
+
+program WMultisGeneration(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  UnloadConfigFile(MULTIS_CFG);
+
+  var multiCfg := ReadConfigFile(MULTIS_CFG);
+  var Keys     := GetConfigStringKeys(multiCfg);
+
+  if(multiCfg and Keys.size())
+    SendSysMessage(who, "Plik "+MULTIS_CFG+" zawiera wpisy. Wyczysc go najpierw.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Groups := GetWmlGroups();
+  var Count := 0;
+
+  foreach wmlName in Groups
+    if(ExportWmlGroup(wmlName))
+      SendSysMessage(who, "Eksportowanie grupy WML: "+wmlName+"...", FONT_NORMAL, COLOR_GREEN);
+      Count += 1;
+    endif
+  endforeach
+
+  SendSysMessage(who, "Wyeksportowano "+Count+" grup WML do "+MULTIS_CFG+".", FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ExportWmlGroup(wmlId)
+
+  var wmlGroup := GetWmlGroup(wmlId);
+
+  var Status := wmlGroup.GetProp("Status");
+  if(Status == "Exist")
+    return;
+  endif
+
+  var Props := array;
+  var Prop  := array;
+  Prop.+pname;
+  Prop.+pvalue;
+
+  var Items := wmlGroup.GetProp("Items");
+
+  // jezeli status Removed - to patch gen bedzie wiedzial co z tym zrobic
+  // - podwojnie zakomentowane // jesli brak itemow, to ustaw tylko propa Delete. PatchGen bedzie wiedzial co z tym zrobic ;)
+  if(!Status == "Removed")
+    Prop.pname := "Delete";
+    Prop.pvalue := 1;
+    Props.append(Prop);
+    AppendConfigFileElem(MULTIS_CFG, "Multi", hex(wmlId), Props);
+    return 1;
+  endif
+
+  // dla domow trzeba wpierdzielic specjalny objtype 1 z lokacja 0,0,0
+  // pewnie kiedys ktos z originu mial problem z przesunieciem multi i wyjebal taka przestraszna chujnie, przez ktora kazdy musi teraz cierpiec
+  // JUST DIE BITCH 
+
+  if(wmlId >= 100)
+    Prop.pname  := "dynamic";
+    Prop.pvalue := "0x1 0 0 0 0x0";
+    Props.append(Prop);
+  endif
+
+  foreach Item in Items
+    Prop.pname  := __ifelse(Item.visible, "static", "dynamic");
+    Prop.pvalue := hex(Item.objtype)+" "+Item.x+" "+Item.y+" "+Item.z+" "+hex(Item.color);
+    Props.append(Prop);
+  endforeach
+  
+  AppendConfigFileElem(MULTIS_CFG, "Multi", hex(wmlId), Props);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,123 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/findcity";
+include "include/items";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+var column;
+var column_array := {};
+
+//-----------------------------------------------------------------------------
+
+program CreateDruidhenge(character, druidhenge)
+
+  if(!character.cmdlevel)
+    SendSysMessage (character, "Nie mozesz tego uzyc.", FONT_NORMAL, COLOR_RED);
+    DestroyItem (druidhenge);
+  endif
+
+  if(druidhenge.container)
+    SendSysMessage (character, "Musisz polozyc kamien w na ziemi.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage (character, "Czy chcesz to tu postawic?");
+  if(!YesNo (character, "Tutaj?"))
+    SendSysMessage (character, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  column := CreateItemAtLoc (druidhenge.x-3, druidhenge.y-5, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+3, druidhenge.y-5, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x-3, druidhenge.y+9, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+3, druidhenge.y+9, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+
+  column := CreateItemAtLoc (druidhenge.x-7, druidhenge.y-1, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x-7, druidhenge.y+5, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+7, druidhenge.y-1, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+7, druidhenge.y+5, druidhenge.z, 0x1cf, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+
+  column := CreateItemAtLoc (druidhenge.x-3, druidhenge.y-5, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+3, druidhenge.y-5, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x-3, druidhenge.y+9, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+3, druidhenge.y+9, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+
+  column := CreateItemAtLoc (druidhenge.x-7, druidhenge.y-1, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x-7, druidhenge.y+5, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+7, druidhenge.y-1, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column := CreateItemAtLoc (druidhenge.x+7, druidhenge.y+5, druidhenge.z+20, 0x788, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+
+  column := CreateItemAtLoc (druidhenge.x-2, druidhenge.y-1, druidhenge.z, 0x1647, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column.facing := 29;
+  column.color := 31;
+  column := CreateItemAtLoc (druidhenge.x-2, druidhenge.y+3, druidhenge.z, 0x1647, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column.facing := 29;
+  column.color := 31;
+  column := CreateItemAtLoc (druidhenge.x+2, druidhenge.y-1, druidhenge.z, 0x1647, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column.facing := 29;
+  column := CreateItemAtLoc (druidhenge.x+2, druidhenge.y+3, druidhenge.z, 0x1647, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column.facing := 29;
+  column := CreateItemAtLoc (druidhenge.x, druidhenge.y+1, druidhenge.z, 0x1647, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+  column.facing := 29;
+    
+  column := CreateItemAtLoc (druidhenge.x-1, druidhenge.y, druidhenge.z, 0x1dc5, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+
+  column := CreateItemAtLoc (druidhenge.x+1, druidhenge.y, druidhenge.z, 0x1dc4, 1, druidhenge.realm);
+  column.movable := 0;
+  column_array.append(column.serial);
+
+  var DruidTable := CreateItemAtLoc(druidhenge.x, druidhenge.y, druidhenge.z, 0x7090, 1, druidhenge.realm);
+
+  SetObjProperty (DruidTable, "placed_stones", column_array);
+  DestroyItem(druidhenge);
+
+endprogram
+
+//-----------------------------------------------------------------------------

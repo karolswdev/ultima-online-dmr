@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program CenCheckControl(who,text)
+
+  case(text)
+    "gon":   GlobalCenCheckLog(who,"On");
+    "goff":  GlobalCenCheckLog(who,"Off");
+    "on":    CenCheckLog(who,"On");
+    "off":   CenCheckLog(who,"Off");
+    default: SendSysMessage(who,".cencheck [gon/goff/on/off]",FONT_NORMAL,COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GlobalCenCheckLog(who,Status)
+
+  SetGlobalProperty("CenCheckLog",Status);
+  SendSysMessage(who,"Zmieniono status GlobalCenCheck na : " + Status,FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CenCheckLog(who,Status)
+
+  var Targ := ObjTarget(who);
+  if(IsPlayer(Targ))
+    SetObjProperty(Targ,"CenCheckLog",Status);
+    SendSysMessage(who,"Zmieniono status CenCheck ["+Targ.name+"] na : " + Status,FONT_NORMAL,COLOR_GREEN);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

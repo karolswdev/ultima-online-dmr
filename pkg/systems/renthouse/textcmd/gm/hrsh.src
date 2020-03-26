@@ -1,0 +1,132 @@
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/move";
+
+include "../../renthouse";
+
+//-----------------------------------------------------------------------------
+
+program ShowRentHouses(who,text)
+ 
+  SetLogRunCycles(LST_CMD);
+
+  if(text)
+    text := SplitWords(text);
+    case(text[1])
+      "go":    GoToHr(who,text[2],text[3]);
+               return;
+      "city":  ShowHrInCity(who,text[2]);
+               return;
+    endcase
+  endif
+  
+  ShowCities(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ShowCities(who)
+
+  GInit(50,50);
+  GResPic(0,0,3600,400,380);
+  GPage();
+  GTextLine(120,20,550, "Wybierz Miasto");
+  GTextLine(60,340,550,"Anuluj");
+  GButton(30,340,2714, 2715,0);
+
+  GAddPageData(367,19,2650,2651,367,343,2648,2647);
+
+  var i := 1;
+  var Cities := GetCities();
+  var Houses;
+
+  foreach City in Cities
+    GCheckNextPage(14);
+    GButton(30,(GNPCount()*20)+50,2714, 2715,i);
+    GTextLine(60,(GNPCount()*20)+50,560,City);
+    Houses := GetCityHouses(City);
+    GTextLine(300,(GNPCount()*20)+50,570,CInt(Houses.size()));
+    i := i + 1;
+  endforeach
+  
+  var Res := GSend(who)[0];
+  
+  if(Res)
+    ShowHrInCity(who,Cities[Res]);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowHrInCity(who,City)
+
+  if(!City or !(City in GetCities()))
+    SendSysMessage(who,".hrsh city [cityname]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  GInit(50,50);
+  GResPic(0,0,3600,500,380);
+  GPage();
+  GTextLine(120,20,550, "Domy w miescie "+City);
+  GTextLine(60,340,550,"Anuluj");
+  GButton(30,340,2714, 2715,0);
+
+  GAddPageData(467,19,2650,2651,467,343,2648,2647);
+
+  var i := 1;
+  var Houses := GetCityHouses(City);
+  var Sign;
+
+  foreach House in Houses
+    Sign := FindHrSign(House);
+    GCheckNextPage(14);
+    GButton(30,(GNPCount()*20)+50,2714, 2715,CInt(House.HouseNr));
+    GTextLine(60,(GNPCount()*20)+50,550,House.HouseNr);
+    GTextLine(260,(GNPCount()*20)+50,560,CLStr(GetOwner(Sign).name));
+    if(IsAdmin(who) and GetOwnerSerial(Sign))
+      GButton(450,(GNPCount()*20)+50,2714, 2715,1000+CInt(House.HouseNr));
+    endif
+    GTextLine(120,(GNPCount()*20)+50,570,"x: " + House.Mx + " y: " + House.My);
+    GTextLine(120,(GNPCount()*20)+50,570,"x: " + House.Mx + " y: " + House.My);
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  if(Res > 1000)
+    SendSysMessage(who,"Napewno chcesz zwolnic HR "+(Res-1000)+"?",FONT_NORMAL,COLOR_GREEN);
+    if(!YesNo(who,"Napewno"))
+      return;
+    endif
+    EraseRentHouse(Houses[Res-1000]);
+    SendSysMessage(who,"Zwolnil"+ggm(who,3)+" HR "+(Res-1000),FONT_NORMAL,COLOR_GREEN);
+  elseif(Res)
+    GoToHr(who,City,Res);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToHr(who,City,Nr)
+
+  var Houses := GetCityHouses(City);
+
+  foreach House in Houses
+    if(CInt(House.HouseNr) == CInt(Nr))
+      MoveObject(who,CInt(House.Mx),CInt(House.My),CInt(House.SignZ),GetCityRealm(House.City),MOVECHAR_FORCELOCATION);
+      SendSysMessage(who,"Przenoszenie do domu Nr ["+Nr+"] Miasto - "+City,FONT_NORMAL,COLOR_GREEN);
+      return;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Nie znaleziono domu Nr ["+Nr+"] Miasto - "+City,FONT_NORMAL,COLOR_RED);
+  SendSysMessage(who,".hrsh go [city] [hrnr]",FONT_NORMAL,COLOR_RED);
+
+endfunction
+
+//-----------------------------------------------------------------------------

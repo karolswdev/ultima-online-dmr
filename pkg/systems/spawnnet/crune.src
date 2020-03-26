@@ -1,0 +1,56 @@
+//-----------------------------------------------------------------------------
+
+include "spawnrune";
+include "spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program CreateRune(Rune)
+
+  var i := 0;
+
+  foreach SRune in ListItemsNearLocationOfType(Rune.x,Rune.y,Rune.z,0,UOBJ_SRUNE,Rune.realm)
+    if(SRune != Rune)
+      return 0;
+    endif
+  endforeach
+
+  if(!GetGlobalProperty("CanCreateSpawnRunes"))
+    return 0;
+  endif
+
+  if(CInt(GetGlobalProperty("#AddingSpawnRunePid")))
+    while(GetProcess(CInt(GetGlobalProperty("#AddingSpawnRunePid"))))
+      sleepms(1000);
+    endwhile
+  endif
+
+  SetGlobalProperty("#AddingSpawnRunePid",GetPid());
+
+  var GRune,MaxNr := GetMaxSRuneNr(),Empty := 0;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    GRune := FindRuneByNr(i);
+    if(!GRune)
+      Empty := i;
+      break;
+    endif
+  endfor
+
+  var Nr;
+
+  if(Empty)
+    Nr := Empty;
+  else
+    Nr := CInt(MaxNr + 1);
+    SetGlobalProperty("LastSpawnRuneNr",Nr);
+  endif
+
+  SetGlobalProperty(SR_SER_FLAG+CStr(Nr),{Rune.x,Rune.y,Rune.z,Rune.serial,Rune.realm});
+  SetObjProperty(Rune,"RuneNr",Nr);
+  EraseGlobalProperty("#AddingSpawnRunePid");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

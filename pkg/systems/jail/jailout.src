@@ -1,0 +1,87 @@
+//--------------------------------------------------------------------------------
+
+include "jail";
+include "include/finding";
+include "include/move";
+include "include/logerror";
+
+//--------------------------------------------------------------------------------
+
+program JailControl(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  var Jailed, i, JailProps, JailCoords, whoSerial, who;
+
+  while(1)
+
+    Jailed := GetGlobalProperty("JailedPersons");
+
+    if(Jailed)
+
+      foreach JailEntry in Jailed
+
+        whoSerial  := _JailEntry_iter;
+        who        := FindPlayerBySerial(whoSerial);
+        JailCoords := JailEntry["Coords"];
+
+        if(!who)
+
+          LogNotice("Nie mozna znalezc osoby w celi "+JailEntry["Cell"][1]+":"+JailEntry["Cell"][2]+"! Usuwanie osoby z celi.");
+          EraseJailed(whoSerial);
+
+        else
+
+          if(IsJailed(who))
+
+            if(!who.frozen)
+              who.frozen := 1;
+            endif
+
+            JailProps  := GetJailProps(who);
+
+            if(CInt(JailCoords[1]) != who.x or CInt(JailCoords[2]) != who.y or who.realm != JailCoords[4])
+              MoveObject(who, CInt(JailCoords[1]), CInt(JailCoords[2]), CInt(JailCoords[3]), JailCoords[4],MOVECHAR_FORCELOCATION);
+
+            endif
+
+            if(JailProps[2] + JailProps[3] < ReadGameclock())
+              SendSysMessage(who, "Twa kara dobiegla konca.",FONT_NORMAL,COLOR_BLUE);
+              sleep(5);
+
+              if(!who)
+                who := FindPlayerBySerial(whoSerial);
+              endif
+			  
+			  MoveObject(who, 1725, 856, 0, 1);
+			  who.frozen := 0;
+
+              if(who)
+                FreeFromJail(who);
+              else
+                EraseJailed(whoSerial);
+              endif
+            endif
+
+          else
+
+            EraseJailed(who.serial);
+
+          endif
+
+        endif
+
+      endforeach
+
+    endif
+
+    sleep(60);
+
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+

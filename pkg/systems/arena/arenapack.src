@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include "arena";
+include ":banking:common";
+include "include/finding";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+var BankBox;
+
+//-----------------------------------------------------------------------------
+
+program ArenaPackControl(ArenaPack)
+
+  while(ArenaPack)
+    foreach packitem in ListRootItemsInContainer(ArenaPack)
+      if(!GetObjProperty(packitem,"DropTime"))
+        SetObjProperty(packitem,"DropTime",ReadGameClock());
+      endif
+      if(CInt(GetObjProperty(packitem,"DropTime")) + CHEST_DROP_TIME < ReadGameClock())
+        BankBox := FindBankBox(FindItemOwner(packitem));
+        if(BankBox)
+          if(!MoveItemToContainer(packitem,BankBox))
+            DestroyItem(packitem);
+          endif
+        else
+          DestroyItem(packitem);
+        endif
+      endif
+    endforeach
+    sleep(CInt(CHEST_DROP_TIME / 25));
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/dices";
+include "include/poison";
+include "lore";
+
+include ":magicitems:magicitems";
+include ":alchemy:potion";
+
+//-----------------------------------------------------------------------------
+
+program ArmorerLore( who )
+
+  if(!CheckSkillUse(who, SKILLID_ARMORER))
+    return;
+  endif
+
+  SendSysMessage( who, "Wybierz przedmiot ktory chcesz ocenic." ,FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+  
+  if(!StandardItemCheck(who, item))
+    return;
+  endif
+
+  SetBusyTime(who, GetSkillDelay(SKILLID_ARMORER));
+    
+  SendItemDescription(who, item, SKILLID_ARMORER);
+
+endprogram
+
+//-----------------------------------------------------------------------------

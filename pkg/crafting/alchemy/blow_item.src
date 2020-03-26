@@ -1,0 +1,136 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/buildings";
+
+include ":quests:quest_ctrl";
+include ":crafting:common";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+include ":artifacts:artifacts";
+
+include "potion";
+include "potionkeg/potionkeg";
+
+//-----------------------------------------------------------------------------
+
+program BlowCraftItem(Params)
+
+  var who := Params[1];
+  var Pipe := Params[2];
+  var CraftData := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Pipe))
+    return;
+  endif
+  
+  var Materials := DefineCraftMaterials();
+
+  if(!PrepareCraft(who, CraftData.objtype, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_ALCHEMY, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Pipe, CraftData.objtype, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, ObjType, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":alchemy:glassblow");
+
+  var Amount  := Cint(SkillCfg[ObjType].Material);
+
+  AddCraftMaterial(Materials, who.backpack, UOBJ_GLASS, Amount);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, Pipe, ObjType, byref IterData, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":alchemy:glassblow");
+
+  var Cont := Pipe.container;
+  
+  if(!Cont or !Cont.isa(POLCLASS_CONTAINER))
+    Cont := who.backpack;
+  endif
+
+  var Diff      := Cint(SkillCfg[ObjType].Skill);
+  var Points    := GetCraftPoints(SKILLID_ALCHEMY, Diff);
+  var ProdAmount;
+
+  if(!Cint(SkillCfg[ObjType].ProdAmount))
+    ProdAmount  := CInt(1 + CInt(GetBaseSkill(who, SKILLID_ALCHEMY)/25) + CInt(GetOverSkill(who, SKILLID_ALCHEMY)/4));
+  else
+    ProdAmount  := Cint(SkillCfg[ObjType].ProdAmount) + CInt(GetOverSkill(who, SKILLID_ALCHEMY)/5);
+  endif
+
+  if(!ProdAmount or !IsStackableObj(ObjType))
+    ProdAmount := 1;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, 1);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, 1);
+  CraftIterationGump(who, IterData, 1);
+
+  if(!CraftPreDelay(who, Materials, 1, 0x230))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, pipe, SKILLID_ALCHEMY, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who, SKILLID_ALCHEMY, Diff, 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData)+" rozbil"+ggm(who,3)+" szklo!", FONT_NORMAL, COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, 1, 0x230))
+    return 0;
+  endif
+
+  var TheItem := CreateItemInCont(Cont,GetMadeDescriptor(ObjType, who, MTYPE_GLASS, 1),ProdAmount,who);
+
+  if(!TheItem)
+    SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who, GetCraftIterDesc(IterData)+" stworzyl"+ggm(who, 3)+" przedmiot i wlozyl"+ggm(who, 3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
+  AwardPoints(who, SKILLID_ALCHEMY, Points, GAIN_RESTRICT, Diff);
+  SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_ALCHEMY, array(TheItem, 0));
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

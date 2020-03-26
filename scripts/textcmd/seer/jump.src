@@ -1,0 +1,61 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+program JumpCmd(who, text)
+
+  if(!text)
+    SendSysMessage(who, "Wpisz kierunek. [n/s/w/e].", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var dir := lower(text[1]);
+  var x, y, z, where;
+  var lx := who.x;
+  var ly := who.y;
+  var lz := who.z;
+
+  case(dir)
+    "n": x := who.x;
+         y := who.y - 50;
+         z := GetWorldHeight(x, y, who.realm);
+         if(!CInt(z))
+           z := 1;
+         endif
+         where := MoveObject(who, x, y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD );
+    "s": x := who.x;
+         y := who.y + 50;
+         z := GetWorldHeight(x, y, who.realm);
+         if(!CInt(z))
+           z := 1;
+         endif
+         where := MoveObject(who, x, y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD );
+    "e": x := who.x + 50;
+         y := who.y;
+         z := GetWorldHeight(x, y, who.realm);
+         if(!CInt(z))
+           z := 1;
+         endif
+         where := MoveObject(who, x, y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD );
+    "w": x := who.x - 50;
+         y := who.y;
+         z := GetWorldHeight(x, y, who.realm);
+         if(!CInt(z))
+           z := 1;
+         endif
+         where := MoveObject(who, x, y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD );
+  endcase
+
+  if(!where)
+    SendSysMessage(who, "Dir: " + Upper(dir) + " [ "+lx+","+ly+","+lz+" ] !> [ "+x+","+y+","+z+" ]",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who, "Dir: " + Upper(dir) + " [ "+lx+","+ly+","+lz+" ] => [ "+x+","+y+","+z+" ]",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endprogram
+
+
+//-----------------------------------------------------------------------------

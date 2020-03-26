@@ -1,0 +1,65 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_BASE;
+const WW_WCID                := 20;
+
+//-----------------------------------------------------------------------------
+
+program WwStopMorph(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastLoc)
+
+  if(GetBaseskill(Caster, SKILLID_WEARWOLF) < 100) 
+    WcFizzleId(Caster, "Jestes jeszcze za slaby aby uzyc tego runa!", WW_WCID);
+    return 0;
+  endif
+    
+  
+  if(IsWolfMorphed(Caster))
+    WcFizzleId(Caster, "Musisz byc w ludzkiej formie!", WW_WCID);
+    return 0;
+  endif
+
+
+  if(IsInGa(Caster.x, Caster.y, Caster.realm) or IsInGa(CastLoc.x, CastLoc.y, Caster.realm))
+    Fizzle(Caster,"Magia w tym miejscu slabo dziala...");
+    return;
+  endif
+
+  var currHour := GetHour();
+  var currDay := GetDay();
+
+  if(GetObjProperty(Caster, "WearwolfStopped") == currDay and currHour < ConvertToTime(WW_START_HOUR - 1))
+    WcFizzleId(Caster, "Jestes juz pod wplywem tego czaru!", WW_WCID);
+    return 0;
+  elseif(currHour < ConvertToTime(WW_START_HOUR - 1) and currHour >= WW_END_HOUR)
+    SetObjProperty(Caster, "WearwolfStopped", currDay);
+  else
+    WcFizzleId(Caster, "Przemiana juz trwa!", WW_WCID);
+    return 0;
+  endif
+  
+  
+  PlayStationaryEff( caster.x, caster.y, caster.z, FX_BLESS_EFFECT, 0xa, 0xa, 0, Caster.realm);
+  PlaySoundEffect( caster, SFX_SPELL_PROTECTION );
+
+  GainWarcastPoints(Caster, Caster, WW_WCID, WCGAIN_NORMAL);
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+

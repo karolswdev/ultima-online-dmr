@@ -1,0 +1,105 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/skills";
+include "include/items";
+
+include "beeheeve";
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+const RAISE_TIME := 120;
+const UOBJ_BEES  := 0xA296;
+
+//-----------------------------------------------------------------------------
+
+var bees;
+
+//-----------------------------------------------------------------------------
+
+program ControlBeeHeeve(beeheeve)
+
+  sleep(1+RandomInt(4));
+
+  bees := FindOrCreateBees(Beeheeve);
+
+  while(beeheeve)
+    if(!GetObjProperty(beeheeve,"NextRaise"))
+      SetObjProperty(beeheeve,"NextRaise",ReadGameClock()+CInt(RAISE_TIME*2));
+    endif
+
+    if(!GetObjProperty(beeheeve,"WAmount"))
+      SetObjProperty(beeheeve,"WAmount",0);
+    endif
+    if(!GetObjProperty(beeheeve,"HAmount"))
+      SetObjProperty(beeheeve,"HAmount",0);
+    endif
+
+    if(GetObjProperty(beeheeve,"WAmount") <= 2 and GetObjProperty(beeheeve,"HAmount") <= 2)
+      if(!bees)
+        FindOrCreateBees(beeheeve);
+      endif
+      if(!bees.invisible)
+        bees.invisible := 1;
+      endif
+    endif
+
+    if(GetObjProperty(beeheeve,"NextRaise") < ReadGameClock())
+      if(GetObjProperty(beeheeve,"WAmount") <= 5 and GetObjProperty(beeheeve,"HAmount") <= 5 and GetObjProperty(beeheeve,"WAmount") > 2 and GetObjProperty(beeheeve,"HAmount") > 2)
+        if(!bees)
+          FindOrCreateBees(beeheeve);
+        endif
+        if(bees.invisible)
+          bees.invisible := 0;
+        endif
+        if(bees.graphic != UOBJ_SMALLBEES)
+          bees.graphic := UOBJ_SMALLBEES;
+        endif
+      endif
+
+      if(GetObjProperty(beeheeve,"HAmount") > 5 or GetObjProperty(beeheeve,"WAmount") > 5)
+        if(!bees)
+          FindOrCreateBees(beeheeve);
+        endif
+        if(bees.invisible)
+          bees.invisible := 0;
+        endif
+        if(bees.graphic != UOBJ_BIGBEES)
+          bees.graphic := UOBJ_BIGBEES;
+        endif
+      endif
+
+      if(GetObjProperty(beeheeve,"HAmount") < 15)
+        SetObjProperty(beeheeve,"HAmount",GetObjProperty(beeheeve,"HAmount")+1);
+      endif
+      if(GetObjProperty(beeheeve,"WAmount") < 15)
+        SetObjProperty(beeheeve,"WAmount",GetObjProperty(beeheeve,"WAmount")+1);
+      endif
+      SetObjProperty(beeheeve,"NextRaise",ReadgameClock()+RAISE_TIME );
+    endif
+
+    sleep(40+RandomInt(30));
+
+  endwhile
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindOrCreateBees(beeheeve)
+
+  if(!bees)
+    bees := FindItemBySerial(GetObjProperty(beeheeve,"Bees"));
+  endif
+  if(!bees)
+    bees := CreateItemAtLoc(beeheeve.x,beeheeve.y,beeheeve.z+3,UOBJ_BEES,1,beeheeve.realm);
+    SetObjProperty(beeheeve,"Bees",bees.serial);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

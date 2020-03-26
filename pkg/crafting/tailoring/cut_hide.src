@@ -1,0 +1,123 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/dirs";
+
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+program CutHideHarvest(Params)
+
+  var who := Params[1];
+  var scissors := Params[2];
+  var Hide := Params[3];
+
+  if(!StandardItemCheck(who, scissors))
+    return;
+  endif
+
+  if(!StandardItemCheck(who, Hide))
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareHarvest(Hide, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_TAILORING, CRAFT_MAX_ITERATIONS, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CutHide(who, scissors, Hide, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareHarvest(Hide, byref Materials)
+
+  Materials := DefineCraftMaterials();
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+  AddCraftMaterialItem(Materials, Hide, 1);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CutHide(who, scissors, Hide, byref IterData, byref Materials)
+
+  var ItemCfg      := ReadConfigFile(ITEMS_CFG);
+  var LeatherObj   := CInt(ItemCfg[Hide.objtype].LeatherObj);
+  var Diff         := CInt(ItemCfg[Hide.objtype].Skill);
+  var harvData     := GetHarvested(Hide);
+  var ProdAmount   := GetHarvestAmount(who, SKILLID_TAILORING);
+  var Points       := GetHarvestProcessPoints(SKILLID_TAILORING, Diff);
+  var cont;
+
+  if(Hide.container)
+    cont := Hide.container;
+  else
+    cont := who.backpack;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+  
+  if(!CheckToolWear(who, scissors, SKILLID_TAILORING, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who, SKILLID_TAILORING, Diff, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Zniszczyl"+ggm(who,3)+" troche materialu!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+  
+  var itmDesc := GetHarvestDescriptorForData(LeatherObj, harvData);
+  var Leather := CreateItemInCont(cont, itmDesc, ProdAmount, who );
+
+  if(Leather)
+    AwardPoints(who, SKILLID_TAILORING, Points, NO_STAT_AWARD | GAIN_RESTRICT, Diff);
+    SendSysmessage(who, GetCraftIterDesc(IterData) + " Poci"+ggm(who,5)+" troche skor i wlozy"+ggm(who,3)+" je do plecaka.", FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w pojemniku!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,533 @@
+use datafile;
+use uo;
+
+include ":marketplace:common";
+include "include/gumpboxes";
+include "include/checks/stdchecks";
+include "include/clock";
+include "include/speech";
+include "include/const/cfgs";
+include "include/names";
+include ":banking:common";
+include ":housing:housing";
+include ":fences:fences";
+include ":carpentry:deeds";
+include ":carpets:rolls";
+include "include/checks/objchecks";
+include "include/items";
+
+var who, sign, Stall,vendor,box,renttime;
+
+program singGump(_who, _sign)
+    
+  
+  who   := _who;
+  sign  := _sign;
+  
+  if(!StandardItemCheck(who,sign,NO_MOVABLE_CHECK | NO_COMBAT_CHECK))
+    return;
+  endif
+
+  DataFile :=  GetDataFile(MP_FILE);
+  Stall := DataFile.FindElement(sign.serial);
+
+  if(!Stall)
+    LogError("MarketPlace: Nie istnieje DataFileElement: " + sign.serial, LOGF_SCRIPTS);
+    SendSysMessage(who, "Ten znak wyglada na uszkodzony.", FONT_NORMAL, COLOR_RED);
+  endif
+  var number := RetIndex(DataFile.Keys(), sign.serial);
+  
+  var state,height;
+  var range,price,owner,renttime,enabled, locked,cash;
+
+  SetObjProperty(sign,PROP_MP_GUMP_PID,GetPid());
+
+  while(1)
+    range := Stall.GetProp(MP_STALL_RANGE);
+    price  := Stall.GetProp(MP_STALL_PRICE);
+    owner := Stall.GetProp(MP_STALL_OWNER);
+    renttime := Stall.GetProp(MP_STALL_RENTED);
+    vendor := SystemFindObjectBySerial(CInt(Stall.GetProp(MP_STALL_VENDOR)));
+    box := Stall.GetProp(MP_STALL_BOX);
+    enabled := Stall.GetProp(MP_STALL_ENABLED);
+    cash := CInt(Stall.GetProp(MP_STALL_CASH));
+    locked := Stall.GetProp(MP_STALL_LOCKED);
+    if(locked == error)
+      locked := array;
+      Stall.SetProp(MP_STALL_LOCKED,locked);
+    endif
+
+    if (!range or !price)
+      state := error;
+      height := 160;
+    elseif(!owner)
+      state := 1;
+      height := 270;
+    else
+      state := 0;
+      if(who.serial == owner or IsGM(who))
+        height := 335;
+      else
+        height := 220;
+      endif
+    endif
+
+    height += 20;
+
+    
+    GInit(100,100);
+    if(IsGM(who))
+      GResPic(320,0,BKGND_BLACKSLAB ,470,100);
+      GTextLine( 365, 20, 55, "Zasieg:");
+      if(range)
+        GTextLine( 430, 20, 55, "sX: " + range[1] + " sY: " + range[2] + " : eX: " + range[3] + " eY: " + range[4] + " : " + range[5] );
+      endif
+      GButton(340,  22,  2117,2118,1001);
+      GTextLine( 365, 40, 55, "Cena:");
+      if(price)
+        GTextLine( 430, 40, 55, price/1000 + " k gp" );
+      endif
+      GButton(340,  42,  2117,2118,1002);
+      GTextLine( 590, 40, 55, "Obroc");
+      GButton(565,  42,  2117,2118,1003);
+      GTextLine( 365, 60, 55, "Zniszcz");
+      GButton(340,  62,  2117,2118,1004);
+    endif
+    GResPic(0,0,BKGND_BLACKSLAB ,320,height);
+    GGumpPic( 79, 30, 0x67 );
+    GTextLine( 120, 50, COLOR_WHITE, "Stragan: " + CStr(number));
+    if(state == error)
+      GTextLine( 120, 80, 55, "Niedostepny");
+    elseif(state)
+  
+      GTextLine( 117, 80, 55, "Do wynajecia");
+      GTextLine( 100, 150, COLOR_WHITE, "Chce wynajac:");
+      GButton(190,150,2714,2715,2001);
+      GTextLine( 40, 180, COLOR_YELLOW, "Cena: " + CInt(price)/1000 + " 000 gp");
+      GTextLine( 180, 180, COLOR_YELLOW, "Czas: " + DescGameTime(MP_RENT_TIME));
+      GTextLine( 40, 200, COLOR_YELLOW, "Handlarze: " + MP_MAX_VENDORS);
+      GTextLine( 180,200, COLOR_YELLOW, "Skrzynie: " + MP_MAX_BOXES);
+      GTextLine( 40, 220, COLOR_YELLOW, "Unieruchomione przedmioty: " + MP_MAX_LOCKED_ITEMS);
+      
+    else
+      if(enabled)
+        GTextLine( 130, 80, 55, "Otwarty");
+      else
+        GTextLine( 125, 80, 55, "Zamkniety");
+      endif
+      GTextLine( 20, 140, COLOR_YELLOW, "Wlascicel: " + FindPlayerBySerial(owner).name);
+      GTextLine( 20, 160, COLOR_YELLOW, "Cena: " + CInt(price)/1000 + " 000 gp");
+      GTextLine( 20, 180, COLOR_YELLOW, "Czas do konca: " + DescGameTime(renttime-ReadGameClock()));
+      if(who.serial == owner or IsGM(who))
+        if(renttime-ReadGameClock() < MP_TIME_TO_RERENT)
+          GTextLine( 60, 200, COLOR_GREEN, "Przedluz wynajem: ");
+          GButton(190,200,2714,2715,2002);
+        endif
+        if(enabled)
+          GTextLine( 70, 230, COLOR_ORANGE, "Handlarz: " + vendor.name[1,find(vendor.name," ",1)]);
+          GTextLine( 70, 250, COLOR_ORANGE, "Zloto: " + cash);
+          GTextLine( 70, 312, COLOR_RED, "Zamknij stragan");
+          GButton(40,312,2714,2715,2007);
+        else
+          GTextLine( 70, 230, COLOR_ORANGE, __ifelse(box,"Prze","Po") + "staw skrzynie");
+          GButton(40,230,2714,2715,2003);
+          if(box)
+            GTextLine( 70, 250, COLOR_ORANGE, __ifelse(vendor,"Prze","Po") + "staw handlarza");
+            GButton(40,250,2714,2715,2004);
+            if(vendor)
+              GTextLine( 70, 270, COLOR_ORANGE, "Unieruchomione przedmioty " + CInt(Len(Locked)) + "/" + MP_MAX_LOCKED_ITEMS);
+              GButton(40,270,2714,2715,2005);
+              if(vendor)
+                GTextLine( 70, 290, COLOR_ORANGE, "Ustaw tytul handlarzowi");
+                GButton(40,290,2714,2715,2008);
+              endif
+              GTextLine( 70, 312, COLOR_GREEN, "Otworz stragan");
+              GButton(40,312,2714,2715,2006);
+            endif
+          endif
+        endif
+      endif
+    endif
+    
+    case(GSend(who)[0])
+      0: return;
+      //-----GM--STUFF---
+      1001: SetRange();
+      1002: SetPrice();
+      1003: Rotate();
+      1004: DestroyStall(sign.serial, who);
+      //-----------------
+      2001: Rent();
+      2002: Rent(renttime);
+      2003: SetBox();
+      2004: SetVendor();
+      2005: LockItem();
+      2006: Open();
+      2007: Close();
+      2008: SetVendorTitle();
+      default: sendsysmessage(who,"nie ma obslugi tego przycisku");
+    endcase
+  endwhile
+endprogram
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function Close()
+  
+  if(!CheckRentTime())
+    SendSysMessage(who, "Ten stragan nie nalezy do Ciebie.", FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+  MerchantSay("Stoisko zamkniete");
+  var box := Stall.GetProp(MP_STALL_BOX);
+  box := SystemFindObjectBySerial(box);
+
+  box.invisible := 1;
+  box.invisible := 0;
+  UnLockItems(box);
+  Stall.SetProp(MP_STALL_ENABLED,0);
+  SendSysMessage(who, "Stragan zostal zamkniety", FONT_NORMAL, COLOR_GREEN);
+  SetObjProperty(box, PROP_STALL_OWNER, Stall.GetProp(MP_STALL_OWNER));
+
+endfunction
+
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function Open()
+
+  if(!CheckRentTime())
+    SendSysMessage(who, "Ten stragan nie nalezy do Ciebie.", FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+  MerchantSay("Stoisko otwarte, zapraszam!");
+  var box := Stall.GetProp(MP_STALL_BOX);
+  box := SystemFindObjectBySerial(box);
+  LockItems(box);
+  Stall.SetProp(MP_STALL_ENABLED,1);
+  SendSysMessage(who, "Stragan zostal otwarty", FONT_NORMAL, COLOR_BLUE);
+  EraseObjProperty(box, PROP_STALL_OWNER);
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function LockItem()
+
+  var Item, Locked;
+
+  Locked := Stall.GetProp(MP_STALL_LOCKED);
+  if(!Locked)
+    Locked := array;
+  endif
+
+  SendSysMessage(who, "Wskaz przedmiot.", FONT_NORMAL, COLOR_GREEN);
+  Item := ObjTarget(who);
+
+  if(!CheckRentTime())
+    SendSysMessage(who, "Ten stragan nie nalezy do Ciebie.", FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+  if(!Item.isa(POLCLASS_ITEM))
+    SendSysMessage(who, "To nie przedmiot.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!InStall(sign.serial, Item.x, Item.y, Item.realm))
+    SendSysMessage(who, "Przedmiot nie lezy na terenie straganu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Item.movable)
+    if(Locked.size() < MP_MAX_LOCKED_ITEMS)
+      Item.movable := 0;
+      SendSysMessage(who, "Unieruchomil" + Ggm(who, 3) + " przedmiot: " + GetName(item), FONT_NORMAL, COLOR_GREEN);
+      Locked.append(Item.serial);
+      Stall.SetProp(MP_STALL_LOCKED, Locked);
+    else
+      SendSysMessage(who, "Nie mozesz wiecej unieruchomic przedmiotow.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    var index := RetIndex(Locked, Item.serial);
+    if(index)
+      Item.movable := 1;
+      Locked.erase(index);
+      Stall.SetProp(MP_STALL_LOCKED, Locked);
+      SendSysMessage(who, "Odblokowal" + Ggm(who, 3) + " przedmiot: " + GetName(item), FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Z tym nic nie zrobisz.", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+function SetVendor()
+
+   var vendor,loc;
+    
+    vendor := FindNpcBySerial(Stall.GetProp(MP_STALL_VENDOR));
+    
+    SendSysMessage(who, "Wskaz miejsce dla handlarza.", FONT_NORMAL, COLOR_GREEN);
+    Loc := LocTarget(who);
+
+    if(!CheckRentTime())
+      SendSysMessage(who, "Ten stragan nie nalezy do Ciebie.", FONT_NORMAL, COLOR_GREEN);
+      return;
+    endif
+    
+    if(!Loc)
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(!InStall(sign.serial,Loc.x,Loc.y,Loc.realm))
+      SendSysMessage(who, "To miejsce jest poza straganem.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    Loc.z := GetStandingHeight(Loc.x,Loc.y,Loc.z,Loc.realm).z;
+    if(Loc.z == error)
+      SendSysMessage(who, "W tym miejscu nikt dlugo nie postoi!", FONT_NORMAL, COLOR_RED);
+      return; 
+    endif
+
+    if(!vendor)
+      vendor := CreateNpc(MP_VENDOR_TEMPLATE,Loc.x,Loc.y,Loc.z,Loc.realm);
+      if(!vendor)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+      Stall.SetProp(MP_STALL_VENDOR,vendor.serial);
+      SetObjProperty(vendor,PROP_STALL,sign.serial);
+      SendSysMessage(who, "Zatrudnil" + ggm(who,3) +" handlarza.", FONT_NORMAL, COLOR_BLUE);
+    else
+      MoveObject(vendor,Loc.x,Loc.y,Loc.z,Loc.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+      SendSysMessage(who, "Przestawil" + ggm(who,3) +" handlarza.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+    
+function SetBox()
+    
+    var box,loc;
+    
+    box := Stall.GetProp(MP_STALL_BOX);
+    
+    SendSysMessage(who, "Wskaz miejsce dla skrzyni.", FONT_NORMAL, COLOR_GREEN);
+    Loc := LocTarget(who);
+    
+    if(!CheckRentTime())
+      SendSysMessage(who, "Ten stragan nie nalezy do Ciebie.", FONT_NORMAL, COLOR_GREEN);
+      return;
+    endif
+
+    if(!Loc)
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(!InStall(sign.serial,Loc.x,Loc.y,Loc.realm))
+      SendSysMessage(who, "To miejsce jest poza straganem.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(Loc.mobile or (Loc.item and Loc.item.objtype != UOBJ_MP_BOX))
+      SendSysMessage(who, "Na tym nie postawisz skrzyni.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    var Config := GetTileConfig(Loc.objtype);
+    if(Config.AllowDropOn)
+      Loc.z := Loc.z + CInt(Config.Height);
+    endif
+
+    foreach Item in ListItemsAtLocation(Loc.x, Loc.y, Loc.z, Loc.realm)
+      if(Item.objtype != UOBJ_MP_BOX)
+        SendSysMessage(who, "Cos znajduje sie juz w tym miejscu.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endforeach
+
+    if(!box)
+      box := CreateItemAtLoc(Loc.x,Loc.y,Loc.z,UOBJ_MP_BOX,1, Loc.realm);
+      if(!box)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+      Stall.SetProp(MP_STALL_BOX,box.serial);
+      SendSysMessage(who, "Postawil" + ggm(who,3) +" skrzynie.", FONT_NORMAL, COLOR_BLUE);
+    elseif(Loc.item.objtype == UOBJ_MP_BOX)
+      var Cfg := ReadConfigFile(MCFG_PKG + "rotations");
+      var NewGraphic := GetConfigInt(Cfg["Graphics"], lower(hex(Loc.item.graphic)));
+      Loc.Item.graphic := NewGraphic;
+      SendSysMessage(who, "Obrocil" + ggm(who,3) +" skrzynie.", FONT_NORMAL, COLOR_GREEN);
+    else
+      MoveObject(SystemFindObjectBySerial(box),Loc.x,Loc.y,Loc.z,Loc.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+      SendSysMessage(who, "Przestawil" + ggm(who,3) +" skrzynie.", FONT_NORMAL, COLOR_GREEN);
+    endif
+    SetObjProperty(box, PROP_STALL_OWNER, Stall.GetProp(MP_STALL_OWNER));
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+
+function Rent(offset := 0)
+
+  var Player;
+  var Keys := DataFile.Keys();
+  foreach Key in Keys
+    Player := DataFile.FindElement(Key);
+    Player := CInt(Player.GetProp(MP_STALL_OWNER));
+    Player := FindPlayerBySerial(Player);
+    if(Player.acctname == who.acctname and Key != sign.serial)
+      SendSysMessage(who, "Nie mozesz juz wynajac wiecej straganow.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endforeach
+
+
+  var price := CInt(Stall.GetProp(MP_STALL_PRICE));
+  if(!Spendgold(who, price))
+    SendSysMessage(who, "Nie posiadasz przy sobie wystarczajacej ilosci zlota.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!offset)
+    offset := ReadGameClock();
+  else
+    Stall.EraseProp(MP_STALL_NOTICE);
+  endif
+
+  Stall.SetProp(MP_STALL_OWNER, who.serial);
+  Stall.SetProp(MP_STALL_RENTED, MP_RENT_TIME + offset) ;
+
+  SendSysMessage(who, "Do konca wynajmu pozostalo: " + DescGameTime(Stall.GetProp(MP_STALL_RENTED) - ReadGameClock() ) , FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+// GM Stuff
+//-------------------------------------------------------------------------------------------------------------------
+
+function Rotate()
+
+  sign.graphic := __ifelse(sign.graphic == MP_SIGN_NS, MP_SIGN_WE, MP_SIGN_NS); 
+ 
+  SendSysMessage(who, "Znak obrocony!", FONT_NORMAL, COLOR_BLUE);
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function SetPrice()
+  var Price  := CInt(Stall.GetProp(MP_STALL_PRICE));
+  
+  Price := SendTextEntryGump(who,"Cena w tysiacach? (obecnie: " + Cint(Price/1000) + ")" ,TE_CANCEL_ENABLE);
+  if(!CInt(Price))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  Price := CInt(Price) * 1000;
+  Stall.SetProp(MP_STALL_PRICE, price);
+  SendSysMessage(who, "Nowa cena: " + CInt(Stall.GetProp(MP_STALL_PRICE) / 1000) + " k gp", FONT_NORMAL, COLOR_BLUE);
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function SetRange()
+    var range := Stall.GetProp(MP_STALL_RANGE);
+    if(range)
+      SendSysMessage(who, "Chcesz zmienic obecna lokacje?", FONT_NORMAL, COLOR_GREEN);
+      if(!YesNo(who,"Zmienic?"))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+    
+    SendSysMessage(who, "Stan na NW", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(who,"NW?"))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    range := {who.x, who.y, who.realm};
+
+    SendSysMessage(who, "Stan na SE", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(who,"SE?"))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    range := range + {who.x, who.y, who.realm};
+    var width   := range[4] - range[1]  + 1;
+    var length  := range[5] - range[2]  + 1;
+    SendSysMessage(who, "Teren ma wymiar: " + width + " x " + length, FONT_NORMAL, COLOR_BLUE);
+    if(range[3] != range[6] or width < 2 or length < 2 )
+      SendSysMessage(who, "Na pewno dobrze zaznaczyles teren? Pocwicz to!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    
+    range.erase(3);
+    Stall.SetProp(MP_STALL_RANGE,range);
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function MerchantSay(msg)
+  
+  var ev := struct;
+  ev.+type := EVID_MP_MSG;
+  ev.+msg  := msg;
+  SendEvent(vendor, ev);
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function CheckRentTime()
+  renttime := Stall.GetProp(MP_STALL_RENTED);
+  if (renttime < ReadGameClock())
+    return 0;
+  else
+    return 1;
+  endif
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+function SetVendorTitle()
+
+  var NewValue := SendTextEntryGump( who, "Wprowadz nowy tytul",TE_CANCEL_ENABLE);
+  if(!NewValue)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!CenCheckLine(who, NewValue))
+    SendSysMessage(who,"Wpisany tytul zawiera niedozwolone frazy.",FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  vendor.title_guild := NewValue;
+  SendGood(who, "Ustawiono nowy tytul handlarzowi.");
+
+endfunction
+
+//-------------------------------------------------------------------------------------------------------------------

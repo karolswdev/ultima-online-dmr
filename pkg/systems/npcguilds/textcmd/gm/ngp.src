@@ -1,0 +1,384 @@
+//--------------------------------------------------------------------------
+// Modified: 2005-05-31
+//--------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/std";
+include "include/finding";
+include "include/tempmods";
+include "include/names";
+include "include/attributes/main";
+include "include/player/target";
+include "include/cmds/cancmd";
+
+include ":npcguilds:gd_gump";
+include ":npcguilds:guilds";
+
+//--------------------------------------------------------------------------
+
+var who, _Player;
+
+//--------------------------------------------------------------------------
+
+program ShowNpcGuildPlayerInfo(_who, text)
+
+  var Res;
+
+  SetLogRunCycles(LST_CMD);
+
+  who    := _who;
+
+  if(CInt(text))
+    _Player := FindPlayerBySerial(text);
+  elseif(text)
+    _Player := FindCharacterByName(text);
+  endif
+
+  if(!_Player)
+    _Player := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!IsPlayer(_Player))
+    SendSysMessage(who,"To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var GuildData  := GetNGdData();
+  var PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+  BuildMainNGpGump(PlayerData);
+
+  while(IsLoggedIn(who))
+    Res        := GSend(who);
+    PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+
+    if(Res.butid > 100000)
+      if(CanUseCmd(who, "ngp control"))
+        SendSysMessage(who, "Zresetowano czas opoznienia Questu postaci "+_Player.name+".", FONT_NORMAL, COLOR_GREEN);
+        PlayerData.Guilds[CInt(Res.butid-100000)].LastQuest.Time := 0;
+        SetObjProperty(_Player, PROP_NGDDATA, PlayerData);
+      endif
+    elseif(Res.butid > 20000)
+      if(CanUseCmd(who, "ngp control"))
+        var NewExp := SendTextEntryGump(who, "Wpisz nowa wartosc doswiadczenia");
+        if(NewExp)
+          PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+          NewExp     := CInt(NewExp);
+          var Guild  := GuildData.FindElement(NGUILD_TITLE+CInt(Res.butid-20000));
+
+          if(NewExp > PlayerData.Guilds[CInt(Res.butid-20000)].Exp)
+            GainGuildExp(_Player, PlayerData, CInt(Res.butid-20000), Guild, NewExp - PlayerData.Guilds[CInt(Res.butid-20000)].Exp);
+          else
+            LoseGuildExp(_Player, PlayerData, CInt(Res.butid-20000), Guild, PlayerData.Guilds[CInt(Res.butid-20000)].Exp - NewExp);
+          endif
+          SetObjProperty(_Player, PROP_NGDDATA, PlayerData);
+          SendSysMessage(who, "Ustawiono doswiadczenie postaci "+_Player.name+" na "+PlayerData.Guilds[CInt(Res.butid-20000)].Exp+" ("+NewExp+").", FONT_NORMAL, COLOR_GREEN);
+        else
+          SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        endif
+      endif
+    elseif(Res.butid > 10000)
+      if(CanUseCmd(who, "ngp control"))
+        SendSysMessage(who, "Zresetowano czas opoznienia postaci "+_Player.name+".", FONT_NORMAL, COLOR_GREEN);
+        PlayerData.Guilds[CInt(Res.butid-10000)].Delay := 0;
+        SetObjProperty(_Player, PROP_NGDDATA, PlayerData);
+      endif
+    elseif(Res.butid > 3000)
+      if(CanUseCmd(who, "ngp control"))
+        PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+        var GdId := CInt(Res.butid)-3000;
+
+        if(PlayerData.Guilds[GdId].Flags & NGPF_MAXSK_CHOOSEN)
+          SetBitOff(PlayerData.Guilds[GdId].Flags, NGPF_MAXSK_CHOOSEN);
+        else
+          SetBitOn(PlayerData.Guilds[GdId].Flags, NGPF_MAXSK_CHOOSEN);
+        endif
+        SetObjProperty(_Player, PROP_NGDDATA, PlayerData);
+      endif
+    elseif(Res.butid > 2000)
+      if(!(PlayerData.Guilds[res.butid-2000].Flags & NGPF_MEMBER))
+        AssignGuildMember(who, res.butid-2000);
+      else
+        ResignPlayerFromGuild(who, res.butid-2000);
+      endif
+      PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+    elseif(Res.butid > 1000)
+      if(CanUseCmd(who, "ngp control"))
+        SendSysMessage(who, "Usunac GdID: "+(Res.butid-1000)+" z gracza "+_Player.name+"?", FONT_NORMAL, COLOR_GREEN);
+        if(YesNo(who, "Tak?"))
+          ErasePlayerFromGuild(_Player, CInt(Res.butid-1000));
+          PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+          SendSysMessage(who, "Usunieto GdID: "+(Res.butid-1000)+" z gracza "+_Player.name+".", FONT_NORMAL, COLOR_GREEN);
+        else
+          SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        endif
+      endif
+    else
+      case(Res.butid)
+        10:        if(CanUseCmd(who, "ngp control"))
+                     SendSysMessage(who, "Chcesz zresetowac czas opoznienia na wybor MaxSk gracza "+_Player.name+"?", FONT_NORMAL, COLOR_GREEN);
+                     if(YesNo(who, "Tak?"))
+                       PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+                       PlayerData.SkChTime := 0;
+                       SetObjProperty(_Player, PROP_NGDDATA, PlayerData);
+                       SendSysMessage(who, "Zresetowano czas opoznienia na wybor MaxSk.", FONT_NORMAL, COLOR_GREEN);
+                     endif
+                   endif
+
+        100:       if(CanUseCmd(who, "ngp control"))
+                     ValidateNpcGuildMember(who, _Player);
+                   endif
+        99: ; //refresh
+        default:   return;
+      endcase
+    endif
+    BuildMainNGpGump(PlayerData);
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------
+
+function BuildMainNGpGump(byref PlayerData)
+
+  var GuildData  := GetNGdData();
+
+  BQGInit("Gildie Gracza "+GetRealName(_Player), 600, 410, error);
+  GAddPageData(565,18,2650,2651,565,377,2648,2647);
+  GPage();
+  GResPic(30, 50, 0xa3c, 340, 300);
+
+  GButton(490, 20, 2714, 2715, 99);
+  GTextLine(510, 20, 560, "Odswiez");
+
+  var PlCities := GetPlayerNpcGuildCities(_Player);
+  var n        := 0;
+
+  if(CanUseCmd(who, "ngp control"))
+    GTextLine(300,20, 550, "Zweryfikuj");
+    GButton(280, 22, 2117, 2118, 100);
+  endif
+    
+  GResPic(400, 180, 0xA3C, 150, 180);
+
+  foreach City in (PlCities.Cities)
+    GTextLine(410, 190+n*20, 550, _City_iter);
+    GTextLine(520, 190+n*20, 999, City);
+    n := n + 1;
+  endforeach
+
+  GResPic(30, 355, 0xA3C, 340, 40);
+  GTextLine(40, 365, 999, "MaxSk:");
+  if(PlayerData.MaxSkID)
+    GTextLine(90, 365, 550, GetSkillConfigElem(PlayerData.MaxSkID).Name);
+  else
+    GTextLine(90, 365, 550, "Nie wybrana");
+  endif
+
+  if(PlayerData.SkChTime)
+    GTextLine(250,365, 550, RealTime((PlayerData.SkChTime + NGD_CHSK_DELAY) - ReadGameClock()));
+    GButton(360, 367, 2117, 2118, 10);
+  endif
+
+  GTextLine(410, 330, 670, "NCheck:");
+  GTextLine(470, 330, 999, RealTime(PlCities.LastCheck - ReadGameClock()));
+
+  var JoinTime, DelayTime, QTime;
+
+  foreach GdData in (PlayerData.Guilds)
+    var Guild := GuildData.FindElement(NGUILD_TITLE+_GdData_iter);
+    GCheckNextPage(1);
+    GTextLine(40,  60, 670, "Guild ID:");
+    GTextLine(130, 60, 550, _GdData_iter);
+
+    if(Guild)
+      GTextLine(40,  80,  670, "Nazwa:");
+      GTextLine(130, 80,  550, Guild.GetProp(GDPROP_NAME));
+
+      GTextLine(40,  100, 670, "Tytul:");
+      GTextLine(130, 100, 550, GetNpcGuildTitle(Guild.GetProp(GDPROP_TYPE), GdData.Level));
+    else
+      GTextLine(40,  80, 670, "Stan:");
+      GTextLine(130, 80, 550, "Nie istnieje");
+    endif
+
+    QTime     := 0;
+    JoinTime  := "0s";
+    DelayTime := "0s";
+
+    if(GdData.JoinTime)
+      JoinTime := ShortRealTime(ReadGameClock() - GdData.JoinTime);
+    endif
+
+    if(GdData.Delay)
+      DelayTime := ShortRealTime(NGD_PLAYER_DELAY - (ReadGameClock() - GdData.Delay));
+    endif
+
+    if(GdData.LastQuest.Time)
+      QTime := ReadGameClock() - GdData.LastQuest.Time;
+    endif
+
+    GTextLine(230, 100, 670, "Level:");
+    GTextLine(280, 100, 550, GdData.Level);
+    GTextLine(40,  120, 670, "Exp:");
+    GTextLine(130, 120, 550, GdData.Exp);
+    GTextLine(230, 120, 670, "Exp%:");
+    GTextLine(280, 120, 550, RawToBaseSkill(GdData.Exp)*0.1);
+    if(GDData.Flags & NGPF_MEMBER)
+      GTextLine(40,  140, 670, "Czas w Gildii:");
+    else
+      GTextLine(40,  140, 670, "Czas od o.zp.");
+    endif
+    GTextLine(130, 140, 550, JoinTime);
+    GTextLine(40,  160, 670, "Opoznienie:");
+    GTextLine(130, 160, 550, DelayTime);
+    GTextLine(40,  180, 670, "Ost wizyta:");
+    GTextLine(130, 180, 550, ShortRealTime(ReadGameClock() - GdData.LastVisit));
+    GTextLine(230, 180, 670, "LastRL:");
+
+    if(GdData.LastRepLose)
+      GTextLine(280, 180, 550, ShortRealTime(ReadGameClock() - GdData.LastRepLose));
+    else
+      GTextLine(280, 180, 550, "N/A");
+    endif
+
+    GTextLine(40,  220, 670, "Ostatnie Zadanie:");
+    GTextLine(40,  240, 670, "Bilet:");
+    GTextLine(130, 240, 550, GdData.LastQuest.Ticket);
+    GTextLine(40,  260, 670, "Quest:");
+    GTextLine(130, 260, 550, ClStr(GdData.LastQuest.QuestGroup)+":"+GdData.LastQuest.QId);
+    GTextLine(40,  280, 670, "Czas od:");
+    GTextLine(130, 280, 550, ShortRealTime(QTime));
+
+    if(QTime)
+      QTime := GetNgdQuestDelay(GdData.Level+1) - QTime;
+      GTextLine(240, 280, 999, ShortRealTime(QTime));
+    endif
+    GTextLine(40,  300, 670, "NPC Serial:");
+    GTextLine(130, 300, 550, GdData.LastQuest.From);
+
+    if(GdData.LastQuest.From)
+      var Npc := FindNpcBySerial(GdData.LastQuest.From);
+      if(Npc.name)
+        GTextLine(40,  320, 670, "NPC Imie:");
+        GTextLine(130, 320, 550, Npc.name);
+      endif
+    endif
+
+    var lFlags := 0;
+
+    if(IsAdmin(who))// and !(GdData.Flags & NGPF_MEMBER))
+      lFlags := BQG_EDITABLE;
+    endif
+
+    GTextLine(400, 20, 670, "Flagi:");
+    BQGAddTextBox(410, 50, 125, 20, FCLR_TEBOX, "Czlonek", 0);
+    BQGCheckBox(535, 47, lFlags, GdData.Flags & NGPF_MEMBER, _GdData_iter+2000);
+
+    BQGAddTextBox(410, 80, 125, 20, FCLR_TEBOX, "Test Quest", 0);
+    BQGCheckBox(535, 77, 0, GdData.Flags & NGPF_TEST_QUEST, 21);
+
+    BQGAddTextBox(410, 110, 125, 20, FCLR_TEBOX, "Max Skill", 0);
+    BQGCheckBox(535, 107, __Ifelse(CanUseCmd(who, "ngp control"), BQG_EDITABLE, 0), GdData.Flags & NGPF_MAXSK_CHOOSEN, _GdData_iter+3000);
+
+    BQGAddTextBox(410, 140, 125, 20, FCLR_TEBOX, "Nieaktywny", 0);
+    BQGCheckBox(535, 137, 0, GdData.Flags & NGPF_NOT_ACTIVE, 23);
+
+    if(CanUseCmd(who, "ngp control"))
+      GTextLine(520, 370, 999, "Usun");
+      GButton(500, 373, 2117, 2118, 1000+_GdData_iter);
+      
+      GButton(24, 123, 2117, 2118, 20000+_GdData_iter);
+      GButton(24, 163, 2117, 2118, 10000+_GdData_iter);
+      GButton(24, 283, 2117, 2118, 100000+_GdData_iter);
+    endif
+
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function AssignGuildMember(who, GuildId)
+
+  var GuildData  := GetNGdData();
+  var Guild := GuildData.FindElement(NGUILD_TITLE+GuildId);
+  var Members := Guild.GetProp(GDPROP_MEMBERS);
+
+  var PlayerData := GetObjProperty(who, PROP_NGDDATA);
+
+  if(PlayerData.Guilds[GuildId].Flags & NGPF_MEMBER)
+    if((who.serial in Members))
+      Members.erase(RetIndex(Members, who.serial));
+      Guild.SetProp(GDPROP_MEMBERS, Members);
+    endif
+
+    if(PlayerData.Guilds[GuildId].Flags & NGPF_MAXSK_CHOOSEN)
+      EraseMaxSkillDelayed(who, PlayerData.MaxSkID);
+    endif
+
+    // erase max skill zmieni PlayerData
+    PlayerData := GetObjProperty(who, PROP_NGDDATA);
+
+    PlayerData.Guilds[GuildId].Flags := 0;
+    PlayerData.Guilds[GuildId].Delay    := ReadGameClock();
+    PlayerData.Guilds[GuildId].LastQuest.From   := 0;
+    PlayerData.Guilds[GuildId].LastQuest.Ticket := 0;
+    PlayerData.Guilds[GuildId].LastQuest.Time   := 0;
+    SetObjProperty(who, PROP_NGDDATA, PlayerData);
+    
+    var sTitle := GetPlayerNGDTitleByData(PlayerData);
+    SetTitleSuffix(who, sTitle);
+
+  else
+    if(!(who.serial in Members))
+      Members.append(who.serial);
+      Guild.SetProp(GDPROP_MEMBERS, Members);
+    endif
+
+    SetBitOff(PlayerData.Guilds[GuildId].Flags, NGPF_TEST_QUEST);
+    SetBitOn(PlayerData.Guilds[GuildId].Flags, NGPF_MEMBER);
+    PlayerData.Guilds[GuildId].JoinTime         := ReadGameClock();
+    PlayerData.Guilds[GuildId].LastQuest.From   := 0;
+    PlayerData.Guilds[GuildId].LastQuest.Ticket := 0;
+    PlayerData.Guilds[GuildId].LastQuest.Time   := 0;
+    SetObjProperty(who, PROP_NGDDATA, PlayerData);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ValidateNpcGuildMember(who, Player)
+ 
+  var GuildData  := GetNGdData();
+  var PlayerData := GetObjProperty(_Player, PROP_NGDDATA);
+  var bBad;
+
+  foreach GdData in (PlayerData.Guilds)
+    var Guild := GuildData.FindElement(NGUILD_TITLE+_GdData_iter);
+    SendSysMessage(who, "Walidacja gildii "+Guild.GetProp(GDPROP_NAME), FONT_NORMAL, COLOR_GREEN);
+    var Members := Guild.GetProp(GDPROP_MEMBERS);
+    bBad := 0;
+
+    if(GdData.Flags & NGPF_MEMBER)
+      if(!(Player.serial in Members))
+        SendSysMessage(who, "Brak wpisu w liscie czlonkow gildii.. dodawanie!", FONT_NORMAL, COLOR_RED);
+        bBad := 1;
+        Members.append(Player.serial);
+        Guild.SetProp(GDPROP_MEMBERS, Members);
+      endif
+    endif
+
+    if(!bBad)
+      SendSysMessage(who, "Wszystko ok dla gildii "+Guild.GetProp(GDPROP_NAME), FONT_NORMAL, COLOR_GREEN);
+    endif
+
+  endforeach
+
+  if(!PlayerData.Guilds.size())
+    SendSysMessage(who, "Gracz nie jest przypisany do zadnej gildii.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------

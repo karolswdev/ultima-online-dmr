@@ -1,0 +1,15 @@
+//-----------------------------------------------------------------------------
+
+include "../../renthouse";
+
+//-----------------------------------------------------------------------------
+
+program ReadConfigs(who)
+
+  foreach City in GetCities()
+    SendSysMessage(who,"Unload ["+City+"] - "+UnloadConfigFile(":rhousecfg:"+lower(City)),FONT_NORMAL,COLOR_GREEN);
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

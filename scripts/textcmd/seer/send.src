@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/player/target";
+include "include/staff";
+
+//-----------------------------------------------------------------------------
+
+program SendMessageCmd(who,text)
+
+  if(!text)
+    SendSysMessage(who, "Wpisz tekst.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!IsLoggedIn(Targ))
+    SendSysMessage(who, "Ten gracz jest wylogowany.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(text[1,3] == "nv ")
+    text["nv "] := "";
+    SendSysMessage(Targ, text, FONT_BOLD, COLOR_BSHIMMER);
+  elseif(text[1,3] == "nn ")
+    text["nn "] := "";
+    SendSysMessage(Targ, "Valarowie: " + text,FONT_BOLD, COLOR_BSHIMMER);
+  else
+    SendSysMessage(Targ, who.name + ": " + text,FONT_BOLD, COLOR_BSHIMMER);
+  endif
+  AlertSeers(who.name + " do " + targ.name +  " : " +text, FONT_NORMAL, COLOR_BLUE);
+endprogram
+
+//-----------------------------------------------------------------------------

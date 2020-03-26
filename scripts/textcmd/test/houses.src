@@ -1,0 +1,231 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/npcs";
+include "include/gumpboxes";
+include "include/getobj";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+var gItemsCfg := ReadConfigFile(ITEMS_CFG);
+var gWho, gMinPrice, gMaxPrice;
+var xmlContent;
+
+//-----------------------------------------------------------------------------
+
+program GenerateHousePrices(who, text)
+
+  gWho := who;
+
+  __ParamUnused(text);
+  SetLogRunCycles(LST_CMD);
+  xmlContent := array("<items>");
+
+  IterateHouses();
+
+  xmlContent.append("</items>");
+
+  if(xmlContent)
+    WriteFile(":housing:prices.xml", xmlContent);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddHousePrice(ObjType, buyPrice, sellPrice, numSecures, numLocks)
+
+  xmlContent.append("  <item Type=\""+SpecHex(objtype)+"\" Location=\":housing:itemdesc\" Class=\"Item\" Name=\""+gItemsCfg[ObjType].Name+"\" Desc=\""+CLStr(gItemsCfg[ObjType].Desc)+"\" VendorBuysFor=\""+buyPrice+"\" VendorSellsFor=\""+sellPrice+"\" NumSecure=\""+numSecures+"\" NumLockDowns=\""+numLocks+"\"/>");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IterateHouses()
+
+  var Cfg := ReadConfigFile(":housing:itemdesc");
+  var ObjList := GetConfigStringKeys(Cfg);
+
+  foreach Obj in ObjList
+    Obj := CInt(Obj);
+    var Elem := Cfg[Obj];
+
+    if(Elem.Script == "housedeed")
+      GenerateForHouse(Obj, Elem);
+    endif
+
+  endforeach
+
+  print("MinPrice: "+FormatSize(gMinPrice, ".")+"gp " +" MaxPrice: "+FormatSize(gMaxPrice, ".")+"gp ");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GenerateForHouse(ObjType, Elem)
+  
+  var MultiCfg := ReadConfigFile("::multis");
+  var TileCfg := ReadConfigFile("::tiles");
+  var HouseElem := gItemsCfg[GetItemObjType(Elem.HouseObjType)];
+
+  var MultiElem := MultiCfg[HouseElem.MultiID];
+
+  var Statics := GetConfigStringArray(MultiElem, "static");
+  var Dynamics := GetConfigStringArray(MultiElem, "dynamic");
+
+  var Count := Statics.size() + Dynamics.size();
+  var MinLoc := LocStruct();
+  var MaxLoc := LocStruct();
+  var i := 0;
+
+  var TypeCount := array(0, 0, 0, 0, 0, 0, 0, 0);
+
+  foreach Item in Statics
+    Item := SplitWords(Item);
+    MakeIntArray(Item);
+
+    if(Item[4] > 127)
+      continue;
+    endif
+
+    if(i == 0)
+      MinLoc.x := Item[2];
+      MinLoc.y := Item[3];
+      MinLoc.z := Item[4];
+      MaxLoc.x := Item[2];
+      MaxLoc.y := Item[3];
+      MaxLoc.z := Item[4];
+    else
+      MinLoc.x := min(MinLoc.x, Item[2]);
+      MinLoc.y := min(MinLoc.y, Item[3]);
+      MinLoc.z := min(MinLoc.z, Item[4]);
+      MaxLoc.x := max(MaxLoc.x, Item[2]);
+      MaxLoc.y := max(MaxLoc.y, Item[3]);
+      MaxLoc.z := max(MaxLoc.z, Item[4]);
+    endif
+
+    var Tile := TileCfg[Item[1]];
+
+    if(Tile)
+      if(Tile.desc["sand"] or Tile.desc["tent"] or Tile.desc["rattan"] or Tile.desc["palm"] or Tile.desc["thatch"])
+        TypeCount[1] += 1;
+      elseif(Tile.desc["wood"] or Tile.desc["log wall"] or Tile.desc["log roof"] or Tile.desc["log post"] or Tile.desc["platform"] or Tile.desc["tree"])
+        TypeCount[2] += 1;
+      elseif(Tile.desc["plaster"] or Tile.desc == "wall" or Tile.desc == "window" or Tile.desc == "floor tile")
+        TypeCount[3] += 1;
+      elseif(Tile.desc["stone"] or Tile.desc["jungle wall"] or Tile.desc["rock"] or Tile.desc["shadow"] or Tile.desc["battlement"])
+        TypeCount[4] += 1;
+      elseif(Tile.desc["brick"] or Tile.desc["ceramic"] or Tile.desc["tile roof"] or Tile.desc["grey slate"] or Tile.desc == "slate" or Tile.desc == "slate roof")
+        TypeCount[5] += 1;
+      elseif(Tile.desc["intricate"] or Tile.desc["simple"] or Tile.desc["marble"] or Tile.desc["red tiles"] or Tile.desc["blue tiles"])
+        TypeCount[6] += 1;
+      elseif(Tile.desc["grass"] or Tile.desc["dirt"] or Tile.desc["ripples"] or Tile.desc["water"] or Tile.desc["hedge"])
+        TypeCount[8] += 1;
+      else
+        TypeCount[7] += 1;
+      endif
+    else
+      TypeCount[7] += 1;
+    endif
+
+    i += 1;
+
+  endforeach
+ 
+  var QualMult := array(0.8,  // sand
+                        1.0,  // wood
+                        1.2,  // plaster
+                        1.5,  // stone
+                        2.0,  // brick
+                        2.5,  // marble/intricate
+                        0.7,  // leftovers
+                        0.4); // junk
+  
+  foreach Item in Dynamics
+    Item := SplitWords(Item);
+    MakeIntArray(Item);
+
+    if(i == 0)
+      MinLoc.x := Item[2];
+      MinLoc.y := Item[3];
+      MinLoc.z := Item[4];
+      MaxLoc.x := Item[2];
+      MaxLoc.y := Item[3];
+      MaxLoc.z := Item[4];
+    else
+      MinLoc.x := min(MinLoc.x, Item[2]);
+      MinLoc.y := min(MinLoc.y, Item[3]);
+      MinLoc.z := min(MinLoc.z, Item[4]);
+      MaxLoc.x := max(MaxLoc.x, Item[2]);
+      MaxLoc.y := max(MaxLoc.y, Item[3]);
+      MaxLoc.z := max(MaxLoc.z, Item[4]);
+    endif
+
+    TypeCount[7] += 1;
+    i += 1;
+
+  endforeach
+
+  var Sum := GetArraySum(TypeCount) - TypeCount[7];
+  var Size := array(MaxLoc.x - MinLoc.x, MaxLoc.y-MinLoc.y, MaxLoc.z-MinLoc.z);
+
+  var Floors := CInt(Size[3]/20);
+
+  if((Modulo(Size[3], 20) >= 10))
+    Floors += 1;
+  endif
+
+  var SizeQuant := Size[1]*Size[2]*max(1, Floors/2);
+  var Price := (SizeQuant+Count)*1600;
+  var QualPrice := 0;
+
+  var NumSecs := CInt(max(1, min(21, CDbl(SizeQuant+Count)/180.0)  ));
+  var NumLocs := CInt(max(4, min(625, CDbl(SizeQuant+Count)/9.0 * max(1,Floors/2))));
+
+  for(i:=1; i<=QualMult.size(); i+=1)
+    QualPrice += QualMult[i] * CDbl(TypeCount[i])/CDbl(Count) * Price;
+  endfor
+
+  QualPrice := CInt(QualPrice);
+
+  print("Count: "+Elem.name+":    "+Count+"/"+Sum+" ["+CInt(CDbl(Sum)/CDbl(Count)*100)+"%]    Price: "+FormatSize(Price, ".")+"/"+FormatSize(QualPrice, ".")+"gp Secs: "+NumSecs+" Locks: "+NumLocs+"   SizeQuant: "+SizeQuant+" Floors: "+Floors+" Size: "+Size[1]+" "+Size[2]+" "+Size[3]);
+  print("         Types: Stone: "+TypeCount[4]+" Sand: "+TypeCount[1]+" Wood: "+TypeCOunt[2]+" Plaster: "+TypeCount[3]+" Brick: "+TypeCount[5]+" Marble/Lux: "+TypeCount[6]+" Left: "+TypeCount[7]+" Junk: "+TypeCount[8]);
+
+  AddHousePrice(ObjType, CInt(QualPrice/8), QualPrice, NumSecs, NumLocs);
+
+  if(Count*0.7 > Sum)
+    print("ERROR: GotItems: "+Sum+", count: "+Count);
+    CreateItemInPack(gWho, Elem.name);
+  endif
+
+  if(!gMinPrice) gMinPrice := QualPrice; 
+  elseif(QualPrice < gMinPrice) gMinPrice := QualPrice; 
+  endif
+    
+  if(!gMaxPrice) gMaxPrice := QualPrice; 
+  elseif(QualPrice > gMaxPrice) gMaxPrice := QualPrice; 
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SpecHex(Obj)
+
+  var sHex := CStr(hex(CInt(Obj)));
+  sHex["0x"] := "";
+
+  var i;
+  for(i:=len(sHex); i<4; i+=1)
+    sHex := "0" + sHex;
+  endfor
+  
+  return "0x"+upper(sHex);
+
+endfunction 
+
+//-----------------------------------------------------------------------------

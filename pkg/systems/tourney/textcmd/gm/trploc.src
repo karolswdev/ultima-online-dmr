@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program SetTourneyPortal(who)
+
+  SendSysMessage(who,"Wskaz portal.",FONT_NORMAL,COLOR_GREEN);
+  
+  var Portal := ObjTarget(who);
+  
+  if(!(Portal.objtype in {0xA244,0xA245,0xA246}))
+    SendSysMessage(who,"Bledny portal.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Gump := YesNo(who,"Juz?");
+  
+  var Coords := {who.x,who.y,who.z};
+  
+  SendSysMessage(who,"Ustawiono Coordy na X: "+Coords[1]+" Y: "+Coords[2]+" Z: "+Coords[3],FONT_NORMAL,COLOR_GREEN);
+  SetObjProperty(Portal,"Coords",Coords);
+
+endprogram
+
+//-----------------------------------------------------------------------------

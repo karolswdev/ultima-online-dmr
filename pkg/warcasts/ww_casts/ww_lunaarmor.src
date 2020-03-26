@@ -1,0 +1,61 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 12;
+
+//-----------------------------------------------------------------------------
+
+program WwLunaArmor(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var WWBSkill       := GetBaseSkill(Caster, SKILLID_WEARWOLF);
+  var ALBSkill       := GetBaseSkill(Caster, SKILLID_ANIMALLORE);
+  var WWEfSkill       := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALEfSkill       := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  var Range           := CInt((WWEfSkill + ALEfSkill) / 20);
+                         //+2 za 100 liki    +2 za 100 woza      +1 za 105 liki                +1 za 105 woza                +1 za 5% powyzej 110 liki        +1 za kazde 10% powyzej 110 woz   +losowe 0,1,2,3
+  var ModSkillAmount  := CInt(WWBSkill/50) + CInt(ALBSkill/50) + CInt(ToMin(WWBSkill-104,0)) + CInt(ToMin(ALBSkill-104,0)) + CInt(Tomin(WWEfSkill-105,0)/5) + CInt(ToMin(ALefSkill-105,0)/10) + RandomInt(4);
+  var ModDexAmount    := (CInt((WWEfSkill + ALEfSkill) * 0.05) + RandomInt(5)) * 2;
+  var Duration        := GetWarCastDuration(Caster, GetWcType(WW_WCID));
+  var Gained := 0;
+
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 98, 0xF, 0xF, 3);
+  PlaySoundEffect(Caster, SFX_SPELL_STRENGTH);
+  PlaySoundEffect(Caster, SFX_SPELL_ARCH_PROTECTION);
+
+  sleepms(300);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(IsWearWolf(Mobile) and Mobile != Caster)
+      if(IsFriend(Caster, Mobile))
+        PlaySoundEffect(Mobile, SFX_SPELL_BLESS);
+        PlaySoundEffect(Mobile, SFX_SPELL_PROTECTION);
+        PlayPcEffect(Mobile, FX_BLESS_EFFECT, 98, 0xF, 0xF, 3);
+
+        if(!Gained and CanSkillMod(Mobile, SKILLID_WRESTLING))
+          Gained :=GainWarcastPoints(Caster, Mobile, WW_WCID, WCGAIN_DEFENSIVE);
+        endif
+
+        DoSkillMod(Mobile, SKILLID_WRESTLING, ModSkillAmount, Duration);
+        DoMod(Mobile, MOD_DEX, ModDexAmount, Duration);
+      endif
+    endif
+  endforeach
+
+  return 1;
+endfunction
+
+//-----------------------------------------------------------------------------

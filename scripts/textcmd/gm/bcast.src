@@ -1,0 +1,67 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/log";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+program BroadCastCmd(who, text)
+
+  var Sp := SplitWords(text);
+
+  if(Sp[1] == "near")
+
+    var Range := CInt(Sp[2]);
+    Sp.erase(1);
+    Sp.erase(1);
+    var Msg := CombineWords(Sp);
+
+    SendSysMessage(who, "Wiadomosc - ["+Msg+"] w zasiegu "+Range+"?", FONT_NORMAL, COLOR_GREEN);
+    if(YesNo(who, "Na pewno?"))
+      foreach Mob in ListObjectsInBox(who.x - Range, who.y - Range, -128, who.x + Range, who.y + Range, 128, who.realm)
+        if(IsPlayer(Mob))
+          SendSysMessage(Mob, Msg, FONT_NORMAL, COLOR_YELLOW_LIGHT);
+        endif
+      endforeach
+    endif
+
+  elseif(Sp[1] == "realm")
+    
+    var Realm := GetRealmById(Sp[2]);
+    if(!Realm)
+      SendSysMessage(who, "Bledny realm: "+Sp[2]+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    Sp.erase(1);
+    Sp.erase(1);
+    var Msg := CombineWords(Sp);
+
+    SendSysMessage(who, "Wiadomosc - ["+Msg+"] na realm ["+Realm+"]?", FONT_NORMAL, COLOR_GREEN);
+    if(YesNo(who, "Na pewno?"))
+      foreach Char in EnumerateOnlineCharacters()
+        if(Char.realm == Realm)
+          SendSysMessage(Char, Msg, FONT_NORMAL, COLOR_YELLOW_LIGHT);
+        endif
+      endforeach
+    endif
+
+  else
+
+    SendSysMessage(who, "Wiadomosc - "+text, FONT_NORMAL, COLOR_GREEN);
+    if(YesNo(who, "Na pewno?"))
+      Broadcast(text, FONT_NORMAL, COLOR_YELLOW_LIGHT);
+    endif
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

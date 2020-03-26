@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 26;
+
+//-----------------------------------------------------------------------------
+
+program CastArchProtection( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  PlaySoundEffect(caster, SFX_SPELL_PROTECTION);
+  
+  var CasterMagery  := GetEffectiveSkill(caster, SKILLID_MAGERY);
+  var CasterMed     := GetEffectiveSkill(caster, SKILLID_MEDITATION);
+  var CasterEvalInt := GetEffectiveSkill(caster, SKILLID_EVALINT);
+  var CasterMusic   := GetEffectiveSkill(caster, SKILLID_MUSICIANSHIP);
+
+  var ModAmount     := RandomInt(2) + 1 + CInt(CasterMagery/50 + CasterEvalInt/40 + BonusInt(Caster));
+
+  if(CasterMusic > CasterMed)
+    ModAmount += CInt(CasterMusic/40);
+  else
+    ModAmount += CInt(CasterMed/40);
+  endif
+
+  var Duration      := CalcModDuration( Caster );
+  var range         := CInt(CasterMagery / 10);
+  var Gained        := 0;
+  
+  foreach CastOn in ListMobilesNearLocation( CastOn.x, CastOn.y, CastOn.z, range,CastOn.realm );
+    if(CheckLineOfSight(CastOn, Caster) and !CastOn.cmdlevel)
+      if(CanMod(CastOn, MOD_AR))
+        PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 7,7);
+        DoMod(CastOn, MOD_AR, ModAmount, Duration);
+        if(Gained < 3)
+          Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+        endif
+      endif
+    endif
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------

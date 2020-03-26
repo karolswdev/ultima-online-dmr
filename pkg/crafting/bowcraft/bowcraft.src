@@ -1,0 +1,200 @@
+//-----------------------------------------------------------------------------
+
+
+include "include/skills/std";
+include "include/skills/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/repair";
+include "include/tempmods";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/tools";
+
+include ":crafting:creation";
+include ":crafting:exceptional";
+include ":crafting:receptures";
+include ":bulks:common";
+include "common";
+
+//-----------------------------------------------------------------------------
+
+program BowCraft(who, tool)
+
+  if(!StandardItemCheck(who, tool))
+    return;
+  endif
+ 
+  TriggerTipEvent(who, TEID_CRAFT_BOWCRAFT);
+  var Res := BowCraftGump(who);
+  if(!Res)
+    return;
+  endif
+
+  start_script(":bowcraft:craft_item", array(who, tool, Res));
+
+endprogram
+  
+//-----------------------------------------------------------------------------
+
+function BowCraftGump(who)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_BOWCRAFT);
+   
+  if(!LastCraft.gumpType)
+    LastCraft.+gumpType := 0;
+  endif
+
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":bowcraft:bowcraft", SKILLID_BOWCRAFT);
+    SkillGlob.expPropName := "exchk";
+
+    BuildMainBowCraftGump(LastCraft.iters);
+
+    case(butRes)
+      2:   BuildBowsGump();
+      3:   BuildCrossBowsGump();
+      4:   BuildMiscGump();
+    endcase
+
+    BuildMainBowCraftEndGump();
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie robil"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        break;
+        
+      97: 
+        RepairThis(who);
+        doCraft := -1;
+
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_BOWCRAFT, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainBowCraftGump(ProdIters)
+
+  BuildMainGump();
+
+  GTextLine(175,  90, 1153, "Menu Tworzenia Lukow");
+  GButton( 70, 384,   3, 4,   1);
+  GButton(410, 380, 243, 241, 99);
+  GTextLine( 90, 380, 900, "To co ostatnio");
+  
+  GTextLine( 90, 410, 900, "Napraw przedmiot");
+  GButton( 70, 414,   3, 4,   97);
+  
+  GTextLine(270, 408, 670, "Ilosc:");
+  BQGAddTextBox(320, 408, 60, 20, 1410, ProdIters, BQG_EDITABLE, 1, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainBowCraftEndGump()
+
+  var Buttons   := struct;
+  Buttons.+Up   := dictionary;
+  Buttons.+Down := dictionary;
+
+  Buttons.Up[2]    := "Luki";
+  Buttons.Up[3]    := "Kusze";
+  Buttons.Up[4]    := "Rozne";
+  
+  BuildSkillMenu(Buttons);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildBowsGump()
+
+          AddGumpElem( 0x13B2, 100, 175, 70,   200, 120, 200);
+          AddGumpElem( 0x26cc, 220, 175, 200,  200, 250, 200);
+          AddGumpElem( 0x2D1F, 360, 175, 310,  200, 400, 200); // ML
+          
+          AddGumpElem( 0x27f0, 140, 270, 70,   295, 160, 295);
+          AddGumpElem( 0x2D1E, 265, 270, 220,  295, 310, 295); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildCrossBowsGump()
+
+          AddGumpElem( 0x0f4f, 100, 175, 70,   200, 120, 200);
+          AddGumpElem( 0x13fd, 220, 175, 200,  200, 250, 200);
+          AddGumpElem( 0x26cd, 330, 175, 340,  200, 400, 200);
+          
+          AddGumpElem( 0x977E, 90, 270, 90,   295, 160, 295, 0, 0x26CD);
+          AddGumpElem( 0x977F, 270, 270, 250,  295, 310, 295, 0, 0x13FD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMiscGump()
+
+          AddGumpElem(0x1BD4, 120,  175, 100,  200, 150, 200);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RepairThis(who)
+
+  SendSysMessage(who, "Wybierz przedmiot do naprawy.",FONT_NORMAL,COLOR_GREEN);
+  var ItemToRepair := ObjTarget(who);
+  if(!StandardItemCheck(who,ItemToRepair))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(ItemCfg[ItemToRepair.objtype].repairable != SKILLID_BOWCRAFT)
+    SendSysMessage(who, "Tego przedmiotu tak nie naprawisz!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  RepairBowCraftItem(who,ItemToRepair);
+
+endfunction
+
+//-----------------------------------------------------------------------------

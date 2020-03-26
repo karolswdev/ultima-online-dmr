@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 78;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonSpirit( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var duration        := GetNecroSpellDur( Caster );
+  var oparms          := {};
+  oparms.+controlable := 1;
+  oparms.+onlyone     := 1;
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+skillsmod   := {GetMagicSkillID(SpellGlob.Type), GetMindSkillID(SpellGlob.Type) };
+
+  var Summon := SummonCreature (Caster, "summonedskeletaldragon", CastLoc, duration, oparms);
+
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

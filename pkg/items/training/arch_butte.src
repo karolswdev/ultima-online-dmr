@@ -1,0 +1,258 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-02
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/client/anims";
+include "include/effects";
+include "include/tools";
+include "include/items";
+include "include/attack";
+include "include/dirs";
+include "../pkg/systems/combat/combat";
+
+include "train_iterations";
+
+//-----------------------------------------------------------------------------
+
+const AB_DIFF                := 10;
+const AB_SK_GAIN             := 30;
+
+const UOBJ_ARCHBUTTEW        := 0x100A;
+const UOBJ_ARCHBUTTEN        := 0x100B;
+
+//-----------------------------------------------------------------------------
+
+var Arrows, Bolts;
+
+//-----------------------------------------------------------------------------
+
+program UseArcheryButte(who, Butte)
+
+  if(!StandardItemCheck(who, Butte, NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  GetAmmo(Butte);
+
+  if(Distance(who, Butte) <= 1)
+    GrabAmmo(who, Butte);
+  elseif(Distance(who, Butte) > 7)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+  else
+  
+    if(!IsCharClass(who, CLASS_ARCHER))
+      SendSysMessage(who, "Nie wiesz jak tego uzywac.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Dir := GetDirFromObjToObj(who, Butte);
+    
+    case(Butte.objtype)
+      UOBJ_ARCHBUTTEW:  if(Dir != DIR_W and Dir != DIR_NW and Dir != DIR_SW)
+                          SendSysMessage(who, "Z tej pozycji nie uda Ci sie strzelic do tarczy.", FONT_NORMAL, COLOR_RED);
+                          return;
+                        endif
+
+      UOBJ_ARCHBUTTEN:  if(Dir != DIR_NE and Dir != DIR_N and Dir != DIR_NW)
+                          SendSysMessage(who, "Z tej pozycji nie uda Ci sie strzelic do tarczy.", FONT_NORMAL, COLOR_RED);
+                          return;
+                        endif
+    endcase
+    
+    TriggerTipEvent(who, TEID_TRAIN_BUTTE);
+
+    var IterData := DefineTrainIterations(who, SKILLID_ARCHERY);
+    var Res;
+    
+    while(TrainIteration(who, IterData))
+      Res := ShotInButte(who, Butte, IterData);
+      
+      if(Res == error)
+        break;
+      endif
+
+    endwhile
+
+    FinishTrainIteration(who, IterData);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GrabAmmo(who, Butte)
+
+  var Amt;
+
+  if(Arrows)
+    Amt := CInt(Arrows / 2) + RandomInt(CInt(Arrows / 4));
+    CreateItemInPack(who, UOBJ_ARROW, Amt);
+    SendSysMessage(who, "Udalo Ci sie wyciagnac "+Amt+" strzal z tarczy.", FONT_NORMAL, COLOR_GREEN);
+    Arrows := 0;
+    SaveAmmo(Butte);
+  elseif(Bolts)
+    Amt := CInt(Bolts / 2) + RandomInt(CInt(Bolts / 4));
+    CreateItemInPack(who, UOBJ_BOLTS, Amt);
+    SendSysMessage(who, "Udalo Ci sie wyciagnac "+Amt+" belt z tarczy.", FONT_NORMAL, COLOR_GREEN);
+    Bolts := 0;
+    SaveAmmo(Butte);
+  else
+    SendSysMessage(who, "Nie ma zadnych strzal lub belt wbitych w tarcze.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetAmmo(Butte)
+
+  Arrows := CInt(GetObjProperty(Butte, "arrows"));
+  Bolts  := CInt(GetObjProperty(Butte, "bolts"));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveAmmo(Butte)
+
+  SetObjProperty(Butte, "arrows", Arrows);
+  SetObjProperty(Butte, "bolts", Bolts);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShotInButte(who, Butte, byref IterData)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var Weapon := who.weapon;
+  var SkID   := FindSkillidByIdentifier(ItemCfg[Weapon.objtype].Attribute);
+
+  if(SkID != SKILLID_ARCHERY)
+    SendSysMessage(who, "Do tarczy mozesz strzelic tylko z luku lub kuszy!", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  var AmmoType := CInt(ItemCfg[Weapon.objtype].AmmoType);
+
+  if(!AmmoType)
+    SendSysMessage(who, "Nie uda Ci sie z tego strzelic.", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  var Ammo := FindItemInContainer(who.backpack, AmmoType);
+  if(!Ammo)
+    SendSysMessage(who, "Brakuje Ci amunicji.", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  if(!SubtractAmount(Ammo, 1))
+    SendSysMessage(who, "Brakuje Ci amunicji.", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  var Mob    := GetMobOnPath(who, Butte);
+  var Targ   := Butte;
+  var Missed := 0;
+
+  if(Mob)
+    Targ := Mob;
+  endif
+
+  TrainIterationGump(who, IterData, "Trenujesz na tarczy strzeleckiej...");
+
+  TurnCharToward(who, Butte);
+  if(!CheckToolWear(who, Weapon, SkID, 2))
+    return error;
+  endif
+
+  if(CheckSkill(who, SkID, AB_DIFF, 0))
+    PlayFightEffect(who, Weapon, Targ.x, Targ.y, Targ.z, Targ.realm, 1);
+    if(!Mob)
+      SendSysMessage(who, GetTrainIterDesc(IterData)+" Brawo, udalo Ci sie trafic w tarcze!", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, GetTrainIterDesc(IterData)+" Trafil"+ggm(who,3)+" w "+GetName(Mob)+"!", FONT_NORMAL, COLOR_GREEN_LIGHT);
+    endif
+  elseif(Butte.objtype == UOBJ_ARCHBUTTEW)
+    PlayFightEffect(who, Weapon, Targ.x, Targ.y+(1-RandomInt(3)), Targ.z, Targ.realm, 0);
+    SendSysMessage(who, GetTrainIterDesc(IterData)+" Spudlowal"+ggm(who,3)+"!", FONT_NORMAL, COLOR_RED);
+    Missed := 1;
+  elseif(Butte.objtype == UOBJ_ARCHBUTTEN)
+    PlayFightEffect(who, Weapon, Targ.x+(1-RandomInt(3)), Targ.y, Targ.z, Targ.realm, 0);
+    SendSysMessage(who, GetTrainIterDesc(IterData)+" Spudlowal"+ggm(who,3)+"!", FONT_NORMAL, COLOR_RED);
+    Missed := 1;
+  endif
+
+  SetScriptController(0);
+
+  if(Mob)
+    if(!Missed)
+      DealDamage(Mob, 2+RandomInt(4));
+      PerformAction(Mob, ANIM_HIT);
+    endif
+  else
+    if(Ammo.objtype == UOBJ_ARROW)
+      Arrows := Arrows + 1;
+    elseif(Ammo.objtype == UOBJ_BOLTS)
+      Bolts := Bolts + 1;
+    endif
+
+    SaveAmmo(Butte);
+
+    if(Missed)
+      PrintTextAbove(Butte, "*pudlo*", FONT_NORMAL, COLOR_RED_LIGHT);
+    else
+      PrintTextAbove(Butte, "*"+GetArcherScore(who)+"*", FONT_NORMAL, COLOR_GREEN_LIGHT);
+    endif
+  endif
+
+  SetScriptController(who);
+
+  if(GetBaseSkill(who, SKILLID_ARCHERY) < MAX_ITEMTRAIN_SKVAL)
+    AwardPoints(who, SKILLID_ARCHERY, AB_SK_GAIN, NO_STAT_AWARD);
+
+    if(GetBaseSkill(who, SKILLID_HUNTER) > 0)
+      if(GetBaseSkill(who, SKILLID_INSIGHT) < MAX_ITEMTRAIN_SKVAL)
+        AwardPoints(who, SKILLID_INSIGHT, AB_SK_GAIN, NO_STAT_AWARD);
+      endif
+    else
+      if(GetBaseSkill(who, SKILLID_TACTICS) < MAX_ITEMTRAIN_SKVAL)
+        AwardPoints(who, SKILLID_TACTICS, AB_SK_GAIN, NO_STAT_AWARD);
+      endif
+    endif
+  endif
+
+  sleep(3);
+
+  if(Distance(who, Butte) > 7)
+    SendSysMessage(who, "Oddalil"+ggm(who,3)+" sie.", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  return !Missed;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetArcherScore(who)
+
+  var Str     := GetDexterity(who);
+  var Dex     := GetDexterity(who);
+  var Archery := GetBaseSkill(who, SKILLID_ARCHERY);
+  var Tactics := GetBaseSkill(who, SKILLID_TACTICS);
+  var Anat    := GetBaseSkill(who, SKILLID_ANATOMY);
+  var Rand    := RandomInt(10);
+
+  return CInt(Str/8 + Dex/4 + Archery/5 + Tactics/5 + Anat/5 + Rand);
+
+endfunction
+
+//-----------------------------------------------------------------------------

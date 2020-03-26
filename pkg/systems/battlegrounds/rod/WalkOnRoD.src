@@ -1,0 +1,60 @@
+use os;
+use polsys;
+use basic;
+use uo;
+
+include "include/client/fonts";
+include "include/client/effects";
+include "include/const/misc";
+include "include/attributes/vitals";
+include "include/staff";
+include "include/const/attributes";
+include ":rod:RingOfDeath";
+include "include/gumpboxes";
+include "include/tempmods";
+
+program walkon_KOTH( who, portal ) 
+
+
+	if(who.cmdlevel)
+		SendSysMessage(who, "Ssij!", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(GetObjProperty(who, "igrzyskaBan"))
+		if(CInt(GetObjProperty(who, "igrzyskaBan")) > ReadGameCLock())
+			SendSysMessage(who, "Jestes zbanowany z igrzysk, musisz jeszcze poczekac!", FONT_NORMAL, COLOR_RED);
+			return;
+		endif
+	endif
+
+	if(!YesNo(who, "Chcesz wziac udzial w Ringu Smierci?"))
+		SendSysMessage(who, "Anulowano!", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(GetEquipmentByLayer(who, 25))
+		SendSysMessage(who, "Na wierzchowcu nie wejdziesz na ta batalie!", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(who.dead)
+		Resurrect(who);
+		sleep(1);
+	endif
+
+
+    UndoAllMods(who);
+    CreateItemInContainer(who.backpack, "apple", 5);
+    MoveObjectToLocation(who, 940, 638, -90, "malas", MOVECHAR_FORCELOCATION);
+    
+    SendSysMessage(who, "Znalazles sie na terenie sali przygotowawczej, nalezy zachowac spokoj!", FONT_NORMAL, COLOR_BLUE);
+    PrintTextAbove(who, "*Czujesz dziwna aure spokoju*", FONT_NORMAL, COLOR_RED);
+    
+    
+    
+endprogram
+    
+
+
+    

@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 14;
+
+//-----------------------------------------------------------------------------
+
+program WwVenomSkin(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var WWSkill  := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  var Duration := ((WWSkill + ALSkill) * 6) + RandomInt(300);
+
+  PlaySoundEffect(Caster, SFX_SPELL_REACTIVE_ARMOR);
+  PlaySoundEffect(Caster, SFX_SPELL_POISON);
+
+  if(CanMod(Caster, MOD_POISON_PROT))
+    GainWarcastPoints(Caster, Caster, WW_WCID, WCGAIN_NORMAL);
+  endif
+
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 61, 0xF, 0x1A, 2);
+  DoMod(Caster, MOD_POISON_PROT, 1, Duration);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,63 @@
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/client/fonts";
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------
+  
+program UseSkillCmd(who,text)
+
+  text := lower(text);
+  var i, Elem;
+  var maxSkId := GetMaxSkillId();
+
+  for(i:=0;i<=maxSkId;i:=i+1)
+    Elem := GetSkillConfigElem(i);
+
+    if(lower(Elem.name)[text])
+      if(!Elem.NotVisible)
+        if(!Elem.Script or Elem.Script == "noskill")
+          SendSysMessage(who, "Umiejetnosc "+CStr(Elem.name)+" uzywa sie w inny sposob.", FONT_NORMAL, COLOR_RED);
+          return;
+        else
+          break;
+        endif
+      endif
+    endif
+
+    Elem := 0;
+  endfor
+  
+  if(!Elem)
+    SendSysMessage(who,"Nie ma umiejetnosci o nazwie podobnej do "+text+".",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(who.frozen)
+    SendSysMessage(who,"Jestes zamrozon"+ggm(who,6)+" i nie uda Ci sie tego zrobic!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(who.paralyzed)
+    SendSysMessage(who,"Jestes sparalizowan"+ggm(who,6)+" i nie uda Ci sie tego zrobic!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(who.dead)
+    SendSysMessage(who,"Jestes martwy!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(who.hidden and Elem.UnHides != 0)
+    who.hidden := 0;
+  endif
+
+  start_script(CStr(Elem.script),who);
+  sleepms(200);
+
+endprogram
+
+//-----------------------------------------------------------------------------

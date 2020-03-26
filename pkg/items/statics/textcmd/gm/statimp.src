@@ -1,0 +1,154 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/clock";
+include "include/std";
+include "include/cmds/cancmd";
+
+include ":housing:common";
+include ":baseitems:common";
+include ":statics:statics";
+
+//-----------------------------------------------------------------------------
+
+program StaticsImport(who,text)
+
+  if(!CanUseCmd(who, "statimp"))
+    return;
+  endif
+ 
+  SetLogRunCycles(LST_CMD);
+
+  if(text == "?")
+    SendSysMessage(who,".statimp Realm sX eX.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Time := ReadGameClock();
+  
+  var Elem,x,y,Id := 0,Items,n := 0,na := 0,e := 0,em := 0;
+  
+  text := SplitWords(text);
+
+  var Realm := text[1];
+
+  if(!Realms()[Realm])
+    SendSysMessage(who, "Realm '"+Realm+"' nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var RlmID := GetRealmId(Realm);
+  var Stx   := CInt(text[2]);
+  var Edx   := Cint(text[3]);
+
+  var Width  := Realms()[Realm].width;
+  var Height := Realms()[Realm].height;
+  
+  var Cfg  := ReadConfigFile(SHARECFG_PKG+"stat"+RlmID);
+
+  if(!Cfg)
+    SendSysMessage(who,"Nie znaleziono konfiga 'stat"+RlmID+".cfg'. Upewnij sie ze wgrales go przez interfejs POLa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!Edx)
+    Edx := Width;
+  endif
+  
+  SendSysMessage(who,"Realm: "+Realm+".",FONT_NORMAL,COLOR_GREEN);
+
+  Id := CInt(Stx / 8) * (Height / 8);
+  var cItem;
+  var stcCnt := 0;
+  
+  for(x:=Stx;x<Edx;x:=x+8)
+    n := 0;
+    for(y:=0;y<Height;y:=y+8)
+      Elem := FindConfigElem(Cfg,Id);
+      if(Elem)
+        if(x >= Stx and x <= Edx)
+          Items := SplitWords(Elem.Item);
+          foreach Item in Items
+            Item    := Split(Item,"_");
+            Item[1] := CInt(Item[1]);
+            Item[2] := CInt(Item[2]);
+            Item[3] := CInt(Item[3]);
+            Item[4] := CInt(Item[4]);
+            
+            cItem := 1;
+            
+            foreach lItem in ListItemsAtLocation(Item[2]+x,Item[3]+y,Item[4],Realm)
+              if(lItem.objtype == Item[1])
+                DestroyItem(lItem);
+                cItem := 1;
+              endif
+            endforeach
+            
+            if(!BadObj(Item[1]) and cItem)
+              cItem := CreateItemAtLoc(Item[2]+x,Item[3]+y,Item[4],Item[1],1,Realm);
+            else
+              cItem := 0;
+            endif
+            
+            if(cItem)
+              cItem.color   := CInt(Item[5]);
+              if(SetItemStc(cItem))
+                stcCnt := stcCnt + 1;
+              endif
+              n  := n  + 1;
+            elseif(!Item[1])
+              em := em + 1;
+            else
+              e  := e  + 1;
+              SendSysMessage(who,"Error: "+cItem+" ["+Item+"]",FONT_NORMAL,COLOR_RED);
+            endif
+            na := na + 1;
+            
+          endforeach
+        endif
+      endif
+      Id := Id + 1;
+    endfor
+    if(!(x % 512))
+      SendSysMessage(who,"X: "+x+" ID: "+Id+" Created: "+n+" All: "+na+" Empty: "+em+" MarkedStatic: "+stcCnt+" Errors: "+e+" Pid: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+    endif
+  endfor
+  
+  SendSysMessage(who,"Created: "+n+" All: "+na+" Empty: "+em+" MarkedStatic: "+stcCnt+" Errors: "+e,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Zakonczono tworzenie, czas trwania: "+RealTime(ReadGameClock() - Time),FONT_NORMAL,COLOR_BLUE);
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Split(Word,Sp)
+
+  var Ret := {},i,z := 1;
+  for(i:=1;i<=len(Word);i:=i+1)
+    if(Word[i] == Sp)
+      Ret[Ret.size()+1] := CInt(Word[z,i]);
+      z := i+1;
+    endif
+  endfor
+  
+  if(z != i+1)
+    Ret[Ret.size()+1] := CInt(Word[z,i]);
+  endif
+  
+  return Ret;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BadObj(Obj)
+
+  __ParamUnused(Obj);
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

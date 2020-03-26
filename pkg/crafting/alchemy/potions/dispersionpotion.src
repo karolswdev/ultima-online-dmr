@@ -1,0 +1,72 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+program UseDispersionPotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(CInt(GetObjProperty(who,"#ThrowTime")) > ReadGameClock())
+    SendSysMessage(who,"Musisz chwile odczekac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Loc := LocTarget( who );
+
+  if(Loc.item.isa(POLCLASS_ITEM))
+    var Dir := GetDirFromObjToObj(who, Loc.item);
+    var Mods := GetDirLocMods(Dir);
+    var Item := Loc.item;
+    Loc := BuildLocStruct(item.x-Mods[1], item.y-Mods[2], item.z, who.realm);
+  endif
+
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SetObjProperty(who,"#ThrowTime",ReadGameClock() + 3);
+
+  var Mx       := Loc.x;
+  var My       := Loc.y;
+  var Mz       := Loc.z;
+  var MRlm     := who.realm;
+
+  if(!ThrowPotion(who,Loc,Potion))
+    return;
+  endif
+
+  var x,y;
+
+  for(x:=mx-1;x<=mx+1;x+=1)
+    for(y:=my-1;y<=my+1;y+=1)
+      PlayPcStEffect(x, y, GetStandZ(x, y, mRlm, mz)+1, mRlm, FX_SMOKE, 998, 16, 16, 3);
+    endfor
+  endfor
+
+  var Objs := array;
+  Objs.Append(UOBJ_STONEFIELD_EW);
+  Objs.Append(UOBJ_STONEFIELD_NS);
+  Objs.Append(UOBJ_ENERGYFIELD_NS);
+  Objs.Append(UOBJ_ENERGYFIELD_EW);
+
+  foreach item in ListItemsNearLocation(mx, my, mz, 1, mRlm)
+    if((item.objtype in Objs) and GetObjProperty(item, PROP_SUMMONED_FIELD) and !CInt(GetObjProperty(item,"FireMoon")))
+      PlayPcStEffect(item.x, item.y, item.z+1, item.realm, FX_SMOKE, 998, 16, 16, 3);
+      var Hp := GetDispelHp(item);
+
+      if(Hp <= 50)
+        DestroyItem(Item);
+      else
+        SetDispelHp(Item, Hp-50);
+      endif
+    endif
+  endforeach
+  
+endprogram
+
+//-----------------------------------------------------------------------------

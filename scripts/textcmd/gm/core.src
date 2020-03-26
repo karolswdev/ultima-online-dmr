@@ -1,0 +1,396 @@
+//-----------------------------------------------------------------------------
+
+use file;
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/clock";
+include "include/cmds/misc";
+include "include/proc";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+var Core;
+
+//-----------------------------------------------------------------------------
+
+program CoreCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var Res, Done := 0;
+
+  if(text and who.cmdlevel == 4)
+    text := SplitWords(text);
+    case(text[1])
+
+      "scsave": ScriptSave(who);
+                return;
+
+      "scdiff": ShowScriptDiff(who, CInt(text[2]));
+                return;
+
+      "sc":     var i, vNum := 0, Instr := 0, sName := -1;
+                for(i:=2;i<=text.size();i:=i+1)
+                  if(text[i] == "var")
+                    vNum := CInt(text[i+1]);
+                    if(i == 2)
+                      sName := 0;
+                    endif
+                  elseif(text[i] == "instr")
+                    Instr := CInt(text[i+1]);
+                    if(i == 2)
+                      sName := 0;
+                    endif
+                  endif
+                endfor
+
+                if(sName == -1)
+                  sName := text[2];
+                  if(!sName)
+                    SendSysMessage(who, "Nie podano wartosci.", FONT_NORMAL, COLOR_RED);
+                    return;
+                  endif
+                endif
+
+                BuildAllScriptsGump(who, sName, vNum, Instr);
+                Done := 1;
+      "prof":   BuildScriptProfilesGump(who, text[2]);
+                Done := 1;
+    endcase
+  endif
+
+  if(!Done)
+    BuildCoreGump(who);
+  endif
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+    if(who.cmdlevel == 4)
+      case(Res[0])
+        10:      BuildPackagesGump();
+                 continue;
+        11:      if(YesNo(who, "Na pewno?"))
+                   BuildAllScriptsGump(who);
+                   continue;
+                 endif
+        12:      BuildScriptProfilesGump(who);
+                 continue;
+
+        default: return;
+      endcase
+    else
+      break;
+    endif
+    BuildCoreGump(who);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildCoreGump(who)
+
+  Core := PolCore();
+
+  var yMove := 0;
+  if(IsAdmin(who))
+    yMove := 160;
+  endif
+
+  GInit(20, 20);
+  GResPic(0, 0, 3600, 500, 220+yMove);
+
+  GTextLine(30, 20, 999,  "Rdzen:");
+  GTextLine(80, 20, 550,  Core.verstr);
+
+  GTextLine(240,20, 999,  "Skompilowany:");
+  GTextLine(330,20, 550,  Core.compiledate+" "+Core.compiletime);
+
+  GTextLine(30, 50, 1000, "UpTime:");
+  GTextLine(130,50, 550,  RealTime(Core.uptime));
+
+  GTextLine(30, 70, 1000, "Online:");
+  GTextLine(130,70, 550,  GetOnlineNum());
+
+  GTextLine(30, 90, 1000, "ItemCount:");
+  GTextLine(130,90, 550,  Core.itemcount);
+
+  GTextLine(30, 110,1000, "MobCount:");
+  GTextLine(130,110,550,  Core.mobilecount);
+
+  var Sent := CInt(Core.bytes_sent/1024);
+  Sent := FormatSize(Sent);
+
+  GTextLine(30, 130,1000, "Wyslano:");
+  GTextLine(130,130,550,  Sent+" KB");
+
+  var Recv := CInt(Core.bytes_received/1024);
+  Recv := FormatSize(Recv);
+
+  GTextLine(30, 150,1000, "Odebrano:");
+  GTextLine(130,150,550,  Recv+" KB");
+
+  GTextLine(30, 170,1000, "SysTime:");
+  GTextLine(130,170,550,  CUnixTime(Core.systime));
+
+  if(yMove)
+    GTextLine(30, 200,1000, "SysLoad:");
+    GTextLine(130,200,550,  Core.sysload+" ("+Core.sysload_severity+")");
+
+    GTextLine(30, 220,1000, "Priority:");
+    GTextLine(130,220,550,  Core.priority_divide);
+
+    GTextLine(30, 250,670, "Tasks Per Minute:");
+
+    GTextLine(30, 270,1000, "Events:");
+    GTextLine(130,270,550,  Core.events_per_min);
+    GTextLine(180,270,1000, "SkCheck:");
+    GTextLine(270,270,550,  Core.skill_checks_per_min);
+    GTextLine(340,270,1000, "CombatOpp:");
+    GTextLine(440,270,550,  Core.combat_operations_per_min);
+
+    GTextLine(30, 290,1000, "Error:");
+    GTextLine(130,290,550,  Core.error_creations_per_min);
+    GTextLine(180,290,1000, "TaskOnTime:");
+    GTextLine(270,290,550,  Core.tasks_ontime_per_min);
+    GTextLine(340,290,1000, "TaskLate:");
+    GTextLine(440,290,550,  Core.tasks_late_per_min);
+
+    GTextLine(30, 310,1000, "TaskLateTicks:");
+    GTextLine(130,310,550,  Core.tasks_late_ticks_per_min);
+    GTextLine(180,310,1000, "Instr:");
+    GTextLine(270,310,550,  Core.instr_per_min);
+
+    GButton(30, 343, 2117, 2118, 10);
+    GTextLine(50, 340,999,  "Pakiety");
+
+    GButton(130, 343, 2117, 2118, 11);
+    GTextLine(150, 340,999,  "Skrypty");
+
+    GButton(270, 343, 2117, 2118, 12);
+    GTextLine(290, 340,999,  "Profile Skryptow");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPackagesGump()
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 300, 500);
+  GAddPageData(265,16,2650,2651,265,463,2648,2647);
+  GMultiPage();
+
+  foreach Package in Packages()
+    GCheckNextPage(23);
+    GTextLine(30, 20+GNPCount()*20, 1000, Package.name);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAllScriptsGump(who, sName := 0, vNum := 0, Instr := 0)
+
+  var AllScripts := PolCore().all_scripts;
+  var i          := 0;
+
+  if(sName)
+    sName := lower(sName);
+  endif
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 800, 500);
+  GAddPageData(765,16,2650,2651,765,463,2648,2647);
+
+  GTextLine(30, 20, 999, "Wszystkie skrypty ("+AllScripts.size()+")");
+  GTextLine(20, 50, 999,  "Nr");
+  GTextLine(60, 45, 999,  "Pid");
+  GTextLine(150,45, 999,  "State");
+  GTextLine(210,45, 999,  "Instr");
+  GTextLine(310,45, 999,  "Sleeps");
+  GTextLine(410,45, 999,  "VarSize");
+  GTextLine(500,45, 999,  "Name");
+  GMultiPage();
+
+  foreach Script in AllScripts
+    if(!Script)
+      continue;
+    endif
+    if(sName)
+      if(!Script.name[sName])
+        continue;
+      endif
+    endif
+
+    if(vNum)
+      if(Script.var_size < vNum)
+        continue;
+      endif
+    endif
+
+    if(Instr)
+      if(Script.instr_cycles < Instr)
+        continue;
+      endif
+    endif
+
+    GCheckNextPage(20);
+    GTextLine(20,70+GNPCount()*20, 670, (i+1)+".");
+    GTextLine(60,70+GNPCount()*20, 550, Script.pid);
+    GTextLine(150,70+GNPCount()*20, 1419, Script.state);
+    GTextLine(210,70+GNPCount()*20, 560, Script.instr_cycles);
+    GTextLine(310,70+GNPCount()*20, 560, Script.sleep_cycles*-1);
+    GTextLine(410,70+GNPCount()*20, 560, Script.var_size);
+    GTextLine(500,70+GNPCount()*20, 1000, Script.name);
+    i := i + 1;
+  endforeach
+
+  if(i != AllScripts.size())
+    SendSysMessage(who, "Znaleziono "+i+" skryptow.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildScriptProfilesGump(who, sName := 0)
+
+  var AllScripts := PolCore().script_profiles;
+  var ScDict     := dictionary;
+  var i          := 0;
+
+  if(sName)
+    sName := lower(sName);
+  endif
+  
+  foreach Script in AllScripts
+    if(sName)
+      if(!Script.name[sName])
+        continue;
+      endif
+    endif
+    ScDict[ZeroFill(Script.instr_percent, 2)+"_"+_Script_iter] := _Script_iter;
+  endforeach
+
+  var Keys := ScDict.keys();
+  Keys.reverse();
+
+  GInit(20, 20);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 3600, 800, 500);
+  GAddPageData(765,16,2650,2651,765,463,2648,2647);
+
+  GTextLine(30, 20, 999, "Wszystkie skrypty ("+AllScripts.size()+")");
+  GTextLine(20, 50, 999,  "Nr");
+  GTextLine(60, 45, 999,  "Instr");
+  GTextLine(170,45, 999,  "Invocs");
+  GTextLine(270,45, 999,  "InstrPerInvoc");
+  GTextLine(370,45, 999,  "InstrPerc");
+  GTextLine(450,45, 999,  "InstrPerc");
+  GMultiPage();
+
+  var Script;
+
+  foreach Key in Keys
+    Script := AllScripts[ScDict[Key]];
+    GCheckNextPage(20);
+    GTextLine(20 ,70+GNPCount()*20, 670, (i+1)+".");
+    GTextLine(60 ,70+GNPCount()*20, 550, Script.instr);
+    GTextLine(170,70+GNPCount()*20, 1419, Script.invocations);
+    GTextLine(270,70+GNPCount()*20, 560, Script.instr_per_invoc);
+    GTextLine(370,70+GNPCount()*20, 560, Script.instr_percent);
+    GTextLine(450,70+GNPCount()*20, 1000, Script.name);
+    i := i + 1;
+  endforeach
+
+  if(i != AllScripts.size())
+    SendSysMessage(who, "Znaleziono "+i+" skryptow.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ScriptSave(who)
+
+  var AllScripts := PolCore().all_scripts;
+  var Scripts    := dictionary;
+
+  foreach Script in AllScripts
+    Scripts[Script.pid] := Script.instr_cycles;
+  endforeach
+
+  SetGlobalProperty("#ScriptsSave", Scripts);
+  SetGlobalProperty("#ScSaveTime", PolCore().systime);
+  SendSysMessage(who, "Zapisano ["+Scripts.size()+"] skryptow, czas: "+CUnixTime(PolCore().systime), FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowScriptDiff(who, Diff)
+
+  var Scripts := GetGlobalProperty("#ScriptsSave");
+
+  if(!Scripts)
+    SendSysMessage(who, "Nie zapisywano skryptow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!Diff)
+    Diff := 50000;
+  endif
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 800, 500);
+  GAddPageData(765,16,2650,2651,765,463,2648,2647);
+
+  GTextLine(30, 20, 999, "Skrypty ("+Scripts.size()+") Minelo: "+RealTime(PolCore().systime - GetGlobalProperty("#ScSaveTime")));
+  GTextLine(20, 50, 999,  "Nr");
+  GTextLine(60, 45, 999,  "Pid");
+  GTextLine(150,45, 999,  "Diff");
+  GTextLine(250,45, 999,  "WasInstr");
+  GTextLine(350,45, 999,  "CurInstr");
+  GTextLine(500,45, 999,  "Name");
+  GMultiPage();
+
+  var Script, cDiff, i := 1;
+
+  foreach ScData in Scripts
+
+    Script := GetProc(_ScData_iter);
+
+    if(!Script)
+      continue;
+    endif
+
+    cDiff := Script.instr_cycles - ScData;
+
+    if(cDiff < Diff)
+      continue;
+    endif
+
+    GCheckNextPage(20);
+    GTextLine(20,70+GNPCount()*20, 670,   (i+1)+".");
+    GTextLine(60,70+GNPCount()*20, 550,   Script.pid);
+    GTextLine(150,70+GNPCount()*20, 1419, cDiff);
+    GTextLine(250,70+GNPCount()*20, 560,  ScData);
+    GTextLine(350,70+GNPCount()*20, 560,  Script.instr_cycles);
+    GTextLine(500,70+GNPCount()*20, 1000, Script.name);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

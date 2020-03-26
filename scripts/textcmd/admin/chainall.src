@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/anims";
+include "include/client/sounds";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program ChainAllCmd(who, Num)
+
+  Num := CInt(Num);
+
+  if(!Num)
+    Num := 5;
+  elseif(Num > 60)
+    Num := 60;
+  endif
+
+  var i := 0;
+
+  repeat
+
+    foreach mob in ListMobilesNearLocation(who.x,who.y,who.z,20)
+      if(!mob.cmdlevel)
+        PlayLightningBoltEffect(mob);
+        PlayLightningBoltEffect(mob);
+        PlaySoundEffect(mob,SFX_SPELL_LIGHTNING);
+
+        if(!(i % 3))
+          if(IsHuman(mob))
+            PerformAction(mob, ANIM_HIT);
+          else
+            PerformAction(mob, ANIM_HIT_NPC);
+          endif
+        endif
+      endif
+    endforeach
+
+    sleepms(300);
+    i := i + 1;
+  until(i >= Num);
+
+endprogram
+
+//-----------------------------------------------------------------------------

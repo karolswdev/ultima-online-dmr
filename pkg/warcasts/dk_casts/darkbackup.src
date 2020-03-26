@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/faith";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 73;
+
+//-----------------------------------------------------------------------------
+
+program DkDarkBackUp(Parms)
+
+  WarCast(Parms, DK_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(CanMod(Caster, MOD_CTH))
+    GainWarcastPoints(Caster, Caster, DK_WCID, WCGAIN_DEFENSIVE);
+  endif
+
+  var Mod      := CInt(GetEffectiveSkill(Caster, SKILLID_FANATICISM) / 4) + CInt(GetEffectiveSkill(Caster, SKILLID_ZEAL) / 4);
+  var Duration := GetWarCastDuration(Caster, WCT_DARKKNIGHT);
+  
+  PlaySoundEffect(Caster, SFX_ARCANE_POWER_UP);
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 1109, 0x10, 0x10, 8);
+  DoMod(Caster, MOD_CTH, Mod, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

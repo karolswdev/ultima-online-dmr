@@ -1,0 +1,71 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 100;
+
+//-----------------------------------------------------------------------------
+
+program CastGlacialStrike( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var CasterSk := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var CasterSp := GetMindSkillValue(Caster, SpellGlob.Type);
+  var Range    := CInt((CasterSk + CasterSp) / 20);
+  var Dmg;
+  var Num      := 0;
+  var Gained   := 0;
+
+  foreach mobile in  ListMobilesNearLocation(CastOn.x, CastOn.y, CastOn.z, Range, CastOn.realm)
+
+    if(CanDamage(Caster,mobile,0,CastOn))
+
+      if(Dispersed(Caster, Mobile))
+        continue;
+      endif
+
+      PlaySoundEffect(mobile, SFX_SPELL_CURSE);
+      PlaySoundEffect(mobile, SFX_SPELL_ICE_BOLT);
+      PlayPcMovEffect(Caster, mobile, FX_FIREBALL, 1151, 0x5, 0x1, 0x1);
+      Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, Mobile, SpellGlob.Type);
+
+      if(Reflected(mobile, Caster))
+        PlayPcMovEffect(mobile, Caster, FX_FIREBALL, 1151, 0x5, 0x1, 0x1);
+        mobile := Caster;
+      endif
+
+      var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+
+      Num := Num + 1;
+
+      if(Num >= 5)
+        break;
+      endif
+
+      if(Gained < 3 and DmgRes > 0)
+        Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+      endif
+
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

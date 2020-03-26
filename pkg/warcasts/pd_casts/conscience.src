@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 42;
+
+//-----------------------------------------------------------------------------
+
+program PdConscience(Parms)
+
+  WarCast(Parms, PD_WCID, 0, TRGT_PLAYER, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  if(!CastOn.murderer)
+    WcFizzleId(Caster, "Ta osoba nie jest morderca!", PD_WCID);
+    return 0;
+  endif
+
+  var MainSk := GetEffectiveSkill(Caster, SKILLID_PALADINISM);
+  var MindSk := GetEffectiveSkill(Caster, SKILLID_ZEAL);
+  
+  var Mod      := CInt(MainSk / 15 + MindSk / 15);
+  var Duration := GetWarCastDuration(Caster, WCT_PALADIN);
+
+  DoMod(CastOn, MOD_STR, 0 - Mod, Duration);
+  DoMod(CastOn, MOD_DEX, 0 - Mod, Duration);
+  
+  DoSkillMod(CastOn, SKILLID_SWORDSMANSHIP, 0 - CInt(Mod/2), Duration);
+  DoSkillMod(CastOn, SKILLID_AXESMANSHIP,   0 - CInt(Mod/2), Duration);
+  DoSkillMod(CastOn, SKILLID_MACEFIGHTING,  0 - CInt(Mod/2), Duration);
+  DoSkillMod(CastOn, SKILLID_FENCING,       0 - CInt(Mod/2), Duration); 
+  DoSkillMod(CastOn, SKILLID_WRESTLING,     0 - CInt(Mod/2), Duration);
+  DoSkillMod(CastOn, SKILLID_ARCHERY,       0 - CInt(Mod/2), Duration);
+
+  PlaySoundEffect(CastOn, SFX_SPELL_CURSE);
+  PlayPcEffect(CastOn, FX_SMOKE, 55, 0xF, 0xE, 4);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/ainpcs";
+include "ai/main/killpcsloop";
+include "ai/setup/spellsetup";
+include "ai/combat/healercombatevent";
+include "ai/combat/fight";
+include "ai/main/loot";
+include "ai/main/sleepmode";
+include "include/cdist";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 12;
+
+//-----------------------------------------------------------------------------
+
+program CritterHealerAI()
+
+  SetLogRunCycles(LST_AI);
+
+  SetWarMode( 0 );
+  main_AI_loop();
+
+endprogram
+
+//-----------------------------------------------------------------------------

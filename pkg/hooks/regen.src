@@ -1,0 +1,292 @@
+//-----------------------------------------------------------------------------
+/*
+Vital_Name defines the UNIQUE name for this vital, like 'Mana', 'Stamina', etc.
+Aliases are optional and any number maybe be assigned for each vital. This way 'Hits' may be used in place of 'Life'
+At the LEAST, these attributes must be defined: 'Life', 'Stamina', 'Mana' for use in internal calculations.
+RegenRateFunction should return value from -30000 to 30000. Regen rates are in 'hundredths of points per minute.' A current regen rate of 100 (1 point per 5 seconds) would therefore be 1200 (12 points per minute)
+MaximumFunction should return the maximum value for this vital, an integer in 'hundreths' between 100 and 10000000 (1-100,000)
+UnderflowFunction not implimented.
+*/
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/npcs";
+include "include/checks/stdchecks";
+include ":glyphs:glyphs";
+
+include ":character:common";
+
+//-----------------------------------------------------------------------------
+
+const MAX_VITAL_VALUE := 160;
+
+//-----------------------------------------------------------------------------
+
+var ClassCfg := ReadConfigFile(CLASSES_CFG);
+
+//-----------------------------------------------------------------------------
+
+program regen()
+
+  print("RegenHook: ["+GetPid()+"] Done.");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function GetLifeRegenRateExported(mob)
+
+  if(Mob.isa(POLCLASS_NPC))  
+
+    return 1800 + GetTempModAmount(mob, MOD_HP_REGEN);
+
+  else
+
+    var Mod := 0;
+
+    if(GetBaseSkillBaseValue(mob, SKILLID_KENSAI) > 0)
+      Mod := CInt(GetEffectiveSkillBaseValue(mob, SKILLID_KENSAI)*4.8);
+    elseif(GetBaseSkillBaseValue(mob, SKILLID_BARBARIAN) > 0)
+      Mod := CInt(GetEffectiveSkillBaseValue(mob, SKILLID_BARBARIAN)*10.8);
+    endif
+    
+    return 1200 + GetTempModAmount(mob, MOD_HP_REGEN) + Mod;
+
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function GetLifeMaximumValueExported(mob)
+
+  var maxlife := 0;
+  
+  if(mob.isa(POLCLASS_NPC))
+    
+    var cfgElem  := GetNpcConfig(mob);
+    var lifestat := CInt(cfgElem.HITS);
+    
+    if(CInt(GetObjProperty(mob,VITALID_LIFE)))
+      lifestat := CInt(GetObjProperty(mob,VITALID_LIFE));
+    endif
+
+    if(!lifestat)
+      maxlife := GetAttribute(mob, ATTRIBUTEID_STRENGTH) * 100;
+    else
+      maxlife := lifestat * 100;
+    endif
+    
+    maxlife := maxlife + (GetStrengthMod(mob) * 100);
+    
+  else
+  
+    maxlife := GetAttribute(mob, ATTRIBUTEID_STRENGTH) * 100;
+    maxlife := maxlife + (CInt((GetEffectiveSkill(mob, SKILLID_ANATOMY) / 10) * GetRaceMaxStamMod(mob)) * 100);
+    maxlife := maxlife + (GetTempModAmount(mob,MOD_LIFE) * 100);
+	
+	// glyphs
+	
+	var mod := GetGlyphMod(mob, "WincreasedAnatomy", 1);
+	if(mod)
+		maxlife := maxlife + CInt(GetEffectiveSkill(mob, SKILLID_ANATOMY / 20) * 10);
+	endif
+	
+	mod := GetGlyphMod(mob, "WincreasedHealth", 1);
+	if(mod)
+		maxlife := maxlife + (mod * 100);
+	endif
+
+    if(maxlife > MAX_VITAL_VALUE * 100 and !mob.cmdlevel)
+      maxlife := MAX_VITAL_VALUE * 100;
+    endif
+
+  endif
+
+  return maxlife;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function GetStaminaRegenRateExported(mob)
+      
+  if(Mob.isa(POLCLASS_NPC))
+
+    // 50 na sekunde, czyli instant regen
+    return 60000 + GetTempModAmount(mob, MOD_STAM_REGEN);
+
+  else
+
+    return 0; // regenhook w playerhookach robi to juz.
+    // POL jest z dupy i ma na sztywno w kodzie zaszyty regen time na 5s. Nie da sie tego zmienic i jest to denerwujace max.
+
+  endif
+  
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function GetStaminaMaximumValueExported(mob)
+
+  var maxstam;
+
+  if(mob.isa(POLCLASS_NPC))
+
+    var cfgElem  := GetNpcConfig(mob);
+    var stamstat := CInt(cfgElem.STAM);
+    
+    if(CInt(GetObjProperty(mob,VITALID_STAMINA)))
+      stamstat := CInt(GetObjProperty(mob,VITALID_STAMINA));
+    endif
+
+    if(!stamstat)
+      maxstam := GetAttribute(mob, ATTRIBUTEID_DEXTERITY) * 100;
+    else
+      maxstam  := stamstat * 100;
+    endif
+    maxstam := maxstam + (GetDexterityMod(mob) * 100);
+
+  else
+
+    maxstam := GetAttribute(mob, ATTRIBUTEID_DEXTERITY) * 100;
+    maxstam := maxstam + (GetTempModAmount(mob,MOD_STAMINA) * 100);
+
+    if(maxstam > MAX_VITAL_VALUE * 100 and !mob.cmdlevel)
+      maxstam := MAX_VITAL_VALUE * 100;
+    endif
+
+  endif
+
+  if(maxstam)
+    return maxstam;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function GetManaRegenRateExported(mob)
+
+  if(Mob.isa(POLCLASS_NPC))
+     return 3000 + GetTempModAmount(mob, MOD_MANA_REGEN);
+  endif
+
+  var rate := CInt((1300 * GetManaRegenModifier(mob)) + (GetEffectiveSkill(mob,SKILLID_MEDITATION) * 25) + GetTempModAmount(mob, MOD_MANA_REGEN));
+
+  if(GetBaseSkill(Mob, SKILLID_PALADINISM) > 0 or GetBaseSkill(Mob, SKILLID_FANATICISM) > 0)
+    rate := rate + GetEffectiveSkill(Mob, SKILLID_ZEAL) * 50;
+  endif
+
+  return rate;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function GetManaMaximumValueExported(mob)
+
+  var maxmana := 0;
+
+  if(mob.isa(POLCLASS_NPC))
+    var cfgElem  := GetNpcConfig(mob);
+    var manastat := CInt(cfgElem.MANA);
+
+    if(CInt(GetObjProperty(mob,VITALID_MANA)))
+      manastat := CInt(GetObjProperty(mob,VITALID_MANA));
+    endif
+
+    if(!manastat)
+      maxmana := GetAttribute(mob, ATTRIBUTEID_INTELLIGENCE) * 100;
+    else
+      maxmana  := manastat * 100;
+    endif
+    maxmana := maxmana + (GetIntelligenceMod(mob) * 100);
+    
+  else
+
+    maxmana := GetAttribute(mob, ATTRIBUTEID_INTELLIGENCE) * 100;
+    maxmana := maxmana + (CInt((GetEffectiveSkill(mob,SKILLID_EVALINT) / 10) * GetRaceMaxManaMod(mob)) * 100);
+    maxmana := maxmana + (GetTempModAmount(mob,MOD_MANA) * 100);
+	
+	// glyph
+	
+	var manaMod := GetGlyphMod(mob, "MincreasedMana", 1);
+	if(manaMod)
+		maxmana := maxmana + (manaMod * 100);
+	endif
+	
+	var evalIntMod := GetGlyphMod(mob, "MincreasedEvalint", 1);
+	if(evalIntMod)
+		maxmana := maxmana + (CInt((GetEffectiveSkill(mob, SKILLID_EVALINT) / 20) * 100));
+	endif
+	
+    if(maxmana > MAX_VITAL_VALUE * 100 and !mob.cmdlevel)
+      maxmana := MAX_VITAL_VALUE * 100;
+    endif
+
+  endif
+
+  if(maxmana)
+    return maxmana;
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetRaceMaxStamMod(who)
+
+  var ClassName := GetCharClass(who);
+
+  if(ClassName)
+    var Mod := GetConfigReal(ClassCfg[ClassName], "MaxStamMod");
+    
+    if(Mod)
+      return Mod;
+    endif
+  endif
+
+  return 1.0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetRaceMaxManaMod(who)
+
+  var ClassName := GetCharClass(who);
+
+  if(ClassName)
+    var Mod := GetConfigReal(ClassCfg[ClassName], "MaxManaMod");
+    
+    if(Mod)
+      return Mod;
+    endif
+  endif
+
+  return 1.0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetManaRegenModifier(who)
+
+  var ClassName := GetCharClass(who);
+
+  if(ClassName)
+    var Mod := GetConfigReal(ClassCfg[ClassName], "ManaRegenMod");
+    
+    if(Mod)
+      return Mod;
+    endif
+  endif
+
+  return 1.0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

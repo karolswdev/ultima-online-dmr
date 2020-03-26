@@ -1,0 +1,8 @@
+use uo;
+use os;
+
+program textcmd_smierc(who)
+
+	start_script(":death:doDeath", {who, 180});
+	
+endprogram

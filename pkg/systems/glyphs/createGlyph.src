@@ -1,0 +1,28 @@
+use uo;
+use os;
+use util;
+
+include ":glyphs:glyphs";
+
+program CreateGlyph(glyph)
+
+    var randomArr := MajorGlyphs() + MinorGlyphs();
+    
+    SetObjProperty(glyph, "glyphId", randomArr[RandomInt(randomArr.size())+1]);
+    SetName(glyph, GetGlyphDesc(CInt(GetObjProperty(glyph, "glyphId"))));
+    SetObjProperty(glyph, "SpecialTag", "Magiczny Glif");
+    
+    glyph.color := RandomInt(600);
+	
+	if(RandomInt(10) < 3)
+		SetName(glyph, glyph.name + " - spalony");
+		SetObjProperty(glyph, "SpecialTag", "Glif rozkruszyl sie");
+		PrintTextAbove(glyph, "Glif rozpada sie na 1000 kawalkow...");
+		SetObjProperty(glyph, "Broken", 1);
+	endif
+		
+    
+endprogram
+    
+    
+    

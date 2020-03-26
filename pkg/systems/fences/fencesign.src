@@ -1,0 +1,370 @@
+//---------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/key";
+include "include/checks/objchecks";
+include "fences";
+
+//-----------------------------------------------------------------------------
+
+const MAX_TROUGH := 4;
+
+//-----------------------------------------------------------------------------
+
+var FenceCfg := ReadConfigFile("fences");
+var gTroughs;
+
+//-----------------------------------------------------------------------------
+
+program FenceSign(who, sign)
+
+  if(!StandardItemCheck(who, sign, NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  Ginit(160, 160);
+  GPage(1);
+  GResPic(0,50,0xa3c,278,320);
+
+  gTroughs := GetFenceTroughs(Sign);
+  BuildMainGump(who,sign);
+  BuildNameGump(sign);
+
+  var res := GSend(who);
+
+  case(res[0])
+    1:       ChangeName(who,sign);
+    2:       ChangeLock(who,sign);
+    3:       ChangeOwner(who,sign);
+    4:       Destroy(who,sign);
+    5:       AddTrough(who,sign);
+    6:       DeleteTrough(who);
+    default: return;
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGump(who,sign)
+
+  var Owner   := FindPlayerBySerial(GetObjProperty(Sign,"owner"));
+  var OwnerName;
+
+  if(!Owner)
+    Destroy(who, sign, 0);
+    exit;
+  endif
+
+  OwnerName := owner.name;
+
+  GTextLine(30, 120, 910, "Wlasciciel: " + ownername);
+
+  if(who.serial == Owner.serial or who.cmdlevel > 2)
+    GButton(30, 150, 2714, 2715, 1);
+    GTextLine(50, 150, 910, "Zmien nazwe");
+    GButton(30, 175, 2714, 2715, 2);
+    GTextLine(50, 175, 910, "Zmien zamek");
+    GButton(30, 200, 2714, 2715, 3);
+    GTextLine(50, 200, 910, "Zmien wlasciciela");
+
+    GButton(30, 255, 2714, 2715, 5);
+    GTextLine(50, 255, 910, "Dodaj koryto");
+    GButton(30, 280, 2714, 2715, 6);
+    GTextLine(50, 280, 910, "Usun koryto");
+
+  endif
+
+  if(who.serial == Owner.serial or who.cmdlevel > 2 or CanControlHouse(sign, who))
+    GButton(30, 225, 2714, 2715, 4);
+    GTextLine(50, 225, 910, "Zniszcz i odzyskaj deeda");
+  endif
+
+  GTextLine(80, 315, 900, "Koryta : "+gTroughs.size() + "/" + MAX_TROUGH);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildNameGump(sign)
+
+  GGumpPic(70,0,0x67);
+
+  var name := GetObjProperty(sign, "name");
+  if(!name)
+    name := "zagroda";
+    SetObjProperty(sign,"name",name);
+    sign.name := name;
+  endif
+
+  name := SplitWords(name);
+
+  if(name[2])
+    GTextLine(95,30, 550, name[1]);
+    GTextline(95,50, 550, name[2]);
+  else
+    GTextLine(95,40, 550, name[1]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeName(who,sign)
+
+  var newname := RequestInput(who,sign, "Wpisz nowa nazwe. [maksymalnie 2 wyrazy po 14 znakow]");
+
+  if(!newname)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Distance(who,sign) > 3)
+    SendSysMessage(who, "Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var split := SplitWords(newname);
+
+  if(split[3])
+    SendSysMessage(who, "Za duzo wyrazow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(len(split[2]) > 14 or len(split[1]) > 14)
+    SendSysMessage(who, "Za dluga nazwa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var oldname := GetObjProperty(sign, "name");
+  SendSysMessage(who, "Poprzednia nazwa: " + CLStr(oldname),FONT_NORMAL,COLOR_GREEN);
+  SetObjProperty(sign,"name",newname);
+  sign.name := newname;
+  SendSysMessage(who, "Nowa nazwa: "+ newname,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Changelock(who,sign)
+
+  SendSysMessage(who, "Wskaz nowy klucz.",FONT_NORMAL,COLOR_GREEN);
+  var newkey := ObjTarget(who);
+
+  if(!newkey)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Distance(who,sign) > 3)
+    SendSysMessage(who, "Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(newkey.objtype >= UOBJ_KEYSTART and newkey.objtype <= UOBJ_KEYEND)
+
+    if(!newkey.container)
+      SendSysMessage(who, "Klucz nie moze lezec na ziemi.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(GetItemLockID(NewKey))
+      SendSysMessage(who, "Ten klucz zostal juz wyrobiony.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var LockId  := AllocLockId();
+    var Door1,Door2;
+    
+    Door1 := SystemFindObjectBySerial(CInt(GetObjProperty(sign,"Door1Ser")));
+    Door2 := SystemFindObjectBySerial(CInt(GetObjProperty(sign,"Door2Ser")));
+
+    if(!Door1 or !Door2)
+      SendSysMessage(who,"Drzwi nie istnieja, przebuduj zagrode.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    SetItemLockID(Door1, LockId);
+    SetItemLockID(Door2, LockId);
+    SetItemLockID(newkey,LockId);
+    SetItemLockID(sign,  LockId);
+
+    SendSysMessage(who, "Zamek w bramie zostal zmieniony.",FONT_NORMAL,COLOR_BLUE);
+    
+  else
+  
+    SendSysMessage(who, "To nie klucz.",FONT_NORMAL,COLOR_RED);
+    
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeOwner(who,sign)
+
+  var Owner := FindPlayerBySerial(GetObjProperty(sign,"owner"));
+
+  if(!owner and !who.cmdlevel)
+    SendSysMessage(who, "Wlasciciel nie istnieje!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz nowego wlasciciela.",FONT_NORMAL,COLOR_GREEN);
+
+  var NewOwner := ObjTarget(who);
+  if(!StandardMobCheck(who,NewOwner))
+    return;
+  endif
+
+  if(Distance(who,sign) > 3)
+    SendSysMessage(who, "Oddalil"+ggm(who,3)+" sie od zagrody.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsPlayer(NewOwner))
+    SendSysMessage(who, "Temu nie mozesz przekazac zagrody.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(NewOwner == Owner)
+    SendSysMessage(who, "Ta osoba jest aktualnie wlascicielem tej zagrody.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  SetObjProperty(sign, "owner", NewOwner.serial);
+
+  SendSysMessage(who, "Przekazal"+ggm(who,3)+" zagrode osobie "+ newowner.name,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(NewOwner, "Zostal"+ggm(newowner,3)+" now"+ggm(newowner,10)+" wlasciciel"+ggm(newowner,9)+" zagrody osoby "+Owner.name,FONT_NORMAL,COLOR_GREEN);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddTrough(who,sign)
+
+  if(gTroughs.size() >= MAX_TROUGH)
+    SendSysMessage(who,"Nie mozesz postawic wiecej koryt.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Gdzie chcesz postawic koryto?",FONT_NORMAL,COLOR_GREEN);
+  var Loc := LocTarget(who);
+  if(!StandardLocCheck(who,Loc))
+    return;
+  endif
+
+  foreach Item in ListItemsNearLocation(Loc.x,Loc.y,Loc.z,1,who.realm)
+    if(Item.objtype == UOBJ_TROUGH)
+      SendSysMessage(who,"Za blisko stoi inne koryto.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endforeach
+
+  if(!CheckIsInFence(Sign,Loc.x,Loc.y))
+    SendSysMessage(who,"Koryto mozesz postawic tylko wewnatrz zagrody.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Tr := CreateItemAtLoc(Loc.x,Loc.y,Loc.z,UOBJ_TROUGH,1,who.realm);
+  if(!Tr)
+    SendSysMessage(who,"Nie mozna bylo stworzyc koryta.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SetTroughDir(Tr);
+  
+  gTroughs.append(Tr.serial);
+  SetObjProperty(Sign,"Troughs",gTroughs);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteTrough(who)
+
+  SendSysMessage(who,"Ktore koryto chcesz zniszczyc?",FONT_NORMAL,COLOR_GREEN);
+
+  var Tr := ObjTarget(who);
+
+  if(!StandardItemCheck(who, Tr, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(Tr.objtype != UOBJ_TROUGH)
+    SendSysMessage(who,"To nie koryto.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!(Tr.serial in gTroughs))
+    SendSysMessage(who,"To koryto nie nalezy do tej zagrody.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(DestroyItem(Tr))
+    SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" koryto.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie udalo sie zniszczyc koryta.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckIsInFence(Sign,x,y)
+
+  var Created := GetObjProperty(Sign,"fenceparts");
+  var Type    := GetObjProperty(Sign,"fencetype");
+  var Post    := CInt(FenceCfg[Type].post);
+  var Fc      := CInt(FenceCfg[Type].fence_c);
+
+  foreach Item in Created
+    Item := SystemFindObjectBySerial(CInt(Item));
+    if(Item.objtype == Post)
+      Post := Item;
+    elseif(Item.objtype == Fc)
+      Fc := Item;
+    endif
+  endforeach
+  
+  if(Post.x < x and Post.y < y)
+    if(Fc.x > x and Fc.y > y)
+      return 1;
+    endif
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetTroughDir(Tr)
+
+  if(!len(ListItemsAtLocation(Tr.x,Tr.y+1,Tr.z,Tr.realm)))
+    SetObjProperty(Tr,"Dir",DIR_N);
+  elseif(!len(ListItemsAtLocation(Tr.x+1,Tr.y,Tr.z,Tr.realm)))
+    SetObjProperty(Tr,"Dir",DIR_E);
+  elseif(!len(ListItemsAtLocation(Tr.x-1,Tr.y,Tr.z,Tr.realm)))
+    SetObjProperty(Tr,"Dir",DIR_W);
+  elseif(!len(ListItemsAtLocation(Tr.x,Tr.y-1,Tr.z,Tr.realm)))
+    SetObjProperty(Tr,"Dir",DIR_S);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Destroy(who, sign, CrDeed := 1)
+
+  var iDeed := DestroyFence(who.backpack, sign, CrDeed);
+
+  if(iDeed)
+    SendSysMessage(who, "Zniszczyl"+ggm(who,3)+" zagrode i odzyskal"+ggm(who,3)+" deeda.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who, "Zagroda sie rozpadla!", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

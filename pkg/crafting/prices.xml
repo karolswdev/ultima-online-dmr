@@ -1,0 +1,711 @@
+<items>
+  <item Type="0x0F4F" Location="combat" Class="Weapon" Name="Crossbow" Desc="kusza" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x13B2" Location="combat" Class="Weapon" Name="Bow" Desc="luk" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x13FD" Location="combat" Class="Weapon" Name="HeavyCrossbow" Desc="ciezka kusza" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x1BD4" Location="bowcraft" Class="Item" Name="ArrowShaft" Desc="strzaly%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x26CC" Location="combat" Class="Weapon" Name="compositebow" Desc="dlugi luk" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0x26CD" Location="combat" Class="Weapon" Name="repeatingcrossbow" Desc="szybkostrzelna kusza" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0x27F0" Location="combat" Class="Weapon" Name="Yumi" Desc="yumi" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0x2D1E" Location="combat" Class="Weapon" Name="elvencompositebow" Desc="elfi dlugi luk" VendorBuysFor="34" VendorSellsFor="102" />
+  <item Type="0x2D1F" Location="combat" Class="Weapon" Name="elvenshortbow" Desc="elfi luk" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x977E" Location="combat" Class="Weapon" Name="dwarflightcrossbow" Desc="krasnoludzka lekka kusza" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0x977F" Location="combat" Class="Weapon" Name="dwarfheavycrossbow" Desc="krasnoludzka ciezka kusza" VendorBuysFor="34" VendorSellsFor="102" />
+  <item Type="0x0A2A" Location="carpentry" Class="Item" Name="Stool" Desc="taboret" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x0A34" Location="containers" Class="Container" Name="dresser" Desc="szafka" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0A38" Location="containers" Class="Container" Name="cherrydresser" Desc="szafka" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0A51" Location="containers" Class="Container" Name="cherryarmoir" Desc="szafa" VendorBuysFor="57" VendorSellsFor="171" />
+  <item Type="0x0A53" Location="containers" Class="Container" Name="armoir" Desc="szafa" VendorBuysFor="58" VendorSellsFor="174" />
+  <item Type="0x0A9E" Location="sysbook" Class="Container" Name="shelf" Desc="polka na ksiazki" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0x0B2C" Location="carpentry" Class="Item" Name="Bench" Desc="lawka" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x0B2F" Location="carpentry" Class="Item" Name="woodthrone" Desc="tron" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0B33" Location="carpentry" Class="Item" Name="throne" Desc="tron" VendorBuysFor="46" VendorSellsFor="138" />
+  <item Type="0x0B3F" Location="carpentry" Class="Item" Name="largecounter" Desc="stol" VendorBuysFor="39" VendorSellsFor="117" />
+  <item Type="0x0B4E" Location="carpentry" Class="Item" Name="vesperchair" Desc="krzeslo" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0x0B56" Location="carpentry" Class="Item" Name="Chair" Desc="krzeslo" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x0B5A" Location="carpentry" Class="Item" Name="poorchair" Desc="krzeslo" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x0B7C" Location="carpentry" Class="Item" Name="table" Desc="stol" VendorBuysFor="39" VendorSellsFor="117" />
+  <item Type="0x0B7D" Location="carpentry" Class="Item" Name="yewtable" Desc="duzy stol" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0x0DBF" Location="fishing" Class="Weapon" Name="FishingPole" Desc="wedka" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x0E3C" Location="containers" Class="Container" Name="LargeCrate" Desc="duza klatka" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0x0E3E" Location="containers" Class="Container" Name="MediumCrate" Desc="srednia klatka" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x0E42" Location="containers" Class="Container" Name="WoodenChest" Desc="skrzynia" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x0E77" Location="config" Class="Container" Name="Barrel" Desc="beczka" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x0E7D" Location="containers" Class="Container" Name="WoodenBox" Desc="skrzynka" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x0E7E" Location="containers" Class="Container" Name="SmallCrate" Desc="mala klatka" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x0E7F" Location="carpentry" Class="Item" Name="keg" Desc="otwarty keg" VendorBuysFor="46" VendorSellsFor="138" />
+  <item Type="0x0E80" Location="containers" Class="Container" Name="StrongBox" Desc="skrzynka" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x0E81" Location="combat" Class="Weapon" Name="ShepherdsCrook" Desc="kij pastuszy" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x0E83" Location="alchemy" Class="Container" Name="tub" Desc="barylka" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x0E8A" Location="combat" Class="Weapon" Name="Quarterstaff" Desc="drag" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0x0E9C" Location="musicianship" Class="Item" Name="Drum" Desc="bembenek" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x0E9D" Location="musicianship" Class="Item" Name="Tambourine" Desc="tamburyn" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0x0E9E" Location="musicianship" Class="Item" Name="Tambourine2" Desc="tamburyn" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x0EB1" Location="musicianship" Class="Item" Name="standingharp" Desc="duza harfa" VendorBuysFor="81" VendorSellsFor="243" />
+  <item Type="0x0EB2" Location="musicianship" Class="Item" Name="harp" Desc="harfa" VendorBuysFor="45" VendorSellsFor="135" />
+  <item Type="0x0EB3" Location="musicianship" Class="Item" Name="lute" Desc="gitara" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0x0EC6" Location="decorations" Class="Item" Name="dressform" Desc="manekin krawiecki" VendorBuysFor="34" VendorSellsFor="102" />
+  <item Type="0x0F64" Location="lighting" Class="Item" Name="Torch" Desc="pochodnia" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1043" Location="cooking" Class="Item" Name="rollingpin" Desc="walek%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x10E3" Location="cooking" Class="Item" Name="makutra" Desc="makutra%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x10E9" Location="cooking" Class="Item" Name="woodenspoon" Desc="drewniana lyzka%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1219" Location="carpentry" Class="Item" Name="stonechair2" Desc="kamienne krzeslo" VendorBuysFor="383" VendorSellsFor="1149" />
+  <item Type="0x1224" Location="decorations" Class="Item" Name="statue5" Desc="statua" VendorBuysFor="208" VendorSellsFor="624" />
+  <item Type="0x1225" Location="decorations" Class="Item" Name="statue4" Desc="statua" VendorBuysFor="177" VendorSellsFor="531" />
+  <item Type="0x1227" Location="decorations" Class="Item" Name="statue6" Desc="statua" VendorBuysFor="208" VendorSellsFor="624" />
+  <item Type="0x1228" Location="decorations" Class="Item" Name="statue1" Desc="statua" VendorBuysFor="312" VendorSellsFor="936" />
+  <item Type="0x12CA" Location="decorations" Class="Item" Name="statue3" Desc="statua" VendorBuysFor="229" VendorSellsFor="687" />
+  <item Type="0x139B" Location="decorations" Class="Item" Name="statue7" Desc="statua" VendorBuysFor="208" VendorSellsFor="624" />
+  <item Type="0x13B3" Location="combat" Class="Weapon" Name="Club" Desc="maczuga" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x13F9" Location="combat" Class="Weapon" Name="GnarledStaff" Desc="sekata laska" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x14EA" Location="cooking" Class="Item" Name="OvenSpade" Desc="lopata do pieca" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x14EB" Location="cartography" Class="Map" Name="blankmap" Desc="czysta mapa" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x15F8" Location="cooking" Class="Item" Name="woodenbowl" Desc="drewniana miska%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1605" Location="cooking" Class="Item" Name="soupvase" Desc="waza na zupe%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1B78" Location="combat" Class="Armor" Name="WoodenKiteShield" Desc="trojkatna tarcza" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x1B7A" Location="combat" Class="Armor" Name="WoodenShield" Desc="tarcza" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x1BD7" Location="lumberjacking" Class="Item" Name="board" Desc="deski%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1DB8" Location="carpentry" Class="Item" Name="barrellid" Desc="wieko" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1EB2" Location="carpentry" Class="Item" Name="barrelstaves" Desc="zaokraglone deski" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1F14" Location="magicitems" Class="Item" Name="recallrune" Desc="runo" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x2D25" Location="combat" Class="Weapon" Name="wildstaff" Desc="dzika laska" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x045A" Location="carpentry" Class="Item" Name="marblebench" Desc="marmurowa lawka" VendorBuysFor="124" VendorSellsFor="372" />
+  <item Type="0x045C" Location="carpentry" Class="Item" Name="sandbench" Desc="piaskowa lawka" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0xB000" Location="carpentry" Class="Item" Name="AnvilDeed" Desc="deed na kowadlo" VendorBuysFor="485" VendorSellsFor="1455" />
+  <item Type="0xB001" Location="carpentry" Class="Item" Name="SmallForgeDeed" Desc="deed na maly piec" VendorBuysFor="246" VendorSellsFor="738" />
+  <item Type="0xB002" Location="carpentry" Class="Item" Name="DummieDeed" Desc="deed na manekin treningowy" VendorBuysFor="177" VendorSellsFor="531" />
+  <item Type="0xB003" Location="carpentry" Class="Item" Name="DipDeed" Desc="deed na manekin do okradania" VendorBuysFor="199" VendorSellsFor="597" />
+  <item Type="0xB004" Location="carpentry" Class="Item" Name="WheelDeed" Desc="deed na kolowrotek" VendorBuysFor="127" VendorSellsFor="381" />
+  <item Type="0xB005" Location="carpentry" Class="Item" Name="pentagramdeed" Desc="deed na pentagram" VendorBuysFor="612" VendorSellsFor="1836" />
+  <item Type="0xB006" Location="carpentry" Class="Item" Name="abbatoirdeed" Desc="deed na oltarz" VendorBuysFor="612" VendorSellsFor="1836" />
+  <item Type="0xB007" Location="carpentry" Class="Item" Name="largeforgedeed" Desc="deed na duzy piec" VendorBuysFor="1313" VendorSellsFor="3939" />
+  <item Type="0xB008" Location="carpentry" Class="Item" Name="loomdeed" Desc="deed na narzedzie tkackie" VendorBuysFor="183" VendorSellsFor="549" />
+  <item Type="0xB009" Location="carpentry" Class="Item" Name="beddeed" Desc="deed na lozko" VendorBuysFor="528" VendorSellsFor="1584" />
+  <item Type="0xB00A" Location="carpentry" Class="Item" Name="WaterTroughdeed" Desc="deed na koryto" VendorBuysFor="264" VendorSellsFor="792" />
+  <item Type="0xB00B" Location="carpentry" Class="Item" Name="FlourMilldeed" Desc="deed na mlyn" VendorBuysFor="352" VendorSellsFor="1056" />
+  <item Type="0xB00C" Location="carpentry" Class="Item" Name="StoneOvendeed" Desc="deed na kamienny piec" VendorBuysFor="1289" VendorSellsFor="3867" />
+  <item Type="0xB00D" Location="carpentry" Class="Item" Name="SandOvendeed" Desc="deed na piaskowy piec" VendorBuysFor="324" VendorSellsFor="972" />
+  <item Type="0xB00E" Location="carpentry" Class="Item" Name="Stonechimseydeed" Desc="deed na jasny kamienny kominek" VendorBuysFor="1289" VendorSellsFor="3867" />
+  <item Type="0xB00F" Location="carpentry" Class="Item" Name="EaselDeed" Desc="deed na sztaluge" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0xB010" Location="carpentry" Class="Item" Name="Stonechimseydeed2" Desc="deed na kamienny kominek" VendorBuysFor="1289" VendorSellsFor="3867" />
+  <item Type="0xB011" Location="carpentry" Class="Item" Name="Sandchimseydeed" Desc="deed na piaskowy kominek" VendorBuysFor="324" VendorSellsFor="972" />
+  <item Type="0xB012" Location="carpentry" Class="Item" Name="smallbed1deed" Desc="deed na male biale lozko" VendorBuysFor="352" VendorSellsFor="1056" />
+  <item Type="0xB013" Location="carpentry" Class="Item" Name="smallbed2deed" Desc="deed na male lozko" VendorBuysFor="334" VendorSellsFor="1002" />
+  <item Type="0xB014" Location="carpentry" Class="Item" Name="longstonetabledeed" Desc="deed na dlugi kamienny stol" VendorBuysFor="907" VendorSellsFor="2721" />
+  <item Type="0xB015" Location="carpentry" Class="Item" Name="longstonebenchdeed" Desc="deed na dluga kamienna lawke" VendorBuysFor="604" VendorSellsFor="1812" />
+  <item Type="0xB016" Location="carpentry" Class="Item" Name="shortstonetabledeed" Desc="deed na krotki kamienny stol" VendorBuysFor="604" VendorSellsFor="1812" />
+  <item Type="0xB017" Location="carpentry" Class="Item" Name="shortstonebenchdeed" Desc="deed na krotka kamienna lawke" VendorBuysFor="403" VendorSellsFor="1209" />
+  <item Type="0xB019" Location="carpentry" Class="Item" Name="longsandtable" Desc="deed na dlugi piaskowy stol" VendorBuysFor="201" VendorSellsFor="603" />
+  <item Type="0xB01A" Location="carpentry" Class="Item" Name="shortsandtable" Desc="deed na krotki piaskowy stol" VendorBuysFor="131" VendorSellsFor="393" />
+  <item Type="0xB01B" Location="carpentry" Class="Item" Name="longsandbench" Desc="deed na dluga piaskowa lawke" VendorBuysFor="131" VendorSellsFor="393" />
+  <item Type="0xB01C" Location="carpentry" Class="Item" Name="shortsandbench" Desc="deed na krotka piaskowa lawke" VendorBuysFor="98" VendorSellsFor="294" />
+  <item Type="0xB01D" Location="carpentry" Class="Item" Name="longmarbletable" Desc="deed na dlugi marmurowy stol" VendorBuysFor="907" VendorSellsFor="2721" />
+  <item Type="0xB01E" Location="carpentry" Class="Item" Name="shortmarbletable" Desc="deed na krotki marmurowy stol" VendorBuysFor="590" VendorSellsFor="1770" />
+  <item Type="0xB01F" Location="carpentry" Class="Item" Name="longmarblebench" Desc="deed na dluga marmurowa lawke" VendorBuysFor="590" VendorSellsFor="1770" />
+  <item Type="0xB020" Location="carpentry" Class="Item" Name="shortmarblebench" Desc="deed na krotka marmurowa lawke" VendorBuysFor="393" VendorSellsFor="1179" />
+  <item Type="0xB023" Location="carpentry" Class="Item" Name="coffindeed" Desc="deed na trumne" VendorBuysFor="168" VendorSellsFor="504" />
+  <item Type="0xB024" Location="carpentry" Class="Item" Name="ButteDeed" Desc="deed na tarcze strzelecka" VendorBuysFor="206" VendorSellsFor="618" />
+  <item Type="0xB025" Location="carpentry" Class="Item" Name="coopersbenchdeed" Desc="deed na stol heblarski" VendorBuysFor="235" VendorSellsFor="705" />
+  <item Type="0xB026" Location="carpentry" Class="Item" Name="woodworkersbenchdeed" Desc="deed na stol stolarski" VendorBuysFor="316" VendorSellsFor="948" />
+  <item Type="0x0B3A" Location="carpentry" Class="Item" Name="smallcounter" Desc="stolik" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0x0B4A" Location="inscription" Class="Item" Name="writing desk" Desc="sekretarzyk" VendorBuysFor="5084" VendorSellsFor="15252" />
+  <item Type="0x0DF0" Location="combat" Class="Weapon" Name="BlackStaff" Desc="laska" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x0E34" Location="config" Class="Item" Name="blankscroll" Desc="czysty zwoj%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x0E7C" Location="containers" Class="Container" Name="SilverChest" Desc="srebrna skrzynia" VendorBuysFor="73" VendorSellsFor="219" />
+  <item Type="0x6330" Location="cartography" Class="Map" Name="cart_localmap" Desc="lokalna mapa" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x6331" Location="cartography" Class="Map" Name="cart_regionmap" Desc="mapa regionu" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x6332" Location="cartography" Class="Map" Name="cart_worldmap" Desc="mapa swiata" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x09D7" Location="tinkering" Class="Item" Name="plate" Desc="talerz" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x0A01" Location="lighting" Class="Item" Name="WallCandleSconceS" Desc="lichtarzyk" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x0A0B" Location="lighting" Class="Item" Name="WallTorchSconceS" Desc="lichtarzyk" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x0A25" Location="lighting" Class="Item" Name="Lantern" Desc="lampa" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x0A27" Location="lighting" Class="Item" Name="SmallCandlabra" Desc="swiecznik" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x0A29" Location="lighting" Class="Item" Name="Candlabra" Desc="swiecznik" VendorBuysFor="50" VendorSellsFor="150" />
+  <item Type="0x0E85" Location="combat" Class="Weapon" Name="Pickaxe" Desc="kilof" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x0E9B" Location="alchemy" Class="Item" Name="Mortar" Desc="mozdzierz" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x0EC2" Location="blades" Class="Weapon" Name="Cleaver" Desc="tasak" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x0EC4" Location="blades" Class="Weapon" Name="SkinningKnife" Desc="noz do skor" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x0F39" Location="mining" Class="Item" Name="shovel" Desc="lopata" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x0F43" Location="lumberjacking" Class="Weapon" Name="Hatchet" Desc="topor" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x0F9D" Location="tailoring" Class="Item" Name="SewingKit" Desc="narzedzia szewskie" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x0F9E" Location="tailoring" Class="Item" Name="Scissors" Desc="nozyczki" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x0FB4" Location="combat" Class="Weapon" Name="sledgehammer" Desc="mlot kowalski" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x0FBB" Location="tracking" Class="Item" Name="tongs" Desc="szczypce" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x0FBF" Location="inscription" Class="Item" Name="penink" Desc="pioro" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x0FC1" Location="painting" Class="Item" Name="paintbrush" Desc="paleta" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1000" Location="tinkering" Class="Item" Name="pewtermug" Desc="dzban cynowy" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1004" Location="tinkering" Class="Item" Name="kegtap" Desc="kurek do beczki" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x100F" Location="doors" Class="Item" Name="goldkey" Desc="zloty klucz" VendorBuysFor="114" VendorSellsFor="342" />
+  <item Type="0x1010" Location="doors" Class="Item" Name="ironkey" Desc="zelazny klucz" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1011" Location="doors" Class="Item" Name="keyring" Desc="kolko na klucze" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1022" Location="bowcraft" Class="Item" Name="BowcraftTools" Desc="narzedzie do tworzenia lukow" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x1028" Location="carpentry" Class="Item" Name="Dovetailsaw" Desc="zebata mala pila" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x102A" Location="tinkering" Class="Item" Name="Hammer" Desc="mlot" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x102C" Location="carpentry" Class="Item" Name="mouldingplane" Desc="narzedzie stolarskie" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1030" Location="carpentry" Class="Item" Name="Jointingplane" Desc="narzedzie stolarskie" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1032" Location="carpentry" Class="Item" Name="Smoothingplane" Desc="narzedzie stolarskie" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1035" Location="carpentry" Class="Item" Name="Saw" Desc="pila" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1047" Location="tinkering" Class="Item" Name="globe" Desc="globus" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x104D" Location="tinkering" Class="Item" Name="Clockframe" Desc="rama od zegara" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x104F" Location="tinkering" Class="Item" Name="clockparts" Desc="czesci do zegara%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1051" Location="tinkering" Class="Item" Name="Axleandgears" Desc="zlozony zestaw narzedzi" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1053" Location="tinkering" Class="Item" Name="Gears" Desc="zestaw narzedzi" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1055" Location="tinkering" Class="Item" Name="Hinge" Desc="zawias" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1059" Location="tinkering" Class="Item" Name="Sextantparts" Desc="czesci sekstantu" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x105B" Location="tinkering" Class="Item" Name="axle" Desc="os" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x105D" Location="tinkering" Class="Item" Name="springs" Desc="sprezyna" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1085" Location="tinkering" Class="Item" Name="silvernecklace" Desc="naszyjnik" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x1086" Location="tinkering" Class="Item" Name="bracelet" Desc="bransoleta" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0x1087" Location="tinkering" Class="Item" Name="earrings" Desc="kolczyki" VendorBuysFor="33" VendorSellsFor="99" />
+  <item Type="0x1088" Location="tinkering" Class="Item" Name="roundnecklace" Desc="naszyjnik" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x1089" Location="tinkering" Class="Item" Name="longnecklace" Desc="naszyjnik" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x108A" Location="tinkering" Class="Item" Name="ring" Desc="pierscionek" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x10E1" Location="tinkering" Class="Item" Name="barrelhoops" Desc="obrecz" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x10E4" Location="carpentry" Class="Item" Name="drawknife" Desc="dluga pila" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x10E5" Location="carpentry" Class="Item" Name="Froe" Desc="pila" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x10E6" Location="carpentry" Class="Item" Name="inshave" Desc="pila" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x10E7" Location="carpentry" Class="Item" Name="Scorp" Desc="mala pila" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x12B3" Location="carpentry" Class="Item" Name="Chisel" Desc="dluto" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x13E3" Location="combat" Class="Weapon" Name="smithhammer" Desc="mlotek kowalski" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0x13F6" Location="blades" Class="Weapon" Name="ButcherKnife" Desc="noz rzezniczy" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1428" Location="herding" Class="Item" Name="dipstick" Desc="forma%%" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x14F5" Location="config" Class="Item" Name="Spyglass" Desc="luneta" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x14FB" Location="lockpicking" Class="Item" Name="lockpick" Desc="wytrych%y%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1570" Location="config" Class="Item" Name="GoldDecShield1" Desc="tarcza dekoracyjna" VendorBuysFor="1722" VendorSellsFor="5166" />
+  <item Type="0x1574" Location="config" Class="Item" Name="GoldDecShield2" Desc="zlota tarcza dekoracyjna" VendorBuysFor="1064" VendorSellsFor="3192" />
+  <item Type="0x1578" Location="config" Class="Item" Name="GoldDecShield3" Desc="zlota tarcza dekoracyjna" VendorBuysFor="588" VendorSellsFor="1764" />
+  <item Type="0x157C" Location="config" Class="Item" Name="GoldDecShield4" Desc="tarcza dekoracyjna" VendorBuysFor="1120" VendorSellsFor="3360" />
+  <item Type="0x1580" Location="config" Class="Item" Name="GoldDecShield5" Desc="zlota tarcza dekoracyjna" VendorBuysFor="1092" VendorSellsFor="3276" />
+  <item Type="0x1849" Location="lighting" Class="Item" Name="HeatingStandS" Desc="swieczka" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1851" Location="tinkering" Class="Item" Name="scales" Desc="waga" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x1EB9" Location="tinkering" Class="Item" Name="TinkerRepairTools" Desc="narzedzia naprawcze" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1EBC" Location="tinkering" Class="Item" Name="TinkerTools" Desc="narzedzia druciarza" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x26AC" Location="combat" Class="Item" Name="bola" Desc="bola" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x2777" Location="combat" Class="Armor" Name="PlateJingasa1" Desc="plytowe jingasa" VendorBuysFor="42" VendorSellsFor="126" />
+  <item Type="0x2781" Location="combat" Class="Armor" Name="PlateJingasa2" Desc="plytowe jingasa" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x27F6" Location="combat" Class="Weapon" Name="Tekagi" Desc="tekagi" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0x2B6E" Location="combat" Class="Armor" Name="circlet" Desc="diadem" VendorBuysFor="324" VendorSellsFor="972" />
+  <item Type="0x2D22" Location="combat" Class="Weapon" Name="leafblade" Desc="brzeszczot" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x3D87" Location="config" Class="Item" Name="DecorationArmor" Desc="zbroja dekoracyjna" VendorBuysFor="10836" VendorSellsFor="32508" />
+  <item Type="0x3DA9" Location="config" Class="Item" Name="DecorationArmor2" Desc="zbroja dekoracyjna" VendorBuysFor="10836" VendorSellsFor="32508" />
+  <item Type="0x6301" Location="cartography" Class="Item" Name="cartpenink" Desc="pioro kartografa" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x9000" Location="farming" Class="Weapon" Name="harvester" Desc="sierp" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x09E0" Location="tinkering" Class="Item" Name="pot2" Desc="garnek" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x09E1" Location="tinkering" Class="Item" Name="pot" Desc="garnuszek" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0x09F3" Location="tinkering" Class="Item" Name="pan" Desc="rondel" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xA001" Location="tinkering" Class="Item" Name="undercandle" Desc="podstawka" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xA230" Location="combat" Class="Armor" Name="claws" Desc="szpony" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC702" Location="cooking" Class="Item" Name="grate" Desc="rozen%%" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC707" Location="cooking" Class="Item" Name="SheetMetal" Desc="blacha do pieczenia" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0x5015" Location="config" Class="Item" Name="wristwatch" Desc="zegarek" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0xA310" Location="magicitemmaking" Class="Item" Name="magiccrystal1" Desc="magiczny krysztal ognia%%" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0xA311" Location="magicitemmaking" Class="Item" Name="magiccrystal2" Desc="magiczny krysztal zimna%%" VendorBuysFor="66" VendorSellsFor="198" />
+  <item Type="0xA312" Location="magicitemmaking" Class="Item" Name="magiccrystal3" Desc="magiczny krysztal piorunow%%" VendorBuysFor="59" VendorSellsFor="177" />
+  <item Type="0xA313" Location="magicitemmaking" Class="Item" Name="magiccrystal4" Desc="magiczny krysztal wytrzymalosci%%" VendorBuysFor="50" VendorSellsFor="150" />
+  <item Type="0xA314" Location="magicitemmaking" Class="Item" Name="magiccrystal5" Desc="magiczny krysztal witalnosci%%" VendorBuysFor="47" VendorSellsFor="141" />
+  <item Type="0xA315" Location="magicitemmaking" Class="Item" Name="magiccrystal6" Desc="magiczny krysztal madrosci%%" VendorBuysFor="64" VendorSellsFor="192" />
+  <item Type="0xA316" Location="magicitemmaking" Class="Item" Name="magiccrystal7" Desc="magiczny krysztal stabilnosci%%" VendorBuysFor="49" VendorSellsFor="147" />
+  <item Type="0xA317" Location="magicitemmaking" Class="Item" Name="magiccrystal8" Desc="magiczny krysztal niewidzialnosci%%" VendorBuysFor="33" VendorSellsFor="99" />
+  <item Type="0xA318" Location="magicitemmaking" Class="Item" Name="magiccrystal9" Desc="magiczny krysztal swiatla%%" VendorBuysFor="28" VendorSellsFor="84" />
+  <item Type="0xA331" Location="magicitemmaking" Class="Item" Name="magiccrystal1s" Desc="magiczny krysztal ochrony przed ogniem%%" VendorBuysFor="55" VendorSellsFor="165" />
+  <item Type="0xA332" Location="magicitemmaking" Class="Item" Name="magiccrystal2s" Desc="magiczny krysztal ochrony przed zimnem%%" VendorBuysFor="72" VendorSellsFor="216" />
+  <item Type="0xA333" Location="magicitemmaking" Class="Item" Name="magiccrystal3s" Desc="magiczny krysztal ochrony przed piorunami%%" VendorBuysFor="62" VendorSellsFor="186" />
+  <item Type="0xA334" Location="magicitemmaking" Class="Item" Name="magiccrystal4s" Desc="magiczny krysztal obrony%%" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0xA335" Location="magicitemmaking" Class="Item" Name="magiccrystal5s" Desc="magiczny krysztal mocy%%" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0xA336" Location="magicitemmaking" Class="Item" Name="magiccrystal6s" Desc="magiczny krysztal sily%%" VendorBuysFor="39" VendorSellsFor="117" />
+  <item Type="0xA337" Location="magicitemmaking" Class="Item" Name="magiccrystal7s" Desc="magiczny krysztal zrecznosci%%" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0xA338" Location="magicitemmaking" Class="Item" Name="magiccrystal8s" Desc="magiczny krysztal inteligencji%%" VendorBuysFor="75" VendorSellsFor="225" />
+  <item Type="0x1F2E" Location="magicitems" Class="Item" Name="clumsyscroll" Desc="Clumsy scroll" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1F2F" Location="magicitems" Class="Item" Name="createfoodscroll" Desc="Create Food scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F30" Location="magicitems" Class="Item" Name="feeblemindscroll" Desc="Feeblemind scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F31" Location="magicitems" Class="Item" Name="healscroll" Desc="Heal scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F32" Location="magicitems" Class="Item" Name="magicarrowscroll" Desc="Magic Arrow scroll" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1F33" Location="magicitems" Class="Item" Name="nightsightscroll" Desc="Nightsight scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F2D" Location="magicitems" Class="Item" Name="reactivearmorscroll" Desc="Reactive Armor scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F34" Location="magicitems" Class="Item" Name="weakenscroll" Desc="Weaken scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F35" Location="magicitems" Class="Item" Name="agilityscroll" Desc="Agility scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F36" Location="magicitems" Class="Item" Name="cunningscroll" Desc="Cunning scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F37" Location="magicitems" Class="Item" Name="curescroll" Desc="Cure scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F38" Location="magicitems" Class="Item" Name="harmscroll" Desc="Harm scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F39" Location="magicitems" Class="Item" Name="magictrapscroll" Desc="Magic Trap scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F3A" Location="magicitems" Class="Item" Name="magicuntrapscroll" Desc="Magic Untrap scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F3B" Location="magicitems" Class="Item" Name="protectionscroll" Desc="Protection scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F3C" Location="magicitems" Class="Item" Name="strengthscroll" Desc="Strength scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F3D" Location="magicitems" Class="Item" Name="blessscroll" Desc="Bless scroll" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x1F3E" Location="magicitems" Class="Item" Name="fireballscroll" Desc="Fireball scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F3F" Location="magicitems" Class="Item" Name="magiclockscroll" Desc="Magic Lock scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F40" Location="magicitems" Class="Item" Name="poisonscroll" Desc="Poison scroll" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1F41" Location="magicitems" Class="Item" Name="telekinesisscroll" Desc="Telekinesis scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F42" Location="magicitems" Class="Item" Name="teleportscroll" Desc="Teleport scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F43" Location="magicitems" Class="Item" Name="magicunlockscroll" Desc="Magic Unlock scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F44" Location="magicitems" Class="Item" Name="wallofstonescroll" Desc="Wall of Stone scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F45" Location="magicitems" Class="Item" Name="archcurescroll" Desc="Archcure scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F46" Location="magicitems" Class="Item" Name="archprotectionscroll" Desc="Archprotection scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F47" Location="magicitems" Class="Item" Name="cursescroll" Desc="Curse scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F48" Location="magicitems" Class="Item" Name="firefieldscroll" Desc="Firefield scroll" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x1F49" Location="magicitems" Class="Item" Name="greaterhealscroll" Desc="Greater Heal scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F4A" Location="magicitems" Class="Item" Name="lightningscroll" Desc="Lightning scroll" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1F4B" Location="magicitems" Class="Item" Name="manadrainscroll" Desc="Manadrain scroll" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x1F4C" Location="magicitems" Class="Item" Name="recallscroll" Desc="Recall scroll" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x1F4D" Location="magicitems" Class="Item" Name="bladespiritscroll" Desc="Blade Spirit scroll" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x1F4E" Location="magicitems" Class="Item" Name="dispelfieldscroll" Desc="Dispel Field scroll" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x1F4F" Location="magicitems" Class="Item" Name="incognitoscroll" Desc="Incognito scroll" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x1F50" Location="magicitems" Class="Item" Name="magicreflectscroll" Desc="Magic Reflect scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F51" Location="magicitems" Class="Item" Name="mindblastscroll" Desc="Mind Blast scroll" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x1F52" Location="magicitems" Class="Item" Name="paralyzescroll" Desc="Paralyze scroll" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1F53" Location="magicitems" Class="Item" Name="poisonfieldscroll" Desc="Poison Field scroll" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x1F54" Location="magicitems" Class="Item" Name="summoncreaturescroll" Desc="Summon Creature scroll" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x1F55" Location="magicitems" Class="Item" Name="dispelscroll" Desc="Dispel scroll" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0x1F56" Location="magicitems" Class="Item" Name="energyboltscroll" Desc="Energy Bolt scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F57" Location="magicitems" Class="Item" Name="explosionscroll" Desc="Explosion scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F58" Location="magicitems" Class="Item" Name="invisibilityscroll" Desc="Invisibility scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F59" Location="magicitems" Class="Item" Name="markscroll" Desc="Mark scroll" VendorBuysFor="112" VendorSellsFor="336" />
+  <item Type="0x1F5A" Location="magicitems" Class="Item" Name="masscursescroll" Desc="Mass Curse scroll" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x1F5B" Location="magicitems" Class="Item" Name="paralyzefieldscroll" Desc="Paralyze Field scroll" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x1F5C" Location="magicitems" Class="Item" Name="revealscroll" Desc="Reveal scroll" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1F5D" Location="magicitems" Class="Item" Name="chainlightningscroll" Desc="Chain Lightning scroll" VendorBuysFor="22" VendorSellsFor="66" />
+  <item Type="0x1F5E" Location="magicitems" Class="Item" Name="energyfieldscroll" Desc="Energy Field scroll" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x1F5F" Location="magicitems" Class="Item" Name="flamestrikescroll" Desc="Flamestrike scroll" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1F60" Location="magicitems" Class="Item" Name="gatetravelscroll" Desc="Gate Travel scroll" VendorBuysFor="63" VendorSellsFor="189" />
+  <item Type="0x1F61" Location="magicitems" Class="Item" Name="manavampirescroll" Desc="Mana Vampire scroll" VendorBuysFor="22" VendorSellsFor="66" />
+  <item Type="0x1F62" Location="magicitems" Class="Item" Name="massdispelscroll" Desc="Mass Dispel scroll" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x1F63" Location="magicitems" Class="Item" Name="meteorswarmscroll" Desc="Meteor Swarm scroll" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x1F64" Location="magicitems" Class="Item" Name="polymorphscroll" Desc="Polymorph scroll" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x1F65" Location="magicitems" Class="Item" Name="earthquakescroll" Desc="Earthquake scroll" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x1F66" Location="magicitems" Class="Item" Name="energyvortexscroll" Desc="Energy Vortex scroll" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0x1F67" Location="magicitems" Class="Item" Name="resurrectionscroll" Desc="Resurrection scroll" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x1F68" Location="magicitems" Class="Item" Name="summonairelemscroll" Desc="Summon Air Elemental scroll" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x1F69" Location="magicitems" Class="Item" Name="summondaemonscroll" Desc="Summon Daemon scroll" VendorBuysFor="52" VendorSellsFor="156" />
+  <item Type="0x1F6A" Location="magicitems" Class="Item" Name="summonearthelemscroll" Desc="Summon Earth Elemental scroll" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x1F6B" Location="magicitems" Class="Item" Name="summonfireelemscroll" Desc="Summon Fire Elemental scroll" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x1F6C" Location="magicitems" Class="Item" Name="summonwaterelemscroll" Desc="Summon Water Elemental scroll" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0xC79A" Location="eatitems" Class="Item" Name="windsoup" Desc="zupa z wind" VendorBuysFor="104" VendorSellsFor="312" />
+  <item Type="0xC79B" Location="eatitems" Class="Item" Name="crunchywings" Desc="chrupiace skrzydelka%%" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0xC79C" Location="eatitems" Class="Item" Name="harpyinsauce" Desc="harpia w sosie wlasnym" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0xC79D" Location="eatitems" Class="Item" Name="dragonfricassee" Desc="smocza potrawka" VendorBuysFor="52" VendorSellsFor="156" />
+  <item Type="0xC79E" Location="eatitems" Class="Item" Name="ratmantail" Desc="ogonek szczuroczleka" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0xC79F" Location="eatitems" Class="Item" Name="blindfruitsalad" Desc="slepa salatka" VendorBuysFor="273" VendorSellsFor="819" />
+  <item Type="0xC7A0" Location="eatitems" Class="Item" Name="enemyleg" Desc="noga twojego wroga" VendorBuysFor="178" VendorSellsFor="534" />
+  <item Type="0xC7A1" Location="eatitems" Class="Item" Name="ogrepaste" Desc="pasta z ogra" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0xC7A2" Location="eatitems" Class="Item" Name="amebapudding" Desc="pudding z ameby" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0xC7A3" Location="eatitems" Class="Item" Name="deathtouch" Desc="dotyk smierci" VendorBuysFor="127" VendorSellsFor="381" />
+  <item Type="0xC7A4" Location="eatitems" Class="Item" Name="dragonbreath" Desc="smoczy oddech" VendorBuysFor="142" VendorSellsFor="426" />
+  <item Type="0xC7A5" Location="eatitems" Class="Item" Name="elfkiss" Desc="elfi calus" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0xC7A6" Location="eatitems" Class="Item" Name="snakecasserole" Desc="zapiekanka z weza" VendorBuysFor="77" VendorSellsFor="231" />
+  <item Type="0xC7A7" Location="eatitems" Class="Item" Name="daemonhorns" Desc="rozki demona" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0xC7A8" Location="eatitems" Class="Item" Name="evilhoofs" Desc="diabelskie kopytka" VendorBuysFor="83" VendorSellsFor="249" />
+  <item Type="0x103C" Location="eatitems" Class="Item" Name="bread" Desc="chleb" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x098C" Location="eatitems" Class="Item" Name="elfbread" Desc="elficki chleb%%" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xC719" Location="eatitems" Class="Item" Name="garlicbread" Desc="chleb czosnkowy" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x09EA" Location="eatitems" Class="Item" Name="muffin" Desc="buleczka%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC71B" Location="eatitems" Class="Item" Name="sugarmuffin" Desc="slodka buleczka%%" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x160B" Location="eatitems" Class="Item" Name="cookies" Desc="ciasteczka" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xC77B" Location="eatitems" Class="Item" Name="risecookies" Desc="ciasteczka ryzowe" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0xC77C" Location="eatitems" Class="Item" Name="sugarrisecake" Desc="slodkie ciasto ryzowe" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0xC77D" Location="eatitems" Class="Item" Name="bananarisecake" Desc="bananowo kokosowe ciasto ryzowe" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0x1041" Location="eatitems" Class="Item" Name="pie" Desc="ciasto" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x09E9" Location="eatitems" Class="Item" Name="creamcake" Desc="tort" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0xC77F" Location="eatitems" Class="Item" Name="coconutball" Desc="kulka kokosowa%%" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xC737" Location="eatitems" Class="Item" Name="pancakes" Desc="nalesniki" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1AD3" Location="eatitems" Class="Item" Name="donut" Desc="paczki" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0xC775" Location="eatitems" Class="Item" Name="yeastcookies" Desc="racuchy drozdzowe" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0xC776" Location="eatitems" Class="Item" Name="cookedapplerise" Desc="pieczony ryz z jablkami%%" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1040" Location="eatitems" Class="Item" Name="pizza" Desc="pizza" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0xC71F" Location="eatitems" Class="Item" Name="vegpizza" Desc="pizza wegetarianska" VendorBuysFor="42" VendorSellsFor="126" />
+  <item Type="0xC720" Location="eatitems" Class="Item" Name="meatpizza" Desc="pizza miesna" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0xC739" Location="eatitems" Class="Item" Name="anchoviespizza" Desc="pizza z anchovies" VendorBuysFor="53" VendorSellsFor="159" />
+  <item Type="0x097B" Location="eatitems" Class="Item" Name="bakedfishsteak" Desc="steki rybne%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0xC743" Location="eatitems" Class="Item" Name="friedfishsteak" Desc="smazone steki rybne%%" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0xC744" Location="eatitems" Class="Item" Name="doughfriedfishsteak" Desc="smazone steki rybne w ciescie%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0xC745" Location="eatitems" Class="Item" Name="tomatofishsteak" Desc="steki rybne w pomidorach%%" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0xC73B" Location="eatitems" Class="Item" Name="bakedcarp" Desc="pieczony karp" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xC73C" Location="eatitems" Class="Item" Name="friedcarp" Desc="smazony karp" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC73D" Location="eatitems" Class="Item" Name="bakedcod" Desc="pieczony dorsz" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xC73E" Location="eatitems" Class="Item" Name="friedcod" Desc="smazony dorsz" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC73F" Location="eatitems" Class="Item" Name="bakedsheatfish" Desc="pieczony sum" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0xC740" Location="eatitems" Class="Item" Name="friedsheatfish" Desc="smazony sum" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC741" Location="eatitems" Class="Item" Name="bakedsalmon" Desc="pieczony losos" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0xC742" Location="eatitems" Class="Item" Name="friedsalmon" Desc="smazony losos" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC746" Location="eatitems" Class="Item" Name="bosmancarp" Desc="karp po bosmansku" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC747" Location="eatitems" Class="Item" Name="bearcarp" Desc="karp duszony w piwie" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0xC781" Location="eatitems" Class="Item" Name="jellycarp" Desc="karp w galarecie" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC749" Location="eatitems" Class="Item" Name="codgoulash" Desc="gulasz z dorsza" VendorBuysFor="62" VendorSellsFor="186" />
+  <item Type="0xC74A" Location="eatitems" Class="Item" Name="friedbaconcod" Desc="dorsz zapiekany z bekonem" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0xC780" Location="eatitems" Class="Item" Name="pumpkincodfillet" Desc="filet z dorsza zapiekany z dynia" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC74B" Location="eatitems" Class="Item" Name="eggsheatfish" Desc="sum z wody z jajem" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0xC74C" Location="eatitems" Class="Item" Name="applesheatfishfillet" Desc="filet z suma zapiekany z jablkiem" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0xC74D" Location="eatitems" Class="Item" Name="fruitsalmonfillet" Desc="filet z lososia w sosie owocowym" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x1E1D" Location="eatitems" Class="Item" Name="stewedsalmon" Desc="duszony losos" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0xC750" Location="eatitems" Class="Item" Name="bakedsprat" Desc="szprotki pieczone" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC74F" Location="eatitems" Class="Item" Name="vegfriedsprat" Desc="szprotki smazone w warzywach" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0xC7AA" Location="eatitems" Class="Item" Name="tomatosardine" Desc="sardynki w pomidorach" VendorBuysFor="39" VendorSellsFor="117" />
+  <item Type="0xC752" Location="eatitems" Class="Item" Name="bakedherring" Desc="pieczone sledzie" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0xC789" Location="eatitems" Class="Item" Name="onionherring" Desc="sledz z cebulka%%" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x15FB" Location="eatitems" Class="Item" Name="herringfricassee" Desc="potrawka ze sledzia" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0xC782" Location="eatitems" Class="Item" Name="dateshrimp" Desc="krewetki z daktylem" VendorBuysFor="382" VendorSellsFor="1146" />
+  <item Type="0xC783" Location="eatitems" Class="Item" Name="shrimpinsauce" Desc="krewetki w pikantnym sosie" VendorBuysFor="434" VendorSellsFor="1302" />
+  <item Type="0xC784" Location="eatitems" Class="Item" Name="baconshrimp" Desc="krewetki w bekonie" VendorBuysFor="385" VendorSellsFor="1155" />
+  <item Type="0xC785" Location="eatitems" Class="Item" Name="doughsquid" Desc="kalamarnica w ciescie" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0xC786" Location="eatitems" Class="Item" Name="oystermuffin" Desc="babeczki z ostrygami%%" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x283E" Location="eatitems" Class="Item" Name="sushi" Desc="sushi" VendorBuysFor="84" VendorSellsFor="252" />
+  <item Type="0xC787" Location="eatitems" Class="Item" Name="fuyungomelet" Desc="omlet fu yung" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x2836" Location="eatitems" Class="Item" Name="seafood" Desc="owoce morza" VendorBuysFor="113" VendorSellsFor="339" />
+  <item Type="0xC700" Location="cookitems" Class="Item" Name="ferment" Desc="zaczyn%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xC704" Location="cookitems" Class="Item" Name="doughball" Desc="kulka ciasta%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC705" Location="cookitems" Class="Item" Name="sweetdoughball" Desc="slodka kulka ciasta%%" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x103F" Location="cookitems" Class="Item" Name="cookiemix" Desc="ciasto ucierane" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0xC709" Location="cookitems" Class="Item" Name="sweetcookiemix" Desc="slodkie ciasto ucierane" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC779" Location="cookitems" Class="Item" Name="risedough" Desc="ciasto ryzowe%%" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0xC70A" Location="cookitems" Class="Item" Name="pizzacrust" Desc="ciasto na pizze%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xC778" Location="eatitems" Class="Item" Name="risepaper" Desc="papier ryzowy%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC717" Location="eatitems" Class="Item" Name="cream" Desc="smietana" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x09EC" Location="eatitems" Class="Item" Name="honey" Desc="miod%%" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC70B" Location="cookitems" Class="Item" Name="AppleFilling" Desc="nadzienie z jablek" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0xC70C" Location="cookitems" Class="Item" Name="PearFilling" Desc="nadzienie z gruszek" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC70D" Location="cookitems" Class="Item" Name="PeachFilling" Desc="nadzienie z brzoskwin" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0xC70E" Location="cookitems" Class="Item" Name="GrapesFilling" Desc="nadzienie z winogron" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0xC70F" Location="cookitems" Class="Item" Name="BananFilling" Desc="nadzienie z bananow" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC710" Location="cookitems" Class="Item" Name="LimesFilling" Desc="nadzienie z cytrusa" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC712" Location="cookitems" Class="Item" Name="DateFilling" Desc="nadzienie z daktyli" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0xC711" Location="cookitems" Class="Item" Name="LemonFilling" Desc="nadzienie z cytryny" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0xC748" Location="cookitems" Class="Item" Name="CoconutFilling" Desc="nadzienie z kokosa" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0xC757" Location="cookitems" Class="Item" Name="MelonFilling" Desc="nadzienie z arbuza" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0xC759" Location="cookitems" Class="Item" Name="PumpkinFilling" Desc="nadzienie z dyni" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0xC758" Location="cookitems" Class="Item" Name="CarrotFilling" Desc="nadzienie z marchwi" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0xC75A" Location="cookitems" Class="Item" Name="OnionFilling" Desc="nadzienie z cebuli" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0xC75D" Location="cookitems" Class="Item" Name="TomatoFilling" Desc="nadzienie z pomidora" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0xC7AC" Location="cookitems" Class="Item" Name="CabbageFilling" Desc="nadzienie z kapusty" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0xC7AB" Location="cookitems" Class="Item" Name="TurnipFilling" Desc="nadzienie z rzepy" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0xC713" Location="cookitems" Class="Item" Name="MeatFilling" Desc="nadzienie z miesa" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC72B" Location="cookitems" Class="Item" Name="BaconFilling" Desc="nadzienie z bekonu" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0xC72C" Location="cookitems" Class="Item" Name="FowlFilling" Desc="nadzienie z drobiu" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0xC72D" Location="cookitems" Class="Item" Name="VenisonFilling" Desc="nadzienie z dziczyzny" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0xC715" Location="cookitems" Class="Item" Name="MushroomFilling" Desc="nadzienie z grzybow" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0xC714" Location="cookitems" Class="Item" Name="SpratFilling" Desc="nadzienie ze szprotek" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0xC754" Location="cookitems" Class="Item" Name="AnchoviesFilling" Desc="nadzienie anchovies" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0xC755" Location="cookitems" Class="Item" Name="HerringFilling" Desc="nadzienie ze sledzia" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0xC756" Location="cookitems" Class="Item" Name="SardineFilling" Desc="nadzienie z sardynek" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0xC75F" Location="cookitems" Class="Item" Name="SquashFilling" Desc="nadzienie z kabaczka" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0xC722" Location="eatitems" Class="Item" Name="friedribs" Desc="smazone zeber%ka/ko%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x0979" Location="eatitems" Class="Item" Name="baconstrip" Desc="plastry bekonu%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x09BB" Location="eatitems" Class="Item" Name="bakedpig" Desc="pieczone prosie%%" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC72A" Location="eatitems" Class="Item" Name="studzielina" Desc="studzielina" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0xC7A9" Location="eatitems" Class="Item" Name="blackpudding" Desc="kaszanka" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x09C0" Location="eatitems" Class="Item" Name="sausage" Desc="kielbasa" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0xC788" Location="eatitems" Class="Item" Name="pudding" Desc="pasztet%%" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x09F2" Location="eatitems" Class="Item" Name="BakedRibs" Desc="pieczone zeb%ra/ro%" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0xC728" Location="eatitems" Class="Item" Name="friedmeatcookie" Desc="mieso smazone w ciescie%%" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0xC723" Location="eatitems" Class="Item" Name="BakedHam" Desc="pieczona szynka" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xC724" Location="eatitems" Class="Item" Name="BakedHoneyHam" Desc="pieczona szynka z miodem" VendorBuysFor="28" VendorSellsFor="84" />
+  <item Type="0x09B8" Location="eatitems" Class="Item" Name="CookedBird" Desc="gotowany ptak" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0xC726" Location="eatitems" Class="Item" Name="BakedBird" Desc="pieczony ptak" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1608" Location="eatitems" Class="Item" Name="friedchickenleg" Desc="smazone udo kurczaka%%" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0xC727" Location="eatitems" Class="Item" Name="bakedchickenleg" Desc="pieczone udo kurczaka%%" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x160A" Location="eatitems" Class="Item" Name="bakedlegoflamb" Desc="pieczone udo jagniecia" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x09B6" Location="eatitems" Class="Item" Name="friedegg" Desc="smazone jaj%ka/ko%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC72E" Location="eatitems" Class="Item" Name="cookedegg" Desc="gotowane jaj%ka/ko%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC735" Location="eatitems" Class="Item" Name="dumpling" Desc="pierozki" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0xC736" Location="eatitems" Class="Item" Name="cheesenoodle" Desc="kluseczki z serem" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC75C" Location="eatitems" Class="Item" Name="stuffedonion" Desc="faszerowana cebula" VendorBuysFor="58" VendorSellsFor="174" />
+  <item Type="0xC75E" Location="eatitems" Class="Item" Name="pumpkinpie" Desc="placek z dyni%%" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0xC76F" Location="eatitems" Class="Item" Name="bakedpumpkin" Desc="pieczona dynia" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC770" Location="eatitems" Class="Item" Name="pumpkinincoat" Desc="dynia w panierce%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xC773" Location="eatitems" Class="Item" Name="stewcabbage" Desc="duszona kapusta" VendorBuysFor="22" VendorSellsFor="66" />
+  <item Type="0xC774" Location="eatitems" Class="Item" Name="friedcabbage" Desc="smazona kapusta" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0xC772" Location="eatitems" Class="Item" Name="cabbagesoup" Desc="kapusniak" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0xC78A" Location="eatitems" Class="Item" Name="bigos" Desc="bigos" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0xC771" Location="eatitems" Class="Item" Name="stuffedcabbage" Desc="golabki" VendorBuysFor="81" VendorSellsFor="243" />
+  <item Type="0xC777" Location="eatitems" Class="Item" Name="springrolls" Desc="sajgonki" VendorBuysFor="48" VendorSellsFor="144" />
+  <item Type="0xC77A" Location="eatitems" Class="Item" Name="vegcasserole" Desc="zapiekanka z ryzu i warzyw" VendorBuysFor="49" VendorSellsFor="147" />
+  <item Type="0xC77E" Location="eatitems" Class="Item" Name="risecake" Desc="ciasto ryzowe" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC72F" Location="eatitems" Class="Item" Name="onionsoup" Desc="zupa cebulowa" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0x1606" Location="eatitems" Class="Item" Name="tomatosoup" Desc="zupa pomidorowa" VendorBuysFor="68" VendorSellsFor="204" />
+  <item Type="0xC733" Location="eatitems" Class="Item" Name="fishsoup" Desc="zupa rybna" VendorBuysFor="51" VendorSellsFor="153" />
+  <item Type="0xC731" Location="eatitems" Class="Item" Name="mushroomsoup" Desc="zupa grzybowa" VendorBuysFor="45" VendorSellsFor="135" />
+  <item Type="0x2D4F" Location="eatitems" Class="Item" Name="fruitsalad" Desc="salatka owocowa" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC78C" Location="eatitems" Class="Item" Name="turnipfruitsalad" Desc="salatka z rzepy" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0xC78D" Location="eatitems" Class="Item" Name="salad" Desc="surowka" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0xC78E" Location="eatitems" Class="Item" Name="turnipsalad" Desc="surowka z rzepy" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC78F" Location="eatitems" Class="Item" Name="lettucesalad" Desc="surowka z salaty" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0xC790" Location="eatitems" Class="Item" Name="vegetsalad" Desc="surowka warzywna" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0xC791" Location="eatitems" Class="Item" Name="spicysalad" Desc="pikantna surowka" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0xC792" Location="eatitems" Class="Item" Name="applejuice" Desc="sok jablkowy" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0xC793" Location="eatitems" Class="Item" Name="lemonjuice" Desc="sok cytrynowy" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0xC794" Location="eatitems" Class="Item" Name="melonjuice" Desc="sok arbuzowy" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0xC795" Location="eatitems" Class="Item" Name="coconutjuice" Desc="sok kokosowy" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0xC796" Location="eatitems" Class="Item" Name="carrotjuice" Desc="sok marchwiowy" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0xC797" Location="eatitems" Class="Item" Name="bananajuice" Desc="sok bananowy" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0xC798" Location="eatitems" Class="Item" Name="pearjuice" Desc="sok gruszkowy" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0xC799" Location="eatitems" Class="Item" Name="peachjuice" Desc="sok brzoskwiniowy" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xC7AD" Location="eatitems" Class="Item" Name="squashsalad" Desc="surowka z kabaczka" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0xDC01" Location="potions" Class="Item" Name="LightHealPotion" Desc="mala zolta mikstura%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0xDC02" Location="potions" Class="Item" Name="HealPotion" Desc="zolta mikstura%%" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0xDC03" Location="potions" Class="Item" Name="GreaterHealPotion" Desc="duza zolta mikstura%%" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0xDC04" Location="potions" Class="Item" Name="LesserPoisonPotion" Desc="mala zielona mikstura%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0xDC05" Location="potions" Class="Item" Name="PoisonPotion" Desc="zielona mikstura%%" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0xDC06" Location="potions" Class="Item" Name="GreaterPoisonPotion" Desc="duza zielona mikstura%%" VendorBuysFor="22" VendorSellsFor="66" />
+  <item Type="0xDC07" Location="potions" Class="Item" Name="GreaterExplosionPotion" Desc="duza fioletowa mikstura%%" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0xDC08" Location="potions" Class="Item" Name="LesserExplosionPotion" Desc="mala fioletowa mikstura%%" VendorBuysFor="9" VendorSellsFor="18" />
+  <item Type="0xDC09" Location="potions" Class="Item" Name="ExplosionPotion" Desc="fioletowa mikstura%%" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0xDC0B" Location="potions" Class="Item" Name="LesserAgilityPotion" Desc="mala niebieska mikstura%%" VendorBuysFor="8" VendorSellsFor="16" />
+  <item Type="0xDC0C" Location="potions" Class="Item" Name="AgilityPotion" Desc="niebieska mikstura%%" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0xDC0D" Location="potions" Class="Item" Name="GreaterAgilityPotion" Desc="duza niebieska mikstura%%" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0xDC0E" Location="potions" Class="Item" Name="RefreshPotion" Desc="czerwona mikstura%%" VendorBuysFor="7" VendorSellsFor="14" />
+  <item Type="0xDC0F" Location="potions" Class="Item" Name="FullRefreshPotion" Desc="duza czerwona mikstura%%" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0xDC10" Location="potions" Class="Item" Name="LesserStrengthPotion" Desc="mala biala mikstura%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0xDC11" Location="potions" Class="Item" Name="StrengthPotion" Desc="biala mikstura%%" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xDC12" Location="potions" Class="Item" Name="GreaterStrengthPotion" Desc="duza biala mikstura%%" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0xDC14" Location="potions" Class="Item" Name="LesserCurePotion" Desc="mala pomaranczowa mikstura%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0xDC15" Location="potions" Class="Item" Name="CurePotion" Desc="pomaranczowa mikstura%%" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0xDC16" Location="potions" Class="Item" Name="GreaterCurePotion" Desc="duza pomaranczowa mikstura%%" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0xDC17" Location="potions" Class="Item" Name="DeadlyPoisonPotion" Desc="smiertelna zielona mikstura%%" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0xDC18" Location="potions" Class="Item" Name="AggroOilPotion" Desc="olej wyzwania%%" VendorBuysFor="424" VendorSellsFor="1272" />
+  <item Type="0xDC19" Location="potions" Class="Item" Name="LesserAggroOilPotion" Desc="maly olej wyzwania%%" VendorBuysFor="159" VendorSellsFor="477" />
+  <item Type="0xDCE5" Location="potions" Class="Item" Name="DispersionPotion" Desc="mikstura rozproszenia%%" VendorBuysFor="65" VendorSellsFor="195" />
+  <item Type="0xDCE6" Location="potions" Class="Item" Name="NightsightPotion" Desc="czarna mikstura%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0xDCE7" Location="potions" Class="Item" Name="BlindPotion" Desc="jasna mikstura%%" VendorBuysFor="158" VendorSellsFor="474" />
+  <item Type="0xDCE8" Location="potions" Class="Item" Name="ManaPotion" Desc="niebieska mikstura%%" VendorBuysFor="142" VendorSellsFor="426" />
+  <item Type="0xDCE9" Location="potions" Class="Item" Name="ProtPoisonPotion" Desc="krwista mikstura%%" VendorBuysFor="99" VendorSellsFor="297" />
+  <item Type="0xDCF0" Location="potions" Class="Item" Name="PolymorphPotion" Desc="fioletowa mikstura%%" VendorBuysFor="55" VendorSellsFor="165" />
+  <item Type="0xDCF1" Location="potions" Class="Item" Name="LesserCursePotion" Desc="mala zolta mikstura%%" VendorBuysFor="62" VendorSellsFor="186" />
+  <item Type="0xDCF2" Location="potions" Class="Item" Name="CursePotion" Desc="zolta mikstura%%" VendorBuysFor="94" VendorSellsFor="282" />
+  <item Type="0xDCF3" Location="potions" Class="Item" Name="GreaterCursePotion" Desc="duza zolta mikstura%%" VendorBuysFor="130" VendorSellsFor="390" />
+  <item Type="0xDCF4" Location="potions" Class="Item" Name="WearWolfCurePotion" Desc="mikstura na wyleczenie wilkolactwa%%" VendorBuysFor="373" VendorSellsFor="1119" />
+  <item Type="0xDCF5" Location="potions" Class="Item" Name="LightLifeElixir" Desc="slaby eliksir zycia%%" VendorBuysFor="55" VendorSellsFor="165" />
+  <item Type="0xDCF6" Location="potions" Class="Item" Name="LifeElixir" Desc="eliksir zycia%%" VendorBuysFor="77" VendorSellsFor="231" />
+  <item Type="0xDCF7" Location="potions" Class="Item" Name="LightManaElixir" Desc="slaby eliksir many%%" VendorBuysFor="77" VendorSellsFor="231" />
+  <item Type="0xDCF8" Location="potions" Class="Item" Name="ManaElixir" Desc="eliksir many%%" VendorBuysFor="95" VendorSellsFor="285" />
+  <item Type="0xDCF9" Location="potions" Class="Item" Name="LightStaminaElixir" Desc="slaby eliksir wytrzymalosci%%" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0xDCFA" Location="potions" Class="Item" Name="StaminaElixir" Desc="eliksir wytrzymalosci%%" VendorBuysFor="58" VendorSellsFor="174" />
+  <item Type="0xDCFB" Location="potions" Class="Item" Name="VampireCure" Desc="elixir czystej krwi%%" VendorBuysFor="591" VendorSellsFor="1773" />
+  <item Type="0xDCFC" Location="potions" Class="Item" Name="LesserHolyExplosionPotion" Desc="mala szafirowa mikstura%%" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0xDCFD" Location="potions" Class="Item" Name="HolyExplosionPotion" Desc="szafirowa mikstura%%" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0xDCFE" Location="potions" Class="Item" Name="GreaterHolyExplosionPotion" Desc="duza szafirowa mikstura%%" VendorBuysFor="49" VendorSellsFor="147" />
+  <item Type="0x0F0E" Location="alchemy" Class="Item" Name="EmptyBottle" Desc="pusta butelka%%" VendorBuysFor="2" VendorSellsFor="4" />
+  <item Type="0x1810" Location="alchemy" Class="Item" Name="HourGlass" Desc="klepsydra" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x182D" Location="alchemy" Class="Item" Name="MedFlask" Desc="flaszka%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x1832" Location="alchemy" Class="Item" Name="CurvedFlask" Desc="flaszka%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x183A" Location="alchemy" Class="Item" Name="LongFlask" Desc="flaszka%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0x183D" Location="alchemy" Class="Item" Name="LargeFlask" Desc="flaszka%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0x1F82" Location="drinkitems" Class="Item" Name="emptyglass" Desc="szklanka" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC718" Location="cookitems" Class="Item" Name="honeyjar" Desc="sloik na miod%%" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x0E24" Location="config" Class="Item" Name="vial" Desc="fiolka%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x0E2D" Location="vampire" Class="Item" Name="Crystalball" Desc="krzysztalowa kula" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x0FF6" Location="drinkitems" Class="Item" Name="emptypitcher" Desc="szklany dzbanek" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x0F45" Location="combat" Class="Weapon" Name="ExecutionersAxe" Desc="niszczycielski topor" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0x0F47" Location="combat" Class="Weapon" Name="BattleAxe" Desc="bojowy topor" VendorBuysFor="46" VendorSellsFor="138" />
+  <item Type="0x0F49" Location="combat" Class="Weapon" Name="Axe" Desc="siekiera" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x0F4B" Location="combat" Class="Weapon" Name="DoubleAxe" Desc="podwojna siekiera" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0x0F4E" Location="combat" Class="Weapon" Name="Bardiche" Desc="berdysz" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x0F51" Location="blades" Class="Weapon" Name="Dagger" Desc="sztylet" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x0F5C" Location="combat" Class="Weapon" Name="Mace" Desc="bulawa" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x0F5E" Location="combat" Class="Weapon" Name="BroadSword" Desc="bitewny miecz" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0x0F60" Location="combat" Class="Weapon" Name="longsword" Desc="dlugi miecz" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0x0F63" Location="combat" Class="Weapon" Name="Spear" Desc="wlocznia" VendorBuysFor="34" VendorSellsFor="102" />
+  <item Type="0x13AF" Location="combat" Class="Weapon" Name="WarAxe" Desc="wojenny topor" VendorBuysFor="50" VendorSellsFor="150" />
+  <item Type="0x13B5" Location="combat" Class="Weapon" Name="Scimitar" Desc="sejmitar" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0x13B9" Location="combat" Class="Weapon" Name="VikingSword" Desc="wielki miecz" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x13FA" Location="combat" Class="Weapon" Name="LargeBattleAxe" Desc="duzy bojowy topor" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x13FE" Location="combat" Class="Weapon" Name="Katana" Desc="katana" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x1401" Location="combat" Class="Weapon" Name="Kryss" Desc="kris" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0x1402" Location="combat" Class="Weapon" Name="ShortSpear" Desc="krotka wlocznia" VendorBuysFor="33" VendorSellsFor="99" />
+  <item Type="0x1404" Location="combat" Class="Weapon" Name="WarFork" Desc="wojenne widly" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0x1406" Location="combat" Class="Weapon" Name="WarMace" Desc="wojenna bulawa" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0x1438" Location="combat" Class="Weapon" Name="WarHammer" Desc="wojenny mlot" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0x143A" Location="combat" Class="Weapon" Name="Maul" Desc="dlugi mlot" VendorBuysFor="25" VendorSellsFor="75" />
+  <item Type="0x143C" Location="combat" Class="Weapon" Name="HammerPick" Desc="duzy mlot" VendorBuysFor="40" VendorSellsFor="120" />
+  <item Type="0x143E" Location="combat" Class="Weapon" Name="Halberd" Desc="halabarda" VendorBuysFor="58" VendorSellsFor="174" />
+  <item Type="0x1440" Location="combat" Class="Weapon" Name="Cutlass" Desc="krotki miecz" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0x1442" Location="combat" Class="Weapon" Name="TwoHandedAxe" Desc="dwureczna siekiera" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x26BA" Location="combat" Class="Weapon" Name="scythe" Desc="kosa" VendorBuysFor="53" VendorSellsFor="159" />
+  <item Type="0x26BC" Location="combat" Class="Weapon" Name="scepter" Desc="berlo" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0x26BD" Location="combat" Class="Weapon" Name="bladedstaff" Desc="laska z ostrzem" VendorBuysFor="45" VendorSellsFor="135" />
+  <item Type="0x26BE" Location="combat" Class="Weapon" Name="pike" Desc="pika" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0x26BF" Location="combat" Class="Weapon" Name="doublebladedstaff" Desc="podwojne ostrza" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x26C0" Location="combat" Class="Weapon" Name="lance" Desc="lanca" VendorBuysFor="70" VendorSellsFor="210" />
+  <item Type="0x26C1" Location="combat" Class="Weapon" Name="crescentblade" Desc="polokragle ostrze" VendorBuysFor="52" VendorSellsFor="156" />
+  <item Type="0x26CE" Location="combat" Class="Weapon" Name="hugesword" Desc="ogromny miecz" VendorBuysFor="67" VendorSellsFor="201" />
+  <item Type="0x27ED" Location="combat" Class="Weapon" Name="NoDachi" Desc="no-dachi" VendorBuysFor="61" VendorSellsFor="183" />
+  <item Type="0x27EF" Location="combat" Class="Weapon" Name="Wakizashi" Desc="wakizashi" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0x27F1" Location="combat" Class="Weapon" Name="Tetsubo" Desc="tetsubo" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0x27F2" Location="combat" Class="Weapon" Name="Lajatang" Desc="lajatang" VendorBuysFor="59" VendorSellsFor="177" />
+  <item Type="0x27F4" Location="combat" Class="Weapon" Name="Daisho" Desc="daisho" VendorBuysFor="47" VendorSellsFor="141" />
+  <item Type="0x27F8" Location="combat" Class="Weapon" Name="Kama" Desc="kama" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0x27FA" Location="combat" Class="Weapon" Name="Sai" Desc="sai" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x2D20" Location="combat" Class="Weapon" Name="elvenspellblade" Desc="elfie ostrze" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0x2D21" Location="combat" Class="Weapon" Name="assasinspike" Desc="szpikulec" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x2D23" Location="combat" Class="Weapon" Name="warcleaver" Desc="wojenny tasak" VendorBuysFor="33" VendorSellsFor="99" />
+  <item Type="0x2D24" Location="combat" Class="Weapon" Name="diamondmace" Desc="diamentowa bulawa" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x2D26" Location="combat" Class="Weapon" Name="runeblade" Desc="runiczne ostrze" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x2D27" Location="combat" Class="Weapon" Name="radiantscimitar" Desc="promienisty sejmitar" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0x2D28" Location="combat" Class="Weapon" Name="ornateaxe" Desc="topor zdobiony" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x2D29" Location="combat" Class="Weapon" Name="elvenmachete" Desc="elfia maczeta" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x1376" Location="config" Class="Item" Name="horsearmor1" Desc="zbroja" VendorBuysFor="184" VendorSellsFor="552" />
+  <item Type="0x1377" Location="config" Class="Item" Name="horsearmor2" Desc="zbroja" VendorBuysFor="184" VendorSellsFor="552" />
+  <item Type="0x13BB" Location="combat" Class="Armor" Name="ChainmailCoif" Desc="czepiec" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x13BE" Location="combat" Class="Armor" Name="ChainmailLeggings" Desc="nogawice" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0x13BF" Location="combat" Class="Armor" Name="ChainmailTunic" Desc="kolczuga" VendorBuysFor="64" VendorSellsFor="192" />
+  <item Type="0x13EC" Location="combat" Class="Armor" Name="RingmailTunic" Desc="pierscieniowa tunika" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x13EE" Location="combat" Class="Armor" Name="RingmailSleeves" Desc="pierscieniowe naramienniki" VendorBuysFor="33" VendorSellsFor="99" />
+  <item Type="0x13F0" Location="combat" Class="Armor" Name="RingmailLeggings" Desc="pierscieniowe nogawice" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0x13F2" Location="combat" Class="Armor" Name="RingmailGloves" Desc="pierscieniowe rekawice" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0x1408" Location="combat" Class="Armor" Name="CloseHelm" Desc="zamkniety helm" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x140A" Location="combat" Class="Armor" Name="Helmet" Desc="otwarty helm" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x140C" Location="combat" Class="Armor" Name="Bascinet" Desc="helm" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x140E" Location="combat" Class="Armor" Name="NoseHelm" Desc="helm nosowy" VendorBuysFor="43" VendorSellsFor="129" />
+  <item Type="0x1410" Location="combat" Class="Armor" Name="PlatemailArms" Desc="plytowe naramienniki" VendorBuysFor="59" VendorSellsFor="177" />
+  <item Type="0x1411" Location="combat" Class="Armor" Name="PlatemailLegs" Desc="plytowe nogawice" VendorBuysFor="67" VendorSellsFor="201" />
+  <item Type="0x1412" Location="combat" Class="Armor" Name="PlateHelm" Desc="helm plytowy" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x1413" Location="combat" Class="Armor" Name="PlatemailGorget" Desc="plytowy karczek" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0x1414" Location="combat" Class="Armor" Name="PlatemailGloves" Desc="plytowe rekawice" VendorBuysFor="39" VendorSellsFor="117" />
+  <item Type="0x1415" Location="combat" Class="Armor" Name="PlatemailBreastplate" Desc="plytowa zbroja" VendorBuysFor="86" VendorSellsFor="258" />
+  <item Type="0x1B72" Location="combat" Class="Armor" Name="BronzeShield" Desc="okragla tarcza" VendorBuysFor="28" VendorSellsFor="84" />
+  <item Type="0x1B73" Location="combat" Class="Armor" Name="Buckler" Desc="puklerz" VendorBuysFor="22" VendorSellsFor="66" />
+  <item Type="0x1B74" Location="combat" Class="Armor" Name="KiteShield" Desc="trojkatna tarcza" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x1B76" Location="combat" Class="Armor" Name="HeaterShield" Desc="pawez" VendorBuysFor="55" VendorSellsFor="165" />
+  <item Type="0x1B7B" Location="combat" Class="Armor" Name="MetalShield" Desc="metalowa tarcza" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x1C04" Location="combat" Class="Armor" Name="FemalePlate" Desc="plytowa damska zbroja" VendorBuysFor="67" VendorSellsFor="201" />
+  <item Type="0x2642" Location="combat" Class="Armor" Name="DragonBreastplate" Desc="smocza zbroja" VendorBuysFor="352" VendorSellsFor="1056" />
+  <item Type="0x2644" Location="combat" Class="Armor" Name="DragonGloves" Desc="smocze rekawice" VendorBuysFor="92" VendorSellsFor="276" />
+  <item Type="0x2645" Location="combat" Class="Armor" Name="DragonHelm" Desc="smoczy helm" VendorBuysFor="128" VendorSellsFor="384" />
+  <item Type="0x2648" Location="combat" Class="Armor" Name="DragonLegs" Desc="smocze nogawice" VendorBuysFor="198" VendorSellsFor="594" />
+  <item Type="0x264C" Location="combat" Class="Armor" Name="DragonGorget" Desc="smoczy karczek" VendorBuysFor="59" VendorSellsFor="177" />
+  <item Type="0x2658" Location="combat" Class="Armor" Name="DragonArms" Desc="smocze naramienniki" VendorBuysFor="165" VendorSellsFor="495" />
+  <item Type="0x2779" Location="combat" Class="Armor" Name="PlateMempo" Desc="plytowe mempo" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0x277D" Location="combat" Class="Armor" Name="PlateDo" Desc="plytowe Do" VendorBuysFor="86" VendorSellsFor="258" />
+  <item Type="0x2780" Location="combat" Class="Armor" Name="PlateHiroSode" Desc="plytowe hiro sode" VendorBuysFor="59" VendorSellsFor="177" />
+  <item Type="0x2785" Location="combat" Class="Armor" Name="PlateKabuto" Desc="plytowe kabuto" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x2788" Location="combat" Class="Armor" Name="PlateSuneate" Desc="plytowe suneate" VendorBuysFor="67" VendorSellsFor="201" />
+  <item Type="0x2B67" Location="combat" Class="Armor" Name="ElvenPlatemailBreastplate" Desc="elfia plytowa zbroja" VendorBuysFor="77" VendorSellsFor="231" />
+  <item Type="0x2B69" Location="combat" Class="Armor" Name="ElvenPlatemailGorget" Desc="elfi plytowy karczek" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0x2B6A" Location="combat" Class="Armor" Name="ElvenPlatemailGloves" Desc="elfie plytowe rekawice" VendorBuysFor="36" VendorSellsFor="108" />
+  <item Type="0x2B6B" Location="combat" Class="Armor" Name="ElvenPlatemailLegs" Desc="elfie plytowe nogawice" VendorBuysFor="74" VendorSellsFor="222" />
+  <item Type="0x2B6C" Location="combat" Class="Armor" Name="ElvenPlatemailArms" Desc="elfie plytowe naramienniki" VendorBuysFor="67" VendorSellsFor="201" />
+  <item Type="0x2B6D" Location="combat" Class="Armor" Name="ElvenFemalePlate" Desc="elfia plytowa damska zbroja" VendorBuysFor="73" VendorSellsFor="219" />
+  <item Type="0x2B71" Location="combat" Class="Armor" Name="RavenHelm" Desc="helm kruka" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x2B72" Location="combat" Class="Armor" Name="VultureHelm" Desc="helm szakala" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x2B73" Location="combat" Class="Armor" Name="WingedHelm" Desc="skrzydlaty helm" VendorBuysFor="44" VendorSellsFor="132" />
+  <item Type="0x0E75" Location="containers" Class="Container" Name="Backpack" Desc="plecak" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x0E76" Location="containers" Class="Container" Name="Bag" Desc="worek" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x0E79" Location="containers" Class="Container" Name="Pouch" Desc="skrzynka" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x0FD6" Location="carpets" Class="Item" Name="Tapestry1" Desc="gobelina" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0x13C6" Location="combat" Class="Armor" Name="LeatherGloves" Desc="skorzane rekawiczki" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x13C7" Location="combat" Class="Armor" Name="LeatherGorget" Desc="skorzany karczek" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x13CB" Location="combat" Class="Armor" Name="LeatherLeggings" Desc="skorzane nogawice" VendorBuysFor="47" VendorSellsFor="141" />
+  <item Type="0x13CC" Location="combat" Class="Armor" Name="LeatherTunic" Desc="skorzana tunika" VendorBuysFor="56" VendorSellsFor="168" />
+  <item Type="0x13CD" Location="combat" Class="Armor" Name="LeatherSleeves" Desc="skorzane naramienniki" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x13D4" Location="combat" Class="Armor" Name="StuddedSleeves" Desc="utwardzane naramienniki" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x13D5" Location="combat" Class="Armor" Name="StuddedGloves" Desc="utwardzane rekawiczki" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0x13D6" Location="combat" Class="Armor" Name="StuddedGorget" Desc="utwardzany karczek" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x13DA" Location="combat" Class="Armor" Name="StuddedLeggings" Desc="utwardzane nogawice" VendorBuysFor="61" VendorSellsFor="183" />
+  <item Type="0x13DB" Location="combat" Class="Armor" Name="StuddedTunic" Desc="utwardzana tunika" VendorBuysFor="82" VendorSellsFor="246" />
+  <item Type="0x144E" Location="combat" Class="Armor" Name="Bonearms" Desc="kosciane naramienniki" VendorBuysFor="55" VendorSellsFor="165" />
+  <item Type="0x144F" Location="combat" Class="Armor" Name="Bonetunic" Desc="kosciana tunika" VendorBuysFor="99" VendorSellsFor="297" />
+  <item Type="0x1450" Location="combat" Class="Armor" Name="Bonegloves" Desc="kosciane rekawice" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0x1451" Location="combat" Class="Armor" Name="Bonehelm" Desc="kosciany helm" VendorBuysFor="27" VendorSellsFor="81" />
+  <item Type="0x1452" Location="combat" Class="Armor" Name="Bonelegs" Desc="kosciane nogawice" VendorBuysFor="73" VendorSellsFor="219" />
+  <item Type="0x1515" Location="tailoring" Class="Armor" Name="Cloak" Desc="plaszcz" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0x1516" Location="tailoring" Class="Armor" Name="Skirt" Desc="spodniczka" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x1517" Location="tailoring" Class="Armor" Name="Shirt" Desc="koszulka" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x152E" Location="tailoring" Class="Armor" Name="ShortPants" Desc="krotkie spodnie" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1537" Location="tailoring" Class="Armor" Name="Kilt" Desc="kilt" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x1539" Location="tailoring" Class="Armor" Name="LongPants" Desc="dlugie spodnie" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x153B" Location="tailoring" Class="Armor" Name="HalfApron" Desc="krotki fartuch" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x153D" Location="tailoring" Class="Armor" Name="FullApron" Desc="fartuch" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x153F" Location="tailoring" Class="Armor" Name="Bandana" Desc="bandana" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1541" Location="tailoring" Class="Armor" Name="BodySash" Desc="szarfa" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1543" Location="tailoring" Class="Armor" Name="Skullcap" Desc="mycka" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x170B" Location="combat" Class="Armor" Name="LeatherBoots" Desc="wysokie buty" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x170D" Location="tailoring" Class="Armor" Name="Sandals" Desc="sandaly" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x170F" Location="tailoring" Class="Armor" Name="Shoes" Desc="buty" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1711" Location="combat" Class="Armor" Name="ThighBoots" Desc="wysokie buty" VendorBuysFor="23" VendorSellsFor="69" />
+  <item Type="0x1713" Location="tailoring" Class="Armor" Name="FloppyHat" Desc="kapelusz" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1714" Location="tailoring" Class="Armor" Name="WideBrimHat" Desc="kapelusz" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1715" Location="tailoring" Class="Armor" Name="Cap" Desc="czapka" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1716" Location="tailoring" Class="Armor" Name="bigstrawhat" Desc="kapelusz" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1717" Location="tailoring" Class="Armor" Name="strawhat" Desc="slomkowy kapelusz" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1718" Location="tailoring" Class="Armor" Name="wizardhat" Desc="czarodziejska czapka" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x1719" Location="tailoring" Class="Armor" Name="Bonnet" Desc="beret" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x171A" Location="tailoring" Class="Armor" Name="FeatheredHat" Desc="czapka z piorkem" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0x171B" Location="tailoring" Class="Armor" Name="TricorneHat" Desc="trojkatny kapelusz" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x171C" Location="tailoring" Class="Armor" Name="Jesterhat" Desc="blazenska czapka" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x1C00" Location="combat" Class="Armor" Name="LeatherShorts" Desc="skorzane spodnie" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x1C02" Location="combat" Class="Armor" Name="FemaleStudded" Desc="utwardzana damska zbroja" VendorBuysFor="50" VendorSellsFor="150" />
+  <item Type="0x1C06" Location="combat" Class="Armor" Name="FemaleLeather" Desc="skorzana damska zbroja" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0x1C08" Location="combat" Class="Armor" Name="LeatherSkirt" Desc="skorzana spodniczka" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0x1C0A" Location="combat" Class="Armor" Name="LeatherBustier" Desc="skorzany biustonosz" VendorBuysFor="26" VendorSellsFor="78" />
+  <item Type="0x1C0C" Location="combat" Class="Armor" Name="StuddedBustier" Desc="utwardzany biustonosz" VendorBuysFor="39" VendorSellsFor="117" />
+  <item Type="0x1DB9" Location="combat" Class="Armor" Name="LeatherCap" Desc="skorzana czapka" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x1EFD" Location="tailoring" Class="Armor" Name="FancyShirt" Desc="koszula" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x1EFF" Location="tailoring" Class="Armor" Name="FancyDress" Desc="spodnica" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x1F01" Location="tailoring" Class="Armor" Name="PlainDress" Desc="sukienka" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x1F7B" Location="tailoring" Class="Armor" Name="Doublet" Desc="kubrak" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x1F9F" Location="tailoring" Class="Armor" Name="JesterSuit" Desc="stroj blazenski" VendorBuysFor="31" VendorSellsFor="93" />
+  <item Type="0x1FA1" Location="tailoring" Class="Armor" Name="Tunic" Desc="tunika" VendorBuysFor="14" VendorSellsFor="42" />
+  <item Type="0x1FFD" Location="tailoring" Class="Armor" Name="Surcoat" Desc="oponcza" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x2776" Location="combat" Class="Armor" Name="LeatherJingasa" Desc="skorzane jingasa" VendorBuysFor="22" VendorSellsFor="66" />
+  <item Type="0x2778" Location="combat" Class="Armor" Name="LeatherKabuto" Desc="skorzane kabuto" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x277A" Location="combat" Class="Armor" Name="LeatherMempo" Desc="skorzane mempo" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x277B" Location="combat" Class="Armor" Name="LeatherDo" Desc="skorzane Do" VendorBuysFor="59" VendorSellsFor="177" />
+  <item Type="0x277C" Location="combat" Class="Armor" Name="StuddedDo" Desc="utwardzane Do" VendorBuysFor="71" VendorSellsFor="213" />
+  <item Type="0x277E" Location="combat" Class="Armor" Name="LeatherHiroSode" Desc="skorzane hiro sode" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x277F" Location="combat" Class="Armor" Name="StuddedHiroSode" Desc="utwardzane hiro sode" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x2782" Location="tailoring" Class="Armor" Name="MaleKimono" Desc="kimono" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0x2783" Location="tailoring" Class="Armor" Name="FemaleKimono" Desc="kimono" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0x2784" Location="combat" Class="Armor" Name="StuddedJingasa" Desc="utwardzane jingasa" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x2786" Location="combat" Class="Armor" Name="LeatherSuneate" Desc="skorzane suneate" VendorBuysFor="49" VendorSellsFor="147" />
+  <item Type="0x2787" Location="combat" Class="Armor" Name="StuddedSuneate" Desc="utwardzane suneate" VendorBuysFor="61" VendorSellsFor="183" />
+  <item Type="0x2789" Location="combat" Class="Armor" Name="StuddedKabuto" Desc="utwardzane kabuto" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x2796" Location="tailoring" Class="Armor" Name="SamuraiSandals" Desc="sandaly samuraja" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x2798" Location="tailoring" Class="Armor" Name="Kesa" Desc="kesa" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x2799" Location="tailoring" Class="Armor" Name="Kimishimo" Desc="kamishimo" VendorBuysFor="41" VendorSellsFor="123" />
+  <item Type="0x279A" Location="tailoring" Class="Armor" Name="Hakama" Desc="hakama" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x279B" Location="tailoring" Class="Armor" Name="TettsukeHakama" Desc="tattsuke-hakama" VendorBuysFor="18" VendorSellsFor="54" />
+  <item Type="0x279C" Location="tailoring" Class="Armor" Name="HakamaSkita" Desc="hakama-skita" VendorBuysFor="21" VendorSellsFor="63" />
+  <item Type="0x279D" Location="combat" Class="Armor" Name="StuddedMempo" Desc="utwardzane mempo" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x27A0" Location="tailoring" Class="Armor" Name="Obi" Desc="obi" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0x27A1" Location="tailoring" Class="Armor" Name="JinBaori" Desc="jin-baori" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0x2B74" Location="combat" Class="Armor" Name="ElvenHideTunic" Desc="elfia skorzana tunika" VendorBuysFor="52" VendorSellsFor="156" />
+  <item Type="0x2B75" Location="combat" Class="Armor" Name="ElvenHideGloves" Desc="elfie skorzane rekawiczki" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x2B76" Location="combat" Class="Armor" Name="ElvenHideGorget" Desc="elfi skorzany karczek" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x2B77" Location="combat" Class="Armor" Name="ElvenHideSleeves" Desc="elfie skorzane naramienniki" VendorBuysFor="17" VendorSellsFor="51" />
+  <item Type="0x2B78" Location="combat" Class="Armor" Name="ElvenHideLeggings" Desc="elfie skorzane nogawice" VendorBuysFor="48" VendorSellsFor="144" />
+  <item Type="0x2FB9" Location="tailoring" Class="Armor" Name="ElvenRobe1" Desc="toga" VendorBuysFor="48" VendorSellsFor="144" />
+  <item Type="0x2FBA" Location="tailoring" Class="Armor" Name="ElvenRobe2" Desc="toga" VendorBuysFor="48" VendorSellsFor="144" />
+  <item Type="0x2FC3" Location="tailoring" Class="Armor" Name="ElvenPants" Desc="dlugie spodnie" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x2FC4" Location="combat" Class="Armor" Name="ElvenBoots" Desc="buty" VendorBuysFor="19" VendorSellsFor="57" />
+  <item Type="0x2FC5" Location="combat" Class="Armor" Name="ElvenArmorTunic" Desc="elfia wzmacniana tunika" VendorBuysFor="78" VendorSellsFor="234" />
+  <item Type="0x2FC6" Location="combat" Class="Armor" Name="ElvenArmorGloves" Desc="elfie wzmacniane rekawiczki" VendorBuysFor="24" VendorSellsFor="72" />
+  <item Type="0x2FC7" Location="combat" Class="Armor" Name="ElvenArmorGorget" Desc="elfi wzmacniany karczek" VendorBuysFor="29" VendorSellsFor="87" />
+  <item Type="0x2FC8" Location="combat" Class="Armor" Name="ElvenArmorSleeves" Desc="elfie wzmacniane naramienniki" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x2FC9" Location="combat" Class="Armor" Name="ElvenArmorLeggings" Desc="elfie wzmacniane nogawice" VendorBuysFor="61" VendorSellsFor="183" />
+  <item Type="0x3175" Location="tailoring" Class="Armor" Name="ElvenLightShirt" Desc="koszulka" VendorBuysFor="33" VendorSellsFor="99" />
+  <item Type="0x3176" Location="tailoring" Class="Armor" Name="ElvenShirt" Desc="koszulka" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0x9010" Location="combat" Class="Armor" Name="Daemonarms" Desc="kosciane naramienniki z demona" VendorBuysFor="295" VendorSellsFor="885" />
+  <item Type="0x9011" Location="combat" Class="Armor" Name="Daemontunic" Desc="kosciana tunika z demona" VendorBuysFor="654" VendorSellsFor="1962" />
+  <item Type="0x9012" Location="combat" Class="Armor" Name="Daemongloves" Desc="kosciane rekawice z demona" VendorBuysFor="169" VendorSellsFor="507" />
+  <item Type="0x9013" Location="combat" Class="Armor" Name="Daemonhelm" Desc="kosciany helm z demona" VendorBuysFor="99" VendorSellsFor="297" />
+  <item Type="0x9014" Location="combat" Class="Armor" Name="Daemonlegs" Desc="kosciane nogawice z demona" VendorBuysFor="422" VendorSellsFor="1266" />
+  <item Type="0x9015" Location="combat" Class="Armor" Name="Balronarms" Desc="kosciane naramienniki z balrona" VendorBuysFor="295" VendorSellsFor="885" />
+  <item Type="0x9016" Location="combat" Class="Armor" Name="Balrontunic" Desc="kosciana tunika z balrona" VendorBuysFor="654" VendorSellsFor="1962" />
+  <item Type="0x9017" Location="combat" Class="Armor" Name="Balrongloves" Desc="kosciane rekawice z balrona" VendorBuysFor="169" VendorSellsFor="507" />
+  <item Type="0x9018" Location="combat" Class="Armor" Name="Balronhelm" Desc="kosciany helm z balrona" VendorBuysFor="99" VendorSellsFor="297" />
+  <item Type="0x9019" Location="combat" Class="Armor" Name="Balronlegs" Desc="kosciane nogawice z balrona" VendorBuysFor="422" VendorSellsFor="1266" />
+  <item Type="0x9945" Location="tailoring" Class="Armor" Name="Robe" Desc="toga" VendorBuysFor="35" VendorSellsFor="105" />
+  <item Type="0xA366" Location="magicitems" Class="Container" Name="MagicBackpack" Desc="Magiczny plecak" VendorBuysFor="10468" VendorSellsFor="31404" />
+  <item Type="0xA511" Location="carpets" Class="Item" Name="redcarpetroll" Desc="zwiniety czerwony dywan" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xA512" Location="carpets" Class="Item" Name="bluecarpetroll" Desc="zwiniety niebieski dywan w ciapki" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xA513" Location="carpets" Class="Item" Name="bronzecarpetroll" Desc="zwiniety brazowy dywan" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0xA514" Location="carpets" Class="Item" Name="bluecarpetroll2" Desc="zwiniety niebieski dywan" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0xA515" Location="carpets" Class="Item" Name="beigecarpetroll" Desc="zwiniety bezowy dywan" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0xA516" Location="carpets" Class="Item" Name="darkbeigecarpetroll" Desc="zwiniety ciemny bezowy dywan" VendorBuysFor="9" VendorSellsFor="27" />
+  <item Type="0xA521" Location="carpets" Class="Item" Name="rolledtapestry1" Desc="zwinieta gobelina" VendorBuysFor="54" VendorSellsFor="162" />
+  <item Type="0xA522" Location="carpets" Class="Item" Name="rolledtapestry2" Desc="zwinieta gobelina" VendorBuysFor="60" VendorSellsFor="180" />
+  <item Type="0xA523" Location="carpets" Class="Item" Name="rolledtapestry3" Desc="zwinieta gobelina" VendorBuysFor="67" VendorSellsFor="201" />
+  <item Type="0x0A58" Location="tracking" Class="Item" Name="bedroll1" Desc="mata" VendorBuysFor="8" VendorSellsFor="24" />
+  <item Type="0x0A6C" Location="tailoring" Class="Item" Name="blanket" Desc="koc" VendorBuysFor="47" VendorSellsFor="141" />
+  <item Type="0xA724" Location="wearwolf" Class="Container" Name="WearWolfRuneBag" Desc="worek na wilkolackie runa" VendorBuysFor="5589" VendorSellsFor="16767" />
+  <item Type="0xA805" Location="vampire" Class="Container" Name="VampRuneBag" Desc="worek na wampiryczne runa" VendorBuysFor="5051" VendorSellsFor="15153" />
+  <item Type="0xA90F" Location="hunter" Class="Container" Name="HunterRuneBag" Desc="worek na runa lowcy" VendorBuysFor="5711" VendorSellsFor="17133" />
+  <item Type="0xAAAA" Location="config" Class="Item" Name="Juka" Desc="Juka" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0xB100" Location="painting" Class="Item" Name="paintmaterial" Desc="plotno%%" VendorBuysFor="2" VendorSellsFor="6" />
+</items>

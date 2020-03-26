@@ -1,0 +1,21 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(":reslogon:checkbans", "CheckBans");
+  StartGlobCtrlScript(":reslogon:checkbans");
+
+  AddGlobChkScript(":reslogon:checkrl", "ResLogon");
+  StartGlobChkScript(":reslogon:checkrl");
+
+  AddGlobCtrlScript(":reslogon:petsecurecore", "PetSecureCore");
+  StartGlobCtrlScript(":reslogon:petsecurecore");
+
+
+endprogram
+
+//-----------------------------------------------------------------------------

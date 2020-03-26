@@ -1,0 +1,320 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/player/misc";
+include "include/move";
+include "include/dirs";
+include "tourney";
+include "../pkg/systems/wearwolf/wearwolf";
+
+//-----------------------------------------------------------------------------
+
+var me := Self();
+var ev,waittime := 0;
+var TourProps := {};
+var loops     := 0;
+var Fac       := DIR_N;
+
+//-----------------------------------------------------------------------------
+
+TourProps[1]  := GetTourneyProp(TR_STATUS);
+TourProps[2]  := GetTourneyProp(TRLOC_GUARD);
+
+TourProps[3]  := {};
+
+foreach Item in ListObjectsInBox(me.x-5,me.y-5,0,me.x+5,me.y+5,127)
+
+  if(Item.isa(POLCLASS_DOOR))
+    Item.locked := 1;
+    TourProps[3].append(Item);
+  endif
+
+endforeach
+
+//-----------------------------------------------------------------------------
+
+program TourneyGuardAI()
+
+  SetLogRunCycles(LST_CMD);
+
+  SetWarmode(0);
+  EnableEvents(EVID_ENGAGED | EVID_DAMAGED | EVID_SPEECH, 4);
+  
+  UpdateVars();
+  CheckPosition();
+  
+  while(me)
+    ev := wait_for_event(360);
+    UpdateVars();
+    CheckPosition();
+
+    case(ev.type)
+      EVID_ENGAGED:
+      EVID_DAMAGED:       Fight(ev.source);
+      
+      EVID_SPEECH:        CheckSpeech(ev.source,lower(ev.text));
+      EVID_PLAYER_LOGIN:  PlayerGoingIn(ev.source, ev.msg);
+      EVID_PLAYER_LOGOFF: PlayerGoingOut(ev.source);
+    endcase
+    
+    GrabJunk();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckPosition()
+
+  if(me.x != CInt(TourProps[2][1]) or me.y != CInt(TourProps[2][2]))
+    MoveObject(me,TourProps[2][1],TourProps[2][2],TourProps[2][3],me.realm,MOVECHAR_FORCELOCATION);
+  endif
+  
+  if(me.facing != Fac)
+    Face(Fac, FACE_FORCE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UpdateVars()
+
+  TourProps[1] := GetTourneyProp(TR_STATUS);
+  if(TourProps[1] == TR_STAT_BEGAN or TourProps[1] == TR_STAT_END)
+    if(!TourProps[3][1].isopen)
+      case(TourProps[1])
+        TR_STAT_BEGAN:    Say("Igrzyska rozpoczete!");
+        TR_STAT_END:      Say("Igrzyska zakonczone.");
+      endcase
+    endif
+    
+    foreach Door in (TourProps[3])
+      if(!Door.isopen)
+        Door.open();
+      endif
+    endforeach
+    Fac := DIR_E;
+  else
+    if(TourProps[3][1].isopen)
+      case(TourProps[1])
+        TR_STAT_STARTED:  Say("Igrzyska sie zaczely.");
+        TR_STAT_ENDED:    Say("Igrzyska sie zakonczyly.");
+      endcase
+    endif
+
+    foreach Door in (TourProps[3])
+      if(Door.isopen)
+        Door.close();
+      endif
+    endforeach
+    Fac := DIR_S;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(who,text)
+
+  if(text["wita"])
+  
+    TurnToward(who);
+    Say("Witam");
+    case(TourProps[1])
+      TR_STAT_BEGAN:    Say("Jesli czujesz ze jestes gotow"+ggm(who,6)+", wejdz.");
+                        Say("Przeczytaj rowniez zasady napisane na tablicy.");
+      TR_STAT_STARTED:  Say("Igrzyska trwaja, jesli chcial"+ggm(who,3)+" uczestniczyc w nich, to juz za pozno.");
+      TR_STAT_END:      Say("Igrzyska juz sie zakonczyly.");
+      default:          Say("Poczytaj co jest napisane na tablicy, jesli jestes zainteresowan"+ggm(who,6)+" igrzyskami.");
+    endcase
+    
+  elseif(text["moglbym wejsc"] or text["moglabym wejsc"] or text["moge wejsc"])
+  
+    case(TourProps[1])
+      TR_STAT_BEGAN:    Say("Sprobuj wejsc a sie przekonasz...");
+      TR_STAT_STARTED:  Say("Igrzyska juz sie rozpoczely.");
+      TR_STAT_END:      Say("Igrzyska juz sie zakonczyly.");
+      default:          Say("Poczytaj co jest napisane na tablicy.. jeszcze igrzyska sie nie rozpoczely.");
+    endcase
+    
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Fight(opponent)
+
+  Say("Osz ty!");
+  loops := 0;
+
+  SetOpponent(opponent);
+  SetWarMode(1);
+
+  while((opponent) and (!opponent.dead) and (!opponent.hidden) and (!opponent.concealed) and (Distance(me,opponent) < 20))
+  
+    ev := wait_for_event(waittime);
+    if(!CloseDistance(opponent))
+      loops    := loops + 1;
+      waittime := 0;
+    else
+      loops    := 0;
+      waittime := 1;
+      if(!me.warmode)
+        SetOpponent(opponent);
+        SetWarMode(1);
+      endif
+    endif
+    
+    if(loops > 100)
+      break;
+    endif
+    
+  endwhile
+
+  SetOpponent(0);
+  SetWarmode(0);
+
+  Sleep(1);
+
+  CheckPosition();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CloseDistance(opponent)
+
+  case (Distance( me, opponent ))
+    1:
+    0:       return 1;
+    default: if(RunToward(opponent))
+               return 0;
+             endif
+             return 1;
+  endcase
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayerGoingIn(who, byref msg)
+
+  if(who.dead)
+    Say("*wyczuwa pozaziemskie istnienie...*");
+    TurnTowardLocation(me.x-1,me.y+1);
+    sleepms(500);
+    TurnTowardLocation(me.x+1,me.y+1);
+    sleepms(500);
+    TurnTowardLocation(me.x+1,me.y);
+    sleepms(500);
+    Say("*hmm...*");
+    return;
+  endif
+
+  case(TourProps[1])
+    TR_STAT_BEGAN:   if(msg)
+                       Say(Msg);
+                     endif
+                       
+    default:         Say("A ty czego tu chcial"+ggm(who,3)+"?");
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayerGoingOut(who)
+
+  TurnToward(who);
+  
+  case(TourProps[1])
+    TR_STAT_END:
+    TR_STAT_BEGAN:   Say("Zegnaj "+who.name);
+
+    TR_STAT_STARTED: Say(who.name+", jesli wyjdziesz, nie bedziesz mogl juz wejsc, chcesz tego ?");
+                     loops := 0;
+                     var txt;
+                     
+                     while(loops <= 10)
+                     
+                       ev := wait_for_event(1);
+                       if(ev.type == EVID_SPEECH)
+                         if(ev.source.serial == who.serial)
+                           txt := lower(ev.text);
+                           if(txt["tak"] or txt["chce"] or txt["chcial"])
+                             Say("Dobrze, wychodz szybko.");
+                             foreach Door in (TourProps[3])
+                               Door.open();
+                             endforeach
+                             sleep(5);
+                             Say("Zegnaj.");
+                             foreach Door in (TourProps[3])
+                               Door.close();
+                             endforeach
+                             return;
+                           endif
+                         endif
+                       endif
+                       loops := loops + 1;
+                       
+                     endwhile
+                     
+                     Say("Zostan, jesli chcesz.");
+                     
+    TR_STAT_ENDED:   Say("A ty co tu jeszcze robisz?");
+                     sleep(1);
+                     foreach Door in (TourProps[3])
+                       Door.open();
+                     endforeach
+                     Say("Wychodz, szybko.");
+                     sleep(5);
+                     foreach Door in (TourProps[3])
+                       Door.close();
+                     endforeach
+                     clear_event_queue();
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GrabJunk()
+
+  loops := 0;
+
+  if(TourProps[1] == TR_STAT_ENDED)
+    return;
+  endif
+  
+  foreach item in ListItemsNearLocation(me.x,me.y,me.z,5,me.realm)
+    if(item.movable)
+      if(MoveItemToContainer(item,me.backpack))
+        if(!loops)
+          Say("*zbiera smieci*");
+          loops := 1;
+        endif
+      else
+        foreach Item in ListRootItemsInContainer(me.backpack)
+          DestroyItem(Item);
+        endforeach
+        if(MoveItemToContainer(item,me.backpack))
+          if(!loops)
+            Say("*zbiera smieci*");
+            loops := 1;
+          endif
+        endif
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

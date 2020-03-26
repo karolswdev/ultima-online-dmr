@@ -1,0 +1,329 @@
+//-----------------------------------------------------------------------------
+
+use file;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/const/eventid";
+include "include/const/props";
+include "include/clock";
+include "include/finding";
+include "include/names";
+include "include/unicode";
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+const RECALC_DELAY       := 600;
+
+//-----------------------------------------------------------------------------
+
+set_event_queue_size(40);
+var Staff,ev,PlCount,AllCount;
+
+//-----------------------------------------------------------------------------
+
+program StaffCore(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  GetOnlineStaff();
+
+  var RecalcTime := ReadGameClock() + RECALC_DELAY;
+  var i := 1;
+
+  while(1)
+    ev := wait_for_event(360);
+
+    case(ev.type)
+      EVID_PLAYER_RECONNECT: Reconnect();
+      EVID_PLAYER_LOGIN:     Login();
+      EVID_PLAYER_LOGOFF:    Logoff();
+      EVID_PLAYER_DELAY:     PlayerDelay();
+      EVID_SEND_SEER:        SendStaffMsg(2);
+      EVID_SEND_GM:          SendStaffMsg(3);
+      EVID_SEND_ADMIN:       SendStaffMsg(4);
+    endcase
+
+    if(RecalcTime < ReadGameClock())
+      ReCalcCount();
+      RecalcTime := ReadGameClock() + RECALC_DELAY;
+    endif
+
+    if(!(i % 15))
+      Sleepms(1);
+      i := 1;
+    else
+      i += 1;
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Login()
+
+  var who    := ev.player;
+  var lState := GetLogonState(who);
+
+  if(lState == EVID_PLAYER_LOGOFF or lState == EVID_PLAYER_DELAY)
+    AllCount := AllCount + 1;
+
+    if(!IsStaff(who) or IsOnDMRTest())
+      PlCount := PlCount + 1;
+      SetOnlineNum(PlCount);
+    endif
+  endif
+
+  foreach Person in Staff
+    if(CanStaffNotify(Person, who))
+      if(!who.cmdlevel and Person.cmdlevel < 4)
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") zalogowala sie.",FONT_NORMAL,COLOR_STONE);
+      else
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") zalogowala sie.  IP: " + who.ip,FONT_NORMAL,COLOR_STONE);
+      endif
+    endif
+  endforeach
+
+  syslog(GetStateDesc(lState)+"-"+GetStateDesc(EVID_PLAYER_LOGIN)+"["+CUnixTime(0, RLT_MONTH)+"]: "+GetRealName(who)+"/"+who.acctname+" IP: "+who.ip);
+  SetLogonState(who, EVID_PLAYER_LOGIN);
+
+  if(who.cmdlevel >= 2)
+    if(!(who in Staff))
+      Staff.append(who);
+    endif
+    SendStaffOnline(who);
+  endif
+
+  SetObjProperty(who, PROP_LASTLOG, ReadGameClock());
+  EraseObjProperty(who, PROP_OLDLASTLOG);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Logoff()
+
+  var who := SystemFindObjectBySerial(ev.player.serial, SYSFIND_SEARCH_OFFLINE_MOBILES);
+
+  var LastLog     := CInt(GetObjProperty(who, PROP_OLDLASTLOG));
+  var LastLogTime := 0;
+
+  if(LastLog)
+    LastLogTime := ReadGameClock() - LastLog;
+    EraseObjProperty(who, PROP_OLDLASTLOG);
+  else 
+    LastLogTime := ReadGameClock() - CInt(GetObjProperty(who, PROP_LASTLOG));
+    SetObjProperty(who, PROP_LASTLOG, ReadGameClock());
+  endif
+
+  var Idx := RetIndex(Staff, who);
+  if(Idx)
+    Staff.erase(Idx);
+  endif
+
+  var lState := GetLogonState(who);
+
+  if(lState != EVID_PLAYER_DELAY)
+    if(!IsStaff(who) or IsOnDMRTest())
+      PlCount := PlCount - 1;
+      SetOnlineNum(PlCount);
+    endif
+
+    AllCount := AllCount - 1;
+  endif
+
+  foreach Person in Staff
+    if(CanStaffNotify(Person, who))
+      if(!who.cmdlevel and Person.cmdlevel < 4)
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") wylogowala sie. Czas: " + RealTime(LastLogTime), FONT_NORMAL, COLOR_STONE);
+      else
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") wylogowala sie. IP: " + who.ip + " Czas: " + RealTime(LastLogTime), FONT_NORMAL, COLOR_STONE);
+      endif
+    endif
+  endforeach
+
+  syslog(GetStateDesc(lState)+"-"+GetStateDesc(EVID_PLAYER_LOGOFF)+"["+CUnixTime(0, RLT_MONTH)+"]: "+GetRealName(who)+"/"+who.acctname+" Czas: "+RealTime(LastLogTime));
+  SetLogonState(who, EVID_PLAYER_LOGOFF);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayerDelay()
+
+  if(!ev.param)
+    return 0;
+  endif
+
+  var who    := SystemFindObjectBySerial(ev.player.serial, SYSFIND_SEARCH_OFFLINE_MOBILES);
+  var lState := GetLogonState(who);
+
+  if(lState == EVID_PLAYER_LOGIN or lState == EVID_PLAYER_RECONNECT)
+    if(!IsStaff(who) or IsOnDMRTest())
+      PlCount := PlCount - 1;
+      SetOnlineNum(PlCount);
+    endif
+
+    AllCount := AllCount - 1;
+  endif
+
+  SetLogonState(who, EVID_PLAYER_DELAY);
+
+  foreach Person in Staff
+    if(CanStaffNotify(Person, who))
+      if(!who.cmdlevel and Person.cmdlevel < 4)
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") zostala opozniona o "+RealTime(ev.param)+".", FONT_NORMAL, COLOR_STONE);
+      else
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") zostala opozniona o "+RealTime(ev.param)+". IP: " + who.ip, FONT_NORMAL, COLOR_STONE);
+      endif
+    endif
+  endforeach
+
+  SetObjProperty(who, PROP_OLDLASTLOG, GetObjProperty(who, PROP_LASTLOG));
+  SetObjProperty(who, PROP_LASTLOG, ReadGameClock());
+  syslog(GetStateDesc(lState)+"-"+GetStateDesc(EVID_PLAYER_DELAY)+"["+CUnixTime(0, RLT_MONTH)+"]: "+GetRealName(who)+"/"+who.acctname+" IP: "+who.ip+" Czas: "+RealTime(ev.param));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Reconnect()
+
+  var who    := ev.player;
+  var lState := GetLogonState(who);
+
+  if(lState == EVID_PLAYER_DELAY or lState == EVID_PLAYER_LOGIN)
+    if(!IsStaff(who) or IsOnDMRTest())
+      PlCount := PlCount + 1;
+      SetOnlineNum(PlCount);
+    endif
+
+    AllCount := AllCount + 1;
+  endif
+
+  foreach Person in Staff
+    if(CanStaffNotify(Person, who))
+      if(!who.cmdlevel and Person.cmdlevel < 4)
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") polaczyla sie ponownie.", FONT_NORMAL, COLOR_STONE);
+      else
+        SendSysMessage(Person, who.name + " ["+AllCount+"] (Osoba z konta: " + who.acctname + ") polaczyla sie ponownie. IP: " + who.ip, FONT_NORMAL, COLOR_STONE);
+      endif
+    endif
+  endforeach
+
+  syslog(GetStateDesc(lState)+"-"+GetStateDesc(EVID_PLAYER_RECONNECT)+"["+CUnixTime(0, RLT_MONTH)+"]: "+GetRealName(who)+"/"+who.acctname+" IP: "+who.ip);
+  SetLogonState(who, EVID_PLAYER_RECONNECT);
+  SetObjProperty(who, PROP_LASTLOG, ReadGameClock());
+  EraseObjProperty(who, PROP_OLDLASTLOG);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendStaffOnline(who)
+
+  if(who.cmdlevel >= 2)
+    foreach Person in Staff
+      if(Person.concealed <= who.cmdlevel and who != Person)
+        SendSysMessage(who, GetCmdLevelName(Person.cmdlevel) + " " + Person.name + " jest online.",FONT_NORMAL,COLOR_BLUE);
+      endif
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendStaffMsg(CmdLvl)
+
+  foreach Person in Staff
+    if(Person.cmdlevel >= CmdLvl)
+      UniSendSysMessage(Person, ev.param[1], CInt(ev.param[2]), CInt(ev.param[3]));
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetOnlineStaff()
+
+  var PlayerList := EnumerateOnlineCharacters();
+  Staff          := array;
+  AllCount       := PlayerList.size();
+  PlCount        := 0;
+
+  foreach Player in PlayerList
+
+    if(Player.cmdlevel >= 2)
+      Staff.append(Player);
+    endif
+
+    if(!IsStaff(Player) or IsOnDMRTest())
+      PlCount := PlCount + 1;
+    endif 
+
+  endforeach
+
+  SetOnlineNum(PlCount);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ReCalcCount()
+
+  AllCount  := 0;
+  PlCount   := 0;
+
+  foreach Player in EnumerateOnlineCharacters()
+    if(!IsStaff(Player) or IsOnDMRTest())
+      PlCount := PlCount + 1;
+    endif
+    AllCount := AllCount + 1;
+  endforeach
+
+  SetOnlineNum(PlCount);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetLogonState(who)
+
+  if(!CInt(GetObjProperty(who, "#LogonState")))
+    SetObjProperty(who, "#LogonState", EVID_PLAYER_LOGOFF);
+  endif
+
+  return CInt(GetObjProperty(who, "#LogonState"));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetLogonState(who, nState)
+
+  SetObjProperty(who, "#LogonState", nState);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetStateDesc(State)
+
+  case(State)
+    EVID_PLAYER_LOGIN:       return "Log";
+    EVID_PLAYER_LOGOFF:      return "Off";
+    EVID_PLAYER_DELAY:       return "Del";
+    EVID_PLAYER_RECONNECT:   return "Rec";
+    default:                 return "Unk("+State+")";
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

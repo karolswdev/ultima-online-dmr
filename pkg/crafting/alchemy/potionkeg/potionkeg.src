@@ -1,0 +1,82 @@
+//-----------------------------------------------------------------------------
+
+include "potionkeg";
+include "include/objtypes/skills";
+
+//-----------------------------------------------------------------------------
+
+program UsePotionKeg(who, keg)
+
+  if(!StandardItemCheck(who,keg))
+    return;
+  endif
+
+  var type := GetObjProperty(keg, "PotionType");
+  var amt  := GetPotionsInKeg(keg);
+
+  if(!amt)
+    SendSysMessage(who, "Keg jest pusty.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  elseif(keg.locked)
+    SendSysMessage(who, "Ten keg jest zalakowany.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  var EmptyBot := FindEmptyBottle(who,Type);
+  var Cont     := Keg.container;
+  if(!Cont)
+    Cont := who.backpack;
+  endif
+  if(!EmptyBot)
+    SendSysMessage(who, "Nie masz butelek.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(ReducePotionsInKeg(keg, 1))
+    if(SubtractAmount(EmptyBot, 1))
+      PlaySoundEffect(who, SOUND_EFFECT_POUR);
+      var ObjDesc;
+
+      case(GetPotionQuality(Keg))
+        POTQUAL_MATURE:  
+        POTQUAL_ROTTEN:  ObjDesc := GetItemDescriptor(type);
+                         ObjDesc.CProps["Quality"] := GetPotionQuality(Keg);
+
+        default:         ObjDesc := type;
+      endcase
+
+      var PotionFromKeg := CreateItemInCont(cont, ObjDesc, 1, who);
+      if(!PotionFromKeg)
+        AddPotionsToKeg(Keg, 1);
+        SendSysMessage(who,"Nie masz miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+      var Qual := 0;
+
+      case(GetPotionQuality(Keg))
+        POTQUAL_MATURE:   Qual := "Dojrzala ";
+        POTQUAL_ROTTEN:   Qual := "Zgnila ";
+      endcase
+
+      if(Qual)
+        if(PotionFromKeg.amount == 1)
+          SetName(PotionFromKeg, Qual + GetName(PotionFromKeg) + "%%");
+        endif
+      endif
+
+      if(GetPotionsInKeg(Keg) <= 0)
+        Keg.color := KEG_NORMAL_COLOR;
+        EraseObjProperty(Keg, "Quality");
+        RenameKeg(Keg);
+      endif
+    endif
+    SendSysMessage(who, "Napelnil"+ggm(who,3)+" butelke plynem z kega.",FONT_NORMAL,COLOR_BLUE);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

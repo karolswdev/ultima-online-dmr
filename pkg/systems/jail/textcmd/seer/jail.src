@@ -1,0 +1,183 @@
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "../../jail";
+
+include "include/clock";
+include "include/gumps";
+include "include/player/misc";
+
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program JailPerson(who,text)
+
+  var split := SplitWords(text);
+  var whom;
+
+  if(CInt(text))
+    whom := FindPlayerBySerial(CInt(text));
+  elseif(split[1] != "sr")
+    whom := FindCharacterByName(CStr(text));
+  elseif(split[1] == "sr")
+
+    var AllChars := array;
+    var Vals     := struct;
+
+    if(!split[2])
+      SendSysMessage(who, ".jail sr", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    SearchAllChars(who, split, Vals, AllChars);
+
+    SendSysMessage(who,"Znaleziono "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+    SendSysMessage(who,"Kryteria: "+Vals.sname+" gdzie: "+ClStr(Vals.value), FONT_NORMAL, COLOR_BLUE);
+
+    if(AllChars.size())
+      whom := ShowCharsSelection(who, AllChars, Vals.sname+": "+ClStr(Vals.value));
+    endif
+
+    // nic nie znaleziono, robimy return
+    if(!whom)
+      return 0;
+    endif
+
+  endif
+
+  if(!whom)
+    whom := ObjTarget(who);
+    if(!whom or !IsPlayer(whom))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+  endif
+
+  if(IsJailed(whom))
+    SendSysMessage(who,"Ta osoba siedzi juz w wiezieniu!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!IsPlayer(who))
+    SendSysMessage(who,"Tego nie mozesz zamknac!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(whom.cmdlevel and whom != who)
+    SendSysMessage(who,"Tej osoby nie mozesz zamknac w wiezieniu!",FONT_NORMAL,COLOR_BAD);
+    SendSysMessage(whom,who.name+" chcial Cie zamknac w wiezieniu!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var Time := ChooseJailTime(who, whom);
+
+  if(!Time)
+    SendSysMessage(who,"Nie wybral"+ggm(who,3)+" czasu!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var Cell := ChooseCell(who, whom);
+
+  if(!Cell)
+    SendSysMessage(who,"Nie wybral"+ggm(who,3)+" celi!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Za co chcesz zamknac osobe " + whom.name + " ?",FONT_NORMAL,COLOR_GOOD);
+
+  var Reason := RequestInput(who,who.backpack,"");
+
+  if(!Reason)
+    SendSysMessage(who, "Nie wpisal"+ggm(who,3)+" powodu!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(Jail(who, whom, Time, Cell, Reason))
+    SendSysMessage(who, "Zamknal"+ggm(who,3)+" osobe "+whom.name+" w wiezieniu.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ChooseJailTime(who, whom)
+
+  GInit(50,50);
+  GPage();
+  GResPic(20,20,2620,220,380);
+  GTextLine(50,35,650,whom.name+"/"+whom.acctname);
+  GAddPageData(215,30,2650,2651,215,371,2648,2647);
+
+  var i := 1;
+  var Times := GetJailTimes();
+
+  foreach time in Times
+    GCheckNextPage(15);
+    GButton(180,(58+(GNPCount()*18)),2117,2118,i);
+    GTextLine(40,(55+(GNPCount()*18)),500,RealHourTime(CInt(time)));
+    i:=i+1;
+  endforeach
+
+  var res  := GSend(who);
+
+  return Times[res[0]];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseCell(who, whom)
+
+  var Groups := GetJailGroups();
+  var Coords;
+
+  GInit(50,50);
+  GPage();
+  GResPic(20,20,2620,270,380);
+  GTextLine(50,35,650,"Wybierz cele");
+  GButton(180,350,2117,2118,1);
+  GTextLine(50,350,500,"Wolna cela");
+  GAddPageData(265,30,2650,2651,265,371,2648,2647);
+
+  var i   := 1;
+  var gId := 200;
+
+  foreach Group in Groups
+
+    var Coords := GetJailCoords(Group);
+
+    GCheckNextPage(15);
+    GTextLine(60,(55+(GNPCount()*18)),540, Group);
+
+    for(i:=1;i<=Coords.size();i:=i+1)
+      GCheckNextPage(15);
+      GButton(40,(58+(GNPCount()*18)),2117,2118,gId + i);
+      GTextLine(60,(55+(GNPCount()*18)),500, i);
+      GTextLine(100,(55+(GNPCount()*18)),510, CombineWords(Coords[i]));
+    endfor
+
+    gId := gId + 200;
+
+  endforeach
+
+  var Cell := GSend(who)[0];
+
+  if(!Cell)
+
+    return error;
+
+  elseif(Cell == 1)
+
+    return 1;
+
+  else
+    var gId := CInt(Cell / 200);
+    Cell := CInt(Cell % 200);
+
+    return array(Groups[gId], Cell);
+  endif;
+
+endfunction
+
+//-----------------------------------------------------------------------------

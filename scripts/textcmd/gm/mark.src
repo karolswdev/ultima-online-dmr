@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/objtypes/misc";
+include "include/objtypes/magic";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program MarkCmd(who)
+       
+  SendSysMessage( who, "Wybierz runo.", FONT_NORMAL, COLOR_GREEN);
+  var Rune := ObjTarget( who, TGTOPT_NOCHECK_LOS );
+
+  if(!Rune)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Rune.objtype != UOBJ_RUNE)
+    SendSysMessage(who, "To nie runo.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetObjProperty(Rune, "x", who.x);
+  SetObjProperty(Rune, "y", who.y);
+  SetObjProperty(Rune, "z", who.z);
+  SetObjProperty(Rune, "Rlm", who.realm);
+
+  SetName(Rune, "Loc: "+who.x+", "+who.y+", "+who.z+", "+who.realm);
+  SendSysMessage( who, "Runo zaznaczone - "+Rune.desc, FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

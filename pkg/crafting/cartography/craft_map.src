@@ -1,0 +1,191 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/key";
+include "include/effects";
+
+include ":magic:magicatt";
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program CartographyCraftItem(Params)
+
+  var who := Params[1];
+  var Tool := Params[2];
+  var Craft := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Tool))
+    return;
+  endif
+
+  var Materials;
+  var Cont := GetContForTool(who, Tool);
+
+  if(!PrepareCraft(who, Cont, Craft.objtype, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_CARTOGRAPHY, Craft.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Tool, Craft.objtype, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, Cont, ObjType, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":cartography:cartography");
+
+  Materials := DefineCraftMaterialsFromCfg(who, SkillCfg[ObjType], "Material", Cont);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, tool, ObjType, byref IterData, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":cartography:cartography");
+
+  var cont := GetContForTool(who, Tool);
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_CARTOGRAPHY));
+
+  var Diff := CInt(SkillCfg[ObjType].Diff);
+  var Points := GetCraftPoints(SKILLID_CARTOGRAPHY, Diff);
+  var ProdAmount := 1;
+  var MySkill := GetEffectiveSkill(who, SKILLID_CARTOGRAPHY);
+  var Props;
+
+  if(MySkill < Diff - 15)
+    SendSysMessage(who, "Twa wiedza na temat kartografii jest zbyt mala, by stworzyc taka mape.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  case(SkillCfg[ObjType].MapType)
+    "Local":
+      props := array(who.x - 265, who.y - 260, who.x + 265, who.y + 260, 200, 200);
+    "Region":
+      props := array(who.x - 850, who.y - 800, who.x + 850, who.y + 800, 400, 400);
+    "World":
+      props := array(0, 0, 5119, 4095, 500, 400);
+    default:
+      SendSysMessage(who, "Ops.. ta mapa jest do niczego!", FONT_NORMAL, COLOR_RED);
+      return 0;
+  endcase
+  
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  
+  /*
+  CraftIterationGump(who, IterData, ProdAmount);
+  
+  if(!CraftPreDelay(who, Materials, ProdAmount, SOUND_EFFECT_SCRIBE))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, tool, SKILLID_CARTOGRAPHY, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  */
+  
+  if(!CheckSkill(who, SKILLID_CARTOGRAPHY, Diff, 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Nie udalo Ci sie i zniszczyl"+ggm(who,3)+" mape.",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+  
+  /*
+  if(!CraftPostDelay(who, Materials, ProdAmount, SOUND_EFFECT_SCRIBE))
+    return 0;
+  endif
+  */
+   
+  if(!MakeNoise(who, 0, 1500))
+	SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+	return 1;
+  endif
+  
+  var maps := FindObjTypeInContainer(who.backpack, 0x14EB);
+  if(!maps)
+	SendSysMessage(who, "Nie znaleziono czystych map w plecaku.", FONT_NORMAL, COLOR_RED);
+	return 1;
+  endif
+  
+  if(!SubtractAmount(maps, 1))
+	SendSysMessage(who, "Za malo map", FONT_NORMAL, COLOR_RED);
+	return 1;
+   endif
+  
+  PlaySoundEffect(who, SOUND_EFFECT_INSCRIPTION);
+  
+  var itmDesc := GetItemDescriptor(ObjType);
+  var propMade := GenMade(who, MTYPE_LOG, CInt(SkillCfg[ObjType].Mod) );
+  itmDesc.CProps.insert(PROP_MADE, propMade);
+  itmDesc.CProps.insert("mapprops", props); // a to specjalnie dla stackable, aby odroznial mapy o konkretnych coordach przy tworzeniu (bo nie ma jak przekazac tego przy tworzeniu)
+  
+  var Map := CreateItemInCont(Cont, itmDesc, ProdAmount);
+
+  if(!Map)
+    SendSysMessage(who, "Nie masz miejsca w pojemniku!", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SetMapProps(map, props);
+
+  AwardPoints(who, SKILLID_CARTOGRAPHY, Points);
+
+  SendSysMessage(who, GetCraftIterDesc(IterData) + " Udalo Ci sie narysowac mape.",FONT_NORMAL,COLOR_GREEN);
+  SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_CARTOGRAPHY, array(map, SkillCfg[ObjType].Mod));
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetMapProps( map, mapdef)
+  
+  if(mapdef[1] < 0)
+    mapdef[1] := 0;
+  endif
+  
+  if(mapdef[2] < 0)
+    mapdef[2] := 0;
+  endif
+  
+  map.xwest      := mapdef[1];
+  map.ynorth     := mapdef[2];
+  map.xeast      := mapdef[3];
+  map.ysouth     := mapdef[4];
+  map.gumpwidth  := mapdef[5];
+  map.gumpheight := mapdef[6];
+
+endfunction
+
+//-----------------------------------------------------------------------------

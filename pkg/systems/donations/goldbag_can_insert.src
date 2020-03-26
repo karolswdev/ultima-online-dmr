@@ -1,0 +1,19 @@
+include "include/objtypes/misc";
+include "include/misc";
+
+program goldbag_can_insert(character, container, movetype, inserttype, adding_item, existing_stack, amount_to_add)
+  
+  __paramunused(character);
+  __paramunused(container);
+  __paramunused(movetype);
+  __paramunused(inserttype);
+  __paramunused(existing_stack);
+  __paramunused(amount_to_add);
+  
+  if(adding_item.objtype != UOBJ_GOLDCOIN)
+    return 0;
+  else
+    return 1;
+  endif;
+
+endprogram

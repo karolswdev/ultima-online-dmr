@@ -1,0 +1,17 @@
+use uo;
+include "include/client/fonts";
+
+program test(who,text)
+
+  if(!text)
+    SendSysmessage(who, ".ts [text]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  foreach player in EnumerateOnlineCharacters()
+      SendSysmessage(player, who.name + ": " + text, FONT_NORMAL, COLOR_YELLOW);
+  endforeach
+
+endprogram
+
+

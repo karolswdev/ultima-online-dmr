@@ -1,0 +1,94 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/npcs";
+include "include/calc";
+include "include/packets";
+include "snooping";
+
+//-----------------------------------------------------------------------------
+
+program SnoopPack(Parms)
+
+  var who     := Parms[1];
+  var Victim  := Parms[2];
+  
+  var WhoSer  := who.serial;
+  var VicSer  := Victim.serial;
+  var VicPack := GetSnoopPack(Victim);
+  
+  SetObjProperty(who,"#SnoopPid",GetPid());
+
+  MarkAll(who,Victim,VicPack);
+  SendOpenSpecialContainer(who,VicPack);
+
+  var Timer   := ReadGameClock() + 20 + CInt(CalcSkillExponential(who, SKILLID_SNOOPING, 100));
+  var Sx := who.x,Sy := who.y,Sz := who.z,OldFac := who.facing,OldGrap := who.graphic,Rlm := who.realm;
+  
+  while(Timer > ReadGameClock())
+    if(!Victim or Victim.hidden or Victim.concealed or who.x != Sx or who.y != Sy or who.z != Sz or who.facing != OldFac or who.dead or who.graphic != OldGrap or who.realm != Rlm)
+      break;
+    elseif(IsPlayer(Victim) and IsFullyLogout(Victim))
+      break;
+    elseif(GetObjProperty(who,"#SnoopBreak"))
+      break;
+    elseif(Distance(Victim,who) > 1 or Victim.dead)
+      break;
+    endif
+
+    sleepms(100);
+  endwhile
+
+  CloseContainer(who, VicPack);
+  EndPackWatch(who,Victim,WhoSer,VicSer);
+
+  EraseObjProperty(who,"#SnoopPid");
+  EraseObjProperty(who,"#SnoopBreak");
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function EndPackWatch(who,Victim,WhoSer,VicSer)
+
+  if(!who)
+    who := FindPlayerBySerial(WhoSer);
+  endif
+
+  if(!Victim)
+    Victim := FindPlayerBySerial(VicSer);
+  endif
+
+  EraseObjProperty(who,"#Snooping");
+  EraseObjProperty(Victim,"#BeingSnoop");
+  var VicPack := GetSnoopPack(Victim);
+  foreach item in EnumerateItemsInContainer(VicPack)
+    EraseObjProperty(item,"#BeingSnoop");
+  endforeach
+  EraseObjProperty(VicPack,"#BeingSnoop");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MarkAll(who,Victim,VicPack)
+
+  var SnoopCfg := ReadConfigFile(":snooping:snoop");
+
+  if(GetObjProperty(Victim,"#BeingSnoop"))
+    exit;
+  endif
+
+  SetObjProperty(who,"LastSnoop",ReadGameClock() + CInt(SnoopCfg["Opts"].SnoopDelay));
+  SetObjProperty(who,"#Snooping",Victim.serial);
+  SetObjProperty(Victim,"#BeingSnoop",who.serial);
+  foreach item in EnumerateItemsInContainer(VicPack)
+    if(item.isa(POLCLASS_CONTAINER))
+      SetObjProperty(item,"#BeingSnoop",who.serial);
+    endif
+  endforeach
+  SetObjProperty(VicPack,"#BeingSnoop",who.serial);
+
+endfunction
+
+//-----------------------------------------------------------------------------

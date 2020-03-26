@@ -1,0 +1,24 @@
+use uo;
+use os;
+use util;
+
+include "include/client/fonts";
+
+program changeColor(parms)
+
+	var who := parms[1];
+	var item := parms[2];
+
+	PrintTextAbove(who, "Gratulacje!", FONT_NORMAL, COLOR_BLUE);
+
+	var randomColors := { 1174, 1152, 1158, 1166, 1173, 1176 };
+	
+	var theColor := randomColors[RandomInt(randomColors.size())+1];
+	
+	item.color := theColor;
+	
+	SetObjProperty(item, "ToolTip", "Przedmiot pokolorowany glifem");
+	SendSysMessage(who, "Przedmiot zmienil kolor!", FONT_NORMAL, COLOR_GREEN);
+		
+
+endprogram

@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/systems/vampire/common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 99;
+
+//-----------------------------------------------------------------------------
+
+program CastBatMorph( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var Duration := CInt(GetVampireSpellDur( Caster ) / 2);
+  var ModAmt   := GetMagicSkillValue(Caster, SpellGlob.Type) * 2;
+  var ModFlags := __IfElse(IsDungeonSpellCasted(SPELL_ID), MODF_CHECK_VAMPIRE, 0);
+
+  if(!CanMod(Caster, MOD_GRAPHIC))
+    if(Caster.graphic == CID_VAMP_BAT)
+      UndoMod(Caster,MOD_GRAPHIC);
+      UndoMod(Caster,MOD_INCO);
+      UndoMod(Caster,MOD_TPREFIX);
+      UndoMod(Caster,MOD_TSUFFIX);
+      UndoMod(Caster,MOD_TGUILD);
+      UndoMod(Caster,MOD_TRACE);
+      UndoMod(Caster,MOD_STATUS);
+      UndoMod(Caster,MOD_UNTOUCHABLE);
+    elseif(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+      Fizzle(Caster, "Na wierzchowcu ciezko Ci bedzie zmienic ksztalt!");
+    endif
+  else
+    DoMod(Caster,MOD_GRAPHIC, CID_VAMP_BAT, Duration, 0, ModFlags);
+    DoMod(Caster,MOD_INCO,   "nietoperz wampir" ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TPREFIX, ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TSUFFIX, ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TGUILD,  ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TRACE,   ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_STATUS, 3          ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_UNTOUCHABLE, array(ModAmt, array),Duration, 0, ModFlags);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,26 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/names";
+
+//-----------------------------------------------------------------------------
+
+program SendCreationGump(who)
+
+  var Obj := ObjTarget(who);
+  
+  if(!IsPlayer(Obj))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_BAD);
+    return;
+  endif
+    
+  start_script(":character:choose", array(Obj));
+  SendSysMessage(who, "Otwieranie gumpa tworzenia postaci dla "+GetName(who), FONT_NORMAL, COLOR_WHITE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

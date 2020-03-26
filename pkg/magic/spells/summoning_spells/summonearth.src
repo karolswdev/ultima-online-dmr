@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 62;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonEarthElemental( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var Duration        := GetSpellDur(Caster);
+  var oparms          := {};
+  oparms.+controlable := 1;
+  oparms.+onlyone     := 1;
+  oparms.+sumaction   := 12;
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+skillsmod   := {SKILLID_MAGERY,SKILLID_EVALINT};
+
+  var Summon := SummonCreature( Caster, "summonedearth", CastLoc, duration, oparms );
+
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

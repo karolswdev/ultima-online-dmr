@@ -1,0 +1,270 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/skills/misc";
+include "include/gumpboxes";
+include "include/misc";
+include "include/dices";
+include "include/mobile/npcs/utils";
+
+//-----------------------------------------------------------------------------
+
+var NewTemps := dictionary;
+
+//-----------------------------------------------------------------------------
+
+program ShowStats(who,temp)
+
+  if(!Temp or Temp == "e" or Temp == "n" or Temp == "g")
+    SortTemplates(who,Temp);
+    return;
+  endif
+  
+  var Elem := GetNpcConfig(Temp);
+  
+  if(!Elem)
+    SendSysMessage(who,".Nie znaleziono Templata "+Temp+".",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var SkID := FindSkillidByIdentifier(Elem.AttackAttribute);
+
+  var SkElem := GetSkillConfigElem(SkID);
+
+  var Str    := GetVDesc(CInt(Elem.STR));
+  var Dex    := GetDDesc(CInt(Elem.DEX));
+  var Int    := GetVDesc(CInt(Elem.INT));
+  
+  var Dmg    := GetDiceMinValue(Elem.AttackDamage) + "-" + GetDiceMaxValue(Elem.AttackDamage);
+  
+  var Ar     := GetArDesc(CInt(Elem.Ar));
+
+  GInit(30, 30);
+  GResPic(0,0,3600,500,300);
+  
+  GTextLine(220,20,550,Elem.Name);
+  GTextLine(30,50,550,"Atak");
+  GTextLine(200,50,550,SkElem.Name);
+  GTextLine(30,70,550,"Postawa");
+  GTextLine(200,70,550,Elem.alignment);
+
+  GTextLine(30,90,550,"Witalnosc");
+  GTextLine(200,90,550,Str);
+
+  GTextLine(30,110,550,"Zrecznosc");
+  GTextLine(200,110,550,Dex);
+
+  GTextLine(30,130,550,"Madrosc");
+  GTextLine(200,130,550,Int);
+
+  GTextLine(30,160,550,"Walka");
+  GTextLine(200,160,550,GetSDesc(CInt(GetConfigString(Elem,Elem.AttackAttribute))));
+
+  GTextLine(30,180,550,"Magia");
+  GTextLine(200,180,550,GetSDesc(CInt(GetConfigString(Elem,"Magery"))));
+
+  GTextLine(30,200,550,"Obrona");
+  GTextLine(200,200,550,Ar);
+
+  GTextLine(30,220,550,"Dmg");
+  GTextLine(200,220,550,Dmg);
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetVDesc(Val)
+
+  if(Val <= 150)
+    return "bardzo slaba";
+  elseif(Val > 150 and Val <= 250)
+    return "slaba";
+  elseif(Val > 250 and Val <= 400)
+    return "srednia";
+  elseif(Val > 400 and Val <= 800)
+    return "dobra";
+  elseif(Val > 800 and Val <= 1000)
+    return "bardzo dobra";
+  else
+    return "niesamowita";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetDDesc(Val)
+
+  if(Val <= 30)
+    return "bardzo slaba";
+  elseif(Val > 30 and Val <= 50)
+    return "slaba";
+  elseif(Val > 50 and Val <= 90)
+    return "srednia";
+  elseif(Val > 90 and Val <= 150)
+    return "dobra";
+  elseif(Val > 150 and Val <= 200)
+    return "bardzo dobra";
+  else
+    return "niesamowita";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetSDesc(Val)
+
+  if(Val < 10)
+    return "nie obeznana";
+  elseif(Val <= 60)
+    return "bardzo slaba";
+  elseif(Val > 60 and Val <= 70)
+    return "slaba";
+  elseif(Val > 70 and Val <= 80)
+    return "srednia";
+  elseif(Val > 80 and Val <= 90)
+    return "dobra";
+  elseif(Val > 90 and Val <= 100)
+    return "bardzo dobra";
+  else
+    return "niesamowita";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetArDesc(Val)
+
+  if(Val < 5)
+    return "zadna";
+  elseif(Val <= 15)
+    return "bardzo slaba";
+  elseif(Val > 15 and Val <= 25)
+    return "slaba";
+  elseif(Val > 25 and Val <= 40)
+    return "srednia";
+  elseif(Val > 40 and Val <= 55)
+    return "dobra";
+  elseif(Val > 55 and Val <= 70)
+    return "bardzo dobra";
+  else
+    return "niesamowita";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetDmgDesc(Val)
+
+  if(Val < 5)
+    return "zadna";
+  elseif(Val <= 15)
+    return "bardzo slaba";
+  elseif(Val > 15 and Val <= 25)
+    return "slaba";
+  elseif(Val > 25 and Val <= 40)
+    return "srednia";
+  elseif(Val > 40 and Val <= 55)
+    return "dobra";
+  elseif(Val > 55 and Val <= 70)
+    return "bardzo dobra";
+  else
+    return "niesamowita";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SortTemplates(who,Txt)
+
+  var AllTemps := GetAllNpcTemplates();
+  var Good     := array;
+  var Neutral  := array;
+  var Evil     := array;
+  var GoodSize, EvilSize, NeutralSize;
+  
+  foreach Temp in AllTemps
+  
+    var cfgElem := GetNpcConfig(Temp);
+
+    if(!cfgElem.CityNpc)
+      if(lower(cfgElem.alignment) == "good")
+        Good.append(Temp);
+      elseif(lower(cfgElem.alignment) == "evil")
+        Evil.append(Temp);
+      elseif(lower(cfgElem.alignment) == "neutral" or !cfgElem.alignment)
+        Neutral.append(Temp);
+      endif
+    endif
+  endforeach
+
+  GoodSize    := Good.size();
+  EvilSize    := Evil.size();
+  NeutralSize := Neutral.size();
+
+  GInit(30, 30);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 3600, 450,450);
+  GMultiPage();
+  GAddPageData(415,20,2650,2651,415,413,2648,2647);
+  
+  if(Txt == "g" or !Txt)
+    SortTemps(Good);
+  endif
+  
+  if(Txt == "n" or !Txt)
+    SortTemps(Neutral);
+  endif
+  
+  if(Txt == "e" or !Txt)
+    SortTemps(Evil);
+  endif
+
+  var i := 1, Align;
+
+  foreach Temp in NewTemps
+    var cfgElem := GetNpcConfig(Temp);
+    GCheckNextPage(20);
+    GButton(16, GNPCount()*20+20, 2714, 2715, i);
+    GTextLine(38, GNPCount()*20+20, 1212, i);
+    GTextLine(90 , GNPCount()*20+20, 670, Temp);
+    GTextLine(240 , GNPCount()*20+20, 560, cfgElem.STR);
+    Align := cfgElem.alignment;
+    if(!Align)
+      Align := "neutral";
+    endif
+    GTextLine(320 , GNPCount()*20+20, 999, Align);
+    i := i + 1;
+  endforeach
+
+  SendSysMessage(who,"All: "+AllTemps.size(),FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Good: "+GoodSize+" Evil: "+EvilSize+" Neutral: "+NeutralSize,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Sum: "+(GoodSize+EvilSize+NeutralSize),FONT_NORMAL,COLOR_GREEN);
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SortTemps(byref Temps)
+
+  foreach Temp in Temps
+    NewTemps[ZeroFill(CInt(GetNpcConfig(Temp).STR),5)+"_"+Temp] := Temp;
+    Sleepms(1);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

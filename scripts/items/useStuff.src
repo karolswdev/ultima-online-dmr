@@ -1,0 +1,143 @@
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/effects";
+include "include/const/cfgs";
+include "include/checks/objchecks";
+include "include/player/misc";
+
+include ":potionkeg:potionkeg";
+
+//-----------------------------------------------------------------------------
+
+var UseCfg := ReadConfigFile(USESTUFF_CFG);
+
+//-----------------------------------------------------------------------------
+
+program UseStuff(who, stuff)
+
+  if(!StandardItemCheck(who,stuff))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz obiekt na ktorym chcesz to uzyc.",FONT_NORMAL,COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  
+  if(!StandardItemCheck(who,Targ))
+    return;
+  endif
+
+  var Elem := UseCfg[CStr(Stuff.objtype) + "+" + CStr(Targ.objtype)];
+  if(!Elem)
+    Elem := UseCfg[CStr(Targ.objtype) + "+" + CStr(Stuff.objtype)];
+  endif
+  
+  if(!Elem)
+    TellWhatCanDo(who, Stuff);
+    return;
+  endif
+
+  if(Elem.ProductScript)
+    start_script(":potionkeg:lockkeg", array(who, Targ, Stuff));
+    return;
+  endif
+  
+  var Skill   := CInt(Elem.skill);
+  var Diff    := CInt(Elem.Diff);
+  var Prod    := CInt(Elem.Product);
+  var ProdAmt := CInt(Elem.ProductAmount);
+  var Amount  := Cint(Elem.AmountNeeded);
+  var LAmt    := CInt(Elem.LeftOverAmount);
+  var Product,i;
+
+  if(!Prod)
+    SendSysMessage(who,"Nic z tym nie zrobisz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Skill)
+    if(!CheckSkill(who,Skill,Diff,0))
+      if(Elem.FailureSound)
+        PlaySoundEffect(who,CInt(Elem.FailureSound));
+      endif
+
+      SendSysMessage(who,"Nie udalo Ci sie nic z tym zrobic.",FONT_NORMAL,COLOR_RED);
+      if(Elem.DestroyTargOnFail)
+        SubtractAmount(Stuff,1);
+      endif
+      if(Elem.DestroyMaterialOnFail)
+        SubtractAmount(Targ,1);
+      endif
+      return;
+    endif
+  endif
+  
+  if(!Amount)
+    Amount := 1;
+  endif
+  
+  if(!ProdAmt)
+    ProdAmt := 1;
+  endif
+
+  if(!LAmt)
+    LAmt := 1;
+  endif
+
+  if(Amount > Stuff.amount)
+    SendSysMessage(who,"Potrzebujesz "+Amount+" "+GetDescForItem(Stuff.objtype)+".",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Laczysz przedmioty...",FONT_NORMAL,COLOR_GREEN);
+  
+  if(!MakeNoise(who,CInt(ELem.LinkSound),1000))
+    return;
+  endif
+  
+  if(SubtractAmount(Stuff, Amount))
+    for(i:=1;i<=ProdAmt;i:=i+1)
+      Product := CreateItemInPack(who,Prod,1);
+    endfor
+    SubtractAmount(Targ,1);
+    SendSysMessage(who,"Zlaczyl"+ggm(who,3)+" przedmioty.",FONT_NORMAL,COLOR_GREEN);
+    if(Elem.LeftOver)
+      for(i:=1;i<=LAmt;i:=i+1)
+        CreateItemInPack(who,CInt(Elem.LeftOver),1);
+      endfor
+    endif
+  else
+    SendSysMessage(who,"Nie udalo Ci sie zlaczyc tych przedmiotow.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function TellWhatCanDo(who,Stuff)
+
+  var Can := {"Mozesz to zlaczyc z :"},Obj;
+  
+  foreach Key in GetConfigStringKeys(UseCfg)
+    if(Key[CStr(Stuff.objtype)])
+      Obj := Key;
+      Obj[CStr(Stuff.objtype)+"+"] := "";
+      Can.append(GetDescForItem(Obj));
+    endif
+  endforeach
+
+  if(Can.size() == 1)
+    Can := {"Tego z niczym nie zlaczysz."};
+  endif
+  
+  foreach Msg in Can
+    SendSysMessage(who,Msg,FONT_NORMAL,COLOR_GREEN);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

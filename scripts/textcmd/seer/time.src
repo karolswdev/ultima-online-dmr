@@ -1,0 +1,120 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use math;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/client/fonts";
+include "include/msgs";
+
+//-----------------------------------------------------------------------------
+
+program TimeCmd(who, text)
+
+  if(text)
+    text := SplitWords(text);
+    var Time;
+    if(text[2][1] == "0")
+      Time := CInt(text[2][2, Len(text[2])]);
+    else
+      Time := CInt(text[2]);
+    endif
+    var Mod  := "=";
+
+    if(Time)
+      case(text[1])
+        "game":  if(Time > ReadGameClock())
+                   Mod := ">";
+                 elseif(Time < ReadGameClock())
+                   Mod := "<";
+                 endif
+                 SendSysMessage(who, "GM: "+Time+": "+RealTime(Time)+" PS: "+Mod+" "+RealTime(abs(ReadGameClock() - Time)), FONT_NORMAL, COLOR_STONE);
+                 return;
+        "real":  if(Time > PolCore().systime)
+                   Mod := ">";
+                 elseif(Time < PolCore().systime)
+                   Mod := "<";
+                 endif
+                 SendSysMessage(who, "RL: "+Time+": "+CUnixTime(Time)+" PS: "+Mod+" "+RealTime(abs(PolCore().systime - Time)), FONT_NORMAL, COLOR_STONE);
+                 return;
+        "gtime": SendSysMessage(who, "Czas: "+Time, FONT_NORMAL, COLOR_STONE);
+                 SendSysMessage(who, "Game: "+GameTime(Time), FONT_NORMAL, COLOR_STONE);
+                 SendSysMessage(who, "Desc: "+DescGameTime(Time), FONT_NORMAL, COLOR_STONE);
+                 return;
+        "gdate": SendGameDate(who, text);
+                 return;
+        default: SendSysMessage(who, ".time [game/real]", FONT_NORMAL, COLOR_RED);
+      endcase
+    else
+      SendSysMessage(who, "Blednie wpisany czas.", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+  SendSysMessage(who, "GT: "+RealTime(ReadGameClock()),FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who, "GD: "+GetFullDate(ReadGameClock()),FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who, "RT: "+CUnixTime(PolCore().systime),FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who, "DT: "+GetTimeofDay(), FONT_NORMAL, COLOR_BLUE);
+  SendSysMessage(who, "GC: "+ReadGameClock(),FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who, "RC: "+PolCore().systime,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who, "UPMS: "+ReadMilliSecondClock(),FONT_NORMAL,COLOR_GREEN);
+  
+  var tc := ExtractTimeComponents(PolCore().systime);
+  
+  SendSysMessage(who, "Day: " + tc.day);
+  SendSysMessage(who, "Month: " + tc.month);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendGameDate(who, text)
+
+  var Date  := text[2];
+  var Hour  := CInt(text[3]);
+  var Year  := 2000+CInt(Date[1,2]);
+  var Month := CInt(Date[4,5]);
+  var Day   := CInt(Date[7,8]);
+  var sTime := PolCore().systime - ReadGameClock();
+  var Mins  := CInt(text[3][4,5]);
+
+  if(text[3][4] == "0")
+    Mins := CInt(text[3][5]);
+  endif
+
+  if(Date[1] == "0")
+    Year := 2000+CInt(Date[2]);
+  endif
+
+  if(Date[4] == "0")
+    Month := CInt(Date[5]);
+  endif
+
+  if(Date[7] == "0")
+    Day := CInt(Date[8]);
+  endif
+
+  if(Month <= 0 or Month > 12)
+    SendSysMessage(who, "Brak miesiaca [05-09-16].", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Day <= 0 or Day > 31)
+    SendSysMessage(who, "Brak dnia [05-09-16].", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Year == 2000 or Year > 2020)
+    SendSysMessage(who, "Bledny rok [05-09-16].", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var cTime := MakeUnixTime(Year, Month, Day, Hour, Mins);
+  var dTime := cTime - sTime;
+  if(dTime < 0)
+    SendSysMessage(who, "Czas negatywny.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "GC: "+dTime+": "+GetFullDate(dTime), FONT_NORMAL, COLOR_STONE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

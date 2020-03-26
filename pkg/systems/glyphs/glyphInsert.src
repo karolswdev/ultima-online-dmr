@@ -1,0 +1,73 @@
+use basic;
+use uo;
+
+include ":glyphs:glyphs";
+include "include/client/fonts";
+include "include/objtypes/misc";
+
+program OnInsertGlyph(who, glyph)
+
+	if(GetObjProperty(glyph, "Broken"))
+		DestroyItem(glyph);
+		SendSysMessage(who, "Glif rozpadl sie.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	SendSysMessage(who, "Wskaz ksiege glifow:", FONT_NORMAL, COLOR_GREEN);
+	
+	var book := Target(who);
+	
+	if(book.container != who.backpack)
+		SendSysMessage(who, "Ta ksiega nie jest w Twoim plecaku.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(book.objtype != 0x3390)
+		SendSysMessage(who, "To nie jest ksiega glifow.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+  
+    var majorSize;
+    var minorSize;
+    
+    if(IsMajorGlyph(CInt(GetObjProperty(glyph, "glyphId"))))
+	
+	var sizeToTest := 2;
+	
+		if(CInt(GetObjProperty(book, "Expanded")))
+			sizeToTest := 3;
+		endif
+    
+	majorSize := GetMajorGlyphs(book);
+	    if(majorSize.size() < sizeToTest)
+			SendSysMessage(who, "Dodano nowa rune...", FONT_NORMAL, COLOR_BLUE);
+			PlaySoundEffect(who, 1476);
+			if(AddGlyph(book, CInt(GetObjProperty(glyph, "glyphId"))))
+				DestroyItem(glyph);
+			endif
+	    else
+			SendSysMessage(who, "Masz juz za duzo glownych glifow.", FONT_NORMAL, COLOR_RED);
+			return;
+	    endif
+	    
+    endif
+    
+    if(IsMinorGlyph(CInt(GetObjProperty(glyph, "glyphId"))))
+    
+	minorsize := GetMinorGlyphs(book);
+	    if(minorSize.size() < 4)
+			SendSysMessage(who, "Dodano nowa rune...", FONT_NORMAL, COLOR_BLUE);
+			PlaySoundEffect(who, 1348);
+			if(AddGlyph(book, CInt(GetObjProperty(glyph, "glyphId"))))
+				DestroyItem(glyph);
+			endif
+	    else
+			SendSysMessage(who, "Masz juz za duzo malych glifow.", FONT_NORMAL, COLOR_RED);
+			return;
+	    endif
+	    
+    endif
+	
+
+endprogram
+

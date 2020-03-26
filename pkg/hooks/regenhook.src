@@ -1,0 +1,115 @@
+//-----------------------------------------------------------------------------
+
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/log";
+include "include/logerror";
+include "include/move";
+include "include/std";
+include "include/attributes/vitals";
+include "include/coords";
+include "include/const/uof";
+
+//-----------------------------------------------------------------------------
+
+var g_Rate := 0;
+var g_ClassMod := 0;
+
+//-----------------------------------------------------------------------------
+
+program RegenHook(who)
+
+  SetLogRunCycles(LST_HOOK);
+  
+  var ClassName := GetCharClass(who);
+
+  if(ClassName)
+    var ClassCfg := ReadConfigFile(CLASSES_CFG);
+    g_ClassMod := GetConfigReal(ClassCfg[ClassName], "StamRegenMod");
+  else
+    g_ClassMod := 1.0;
+  endif
+
+  SetObjProperty(who, PROP_REGENHOOK_PID, GetPid());
+
+  while(who and IsLoggedIn(who))
+
+    if(GetObjProperty(who, PROP_REGENHOOK_PID) != GetPid())
+      return;
+    endif
+
+    RegenStamina(who);
+
+    sleepms(1400);
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function RegenStamina(who)
+
+  var Stam := GetStamina(who);
+  var StamMax := GetMaxStamina(who);
+
+  if(Stam >= StamMax)
+    return;
+  endif
+
+  g_Rate += GetStaminaRegenRate(who);
+
+  var WholeRate := CInt(g_Rate / 1000);
+
+  if(!WholeRate)
+    return;
+  endif
+
+  SetStamina(who, Stam+WholeRate);
+  g_Rate -= WholeRate*1000;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetStaminaRegenRate(who)
+
+/*  if(who.isa(POLCLASS_MOBILE))
+    return GetVitalRegenRate(who, VITALID_STAMINA);
+  else
+    return 0;
+  endif*/
+
+  var rate := 400 + GetTempModAmount(who,MOD_STAM_REGEN);
+  rate := CInt(rate * GetStamRegenModifier(who));
+
+  if(CanMod(who, MOD_RUN_SPEED) == 0)
+    rate := CInt(rate * 1.5);
+  elseif(!GetEquipmentByLayer(who, LAYER_MOUNT))
+    rate := CInt(rate * 1.5);
+  endif
+
+  rate := rate + CInt(rate * GetHp(who) / GetMaxHp(who) * 1.5);
+
+  return rate;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetStamRegenModifier(who)
+
+  if(IsWearWolf(who))
+    return 1 + (GetEffectiveSkill(who, SKILLID_WEARWOLF) * 0.02);
+  elseif(IsVampire(who))
+    return 1 + (GetEffectiveSkill(who, SKILLID_VAMPIRE) * 0.02);
+  endif
+
+  return g_ClassMod;
+
+endfunction
+
+//-----------------------------------------------------------------------------

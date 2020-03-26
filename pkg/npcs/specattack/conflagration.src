@@ -1,0 +1,82 @@
+//-----------------------------------------------------------------------------
+
+include "include/attack";
+include "include/effects";
+include "include/coords";
+include "include/objects/location";
+include "include/attributes/vitals";
+
+include ":magic:magicatt";
+
+//-----------------------------------------------------------------------------
+
+program ConflagrationEffect(Params)
+
+  var me := Params[1];
+  var Mobs := Params[2];
+  var Spec := Params[3];
+
+  var Range := Spec[5];
+
+  var maxRange := Min(Range, 20);
+  var i;
+  var srcLoc := GetLocStruct(me);
+  var dmgMobs := array;
+  
+  for(i:=1; i<=maxRange; i+=1)
+    var Locs := GetLocsInCircumference(srcLoc, i);
+
+    foreach Loc in Locs
+      if(Spec[7] == "dragon")
+        PlayStationaryEff(Loc.x, Loc.y, Loc.z, FX_EXPLODE_2, 0x20, 0x20, 1, me.realm);
+      else
+        PlayStationaryEff(Loc.x, Loc.y, Loc.z, FX_FLAMESTRIKE, 0x20, 0x20, 1, me.realm);
+        PlaySoundEffect(me, SFX_IMMOLATION);
+      endif
+    endforeach
+    
+    foreach Mob in Mobs
+      if(!(Mob in dmgMobs))
+        if(coordist(srcLoc.x, srcLoc.y, Mob.x, Mob.y) <= i)
+          dmgMobs.append(Mob);
+          DealConflagrationDamage(me, Mob, Spec);
+        endif
+      endif
+    endforeach
+    
+    sleepms(300);
+  endfor
+
+  foreach Mob in Mobs
+    if(!(Mob in dmgMobs))
+      DealConflagrationDamage(me, Mob, Spec);
+    endif
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DealConflagrationDamage(me, Mob, Spec)
+  
+  var Dmg;
+
+  if(Distance(Mob, me) < 10)
+    Dmg := CInt(GetHp(Mob) * Spec[6]);
+    DealManaDamage(Mob, CInt(GetMana(Mob) * Spec[6]), me);
+    DealStaminaDamage(Mob, CInt(GetStamina(Mob) * Spec[6]), me);
+  elseif(Mob.isa(POLCLASS_NPC))
+    Dmg := GetHp(Mob)-1;
+  else
+    Dmg := GetMaxHp(Mob)+1;
+  endif
+
+  if(Dmg > 0)
+    PlaySoundEffect(Mob, SFX_FIRE_STRIKE);
+    DoMagicDamage(Mob, me, Dmg, 10, DMGTYPE_FIRE);
+    PlayPcEffect(Mob, FX_FLAMESTRIKE, 0x10, 0x10, 1, Mob.realm);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

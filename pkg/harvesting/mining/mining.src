@@ -1,0 +1,866 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include ":banking:gold";
+include ":quests:quest_ctrl";
+include "../pkg/items/treasuremap/digtreasure";
+include "include/logerror";
+include "include/tools";
+include "include/dirs";
+include "include/calc";
+include "include/mobile/npcs/specs";
+include "include/move";
+include "graves";
+
+include "include/buildings";
+include "include/getobj";
+include "include/calc";
+
+include ":crafting:mat_groups";
+include ":harvesting:iterations";
+include ":harvesting:harvest";
+include ":harvesting:harvcont";
+include ":bulks:common";
+
+include ":glyphs:glyphs";
+
+//-----------------------------------------------------------------------------
+
+const UACTION_PICK := 0x0B;
+const CS_POINTS    := 10;
+
+const MATERIAL_ORE_CHANCE := 15;
+
+// mystic ore, royal ore
+var bestGroup := { 0x6515, 0x6513, 0x6544 };
+
+// mystic ore, royal ore, azurite, blood rock, mytheril, valorite
+var goodGroup := { 0x6515, 0x6513, 0x6512, 0x6511, 0x6510, 0x650E, 0x6544 };
+
+// all of them currently
+var allGroup := { 0x6515, 0x6513, 0x6512, 0x6511, 0x6510, 0x650F, 0x650E, 0x650D, 0x650C, 0x650B, 0x650A, 0x6500, 0x6544 };
+
+var ironOnly := { 0x6500,0x6544 };
+
+// 
+
+//-----------------------------------------------------------------------------
+
+var MainCfg := ReadConfigFile(":mining:mining");
+if(!MainCfg)
+  LogError("[Mining] Nie mozna znalezc konfiga! (:mining:mining)", LOGF_SCRIPTS);
+  return;
+endif
+
+var WhoMining,Info;
+
+//-----------------------------------------------------------------------------
+
+program Mining( who , tool )
+
+  if(tool.objtype == UOBJ_SHOVEL)
+    if(!StandardItemCheck(who,tool, NO_COMBAT_CHECK))
+      return;
+    endif
+  else
+    if(!StandardItemCheck(who,tool))
+      return;
+    endif
+  endif
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT) and !who.cmdlevel)
+    SendSysMessage(who ,"Musisz zejsc z wierzchowca by kopac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(tool.objtype == UOBJ_PICKAXE)
+    if(!IstoolEquipped(who,tool))
+      return;
+    endif
+	
+	if(GetObjProperty(tool, "Special"))
+	   if(!GetObjProperty(tool, "UsesRemaining"))
+			SetObjProperty(tool, "UsesRemaining", RandomInt(68) + 100);
+	   endif
+	endif
+
+  endif
+ 
+   
+  TriggerTipEvent(who, TEID_HARV_MINING);
+
+  SendSysmessage( who , "Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var Loc := LocTarget(who);
+  
+  if(SetHarvestContainerFromLoc(who, Loc, SKILLID_MINING))
+    return;
+  endif
+
+  if(Loc.mobile and Loc.mobile.isa(POLCLASS_NPC))
+    if(CheckDigNpcSpecial(who, tool, Loc.mobile))
+      return;
+    endif
+  endif
+
+  if(Loc.item and Loc.item.isa(POLCLASS_ITEM))
+    if(CheckDigItemSpecial(who, tool, Loc.item))
+      return;
+    endif
+  endif
+
+  if(Loc.item and tool.objtype == UOBJ_SHOVEL)
+    if(Loc.item.objtype == UOBJ_TELE_HOLE)
+      DigTeleHole(who, tool, Loc.item);
+      return;
+    endif
+
+    if(!StandardItemCheck(who, Loc.item))
+      return;
+    endif
+
+    if(Loc.item.objtype != UOBJ_MAP1 and Loc.item.objtype != UOBJ_MAP2)
+      SendSysmessage( who , "To nie jest mapa skarbu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    DigTreasure(who, tool, Loc.item);
+    return;
+  endif
+
+  if(!StandardLocCheck(who,Loc,NO_DIST_CHECK))
+    return;
+  endif
+
+  var Dist := coordist( who.x, who.y, Loc.x, Loc.y );
+
+  if(Dist > 2 and CheckLosAt(who,Loc.x,Loc.y,Loc.z))
+    SendSysmessage(who,"To jest za daleko",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif( Dist > 4)
+    SendSysmessage(who,"To jest za daleko",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  Info         := GetMapInfo(Loc.x,Loc.y,who.realm);
+  var Landtile := Info.landtile;
+  var SObjType := Loc.objtype;
+  WhoMining    := GetEffectiveSkill(who,SKILLID_MINING);
+
+  var gType;
+
+  case(tool.objtype)
+    UOBJ_PICKAXE: 
+      if(IsGround(LandTile,SObjType,"Mine"))
+        gType := "Mine";
+      else
+        SendSysMessage(who, "Tutaj nic nie wykopiesz.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+    UOBJ_SCOOP:
+    UOBJ_SHOVEL:
+      if(IsGround(LandTile,SObjType,"Graves"))
+        gType := "Graves";
+      elseif(IsGround(LandTile,SObjType,"Swamp"))
+        gType := "Swamp";
+      elseif(IsGround(LandTile,SObjType,"Sand"))
+        gType := "Sand";
+      else
+        SendSysMessage(who, "Tutaj nic nie wykopiesz.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+
+    default:
+      SendSysMessage(who, "Nie wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+      return;
+  endcase
+  
+  var IterData := DefineHarvestIterations(who, SKILLID_MINING);
+  var Res;
+
+  if(gType == "Graves")
+    IterData.maxIters := 1;
+  endif
+
+  while(HarvestIteration(who, IterData))
+    Res := error;
+
+    if(gType == "Mine")
+      Res := Mine(who,Loc,tool,IterData);
+    elseif(gType == "Graves")
+      Res := DigGrave(who,Loc,tool,IterData);
+    elseif(gType == "Swamp")
+      Res := DigClay(who,Loc,tool,IterData);
+    elseif(gType == "Sand")
+      Res := DigSand(who,Loc,tool, IterData);
+    endif
+
+    if(Res == error or !tool)
+      break;
+    endif
+
+  endwhile
+
+  FinishHarvestIteration(who, IterData);
+
+endprogram
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Mining
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function Mine(who,Loc,tool, byref IterData)
+
+  var Dist := coordist( who.x, who.y, Loc.x, Loc.y );
+
+  if(Dist > 2)
+    SendSysMessage (who, "Oddalil"+ggm(who,3)+" sie.",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  if(IterData.curIter == 1)
+    SendSysMessage (who, "Zaczynasz kopac...",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  if(!CheckToolWear(who,tool,SKILLID_MINING))
+    return error;
+  endif
+
+  TurnCharTowardLocation(who, Loc);
+
+  var Res := GetHarvestDifficulty( "ore" , Loc.x , Loc.y , info.landtile, who.realm );
+
+  if(Res == error)
+    Res := GetHarvestDifficulty( "ore" , Loc.x , Loc.y , Loc.objtype, who.realm );
+  endif
+
+   var Chance    := RandomInt(100) + 1;
+   var ToolAdd   := CInt(CheckItemQuality(tool) / 3);
+
+  if(Res == error)
+    SendSysMessage(who, "W tym miejscu nie ma juz rudy.",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif 
+
+  if(IsBlockedSkillForClass(who, SKILLID_MINING))
+    SendSysMessage(who, "Nie wiesz jak sie tym poslugiwac...",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+  
+  var DiggObj := 0;
+  
+  if( CheckSkill( who, SKILLID_MINING, -1 , 0) )
+
+     var Ore,i;
+     var Ores := splitwords(GetRegionString("ore",loc.x,loc.y,"OreTypes", who.realm));
+
+     if(!Ores)
+       Sendsysmessage(who, "Nie znalazl"+ggm(who,3)+" w tym miejscu zloza rudy.",FONT_NORMAL,COLOR_RED);
+       LogError("Brak zdefiniowanych rud dla lokacji:" + Loc.x + " " + Loc.y + " " + Loc.z + " " + Loc.realm, LOGF_FORCE_SYSLOG);
+       return error;
+     endif
+
+     MakeIntArray(Ores);
+
+     var FirstChance := 40 - CalcSkillExponential(who, SKILLID_MINING, 20);
+     var MatObjType := GetMatItemObjType(tool);
+     var BulkLevel := GetBulkLevel(tool);
+    
+     if(BulkLevel)
+       FirstChance -= 7;
+       MatObjType := UOBJ_ROYAL_INGOT;
+     elseif(MatObjType == UOBJ_IRON_INGOT)  
+       FirstChance += MATERIAL_ORE_CHANCE;
+     elseif(MatObjType == UOBJ_MYSTIC_INGOT)
+       FirstChance -= 5;
+       MatObjType := UOBJ_ROYAL_INGOT;
+     elseif(!MatObjType)
+       MatObjType := UOBJ_IRON_INGOT;
+       FirstChance += MATERIAL_ORE_CHANCE;
+     endif
+
+     MatObjType -= 0x30; // roznica miedzy ingot <> ore to 30. w koncu to moze wykorzystam.
+
+     if((MatObjType in Ores) and HaveChance(40) and CanDiggOre(who, MatObjType, Chance, ToolAdd, Loc))
+       
+       DiggObj := MatObjType;
+       
+     elseif(HaveChance(FirstChance))
+     
+       Ore := FindConfigElem(MainCfg,Hex(Ores[1]));
+       if(!Ore)
+          Sendsysmessage(who, "Nie znalazl"+ggm(who,3)+" nic ciekawego w tym miejscu.",FONT_NORMAL,COLOR_RED);
+          LogError("Bledna ruda dla lokacji:" + Loc.x + " " + Loc.y + " " + Loc.z + " " + Loc.realm + " ruda: " + CStr(Ores[1]),LOGF_FORCE_SYSLOG);
+          return error;
+       endif
+
+       if(CheckSkill(who, SKILLID_MINING, CInt(Ore.Diff), 0))
+         DiggObj := CInt(Ores[1]);
+       endif
+     endif
+     
+     if(!DiggObj)
+       for(i:=len(Ores); i >= 1; i:=i-1)
+         if(CanDiggOre(who, CInt(Ores[i]), Chance, ToolAdd, Loc))
+           DiggObj := CInt(Ores[i]);
+           break;
+         endif
+       endfor
+     endif
+   elseif(HaveChance(70))
+     DiggObj := UOBJ_IRON_ORE;
+   endif
+   
+  var TimeMod;
+
+  if(DiggObj)
+    var Ore := FindConfigElem(MainCfg, Hex(DiggObj));
+    TimeMod := 0.5 + (CDbl(Ore.Diff) / 100.0 * 0.5);
+  else
+    TimeMod := 0.6;
+  endif
+
+  if(!IsDebug(who, "MineDebug"))
+    if(!HarvestDelay(who, IterData, 0x126, ANIM_ATTACK_1HAND_DOWN, 0, TimeMod))
+      return error;
+    endif
+  endif
+  
+  if(!DiggObj)
+    Sendsysmessage(who, "Nie udalo Ci sie wykopac uzytecznej rudy.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  if(HarvestOverflowed(who))
+    SendSysMessage(who, "Prawie cos wykopal"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+    return 0;
+  endif
+  
+  var Ore := FindConfigElem(MainCfg,Hex(DiggObj));
+  var Amount;
+
+  if(CInt(Ore.Diff) <= 40)
+    Amount := CInt(WhoMining / 10);
+  else
+    Amount := CInt(WhoMining / 20) + 1;
+  endif
+  
+  Amount := Amount + GetGlyphMod(who, "HappyMiner");
+  
+  return CreateOre(who, Loc.x, Loc.y, DiggObj, GetDps(DiggObj), Amount,CInt(Ore.Points), IterData, tool);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanDiggOre(who, OreObjType, Chance, ToolAdd, Loc)
+
+  var Ore := FindConfigElem(MainCfg,Hex(OreObjType));
+
+  if(!Ore)
+    Sendsysmessage(who, "W tym miejscu nie znalazl"+ggm(who,3)+" nic ciekawego.",FONT_NORMAL,COLOR_RED);
+    LogError("Bledna ruda dla lokacji:" + Loc.x + " " + Loc.y + " " + Loc.z + " " + Loc.realm + " ruda: " + CStr(OreObjType),LOGF_FORCE_SYSLOG);
+    return 1;
+  endif
+
+  if(Chance <= (CInt(Ore.Chance) + ToolAdd) and CheckSkill(who, SKILLID_MINING, CInt(Ore.Diff), 0) )
+    return 1;
+  endif
+
+ return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateOre(who, x, y, objtype, name, am, Points, byref IterData, tool)
+
+
+  if(GetObjProperty(tool, "Special"))
+	am := am + CInt(am * RandomInt(3)+1);
+	if(RandomInt(4) == 1)
+		PrintTextAbove(who, "*ognisty kilof spala gore " + am + "*");
+	endif
+  endif
+
+  var oreGroup := Cint(GetObjProperty(who, "#oreGroup"));
+  
+  var verificationGroup := allGroup;
+  
+  if(oreGroup != error)
+	if(oreGroup == 1)
+		verificationGroup := bestGroup;
+	endif
+	
+	if(oreGroup == 2)
+		verificationGroup := goodGroup;
+	endif
+	
+	if(oreGroup == 4)
+		verificationGroup := ironOnly;
+	endif
+	
+  endif 
+
+  if(RandomInt(1000) < 50)
+    if(RandomInt(100) <= 50)
+      SendSysMessage(who, "Udalo Ci sie wydobyc wiecej rudy.", FONT_NORMAL, COLOR_BLUE);
+      Am := CInt(Am * (1.5 + (RandomInt(100)*0.01)));
+    else
+      SendSysMessage(who, "Trafil"+ggm(who,3)+" na slabe miejsce, gdzie bylo troche mniej rudy.", FONT_NORMAL, COLOR_RED);
+      Am := CInt(Am * (0.30 - (RandomInt(50)*0.01)));
+    endif
+  endif
+
+  if(Am < 1)
+    Am := 1;
+  endif
+
+  var num := HarvestResource( "ore" , x , y , 1 , am, who.realm );
+  var itmDesc := GetHarvestDescriptor(objtype, who);
+  
+  if(!(objtype in verificationGroup))
+	SendSysMessage(who, "Trafil" + ggm(who, 3) + " na rude, ktora Ciebie nie interesuje.", FONT_NORMAL, COLOR_RED);
+   else
+  
+    var Ore := CreateHarvResource(who, SKILLID_MINING, itmDesc, num );
+
+  if(Ore)
+    SendSysmessage(who, GetHarvestIterDesc(IterData) + " Wlozyl"+ ggm(who,3)+ " " + num + " " + name + " do plecaka.",FONT_NORMAL,COLOR_GREEN);
+    AwardPoints(who,SKILLID_MINING,Points);
+    SendQuestEvent(who, EVQID_HARVEST, SKILLID_MINING, Ore);
+	UseSpecialFirePickaxePower(who, tool, Ore);
+  else
+    SendSysMessage(who,"Nie masz miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  CheckOthers(who);
+
+  if(RandomInt(1000) + 10 < 20 + RandomInt(10))
+    DoSth(who);
+  elseif(RandomInt(1000) < 5 + RandomInt(130 - WhoMining))
+    SendSysMessage(who, "Oho! Trzasn"+ggm(who,5)+" sie kilofem w reke! Musisz chwile odczekac, by przestalo bolec.", FONT_NORMAL, COLOR_RED);
+    sleep(15);
+  endif
+
+  return 1;
+  
+  endif
+
+endfunction
+
+// goqsane: 02-28 - fire pickaxe has one great advantage - it smelts the ore immediately
+
+function UseSpecialFirePickaxePower(who, tool, ore)
+
+	if(!GetObjProperty(tool, "Special"))
+		return;
+	endif
+
+	var uses := CInt(GetObjProperty(tool, "UsesRemaining"));
+	
+	if(uses > 0)
+		uses := uses - 1;
+	else
+		DestroyItem(tool);
+		SendSysMessage(who, "Twoj ognisty kilof znika w otchlani.", FONT_NORMAL, COLOR_RED);
+	endif
+	
+	SetObjProperty(tool, "UsesRemaining", uses);
+	
+	var MiniCfg   := ReadConfigFile(":mining:mining");
+	
+	var productElem := MiniCfg[ore.objtype];
+
+	if(!productElem)
+		return;
+	endif
+	
+	var amt := ore.amount;
+	
+	if(SubtractAmount(ore, ore.amount))
+		var ingots := CreateItemInCont(who.backpack, productElem.Product, amt, who );
+		PlayStationaryEff(who.x,who.y,who.z, FX_FLAMESTRIKE, 0x0a, 0x1e, 0, who.realm );
+	endif
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Clay
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function DigClay(who,Loc,tool,byref IterData)
+
+  if(IsBlockedSkillForClass(who, SKILLID_MINING))
+    SendSysMessage(who, "Nie wiesz jak sie tym poslugiwac...",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+  
+  if(GetEquipmentByLayer(who,LAYER_HAND1) or GetEquipmentByLayer(who,LAYER_HAND2))
+    SendSysMessage(who,"Musisz miec wolne rece!",FONT_NORMAL,COLOR_RED);
+    return error; 
+  endif
+
+  if(IterData.curIter == 1)
+    SendSysMessage (who, "Zaczynasz kopac...",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  if(!CheckToolWear(who,tool,SKILLID_MINING))
+    return error;
+  endif
+
+  TurnCharTowardLocation(who, Loc);
+
+  if(!HarvestDelay(who, IterData, 0x126, UACTION_PICK, "Wykopujesz gline..."))
+    return error;
+  endif
+
+  var hNum := 2 + CInt(WhoMining / 20);
+  var QualMod := Max(CDbl(CheckItemQuality(tool)) / 14.0, 1.0);
+  hNum := CInt(CDbl(hNum) * Min(QualMod, 1.8));
+
+  var Num := HarvestResource( "clay", Loc.x, Loc.y, 1, hNum, who.realm );
+
+  if(CInt(Num) <= 0)
+
+    Sendsysmessage(who, "W tym miejscu nie ma juz gliny.",FONT_NORMAL,COLOR_RED);
+    return error;
+
+   elseif(HarvestOverflowed(who))
+
+     SendSysMessage(who, "Prawie cos wykopal"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+     return 0;
+
+  elseif(CheckSkill(who,SKILLID_MINING,50,0))
+  
+    var Clay := CreateHarvResource(who, SKILLID_MINING, GetHarvestDescriptor(UOBJ_CLAY, who), Num);
+
+    if(Clay)
+      PerformAction(who, UACTION_PICK);
+      SendSysMessage(who, GetHarvestIterDesc(IterData) + " Udalo Ci sie wykopac "+Num+" gliny.",FONT_NORMAL,COLOR_GREEN);
+      AwardPoints(who,SKILLID_MINING,CS_POINTS);
+      SendQuestEvent(who, EVQID_HARVEST, SKILLID_MINING, Clay);
+
+      if(RandomInt(1000) < 80)
+        var Dirt := CreateHarvResource(who, SKILLID_MINING,GetHarvestDescriptor(UOBJ_FERTILE_DIRT, who),(RandomInt(3)+1));
+        if(Dirt)
+          SendSysMessage(who,"Wykopal"+ggm(who,3)+" troche zyznej gleby.",FONT_NORMAL,COLOR_BLUE);
+        endif
+      endif
+
+      sleep(1);
+    
+      if(RandomInt(1000) + 10 < 20 + RandomInt(10))
+        var BogThing := CreateRPNpc("bogthing",who, who.realm);
+        if(BogThing)
+          SendSysMessage(who,"A ha! Przypaletal sie bagienny potwor by zobaczyc co porabiasz!",FONT_NORMAL,COLOR_RED);
+          SendChEvent(BogThing,who,EVID_ENGAGED);
+          SaveSkillSum(BogThing);
+        endif
+      endif
+
+      return 1;
+
+    else
+      SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+      return error;
+    endif
+    
+  else
+    SendSysmessage(who, "Nie udalo Ci sie znalezc gliny.", FONT_NORMAL, COLOR_RED );
+    return 0;
+  endif
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Sand
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function DigSand(who,Loc,tool,byref IterData)
+
+  if(IsBlockedSkillForClass(who, SKILLID_MINING))
+    SendSysMessage(who, "Nie wiesz jak sie tym poslugiwac...",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+  
+  if(GetEquipmentByLayer(who,LAYER_HAND1) or GetEquipmentByLayer(who,LAYER_HAND2))
+    SendSysMessage(who,"Musisz miec wolne rece!",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+ 
+  if(NoTeleportZone(who.x,who.y,who.z,who.realm))
+    SendSysMessage(who,"Nie mozesz tutaj kopac!",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif;
+
+  if(IterData.curIter == 1)
+    SendSysMessage (who, "Zaczynasz kopac...",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  if(!CheckToolWear(who,tool,SKILLID_MINING))
+    return error;
+  endif
+  
+  TurnCharTowardLocation(who, Loc);
+
+  if(!HarvestDelay(who, IterData, 0x126, UACTION_PICK, "Wykopujesz piasek..."))
+    return error;
+  endif
+
+  var hNum := CInt(9 + CalcSkillExponential(who, SKILLID_MINING, 25) + RandomInt(6));
+  var QualMod := Max(CDbl(CheckItemQuality(tool)) / 14.0, 1.0);
+
+  hNum := CInt(CDbl(hNum) * Min(QualMod, 1.8));
+
+  var Num := HarvestResource( "sand" , Loc.x , Loc.y, 1, hNum, who.realm );
+
+  if(CInt(Num) <= 0)
+    Sendsysmessage(who, "Nie ma juz w tym miejscu uzytecznego piasku.",FONT_NORMAL,COLOR_RED);
+    
+  elseif(HarvestOverflowed(who))
+
+    SendSysMessage(who, "Prawie cos wykopal"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+    return 0;
+
+  elseif(CheckSkill(who,SKILLID_MINING,50,0))
+
+    var Sand := CreateHarvResource(who, SKILLID_MINING, GetHarvestDescriptor(UOBJ_SAND, who), Num);
+
+    if(Sand)
+      PerformAction(who, UACTION_PICK);
+      SendSysMessage(who, GetHarvestIterDesc(IterData) + " Udalo Ci sie znalezc "+Num+" ziaren uzytecznego piasku.",FONT_NORMAL,COLOR_GREEN);
+      AwardPoints(who,SKILLID_MINING,CS_POINTS);
+      SendQuestEvent(who, EVQID_HARVEST, SKILLID_MINING, Sand);
+
+      if(RandomInt(1000) < 80)
+        var Brim := CreateHarvResource(who, SKILLID_MINING,GetHarvestDescriptor(UOBJ_BRIMSTONE, who),(RandomInt(3)+1));
+        if(Brim)
+          SendSysMessage(who,"Wykopal"+ggm(who,3)+" troche otoczakow.",FONT_NORMAL,COLOR_BLUE);
+        endif
+      endif
+
+      sleep(1);
+    
+      if(RandomInt(1000) + 10 < 20 + RandomInt(10))
+        var Vortex := CreateRPNpc("sandvortex",who, who.realm);
+        if(Vortex)
+          SendSysMessage(who,"A ha! spod piachu wyszedl wir by zobaczyc czego szukasz!",FONT_NORMAL,COLOR_RED);
+          SendChEvent(Vortex,who,EVID_ENGAGED);
+          SaveSkillSum(Vortex);
+        endif
+      endif
+
+      return 1;
+
+    else
+      SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysmessage(who, "Nie udalo Ci sie znalezc uzytecznego piasku.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return error;
+        
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsGround(LTile,SObj,Type)
+
+  var ObjTypes := GetConfigStringArray(MainCfg[Type],"Land");
+
+  foreach Obj in ObjTypes
+    Obj := SplitWords(Obj);
+    if(LTile >= CInt(Obj[1]) and LTile <= CInt(Obj[2]))
+      return 1;
+    endif
+  endforeach
+
+  ObjTypes := GetConfigStringArray(MainCfg[Type],"SObj");
+
+  foreach Obj in ObjTypes
+    Obj := SplitWords(Obj);
+    if(Obj.size() == 2)
+      if(SObj >= CInt(Obj[1]) and SObj <= CInt(Obj[2]))
+        return 1;
+      endif
+    elseif(CInt(Obj[1]) == SObj)
+      return 1;
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoSth(who)
+
+  if(WhoMining < 65)
+    return;
+  endif
+
+  Detach();
+  NoLongerBusy(who);
+  sleep(1);
+
+  var it;
+  
+  case (RandomInt(3))
+
+    1: it := CreateRPNpc("earthelemental",who, who.realm);
+       if(it)
+         SendSysmessage(who, "Przyciagn"+ggm(who,5)+" uwage zywiolaka ziemi.",FONT_NORMAL,COLOR_RED);
+         SendChEvent(it,who,EVID_ENGAGED);
+       endif
+    2:
+    3: it := CreateRPNpc("slime",who, who.realm);
+       if(it)
+         SendSysmessage(who, "Szlam podchodzi zobaczyc co ciekawego robisz.",FONT_NORMAL,COLOR_GREEN);
+         SendChEvent(it,who,EVID_ENGAGED);
+       endif
+
+  endcase
+   
+  if(it.isa(POLCLASS_NPC))
+    SaveSkillSum(It);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckOthers(who)
+
+  if(RandomInt(1000) < 40)
+    var it;
+
+    case(RandomInt(10))
+
+      1: if(HaveChance(15))
+           var itmDesc := GetHarvestDescriptor(CInt(0x6003+RandomInt(2)), who);
+           it := CreateHarvResource(who, SKILLID_MINING, itmDesc, 1);
+           if(it)
+             SendSysMessage(who,"Znalazl"+ggm(who,3)+" postrzepiona stara mape!",FONT_NORMAL,COLOR_BLUE);
+           endif
+         endif
+      2:
+      3:
+      4: it := CreateHarvResource(who, SKILLID_MINING,GetHarvestDescriptor(0x0F25, who), 1);
+         if(it)
+           SendSysMessage(who, "Znalazl"+ggm(who,3)+" bursztyn!",FONT_NORMAL,COLOR_BLUE);
+         endif
+
+      default:
+        if(WhoMining >= 85)
+           it := CreateHarvResource(who, SKILLID_MINING, GetHarvestDescriptor(UOBJ_OBSIDIAN, who), (CInt(WhoMining / 30) + RandomInt(2)) );
+           if(it)
+             SendsysMessage(who, "Znalazl"+ggm(who,3)+" troche obsydianu!",FONT_NORMAL,COLOR_BLUE);
+           endif
+         endif
+
+    endcase
+  elseif(HaveChance(15))
+    var Amt := 6 + CInt(WhoMining / 20) + RandomInt(3);
+    var it := CreateHarvResource(who, SKILLID_MINING, GetHarvestDescriptor(0xf8c, who), Amt);
+    if(it)
+      SendSysMessage(who, "Znalazl"+ggm(who,3)+" troche siarki!",FONT_NORMAL,COLOR_BLUE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DigTeleHole(who, tool, Hole)
+
+  if(!StandardItemCheck(who, Hole, NO_COMBAT_CHECK | NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(Distance(who, Hole) > 1)
+    SendBad(who, "Stoisz za daleko!");
+    return;
+  endif
+
+  if(!CheckToolWear(who,tool,SKILLID_MINING, 15))
+    return error;
+  endif
+  
+  TurnCharToward(who, Hole);
+
+  if(!MakeNoiseDependant(who, Hole, 0x126, 1500, ANIM_ATTACK_1HAND_DOWN))
+    return;
+  endif
+
+  if(Hole)
+    DestroyItem(Hole);
+  endif
+
+  SendGood(who, "Zakopal"+ggm(who,3)+" dziure!");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckDigItemSpecial(who, tool, Item)
+
+  if(IsTempItem(Item))
+    var SpecNpc := FindNpcBySerial(GetObjProperty(Item, "SpecialNpc"));
+
+    if(SpecNpc)
+      return CheckDigNpcSpecial(who, tool, SpecNpc);
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckDigNpcSpecial(who, tool, Mob)
+
+  if(!IsNpcSpecPerforming(Mob, NSPEC_REGENERATION))
+    return 0;
+  endif
+
+  TurnCharTowardLocation(who, Mob);
+
+  if(Distance(who, Mob) > 2)
+    SendBad(who, "Stoisz za daleko.");
+    return 1;
+  endif
+
+  if(!CheckToolWear(who,tool,SKILLID_MINING, 15))
+    return error;
+  endif
+
+  if(!MakeNoiseDependant(who, Mob, 0x126, 1500, ANIM_ATTACK_1HAND_DOWN, 2))
+    return 1;
+  endif
+
+  var Res := BreakNpcSpecial(Mob, NSPEC_REGENERATION);
+  if(Res > 0)
+    SendSysMessage(who, "Przelamal"+ggm(who,3)+" regeneracje "+GetName(Mob)+"!", FONT_NORMAL, COLOR_WHITE);
+  elseif(Res < 0)
+    SendSysMessage(who, "Prawie przelamal"+ggm(who,3)+" regeneracje "+GetName(Mob)+"!", FONT_NORMAL, COLOR_ORANGE);
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

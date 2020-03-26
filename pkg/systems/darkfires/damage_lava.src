@@ -1,0 +1,18 @@
+include "include/attack";
+
+use util;
+
+
+program DamageLava(Params)
+
+  var x := Params.x;
+  var y := Params.y;
+  var z := Params.z;
+  var who := Params.who;
+  while(who.x == x and who.y == y and who.z == z)
+    var dmg := RandomInt(5);
+    DealDamage(who,dmg);
+    sleep(1);
+  endwhile
+
+endprogram

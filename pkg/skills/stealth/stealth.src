@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include ":glyphs:glyphs";
+
+//-----------------------------------------------------------------------------
+
+var Points := GetDefaultPointsValue(SKILLID_STEALTH);
+
+//-----------------------------------------------------------------------------
+
+program SkillStealth( who )
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if (GetBaseSkill( who, SKILLID_HIDING ) < 80)
+    SendSysMessage( who, "Poki co, za slabo sie chowasz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var mod := GetGlyphMod(who, "AdvancedStealth");
+  
+  if(mod)
+	SendSysMessage(who, "Glif nadaje Ci dodatkowych " + mod + " krokow.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_STEALTH));
+
+  if( !who.hidden )
+    SendSysMessage( who, "Zeby sie skradac musisz byc schowan"+ggm(who, 6)+"!",FONT_NORMAL,COLOR_RED );
+    return;
+  endif
+
+  var Steps := CInt(GetEffectiveSkill(who, SKILLID_STEALTH) / 10) + 1;
+
+  if (CheckSkill( who, SKILLID_STEALTH, -1, points ))
+    if(!GetEquipmentByLayer(who, LAYER_MOUNT) and who.stealthsteps <= ToMin(Steps - 5, 1))
+      SetObjProperty(who, "#AddHideTime", CInt(GetEffectiveSkill(who, SKILLID_STEALTH) * 1.5));
+    endif
+
+    who.stealthsteps := Steps + mod;
+    PrintTextAbovePrivate( who, "Teraz poruszasz sie po kryjomu", who );
+  else
+    who.hidden := 0;
+    PrintTextAbovePrivate( who, "Odkryl"+ggm(who, 3)+" siebie!", who );
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

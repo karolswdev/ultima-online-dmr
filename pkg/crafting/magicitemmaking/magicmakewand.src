@@ -1,0 +1,113 @@
+//-----------------------------------------------------------------------------
+// Magic Make Wand
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/misc";
+include "include/checks/objchecks";
+include "include/dirs";
+include ":magic:magicatt";
+include "include/effects";
+include "include/tools";
+include "../pkg/systems/vampire/coffin";
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+const DEF_WAND_CHARGES       := 200;
+const CHARGE_COFFIN_SKILL    := 65;
+
+//-----------------------------------------------------------------------------
+
+program UseMagicMakeWand(who, Wand)
+
+  if(!StandardItemCheck(who, Wand))
+    return;
+  endif
+
+  var Charges := GetObjProperty(Wand, "Charges");
+
+  if(Charges == error)
+    Charges := DEF_WAND_CHARGES;
+  else
+    Charges := CInt(Charges);
+  endif
+
+  if(Charges <= 0)
+    SendSysMessage(who, "Ta rozdzka nie posiada juz mocy!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT))
+    SendSysMessage(who ,"Musisz zejsc z wierzchowca by moc umagiczniac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsToolEquipped(who, Wand))
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz przedmiot, jaki chcial"+ggm(who,1)+" umagicznic.", FONT_NORMAL, COLOR_GREEN);
+
+  var Targ := ObjTarget(who);
+
+  if(!StandardItemCheck(who, Targ, NEW_DIST_CHECK | NO_MOVABLE_CHECK | NO_OWNER_CHECK, 2))
+    return;
+  endif
+
+  var Coffin := IsCoffin(Targ);
+
+  if(!Coffin)
+    SendSysMessage(who, "Nie wiesz jak to umagicznic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!GetHouseSerial(Coffin))
+    SendSysMessage(who, "Ta trumna nie potrzebuje doladowania.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  TurnCharToward(who, Targ);
+
+  if(!MakeNoise(who, SFX_SPELL_CUNNING, 1000, ANIM_CAST_DIR))
+    return;
+  endif
+
+  if(!CheckMoreSkill(who, SKILLID_MAGICITEMMAKING, CHARGE_COFFIN_SKILL, 0))
+    Fizzle(who, "Nie udalo Ci sie umagicznic tego przedmiotu.");
+    return;
+  endif
+
+  var CoffinCharges := CInt(GetObjProperty(Coffin, "Charges"));
+  var MaxCharges    := CInt((GetEffectiveSkill(who, SKILLID_MAGERY) + GetEffectiveSkill(who, SKILLID_MAGICITEMMAKING)) * 0.08);
+  var LoadCharges   := ToMax(MaxCharges - CoffinCharges, Charges);
+
+  SendSysMessage(who, "Trumna posiada "+CoffinCharges+" ladun"+gam(CoffinCharges, GAM_EK)+".", FONT_NORMAL, COLOR_GREEN);
+
+  if(LoadCharges <= 0)
+    SendSysMessage(who, "Nie jestes w stanie mocniej doladowac tej trumny.", FONT_NORMAL, COLOR_RED);
+    return;
+  else
+    SendSysMessage(who, "Trumna zostala doladowana o "+LoadCharges+" ladun"+gam(LoadCharges, GAM_EK)+".", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+  PlayPcStEffect(Targ.x, Targ.y, Targ.z+5, Targ.realm, FX_MARK_EFFECT, 31, 0x10, 0x10, 3);
+
+  Charges -= LoadCharges;
+  CoffinCharges += LoadCharges;
+
+  if(Charges == 0)
+    SendSysMessage(who, "Rozdzka sie wyczerpala!", FONT_NORMAL, COLOR_RED_LIGHT);
+    Wand.color := 96;
+  endif
+
+  SetObjProperty(Wand, "Charges", Charges);
+  SetObjProperty(Coffin, "Charges", CoffinCharges);
+
+endprogram
+
+//-----------------------------------------------------------------------------

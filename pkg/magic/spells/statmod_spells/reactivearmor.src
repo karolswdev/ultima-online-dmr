@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 7;
+
+//-----------------------------------------------------------------------------
+
+program CastReactiveArmor( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  PlaySoundEffect(Caster, SFX_SPELL_REACTIVE_ARMOR);
+  PlayObjectCenteredEffect( Caster, FX_SPARK_EFFECT, 7, 0x10 );
+
+  if(!CanMod(Caster, MOD_RA))
+    SendSysMessage(Caster,"Jestes juz pod wplywem czaru!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var CasterMagery     := GetEffectiveSkill(Caster, GetMageSkId(Caster));
+  var CasterEvalInt    := GetEffectiveSkill(Caster, GetMindSkId(Caster));
+  var ModAmount        := CInt(CasterMagery / 5 + CasterEvalInt / 10);
+  var Duration         := CInt((RandomInt(10) + CasterMagery*1.5 + (CasterEvalInt / 2)) * 2);
+  
+  if(CasterMagery > 100)
+    ModAmount += CInt((CasterMagery - 100) / 2);
+    Duration += (CasterMagery - 100) * 3;
+  endif
+
+  DoMod(Caster,MOD_RA, ModAmount, Duration);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,111 @@
+//--------------------------------------------------------------------------
+// Modified: 2005-06-02
+//--------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/std";
+include "include/player/target";
+
+include ":npcguilds:gd_gump";
+include ":npcguilds:guilds";
+
+//--------------------------------------------------------------------------
+
+program ShowNpcGuildPlayerInfo(_who, text)
+
+  var Res, Npc, NpcData, who;
+
+  __ParamUnused(text);
+
+  SetLogRunCycles(LST_CMD);
+
+  who := _who;
+  Npc := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+  if(!Npc.isa(POLCLASS_NPC))
+    SendSysMessage(who,"To nie NPC.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  NpcData := GetObjProperty(Npc, PROP_NGDDATA);
+
+  if(!NpcData)
+    SendSysMessage(who, "Ten NPC nie nalezy do zadnej Gildii.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  BuildMainNGnGump(Npc, NpcData);
+
+  while(IsLoggedIn(who))
+    Res     := GSend(who);
+    NpcData := GetObjProperty(Npc, PROP_NGDDATA);
+
+    case(Res.butid)
+      10:        var NLvl := SendTextEntryGump(who, "Wpisz nowy Lvl");
+
+                 if(!NLvl)
+                   SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                 else
+                   NLvl := CInt(NLvl);
+                   if(NLvl < 0 or NLvl > 4)
+                     SendSysMessage(who,"Bledny Lvl ["+NLvl+"] (0-4)", FONT_NORMAL, COLOR_RED);
+                   else
+                     SendSysMessage(who,"Zmieniono Lvl Npcowi "+Npc.name+" na ["+NLvl+"]", FONT_NORMAL, COLOR_GREEN);
+                     NpcData := GetObjProperty(Npc, PROP_NGDDATA);
+                     NpcData.Level := NLvl;
+                     SetObjProperty(Npc, PROP_NGDDATA, NpcData);
+                   endif
+                 endif
+
+        11:      SendSysMessage(who, "Wypisac "+Npc.name+" z Gildii?", FONT_NORMAL, COLOR_GREEN);
+                 if(YesNo(who, "Tak?"))
+                   ResignNpcFromGuild(Npc);
+                   SendSysMessage(who, "Wypisano NPC "+Npc.name+" z Gildii.", FONT_NORMAL, COLOR_GREEN);
+                   return;
+                 else
+                   SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                 endif
+
+      default:   return;
+    endcase
+
+    BuildMainNGnGump(Npc, NpcData);
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------
+
+function BuildMainNGnGump(Npc, byref NpcData)
+
+  BQGInit("Npc "+Npc.name, 400, 210);
+  GResPic(30, 50, 0xa3c, 340, 140);
+
+  var GuildData := GetNGdData();
+  var Guild := GuildData.FindElement(NGUILD_TITLE+NpcData.GuildId);
+
+  GTextLine(45,  60, 670, "Guild ID:");
+  GTextLine(130, 60, 550, NpcData.GuildId);
+
+  if(Guild)
+    GTextLine(45,  80,  670, "Nazwa:");
+    GTextLine(130, 80,  550, Guild.GetProp(GDPROP_NAME));
+  else
+    GTextLine(45,  80, 670, "Stan:");
+    GTextLine(130, 80, 550, "Nie istnieje");
+  endif
+
+  if(NpcData.Level != 5)
+    GButton(25, 103, 2117, 2118, 10);
+  else
+    GTextLine(200, 100, 999, "Mistrz");
+  endif
+  GTextLine(45,  100, 670, "Level:");
+  GTextLine(130, 100, 550, NpcData.Level);
+
+  GButton(50, 143, 2117, 2118, 11);
+  GTextLine(70,  140, 999, "Wypisz");
+
+endfunction
+
+//--------------------------------------------------------------------------

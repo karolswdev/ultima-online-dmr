@@ -1,0 +1,129 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-08
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/clock";
+include "include/checks/objchecks";
+include "include/move";
+include "include/effects";
+include "include/dirs";
+
+include ":eventcore:event_gump";
+include ":eventcore:common";
+include ":eventcore:proc_events";
+include ":eventcore:event_data";
+include ":eventctf:capture";
+
+//-----------------------------------------------------------------------------
+
+program CrystalCapture(who, Crystal)
+
+  if(Crystal.movable or Crystal.container)
+    SendBad(who, "Ten krysztal zostal juz przejety! Zanies go do swojej bazy!");
+    return;
+  endif
+  
+  var EvID := FindEventAreaByLoc(who);
+  var TeamID := GetCaptureTeam(who);
+  var SrcTeamID := GetCaptureTeamByItem(Crystal);
+
+  if(!EvId)
+    SendBad(who, "Cos jest nie tak z tym wydarzeniem...");
+    LogError("[EventCTF::CrystalCapture] Player "+GetRealName(who)+"/"+who.acctname+" cisnal krysztal "+hex(Crystal.serial)+", a wcale nie jest w strefe eventa!!");
+    return;
+  endif
+
+  if(!TeamID)
+    SendBad(who, "Nie wybral"+ggm(who,3)+" jeszcze druzyny!");
+    LogError("[EventCTF::CrystalCapture] Player "+GetRealName(who)+"/"+who.acctname+" cisnal krysztal "+hex(Crystal.serial)+", a nie wybral druzyny!!");
+    return;
+  endif
+
+  if(!SrcTeamID)
+    SendBad(who, "Nie wiesz do czego przyda sie ten przedmiot.");
+    LogError("[EventCTF::CrystalCapture] Player "+GetRealName(who)+"/"+who.acctname+" cisnal krysztal "+hex(Crystal.serial)+", ktory jest nieprawidlowego koloru! Nie mozna wyznaczyc druzyny");
+    return;
+  endif
+
+  var BaseLoc;
+  
+  if(SrcTeamID == CTF_RED_TEAM) 
+    BaseLoc := GetLocFromString(GetEventVariable(EvID, "LOC_REDFLAG"));
+  else
+    BaseLoc := GetLocFromString(GetEventVariable(EvID, "LOC_BLUEFLAG"));
+  endif
+
+  if(SrcTeamID == TeamID and (BaseLoc.x == Crystal.x and BaseLoc.y == Crystal.y and BaseLoc.z == Crystal.z and BaseLoc.realm == Crystal.realm))
+    SendGood(who, "Krysztal jest juz na miejscu!");
+    return;
+  endif
+
+  if(GetObjProperty(Crystal, "Captured"))
+    SendBad(who, "Krysztal zostal juz zdobyty!");
+    return;
+  endif
+
+  var CrystalDelay := CInt(GetEventVariable(EvId, "DELAY_CAPTURE"));
+
+  if(!CrystalDelay)
+    SendBad(who, "Cos jest nie tak...");
+    return;
+  endif
+
+  var Event := GetEventElement(EvId);
+
+  if(!Event)
+    SendBad(who, "Cos jest nie tak... to wydarzenie nie jest w pelni aktywne.");
+    return;
+  endif
+
+  if(Event.GetProp("ProcData").Status != CTF_STATUS_FIGHT)
+    SendBad(who, "Teraz nie jest czas na walke!");
+    return;
+  endif
+
+  if(!StandardItemCheck(who, Crystal, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  var Time := GetCaptureFightTimeLeft(EvId);
+
+  if(Time == error)
+    SendBad(who, "Teraz nie czas na przejmowanie krysztalu!");
+    return;
+  elseif(Time < CrystalDelay+5)
+    SendBad(who, "Juz za pozno! Wydarzenie konczy sie i nie zdazysz wlozyc krysztalu!");
+    return;
+  endif
+
+  TurnCharToward(who, Crystal);
+
+  if(!MakeNoiseDependant(who, Crystal, SFX_SKILL_LUMBERJACK, 1000, ANIM_ATTACK_1HAND_DOWN, CrystalDelay))
+    return;
+  endif
+
+  if(!Crystal or !who)
+    return;
+  endif
+
+  Crystal.movable := 1;
+  MoveToPack(Crystal, who);
+  
+  var evData := struct;
+  evData.+source := who;
+  evData.+crystal := Crystal;
+
+  SendEventMessageForObject(who, MSGIDC_FLAG_CAPTURED, evData);
+
+  if(SrcTeamID == CTF_RED_TEAM)
+    SendExcep(who, "Zabral"+ggm(who,3)+" krysztal druzyny czerwonych!");
+  else
+    SendExcep(who, "Zabral"+ggm(who,3)+" krysztal druzyny niebieskich!");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

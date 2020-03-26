@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 40;
+
+//-----------------------------------------------------------------------------
+
+program PdHeavensStrike(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var MainSk := GetEffectiveSkill(Caster, SKILLID_PALADINISM);
+  var MindSk := GetEffectiveSkill(Caster, SKILLID_ZEAL);
+  var Dmg    := CalcWarCastDamage(Caster, PD_WCID);
+  var Range  := CInt(MainSk / 20 + MindSk / 40);
+  
+  DMG := (MainSk + MindSk) / 20 + DMG;
+  
+  PerformAction(Caster, ANIM_CAST_AREA);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(Mobile.isa(POLCLASS_NPC))
+      if(IsNpcElemental(Mobile, NPCELEM_UNDEAD))
+        PlaySoundEffect(Mobile, SFX_THUNDER_STORM);
+        PlayPcEffect(Mobile, FX_SPARK_EFFECT, 90, 0xf, 0x10, 3);
+        DealDamage(Mobile, Dmg, Caster);
+      endif
+    endif
+  endforeach
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,1378 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use boat;
+
+//-----------------------------------------------------------------------------
+
+include "include/cmds/propgump";
+include "include/cmds/misc";
+include "include/cmds/cmds";
+include "include/log";
+include "include/coords";
+include "include/std";
+include "include/tools";
+include "include/skills/skillwin";
+include "include/gumpboxes";
+
+include ":baseitems:common";
+include ":magicitems:magicitems";
+include ":housing:housing";
+
+//-----------------------------------------------------------------------------
+
+program TextCmdItemInfo(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var Loc, Item, Res;
+
+  if(Cint(text))
+    item := SystemFindObjectBySerial(Cint(text));
+
+    if(!Item)
+      SendSysMessage(who, "Nie znaleziono seriala "+CInt(text)+" ["+hex(text)+"].", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(text["near"])
+    StandSkLayout(20,10);
+    GPage();
+    GAddPageData(365,55,2650,2651,365,463,2648,2647);
+    var items     := {};
+    var Rng       := CInt(SplitWords(text)[2]);
+    var i         := 1;
+    
+    foreach itm in ListItemsNearLocation(who.x,who.y,who.z,Rng,who.realm)
+      GCheckNextPage(PAGE_COUNT);
+      GButton(  60, (75+(GNPCount()*20)),2117,2118,i);
+      GTextLine(80, (71+(GNPCount()*20)),550,itm.desc);
+      i := i + 1;
+      items.append(itm);
+    endforeach
+    
+    if(items.size())
+      res := GSend(who)[0];
+      if(!res)
+        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      item := items[res];
+    else
+      SendSysMessage(who,"Nie ma nic w poblizu.",FONT_NORMAL,COLOR_RED);
+    endif
+  elseif(text["got"])
+    SendSysMessage(who,"Wskaz osobe.",FONT_NORMAL,COLOR_GREEN);
+    var Targ := ObjTarget(who);
+    if(IsPlayer(Targ))
+      item := Targ.getgottenitem();
+
+      if(!item)
+        SendSysMessage(who,"Osoba nic nie trzyma.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    else
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!item)
+    SendSysMessage(who,"Wybierz przedmiot.",FONT_NORMAL,COLOR_GREEN);
+    loc := LocTarget(who);
+  endif
+
+  if(!res and !item)
+    item := loc.item;
+
+    if(!loc or !item)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  BuildMainItemInfoWindow(who,item);
+
+  var keeprun := 1;
+
+  while(keeprun)
+
+    if(!item or !who)
+      SendSysMessage(who,"Cel nie itnieje.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    res := GSend(who)[0];
+
+    case(res)
+      9999:        LockedItem(item,who);
+      9996:        ChangeItemValue(item,"Name",who);
+      9995:        ChangeItemValue(item,"Hp",who);
+      9994:        ChangeItemValue(item,"MaxHpMod",who);
+      9993:        ChangeItemValue(item,"ArMod",who);
+      9992:        ChangeItemValue(item,"DmgMod",who);
+      9991:        ChangeItemValue(item,"Color",who);
+      9990:        ChangeItemValue(item,"Graphic",who);
+      9989:        NewbieItem(item,who);
+      9988:        MovableItem(item,who);
+      9987:        InvisItem(item,who);
+      9986:        MoveToHimLocation(item,who);
+      9985:        MoveToWrittenLocation(item,who);
+      9984:        MoveToSelectedLocation(item,who);
+      9983:        ChangeItemValue(item,"Quality",who);
+      9982:        MoveItToPack(item,who);
+      9981:        MoveItToLoc(item,who);
+      9980:        DestroyItemOrMulti(who,item);
+      9979:        MoveCharToItemInContainer(who,item);
+      9978:        ChangeItemValue(item,"Facing",who);
+      9977:        if(Item.container.isa(POLCLASS_ITEM))
+                     Item := Item.container;
+                   endif
+      9975:        CmdRemoveCreatorContainer(who, Item);
+      9976:        CmdRemoveCreator(who, Item);
+      9974:        CmdSetQuestItem(who, Item);
+      9973:        CmdSetQuestItemContainer(who, Item);
+      9500:        BuildMagicItemInfoGump(who,item);
+                   continue;
+      9510:        BuildItemScriptInfoGump(who,item);
+                   continue;
+      9515:        BuildOtherInfoGump(item);
+                   continue;
+      9530:        BuildMadeGump(item);
+                   continue;
+      9531:        BuildHarvestGump(item);
+                   continue;
+      9511:        ChangeItemValue(item,"UseScript",who);
+      9501:        ChangeItemValue(item,"PrefixCh",who);
+      9502:        ChangeItemValue(item,"SuffixCh",who);
+      9503:        ChangeItemValue(item,"MagicLvl",who);
+      9507:        ChangeItemValue(item,"PreMod",who);
+      9508:        ChangeItemValue(item,"SufMod",who);
+      9504:        IdentifyMagicItem(who,item);
+      9970:        if(Item.objtype != UOBJ_SRUNE and Item.objtype != UOBJ_TELE)
+                     DuplicateItemToContainer(item,__IfElse(item.container, item.container, who.backpack),who);
+                     SendSysMessage(who,"Zduplikowal"+ggm(who,3)+" przedmiot "+item.desc+".",FONT_NORMAL,COLOR_GREEN);
+                   endif
+      9971:        if(item.multi)
+                     item := item.multi;
+                   endif
+      9972:        if(item.boat)
+                     item := item.boat;
+                   endif
+      9505:        if(IsAdmin(who))
+                     BuildCpropGump(who,item);
+                   endif
+      9506:        var nItem := ShowItemsInContainer(who,item,0);
+                   if(nItem)
+                     Item := nItem;
+                   endif
+
+      9509:        var nItem := ShowItemsInContainer(who,item,1);
+                   if(nItem)
+                     Item := nItem;
+                   endif
+
+      9000:        CheckHouseCreation(who, Item);
+    endcase
+
+    if(!res)
+      keeprun := 0;
+    endif
+
+    if(who and item)
+      BuildMainItemInfoWindow(who,item);
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainItemInfoWindow(who,item)
+
+  StandSkLayout(11,25);
+  GPage();
+  GTextLine(130,30, 510,"Info : "+item.desc);
+  GButton(  640,24, 1227,1227,9996);
+  GButton(  30, 34, 2117,2118,9998);
+  GTextLine(50, 30, 610,"Odswiez");
+
+  if(GetMade(Item))
+    GButton(  530, 34,2117,2118,9530);
+    GTextLine(550, 30,610,"Wykonanie");
+  endif
+
+  if(GetHarvested(Item))
+    GButton(  530, 34,2117,2118,9531);
+    GTextLine(550, 30,610,"Wydobycie");
+  endif
+
+  if(IsMagicItem(item))
+    GButton(  30, 314,2117,2118,9500);
+    GTextLine(50, 310,610,"Magiczne wlasciwosci");
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(!ItemCfg[item.objtype])
+    GTextLine(210,310,1204, "Brak wpisu w ItemDesc");
+  else
+    GTextLine(210,310,610,"Name: "+ItemCfg[item.objtype].Name);
+  endif
+
+  if(Item.isa(POLCLASS_CONTAINER) and CanModifyItem(who, Item))
+    GButton(  630,313,2117,2118,9509);
+    GTextLine(650,310,610,"A");
+    GButton(  663,313,2117,2118,9506);
+    GTextLine(680,310,610,"C");
+  endif
+
+  if(IsAdmin(who))
+    GButton(  580,314,2117,2118,9505);
+    GTextLine(600,310,610,"Flagi");
+
+    GButton(  490,314,2117,2118,9510);
+    GTextLine(510,310,610,"Skrypty");
+  endif
+
+  GButton(  420,314,2117,2118,9515);
+  GTextLine(440,310,610,"Inne");
+
+  GResPic(500,75,2620,150,190);
+  GTilePicHue(550,100,item.graphic,item.color);
+
+  if(ItemHpExists(Item))
+    GTextLine(50, 70, 550,"Hp");
+    GTextLine(70, 70, 560,GetItemHp(Item) + "/" + GetItemMaxHp(Item)+" ("+GetItemSwingsPerc(Item)+"%)");
+    GButton(  180,73,2117,2118,9995); // Hp
+
+    GTextLine(210,70, 550,"Mod");
+    GTextLine(240,70, 560,GetItemMaxHpMod(item));
+    GButton(  270,73, 2117,2118,9994); // Mod
+
+  elseif(ItemCfg[Item.objtype].HouseObjType)
+
+    GTextLine(50, 70, 550,"Sprawdz lokacje budowy domu");
+    GButton(  270,73,2117,2118,9000);
+
+    GTextLine(50, 90, 560,ItemCfg[Item.objtype].NumLockDowns+"/"+ItemCfg[Item.objtype].NumSecure);
+    GTextLine(120,90, 560,ItemCfg[Item.objtype].Terrain);
+
+  endif
+  
+  if(item.isa(POLCLASS_ARMOR))
+    GTextLine(50, 90, 550,"Ar");
+    GTextLine(90, 90, 560,item.ar + "/" + ItemCfg[item.objtype].AR);
+    
+    GTextLine(190,90, 550,"Mod");
+    GTextLine(230,90, 560,item.ar_mod);
+    GButton(  270,93, 2117,2118,9993);
+  elseif(item.isa(POLCLASS_WEAPON))
+    GTextLine(50, 90, 550,"Dmg");
+    GTextLine(90, 90, 560,ItemCfg[item.objtype].damage);
+
+    if(ItemCfg[item.objtype].TwoHanded)
+      GTextLine(160, 90, 1320,"2H");
+    else
+      GTextLine(160, 90, 1320,"1H");
+    endif
+
+    GTextLine(190,90, 550,"Mod");
+    GTextLine(230,90, 560,item.dmg_mod);
+    GButton(  270,93, 2117,2118,9992);
+
+    
+    GTextLine(190,110, 550,"Spd");
+
+    if(CInt(ItemCfg[item.objtype].HitDelay))
+      GTextLine(230,110, 560,CInt(ItemCfg[item.objtype].HitDelay));
+    else
+      GTextLine(230,110, 560,CInt(ItemCfg[item.objtype].Speed));
+    endif
+  endif
+
+  GTextLine(50,200,550,"Facing");
+  GTextLine(110,200,580,item.facing);
+  GButton(  140,203,2117,2118,9978);
+
+  if(IsItemMade(Item))
+    var MakeMod := GetItemMakeMod(Item);
+
+    GTextLine(190, 180,550,"CraftMod");
+    GTextLine(250,180,580,MakeMod);
+  endif
+
+  if(HasItemQuality(Item))
+    GTextLine(195, 200,550,"Jakosc");
+    GTextLine(240,200,580,GetItemQuality(item));
+    GButton(  270,203,2117,2118,9983);
+  endif
+
+  GTextLine(300,70, 550,"Newbie");
+  case(item.newbie)
+    1: GTextLine(380,70,1419,"Tak");
+    0: GTextLine(380,70,1204,"Nie");
+  endcase
+  GButton(  480,73, 2117,2118,9989);
+
+  case(item.movable)
+    1: GTextLine(300,90,1419,"Unieruchom");
+    0: GTextLine(300,90,1204,"Odblokuj");
+  endcase
+
+  if(item.isa(POLCLASS_LOCKABLE))
+    case(item.locked)
+      1: GTextLine(410,90,1204,"Zamkniete");
+      0: GTextLine(410,90,1419,"Otwarte");
+    endcase
+    GButton(  380,93, 2117,2118,9988);
+    GButton(  480,93, 2117,2118,9999);
+  else
+    GButton(  480,93, 2117,2118,9988);
+  endif
+
+  case(item.invisible)
+    1: GTextLine(300,110,1204,"Niewidzialny");
+    0: GTextLine(300,110,1419,"Widzialny");
+  endcase
+  GButton(  480,113, 2117,2118,9987);
+  
+  GTextLine(300,140,550,"Wrzuc do plecaka");
+  GButton(  480,143,2117,2118,9982);
+
+  GTextLine(300,160,550,"Przyciagnij");
+  GButton(  480,163,2117,2118,9981);
+
+  GTextLine(300,180,550,"Zniszcz");
+  GButton(  480,183,2117,2118,9980);
+
+  GTextLine(300,200,550,"Zduplikuj");
+  GButton(  480,203,2117,2118,9970);
+
+  if(CanUseCmd(who, "iteminfo multi"))
+    if(item.multi)
+      GTextLine(345,250,550,"Multi");
+      GButton(  380,253,2117,2118,9971);
+    endif
+  endif
+
+  GTextLine(410,230,550,"Ilosc");
+  
+  if(Item.isa(POLCLASS_CONTAINER))
+    GTextLine(450,230,560,CInt(item.item_count-1));
+  else
+    GTextLine(450,230,560,GetAmount(item));
+  endif
+
+  GTextLine(410,250,550,"Waga");
+  GTextLine(450,250,560,item.weight);
+
+  MakeInfoPageGump(Item, who, 0);
+  MakeInfoPageGump(Item, who, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeInfoPageGump(Item, who, IsHex)
+  
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+  var ItemClr  := item.color;
+  var ItemObj  := item.objtype;
+  var ItemGrap := item.graphic;
+  var ItemSer  := item.serial;
+  var ContSer  := item.container.serial;
+  var ContObj  := item.container.objtype;
+  var MultiID  := CInt(ItemCfg[Item.objtype].MultiID);
+  var Color    := 560;
+
+  GPage();
+
+  if(IsHex)
+    GButtonPage(50, 226, 2103, 2104, 1);
+    GTextLine(70, 220, 1000, "Int");
+
+    ItemClr  := hex(item.color);
+    ItemObj  := hex(item.objtype);
+    ItemGrap := hex(item.graphic);
+    ItemSer  := hex(item.serial);
+    ContSer  := hex(item.container.serial);
+    ContObj  := hex(item.container.objtype);
+    Color    := 999;
+    MultiID  := hex(ItemCfg[Item.objtype].MultiID);
+  else
+    GButtonPage(50, 226, 2103, 2104, 2);
+    GTextLine(70, 220, 1000, "Hex");
+  endif
+
+  GTextLine(50, 120,550,"Color");
+  GTextLine(110,120,Color, ItemClr);
+  GButton(  270,123,2117,2118,9991);
+  
+  GTextLine(50, 140,550,"ObjType");
+  GTextLine(110,140,Color, ItemObj);
+
+  GTextLine(50, 160,550,"Grafika");
+  GTextLine(110,160,Color, ItemGrap);
+  GButton(  270,163,2117,2118,9990);
+
+  GTextLine(50, 180,550,"Serial");
+  GTextLine(110,180,Color, ItemSer);
+
+  if(Item.isa(POLCLASS_MULTI))
+    GTextLine(50, 70, 550,"MultiID");
+    GTextLine(110, 70, Color,MultiID);
+  endif
+
+  if(IsGmCreated(Item))
+  
+    GTextLine(50, 250,999,"Stworzyl:");
+
+    var Creator := GetObjCreator(Item);
+    GTextLine(110,250,1321, GetRealName(Creator)+"/"+Creator.acctname);
+
+    if(CanUseCmd(who, "items q"))
+    
+      if(Item.isa(POLCLASS_CONTAINER))
+        GButton(235,254,2117,2118,9975);
+        GTextLine(250, 252,999,"A");
+      endif
+
+      GButton(260,254,2117,2118,9976);
+      GTextLine(276, 252,999,"Usun");
+      
+      if(Item.isa(POLCLASS_CONTAINER))
+        GButton(315,254,2117,2118,9973);
+        GTextLine(330, 252,999,"A");
+      endif
+
+      GButton(260,234,2117,2118,9974);
+      GTextLine(276, 232,999,"Quest");
+    endif
+
+  elseif(IsQuestItem(Item))
+
+    GTextLine(50, 250,999,"QM:");
+
+    var Creator := GetObjQuestMaster(Item);
+    GTextLine(110,250,1421, GetRealName(Creator)+"/"+Creator.acctname);
+
+    if(CanUseCmd(who, "items q"))
+    
+      if(Item.isa(POLCLASS_CONTAINER))
+        GButton(250,254,2117,2118,9975);
+        GTextLine(266, 252,999,"A");
+      endif
+
+      GButton(280,254,2117,2118,9976);
+      GTextLine(296, 252,999,"Usun");
+    endif
+
+  else
+  
+    GTextLine(50, 250,999,"Stworzyl:");
+    GTextLine(110,250,1221, "Brak");
+
+  endif
+
+  if(item.container)
+    GTextLine(50, 270,999,"Kontener:");
+    if(Item.container.isa(POLCLASS_ITEM))
+      GButton(110,274,2117,2118,9977);
+    endif
+
+    GTextLine(130,270,Color, ContSer+" O: "+ContObj);
+    GButton(  280,274,2117,2118,9979);
+    GTextLine(296,272,999,"Goto");
+    GButton(  340,274,2117,2118,9984);
+    GTextLine(356,272,999,"Move");
+  else
+
+    if(IsAdmin(who) or (coordist(who.x,who.y,item.x,item.y) < 30 and who.realm == item.realm))
+      GTextLine(50, 270,999,"Pozycja:");
+      GTextLine(110,270,560,item.x+" "+item.y+" "+item.z+" "+item.realm);
+    endif
+
+    GButton(  280,274,2117,2118,9986);
+    GTextLine(300,270,999,"Goto");
+
+    GButton(  340,274,2117,2118,9985);
+    GTextLine(360,270,999,"Move");
+    GButton(  400,274,2117,2118,9984);
+    GTextLine(420,270,999,"MoveTo");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMagicItemInfoGump(who,item)
+
+  var PrefixName := GetPrefixName(item,GetMagicItemPrefixMod(item));
+  if(!PrefixName)
+    PrefixName := "None";
+  endif
+  var SuffixName := GetSuffixName(GetMagicItemSuffixMod(item));
+  if(!SuffixName)
+    SuffixName := "None";
+  endif
+
+  StandSkLayout(10,15);
+
+  GTextLine(50, 70, 550,"Prefix Mod");
+  GTextLine(200,70, 560,PrefixName);
+
+  if(IsAdmin(who))
+    GButton(440,73,2117,2118,9507);
+  endif
+
+  GTextLine(50, 90, 550,"Suffix Mod");
+  GTextLine(200,90, 560,SuffixName);
+
+  if(IsAdmin(who))
+    GButton(440,93,2117,2118,9508);
+  endif
+
+  GTextLine(50, 110,550,"Magic Level");
+  GTextLine(200,110,560,GetMagicItemLevel(item));
+  if(IsAdmin(who))
+    GButton(440,113,2117,2118,9503);
+  endif
+
+  if(IsIdentified(item))
+    GTextLine(50, 130,550,"Prefix Charges");
+    GTextLine(200,130,560,GetMagicItemPrefixCharges(item));
+    if(IsAdmin(who))
+      GButton(440,133,2117,2118,9501);
+    endif
+
+    GTextLine(50, 150,550,"Suffix Charges");
+    GTextLine(200,150,560,GetMagicItemSuffixCharges(item));
+    if(IsAdmin(who))
+      GButton(440,153,2117,2118,9502);
+    endif
+  else
+    GTextLine(50,130,550,"Nie zidentyfikowany");
+    if(IsAdmin(who))
+      GButton(440,133,2117,2118,9504);
+    endif
+  endif
+
+  GButton(420,290,2453,2454,9997);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMadeGump(item)
+
+  var Made     := GetMade(Item);
+  var TypeName := "";
+
+  case(Made[3])
+    MTYPE_INGOT:   TypeName := "Sztaby";
+    MTYPE_LOG:     TypeName := "Drewno";
+    MTYPE_HIDE:    TypeName := "Skora";
+    MTYPE_MAGIC:   TypeName := "Magiczny";
+    MTYPE_REGS:    TypeName := "Skladniki";
+  endcase
+
+  StandSkLayout(10,15);
+
+  GTextLine(50, 70, 550,"Imie");
+  GTextLine(200,70, 560,Made[1]);
+
+  GTextLine(50, 90, 550,"Serial");
+  GTextLine(200,90, 560,Made[2]);
+
+  GTextLine(50, 110, 550,"Typ");
+  GTextLine(200,110, 560,TypeName);
+
+  GTextLine(50, 130, 550,"Mod");
+  GTextLine(200,130, 560,Made[4]);
+
+  GButton(420,290,2453,2454,9997);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildHarvestGump(item)
+
+  var Harvest  := GetHarvested(Item);
+
+  StandSkLayout(10,15);
+
+  GTextLine(50, 70, 550,"Imie");
+  GTextLine(150,70, 560,Harvest[1]);
+
+  GTextLine(50, 90, 550,"Serial");
+  GTextLine(150,90, 560,hex(Harvest[2]));
+
+  if(Harvest[3])
+    GTextLine(50, 110, 550,"Przetworzyl");
+    var Player := FindPlayerBySerial(Harvest[3]);
+
+    if(Player)
+      GTextLine(150,110, 560, GetRealName(Player)+" ("+hex(Player.serial)+")");
+    else
+      GTextLine(150,110, 999, "("+hex(Harvest[3])+")");
+    endif
+  endif
+
+  GButton(420,290,2453,2454,9997);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildItemScriptInfoGump(who,item)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  StandSkLayout(10,15);
+  
+  GTextLine(50, 70, 550,"Use ID Script");
+  GTextLine(200,70, 560,ClStr(ItemCfg[item.objtype].script));
+
+  GTextLine(50, 90, 550,"Use Script");
+  GTextLine(200,90, 560,ClStr(Item.usescript));
+
+  if(IsAdmin(who))
+    GButton(440,93,2117,2118,9511);
+  endif
+
+  GTextLine(50, 110,550,"Control Script");
+  GTextLine(200,110,560,ClStr(ItemCfg[item.objtype].controlscript));
+
+  GTextLine(50, 130,550,"Create Script");
+  GTextLine(200,130,560,ClStr(ItemCfg[item.objtype].createscript));
+
+  GTextLine(50, 150,550,"Destroy Script");
+  GTextLine(200,150,560,ClStr(ItemCfg[item.objtype].destroyscript));
+
+  GTextLine(50, 170,550,"Walk On Script");
+  GTextLine(200,170,560,ClStr(ItemCfg[item.objtype].WalkOnScript));
+  
+  GTextLine(50, 190,550,"Equip");
+  GTextLine(100,190,560,ClStr(ItemCfg[item.objtype].equipscript));
+
+  GTextLine(250,190,550,"Un Equip");
+  GTextLine(325,190,560,ClStr(ItemCfg[item.objtype].unequipscript));
+  
+  if(item.isa(POLCLASS_CONTAINER))
+    GTextLine(50, 220,550,"Can Ins");
+    GTextLine(120,220,560,ClStr(ItemCfg[item.objtype].CanInsertScript));
+
+    GTextLine(250,220,550,"On Ins");
+    GTextLine(320,220,560,ClStr(ItemCfg[item.objtype].OnInsertScript));
+
+    GTextLine(50, 240,550,"Can Rem");
+    GTextLine(120,240,560,ClStr(ItemCfg[item.objtype].CanRemoveScript));
+
+    GTextLine(250,240,550,"On Rem");
+    GTextLine(320,240,560,ClStr(ItemCfg[item.objtype].OnRemoveScript));
+  endif
+
+  GButton(405,290,2453,2454,9997);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildOtherInfoGump(item)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  StandSkLayout(10,15);
+
+  GTextLine(50, 70, 550,"Requires Attention");
+  if(ItemCfg[item.objtype].RequiresAttention)
+    GTextLine(200,70, 560,"Tak");
+  else
+    GTextLine(200,70, 560,"Nie");
+  endif
+
+  GTextLine(270,70, 550,"Decays On Multis");
+  if(ItemCfg[item.objtype].DecaysOnMultis)
+    GTextLine(390,70, 560,"Tak");
+  else
+    GTextLine(390,70, 560,"Nie");
+  endif
+
+  GTextLine(50, 90, 550,"Save On Exit");
+  if(ItemCfg[item.objtype].SaveOnExit != 0)
+    GTextLine(200,90, 560,"Tak");
+  else
+    GTextLine(200,90, 560,"Nie");
+  endif
+  
+  GTextLine(270,90, 550,"Str Required");
+  if(ItemCfg[item.objtype].strrequired)
+    GTextLine(390,90, 560,ItemCfg[item.objtype].strrequired);
+  else
+    GTextLine(390,90, 560,"None");
+  endif
+
+  GTextLine(50, 110,550,"Buy Price");
+  GTextLine(200,110,560,CInt(ItemCfg[item.objtype].VendorSellsFor));
+
+  GTextLine(270,110,550,"Sell Price");
+  GTextLine(390,110,560,CInt(ItemCfg[item.objtype].VendorBuysFor));
+
+  GTextLine(50, 130,550,"Attribute");
+  if(ItemCfg[item.objtype].Attribute)
+    GTextLine(160,130,560,ItemCfg[item.objtype].Attribute);
+  else
+    GTextLine(160,130,560,"None");
+  endif
+
+  GTextLine(270,130,550,"Repairable");
+  if(ItemCfg[item.objtype].repairable)
+    GTextLine(390,130,560,"Tak");
+  else
+    GTextLine(390,130,560,"Nie");
+  endif
+
+  if(Item.isa(POLCLASS_CONTAINER))
+    GTextLine(50, 150,550,"MaxWeight");
+    GTextLine(200,150,560,ItemCfg[item.objtype].MaxWeight);
+
+    GTextLine(270,150,550,"MaxItems");
+    GTextLine(390,150,560,ItemCfg[item.objtype].MaxItems);
+  endif
+
+  GTextLine(50, 190,550,"Coverage");
+  if(ItemCfg[item.objtype].Coverage)
+    var Cov := "";
+    foreach C in GetConfigStringArray(ItemCfg[item.objtype],"Coverage")
+      if(!Cov)
+        Cov := C;
+      else
+        Cov := Cov+"/"+C;
+      endif
+    endforeach
+    GTextLine(120,190,560,Cov);
+  else
+    GTextLine(120,190,560,"None");
+  endif
+
+  GTextLine(280,190,550,"BlockCircle");
+  if(ItemCfg[item.objtype].blockcircle)
+    GTextLine(420,190,560,ItemCfg[item.objtype].blockcircle);
+  else
+    GTextLine(390,190,560,"None");
+  endif
+
+  if(item.isa(POLCLASS_CONTAINER))
+    GTextLine(50, 220,550,"Gump");
+    if(ItemCfg[item.objtype].Gump)
+      GTextLine(200,220,560,ItemCfg[item.objtype].Gump);
+    else
+      GTextLine(200,220,570,"None");
+    endif
+
+    GTextLine(50, 240,550,"Min X");
+    GTextLine(93, 240,560,CInt(ItemCfg[item.objtype].MinX));
+
+    GTextLine(160,240,550,"Max X");
+    GTextLine(203,240,560,CInt(ItemCfg[item.objtype].MaxX));
+
+    GTextLine(270,240,550,"Min Y");
+    GTextLine(313,240,560,CInt(ItemCfg[item.objtype].MinY));
+
+    GTextLine(380,240,550,"Max Y");
+    GTextLine(423,240,560,CInt(ItemCfg[item.objtype].MaxY));
+  endif
+
+  GButton(405,290,2453,2454,9997);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeItemValue(item, Type, bywho)
+
+  if(!CanModifyItem(bywho, Item))
+    SendSysMessage(bywho, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue and NewValue != "")
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var OldValue := "";
+  var SetValue := 0;
+
+  case(Type)
+    "Name":      OldValue              := GetName(Item);
+                 Setname(item,Cstr(NewValue));
+                 SetValue              := GetName(Item);
+
+    "Hp":        OldValue              := item.hp;
+                 SetItemHp(item,Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetItemHp(item);
+
+    "MaxHpMod":  OldValue              := GetItemMaxHpMod(item);
+                 SetItemMaxHpMod(item, Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetItemMaxHpMod(item);
+
+    "ArMod":     OldValue              := item.ar_mod;
+                 item.ar_mod           := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.ar_mod;
+
+    "DmgMod":    OldValue              := item.dmg_mod;
+                 item.dmg_mod          := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.dmg_mod;
+
+    "Color":     OldValue              := item.color;
+                 item.color            := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.color;
+
+    "Graphic":   OldValue              := item.graphic;
+
+                 if(item.container.isa(POLCLASS_MOBILE))
+                   SendSysMessage(bywho, "Nie mozna zmienic grafiki przedmiotu poki jest on zalozony!", FONT_NORMAL, COLOR_RED);
+                   return;
+                 endif
+
+                 item.graphic          := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.graphic;
+
+    "Quality":   OldValue              := GetItemQuality(item);
+                 SetItemQuality(item, CDbl(NewValue));
+                 NewValue              := CDbl(NewValue);
+                 SetValue              := GetItemQuality(item);
+
+    "Facing":    OldValue              := item.facing;
+                 item.facing           := CInt(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.facing;
+
+    "PrefixCh":  OldValue              := GetMagicItemPrefixCharges(item);
+                 SetMagicItemPrefixCharges(item,Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemPrefixCharges(item);
+
+    "SuffixCh":  OldValue              := GetMagicItemSuffixCharges(item);
+                 SetMagicItemSuffixCharges(item,Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemSuffixCharges(item);
+
+    "MagicLvl":  OldValue              := GetMagicItemLevel(item);
+                 var MagicMods := GetMagicMods(item);
+                 MagicMods[3] := Cint(NewValue);
+                 SetMagicMods(item,MagicMods);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemLevel(item);
+
+    "PreMod":    OldValue              := GetMagicItemPrefixMod(item);
+                 var MagicMods := GetMagicMods(item);
+                 MagicMods[1] := Cint(NewValue);
+                 SetMagicMods(item,MagicMods);
+                 ResetMagicItemName(Item);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemPrefixMod(item);
+
+    "SufMod":    OldValue              := GetMagicItemSuffixMod(item);
+                 var MagicMods := GetMagicMods(item);
+                 MagicMods[2] := Cint(NewValue);
+                 SetMagicMods(item,MagicMods);
+                 ResetMagicItemName(Item);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemSuffixMod(item);
+
+    "UseScript": OldValue              := item.usescript;
+                 item.usescript        := CStr(NewValue);
+                 SetValue              := Item.usescript;
+  endcase
+
+  if(SetValue == NewValue)
+    LogMsg(INFO_LOG,bywho,{Item, Type, OldValue, NewValue});
+    SendSysMessage(bywho,Type+": "+GetName(Item)+" ["+OldValue+" > "+NewValue+"]",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(bywho,"Blad: "+Type+": "+GetName(Item)+" ["+OldValue+" > "+NewValue+"]",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MovableItem(item, who)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(IsLockedDown(Item))
+  
+    var House := GetHouse(Item);
+    EraseItemLockDown(Item, House);
+    SendSysMessage(who, "Odblokowal"+ggm(who,3)+" przedmiot w domu.", FONT_NORMAL, COLOR_GREEN);
+
+  elseif(IsSecured(Item))
+
+    if(Item.objtype == UOBJ_SECURED_CONT)
+      SendSysMessage(who, "Nie mozesz odblokowac zabezpieczonego pojemnika!", FONT_NORMAL, COLOR_RED);
+    else
+      var House := GetHouse(Item);
+      EraseSecured(Item, House);
+      SendSysMessage(who, "Odblokowal"+ggm(who,3)+" zabezpieczony przedmiot w domu.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+  elseif(Item.objtype == UOBJ_TRASHBARREL and Item.multi)
+
+    if(HaveBarrel(Item.multi) == Item)
+      SendSysMessage(who, "Nie mozesz odblokowal"+ggm(who,3)+" smietnika domu.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    case(item.movable)
+      1:  item.movable := 0;
+          SendSysMessage(who,"Unieruchomil"+ggm(who,3)+" przedmiot.",FONT_NORMAL,COLOR_GREEN);
+      0:  item.movable := 1;
+          SendSysMessage(who,"Odblokowal"+ggm(who,3)+" przedmiot.",FONT_NORMAL,COLOR_GREEN);
+    endcase
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LockedItem(item,who)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  case(item.locked)
+    1:  item.locked := 0;
+        SendSysMessage(who,"Otworzyl"+ggm(who,3)+" pojemnik.",FONT_NORMAL,COLOR_GREEN);
+    0:  item.locked := 1;
+        SendSysMessage(who,"Zamknal"+ggm(who,3)+" pojemnik.",FONT_NORMAL,COLOR_GREEN);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function NewbieItem(item,who)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  LogMsg(INFO_LOG,who,{Item, "Newbie", item.newbie, !item.newbie});
+
+  case(item.newbie)
+    1:  item.newbie := 0;
+    0:  item.newbie := 1;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InvisItem(item, bywho)
+
+  if(!CanModifyItem(bywho, Item))
+    SendSysMessage(bywho, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  case(item.invisible)
+    1:  item.invisible := 0;
+    0:  item.invisible := 1;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItToPack(item,who)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  item.movable := 1;
+  MoveItemToContainer(item,who.backpack);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItToLoc(item,who)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(item.isa(POLCLASS_BOAT))
+    MoveBoatXY(Item, who.x, who.y);
+  else
+    MoveObject(item, who.x, who.y, who.z, who.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE, MOVETYPE_CMD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowItemsInContainer(who, Cont, All)
+ 
+  if(!CanModifyItem(who, Cont))
+    SendSysMessage(who, "Nie mozesz przegladac zawartosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var Items;
+  if(All)
+    Items := EnumerateItemsInContainer(Cont);
+  else
+    Items := ListRootItemsInContainer(Cont);
+  endif
+
+  StandMultiSkLayout(20,20);
+  GTextLine(130, 30, 610,"Ilosc: "+Items.size());
+  GButton(  60, 494,2117,2118,200000);
+  GTextLine(80, 490,610,"Przenies wszystko");
+  GButton(  525,490,2453,2454,9997);
+  GAddPageData(565,55,2650,2651,565,463,2648,2647);
+  GMultiPage();
+
+  var i := 1;
+
+  foreach itm in Items
+    GCheckNextPage(PAGE_COUNT);
+    GButton(  60, (74+(GNPCount()*20)),2117,2118, i);
+    if(itm.isa(POLCLASS_CONTAINER))
+      GTextCrop(80, (69+(GNPCount()*20)),210, 20, 570,itm.desc);
+    else
+      GTextCrop(80, (69+(GNPCount()*20)),210, 20, 550,itm.desc);
+    endif
+    GTextLine(300,  (69+(GNPCount()*20)),999,hex(itm.serial));
+    GTextLine(420,  (69+(GNPCount()*20)),670,itm.objtype);
+    GTextLine(480,  (69+(GNPCount()*20)),670,hex(itm.objtype));
+    i := i + 1;
+  endforeach
+
+  var iRes := GSend(who);
+
+  if(CInt(iRes[0]))
+    if(CInt(iRes[0]) == 200000)
+      MoveAllItemsFromContToCont(who,Cont);
+      return 0;
+    else
+      return Items[iRes[0]];
+    endif
+  endif
+    
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveAllItemsFromContToCont(who,item)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who,"Wybierz kontener.",FONT_NORMAL,COLOR_GREEN);
+  var Loc  := LocTarget(who);
+  var Cont := Loc.item;
+  var Rlm  := who.realm;
+
+  if(!Loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Cont)
+    if(!Cont.isa(POLCLASS_CONTAINER) and !Cont.isa(POLCLASS_SPELLBOOK))
+      SendSysMessage(who,"To nie pojemnik.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  else
+    SendSysMessage(who,"Przenies wszystko na ziemie?", FONT_NORMAL, COLOR_RED);
+    if(!YesNo(who, "Tak?"))
+      return;
+    endif
+  endif
+
+  var resmove,n := 0;
+  foreach itm in ListRootItemsInContainer(item)
+    var oldMovable := itm.movable;
+    if(!oldMovable)
+      itm.movable := 1;
+    endif
+
+    if(Cont)
+      resmove := MoveItemToContainer(itm,Cont);
+    else
+      resmove := MoveObject(itm, Loc.x, Loc.y, Loc.z, Rlm, MOVEITEM_FORCELOCATION, MOVETYPE_CMD);
+    endif
+
+    if(!oldMovable)
+      itm.movable := oldMovable;
+    endif
+
+    if(!resmove)
+      SendSysMessage(who,"Nie udalo sie przeniesc przedmiotu "+itm.desc+" do "+Cont.desc+" - "+resmove+"!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    n := n + 1;
+  endforeach
+  SendSysMessage(who,"Przeniesiono "+n+" przedmiotow z "+item.desc+" do "+cont.desc+".",FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveChItemFromContToCont(who,FCont,item)
+
+  if(!CanModifyItem(who, Item) or !CanModifyItem(who, FCont))
+    SendSysMessage(who, "Nie mozesz modyfikowac wlasciwosci tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who,"Wybierz kontener.",FONT_NORMAL,COLOR_GREEN);
+  var Cont := LocTarget(who);
+  Cont := Cont.item;
+  if(!Cont.isa(POLCLASS_ITEM))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  var resmove,moved;
+  foreach itm in EnumerateItemsInContainer(FCont)
+    if(CInt(itm.serial) == CInt(item))
+      resmove := MoveItemToContainer(itm,Cont);
+      if(!resmove)
+        SendSysMessage(who,"Nie udalo sie przeniesc przedmiotu "+itm.desc+" do "+Cont.desc+" - "+resmove+"!",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      moved := itm;
+      break;
+    endif
+  endforeach
+  if(!moved)
+    SendSysMessage(who,"Nie znaleziono przedmiotu "+item+"!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  SendSysMessage(who,"Przeniesiono przedmiot "+moved.desc+" z "+FCont.desc+" do "+cont.desc+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyItemOrMulti(who,item)
+
+  if(!CanModifyItem(who, Item))
+    SendSysMessage(who, "Nie mozesz niszczyc tego rodzaju przedmiotow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(item.isa(POLCLASS_BOAT))
+    if(IsAdmin(who))
+      if(item.has_offline_mobiles)
+        SendSysMessage( who, "Lodz ma Offline Moby na pokladzie.",FONT_NORMAL,COLOR_GREEN);
+        SendSysMessage( who, "Gdzie je przeniesc?",FONT_NORMAL,COLOR_GREEN);
+        var newloc := LocTarget( who );
+        if(newloc)
+          item.move_offline_mobiles( newloc.x, newloc.y, newloc.z );
+        endif
+      endif
+      var Res := DestroyMulti(item);
+      if(!Res)
+        SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+      else
+        SendSysMessage(who, "Zniszczyl"+ggm(who,3)+" lodz.", FONT_NORMAL, COLOR_RED);
+      endif
+    endif
+  elseif(item.isa(POLCLASS_MULTI))
+    if(IsAdmin(who))
+      var Res := DestroyMulti(item);
+      if(!Res)
+        SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+      else
+        SendSysMessage(who, "Zniszczyl"+ggm(who,3)+" multi.", FONT_NORMAL, COLOR_RED);
+      endif
+    endif
+  elseif(item.isa(POLCLASS_ITEM))
+    var Res := CanDestroyItem(item);
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      LogMsg(DESTROY_LOG, who, item);
+      OnDestroyItem(Item);
+      var Res := DestroyItem(Item);
+      if(Res)
+        SendSysMessage(who, "Zniszczyl"+ggm(who,3)+" przedmiot.", FONT_NORMAL, COLOR_GREEN);
+      else
+        SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+      endif
+    endif
+  else
+    if(IsAdmin(who))
+      DestroyMulti(item);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckHouseCreation(who, Deed)
+
+  SendSysMessage(who, "Wskaz lokacje budowy domu.", FONT_NORMAL, COLOR_GREEN);
+  var Loc := LocTarget(who);
+
+  if(Loc)
+    var Res := CanBuildHouseAt(Deed.objtype, Loc, who.realm);
+    if(Res)
+      SendSysMessage(who, "Dom moze zostac zbudowany w tym miejscu.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveCreator(who, Item)
+
+  if(!CanUseCmd(who, "items q"))
+    return;
+  endif
+
+  if(!IsGmCreated(Item) and !IsQuestItem(Item))
+    SendSysMessage(who, "Przedmiot nie jest zaznaczony jako tworzony przez GMa.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Chcesz usunac stworzyciela? Przedmiot bedzie wtedy dostepny dla graczy, ale tez zostanie zalogowany.", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  SendSysMessage(who, "Przedmiot zostal zalogowany.", FONT_NORMAL, COLOR_ORANGE);
+  LogMsg(QSITEMS_LOG,who,item);
+  RemoveObjCreator(Item);
+  IncRevision(Item);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdSetQuestItem(who, Item)
+
+  if(!CanUseCmd(who, "items q"))
+    return;
+  endif
+
+  if(!IsGmCreated(Item))
+    SendSysMessage(who, "Przedmiot nie jest zaznaczony jako tworzony przez GMa.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(IsQuestItem(Item))
+    SendSysMessage(who, "Przedmiot jest juz zaznaczony jako questowy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Chcesz ustawic przedmiot jako questowy? Przedmiot bedzie wtedy dostepny dla graczy oraz GMow, ale tez zostanie zalogowany.", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  SendSysMessage(who, "Przedmiot zostal zalogowany.", FONT_NORMAL, COLOR_ORANGE);
+  LogMsg(QSITEMS_LOG,who,item);
+  RemoveObjCreator(Item);
+  SetPropQuestItem(who, Item);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdSetQuestItemContainer(who, Cont)
+
+  if(!CanUseCmd(who, "items q"))
+    return;
+  endif
+
+  SendSysMessage(who, "Chcesz ustawic WSZYSTKIE przedmioty wewnatrz tego pojemnika jako questowe?", FONT_NORMAL, COLOR_GREEN);
+  SendSysMessage(who, "Przedmioty beda wtedy dostepne dla graczy oraz GMow, ale wszystkie zostana zalogowane.", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var iCount := 0;
+
+  foreach Item in ListRootItemsInContainer(Cont)
+
+    if(!IsQuestItem(Item))
+      LogMsg(QSITEMS_LOG,who,item);
+      RemoveObjCreator(Item);
+      SetPropQuestItem(who,Item);
+      iCount += 1;
+    endif
+
+  endforeach
+
+  SendSysMessage(who, iCount + " przedmiotow zostalo zalogowanych.", FONT_NORMAL, COLOR_ORANGE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveCreatorContainer(who, Cont)
+
+  if(!CanUseCmd(who, "items q"))
+    return;
+  endif
+
+  SendSysMessage(who, "Chcesz usunac stworzyciela WSZYSTKIM przedmiotom wewnatrz tego pojemnika?", FONT_NORMAL, COLOR_GREEN);
+  SendSysMessage(who, "Przedmioty beda wtedy dostepne dla graczy, ale wszystkie zostana zalogowane.", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var iCount := 0;
+
+  foreach Item in ListRootItemsInContainer(Cont)
+
+    if(IsGmCreated(Item) or IsQuestItem(Item))
+      LogMsg(QSITEMS_LOG,who,item);
+      RemoveObjCreator(Item);
+      iCount += 1;
+    endif
+
+  endforeach
+
+  SendSysMessage(who, iCount + " przedmiotow zostalo zalogowanych.", FONT_NORMAL, COLOR_ORANGE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

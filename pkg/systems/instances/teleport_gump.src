@@ -1,0 +1,72 @@
+use uo;
+use os;
+
+include "include/gumps";
+include "include/finding";
+include "include/mobile/tamed";
+
+program selectDestination(parms)
+
+	var who := parms[1];
+	var instanceName := parms[2];
+	
+	GInit(0, 0);
+    GPage(1);
+    GResPic(285, 98, 3600, 462, 266);
+    GTextLine(455, 121, 66, "Zakonczenie instancji");
+    GTextLine(462, 143, 64, instanceName);
+    GTilePic(300, 185, 2856); 
+    GTilePic(685, 185, 2855); 
+    GTilePic(381, 181, 8168); 
+    GTilePic(502, 181, 8151); 
+    GTilePic(618, 181, 8170); 
+    GButton(396, 275, 253, 254, 1);
+    GButton(516, 275, 253, 254, 2);
+    GButton(632, 275, 253, 254, 3);
+    GTextLine(365, 302, 55, "Nowa Brytania");
+    GTextLine(484, 302, 44, "Castle Rock");
+    GTextLine(610, 302, 33, "Dark Rock");
+    
+	var res := GSend(who)[0];
+	
+	var mobs := ListMobilesNearLocation(who.x, who.y, who.z, 10, who.realm);
+	
+	if(!res)
+		SendSysMessage(who, "A zatem nie przeniesimy Cie nigdzie.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	if(res == 1)
+		SendSysMessage(who, "Wybrano Nowa Brytania.");
+		foreach mob in mobs
+			if(GetMaster(mob) == who)
+				MoveObjectToLocation(mob, 3358, 1970, 0, "britannia_alt");
+			endif
+		endforeach
+			MoveObjectToLocation(who, 3358, 1970, 0, "britannia_alt");
+		return;
+	endif
+	
+	if(res == 2)
+		SendSysMessage(who, "Wybrano Castle Rock.");
+		foreach mob in mobs
+			if(GetMaster(mob) == who)
+				MoveObjectToLocation(mob, 1725, 855, 0, "britannia_alt");
+			endif
+		endforeach
+		MoveObjectToLocation(who, 1725, 855, 0, "britannia_alt");
+		return;
+	endif
+	
+	if(res == 3)
+		SendSysMessage(who, "Wybrano Dark Rock.");
+		foreach mob in mobs
+			if(GetMaster(mob) == who)
+				MoveObjectToLocation(mob, 352, 1789, 30, "britannia_alt");
+			endif
+		endforeach
+		MoveObjectToLocation(who, 352, 1789, 30, "britannia_alt");
+		return;
+	endif
+	
+endprogram

@@ -1,0 +1,141 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/npcspeech";
+include "ai/include/npch";
+include "include/buildings";
+include "ai/combat/defaultcombatevent";
+include "ai/combat/fight";
+include "include/buildings";
+include "ai/setup/animalsetup";
+include "ai/include/cdist";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 2;
+
+//-----------------------------------------------------------------------------
+
+var NextWander := ReadGameClock() + WANDER_TIME;
+var City       := FindCity(me);
+var CityAl     := GetCityAlignment(City);
+var PushTimer  := ReadGameClock();
+var txt;
+
+drop_anchor();
+
+//-----------------------------------------------------------------------------
+
+program TownPerson_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableMainEvents();
+  SetWarMode(0);
+
+  while(me)
+
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+    StdCityNpcEventLoop();
+    
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_ENGAGED:            if(ev.source)
+                               if(CityAl == CITYAL_GOOD)
+                                 SetCriminal(ev.source, 1, "StdHandleEvent", "Atak na prawego Npca "+me.name+" ["+me.serial+"].");
+                               endif
+
+                               Fight(ev.source);
+                             endif
+
+                             ev := 0;
+                             return 1;
+
+    EVID_DAMAGED:            if(ev.source)
+                               Fight(ev.source);
+                             else
+                               Say( "Coz to za sila!" );
+                             endif
+
+                             ev := 0;
+                             return 1;
+  endcase
+
+  return StdCityNpcHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function look_around()
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanFightWith(npc)
+
+  return npc.isa(POLCLASS_MOBILE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnableMainEvents()
+
+  EnableEvents( EVID_SPEECH, SPEECH_RANGE);
+  EnableEvents( EVID_ITEM_GIVEN );
+  EnableEvents( EVID_ENGAGED + EVID_DAMAGED + EVID_ENTEREDAREA + EVID_LEFTAREA, HALT_THRESHOLD );
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisableMainEvents()
+
+  DisableEvents(EVID_SPEECH + EVID_ENGAGED + EVID_DAMAGED);
+  DisableEvents(EVID_ITEM_GIVEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  text := lower(text);
+
+  if(text["ucz"])
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      TrainSkill(me, who);
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

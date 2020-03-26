@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/effects";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program WalkOnSpiderWeb(who,SpiderWeb)
+
+  var SlowDuration := 2;
+
+  if((IsPlayer(who) or IsTamed(who)) and !who.cmdlevel)
+      TemporarySlowdown(who, SlowDuration);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+

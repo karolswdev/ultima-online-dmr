@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/clock";
+include "include/const/cfgs";
+
+//-----------------------------------------------------------------------------
+
+var SaverCfg := ReadConfigFile(SAVER_CFG);
+var MinsSave := GetConfigInt(SaverCfg["Conf"], "MinsSave");
+var SecDelay := GetConfigInt(SaverCfg["Conf"], "SecDelay");
+var AutoSd   := GetConfigInt(SaverCfg["Conf"], "AutoSdMins");
+
+//-----------------------------------------------------------------------------
+
+program CheckLastSave(who)
+
+  var Saved := 0;
+
+  if(CInt(GetGlobalProperty( "#:saver:globalsave" )))
+    var LastSave := ReadGameClock() - CInt(GetGlobalProperty( "#:saver:globalsave" ));
+    var SaveTime := PolCore().systime - LastSave;
+    var NextTime := PolCore().systime + ((MinsSave*60) - LastSave) + SecDelay;
+
+    SendSysMessage(who, "Auto Ostatni: "+RealTime(LastSave)+" temu o "+CUnixTime(SaveTime,RLT_MONTH), FONT_NORMAL, COLOR_STONE);
+    SendSysMessage(who, "Auto Nastepny za "+RealTime((MinsSave*60+SecDelay) - LastSave)+" o "+CUnixTime(NextTime,RLT_MONTH), FONT_NORMAL, COLOR_STONE);
+    if(AutoSd)
+      var ASdTime := PolCore().systime + (AutoSd * 60 - PolCore().uptime);
+      SendSysMessage(who, "Auto ShutDown za "+RealTime(AutoSd * 60 - PolCore().uptime)+" o "+CUnixTime(ASdTime,RLT_MONTH), FONT_NORMAL, COLOR_STONE);
+    endif
+    Saved := 1;
+  endif
+
+  if(CInt(GetGlobalProperty( "#:saver:cmdsave" )))
+    var LastSave := ReadGameClock() - CInt(GetGlobalProperty( "#:saver:cmdsave" ));
+    var LastGlobSave := ReadGameClock() - CInt(GetGlobalProperty( "#:saver:globalsave" ));
+    var SaveTime := PolCore().systime - LastSave;
+    var NextTime := PolCore().systime + ((MinsSave*60) - LastGlobSave) + SecDelay;
+
+    SendSysMessage(who, "Cmd Ostatni: "+RealTime(LastSave)+" temu o "+CUnixTime(SaveTime,RLT_SDAY), FONT_NORMAL, COLOR_STONE);
+    SendSysMessage(who, "Auto Nastepny za "+RealTime((MinsSave*60+SecDelay) - LastSave)+" o "+CUnixTime(NextTime,RLT_MONTH), FONT_NORMAL, COLOR_STONE);
+
+    Saved := 1;
+  endif
+
+  if(!Saved)
+    SendSysMessage(who, "Stan swiata nie byl jeszcze zapisywany.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  SendSysMessage(who, "Czas pomiedzy: "+MinsSave+" min, "+SecDelay+" opoznienia.", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

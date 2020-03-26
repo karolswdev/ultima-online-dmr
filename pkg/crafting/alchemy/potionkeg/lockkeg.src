@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/player/misc";
+include "potionkeg";
+
+//-----------------------------------------------------------------------------
+
+program LockKeg(Parms)
+
+  var who := Parms[1];
+  var Keg := Parms[2];
+  var Vax := Parms[3];
+
+  if(!IsPlayer(who) or Keg.objtype != UOBJ_POTIONKEG or !Vax)
+    return;
+  endif
+
+  if(GetPotionsInKeg(Keg) <= 0)
+    SendSysMessage(who, "Ten keg jest pusty!", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Keg.locked)
+    SendSysMessage(who, "Ten keg jest juz zalakowany!", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(GetPotionQuality(Keg))
+    SendSysMessage(who, "Zalakowac mozna tylko keg ze swiezymi miksturami.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Vax.amount < KEG_LOCK_VAX_AMT)
+    SendSysMessage(who, "Potrzebujesz "+KEG_LOCK_VAX_AMT+" wosku, by zalakowac keg.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!SubtractAmount(Vax, KEG_LOCK_VAX_AMT))
+    SendSysMessage(who, "Potrzebujesz "+KEG_LOCK_VAX_AMT+" wosku, by zalakowac keg.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  LockPotionKeg(Keg, who);
+  SendSysMessage(who, "Zalakowal"+ggm(who,3)+" keg, teraz musisz odczekac jakis czas.", FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/tempmods";
+include "include/mobile/misc";
+
+include "../../guild";
+
+//-----------------------------------------------------------------------------
+
+program Resign(who)
+ 
+  var Guild := FindGuild(GetGuildId(who));
+  
+  if(!Guild)
+    SendSysMessage(who,"Nie przynalezysz do zadnej Gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsEngaged(who, 600))
+    SendSysMessage(who, "Nie mozesz zrezygnowac w tej chwili z gildii.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "Musisz ochlonac po walce.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  SendSysMessage(who,"Czy napewno chcesz opuscic Gildie "+GetGuildName(Guild)+"?",FONT_NORMAL,COLOR_BLUE);
+  if(!YesNo(who,"Opuscic?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  ResignGuild(who,Guild);
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

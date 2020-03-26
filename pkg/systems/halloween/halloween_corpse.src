@@ -1,0 +1,39 @@
+use uo;
+use os;
+use util;
+
+include "include/client/fonts";
+include "include/client/misc";
+include "include/gumpboxes";
+
+program textcmd_useCorpse(who, corpse)
+
+	if(GetObjProperty(corpse, "CorpseName") == error)
+	
+		SendSysMessage(who, "Wpisz nazwe swojego trupa:", FONT_NORMAL, COLOR_BLUE);
+		var input := RequestInput(who, who.backpack, "");
+		
+		if(input)
+			SendSysMessage(who, "Nowe imie to: " + input);
+			if(!YesNo(who, "Na pewno nadac imie " + input + "?"))
+				return;
+			endif
+			
+			SetName(corpse, input);
+			SetObjProperty(corpse, "SpecialTag", input + " lezy i kwiczy");
+			SetObjProperty(corpse, "CorpseName", input);
+			
+		else
+		
+			SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+			return;
+			
+		endif
+		
+	else
+		PrintTextAbove(corpse, "*kwiczy*", FONT_NORMAL, COLOR_RED);
+
+	endif
+	
+endprogram
+		

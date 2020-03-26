@@ -1,0 +1,198 @@
+//-----------------------------------------------------------------------------
+
+
+include "include/skills/std";
+include "include/skills/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/tempmods";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/tools";
+
+include ":crafting:creation";
+include ":crafting:receptures";
+include ":crafting:exceptional";
+include ":bulks:common";
+
+//-----------------------------------------------------------------------------
+
+program Masonry(who, tool)
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT))
+    SendSysMessage(who ,"Musisz zejsc z wierzchowca by cos stworzyc.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who, tool))
+    return;
+  endif
+
+  if(!KnowStoneCrafting(who))
+    SendBad(who, "Nie wiesz jak tego uzyc. Nie znasz sie na kamieniarstwie.");
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_CARPENTRY);
+  var CraftData := CarpentryGump(who);
+
+  if(!CraftData)
+    return;
+  endif
+
+  start_script(":carpentry:craft_item", array(who, tool, CraftData));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CarpentryGump(who)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_CARPENTRY);
+   
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":carpentry:carpentry", SKILLID_CARPENTRY);
+    SkillGlob.expPropName := "exchk";
+
+    BuildMainStoneGump(LastCraft.iters);
+    
+    case(butRes)
+      20:  BuildStatuesGump();
+      21:  BuildStoneDeedsGump();
+      22:  BuildStoneOthersGump();
+    endcase
+
+    BuildMainStoneEndGump();
+    
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie robil"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        break;
+        
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_CARPENTRY, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainStoneGump(ProdIters)
+
+  BuildGreyMainGump();
+  GNoClose();
+  GNoDispose();
+  
+  GButton( 400, 22, 2708, 2709, 99 );
+  GTextLine(430, 22,  600, "Anuluj");
+
+  GTextLine( 200, 22, 650, "Menu Kamieniarstwa");
+
+  GTextLine(180, 395, 600, "Powtorz:");
+  BQGAddTextBox(250, 397, 60, 20, 1320, ProdIters, BQG_EDITABLE, 1, 1);
+
+  GButton( 335, 395, 2708, 2709, 1 );
+  GTextLine(360, 395,  600, "To co ostatnio");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainStoneEndGump()
+
+  var Buttons   := struct;
+  Buttons.+Up   := dictionary;
+  Buttons.+Down := dictionary;
+
+  Buttons.Up[20]   := "Statuy";
+  Buttons.Up[21]   := "Deedy";
+  Buttons.Up[22]   := "Inne";
+
+  BuildSkillMenu(Buttons, 2);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStatuesGump()
+
+      AddGumpElem( 4645, 90,  135, 80,  170, 130, 170 , 0, 4645, 999 , 2704, 2705);
+      AddGumpElem( 4647, 240, 135, 230, 170, 280, 170 , 0, 4647, 999 , 2704, 2705);
+      AddGumpElem( 4644, 90,  225, 80,  260, 130, 260 , 0, 4644, 999 , 2704, 2705);
+      AddGumpElem( 5019, 240, 225, 230, 260, 280, 260 , 0, 5019, 999 , 2704, 2705);
+      AddGumpElem( 4810, 380, 135, 360, 170, 410, 170 , 0, 4810, 999 , 2704, 2705);
+      AddGumpElem( 4648, 380, 225, 360, 260, 410, 260 , 0, 4648, 999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStoneDeedsGump()
+
+      AddGumpElem( 45061,40,  120, 0,   0,   20,  120,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45062,40,  140, 0,   0,   20,  140,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45068,40,  160, 0,   0,   20,  160,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45070,40,  180, 0,   0,   20,  180,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45072,40,  200, 0,   0,   20,  200,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45076,40,  220, 0,   0,   20,  220,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45078,40,  240, 0,   0,   20,  240,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45077,40,  260, 0,   0,   20,  260,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45079,40,  280, 0,   0,   20,  280,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45085,280, 120, 0,   0,   260, 120,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45086,280, 140, 0,   0,   260, 140,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45087,280, 160, 0,   0,   260, 160,  0, 0,    999 , 2704, 2705);
+      AddGumpElem( 45088,280, 180, 0,   0,   260, 180,  0, 0,    999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStoneOthersGump()
+
+      AddGumpElem( 4633, 60,   135, 80,  170,  130, 170 , 0, 4633, 999 , 2704, 2705);
+      AddGumpElem( 1114, 220,  135, 220,  170, 270, 170 , 0, 1114, 999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function KnowStoneCrafting(who)
+
+  return Cint(GetObjProperty(who,"stonecrafting"));
+
+endfunction
+
+//-----------------------------------------------------------------------------

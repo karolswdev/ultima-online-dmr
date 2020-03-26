@@ -1,0 +1,14 @@
+use uo;
+use os;
+
+include "include/gumps";
+
+program textcmd_setCharData(who)
+
+    var prop := array{"mage", "human"};
+
+    var rtg := Target(who);
+
+    SetObjProperty(rtg, "CharData", prop);
+
+endprogram

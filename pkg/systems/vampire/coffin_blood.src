@@ -1,0 +1,29 @@
+//-----------------------------------------------------------------------------
+// Coffin Blood Control
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "coffin";
+
+//-----------------------------------------------------------------------------
+
+program CoffinBloodControl(Blood)
+
+  var Time  := CInt(GetObjProperty(Blood, "LastUseTime"));
+  var Delay := (Time + COFFIN_CLOSE_TIME) - ReadGameClock();
+
+  if(Delay > 0)
+    sleep(Delay);
+  endif
+
+  var Parts := GetCoffinParts(Blood);
+  ChangeCoffin(Parts, 1);
+  EraseObjProperty(Blood, "#NoDestroy");
+
+endprogram
+
+//-----------------------------------------------------------------------------

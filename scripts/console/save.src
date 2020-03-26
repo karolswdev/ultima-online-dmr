@@ -1,0 +1,17 @@
+
+use uo;
+use os;
+
+program cmd_shutdown()
+
+   print("Saving World State");
+   Broadcast("Zapisywanie Stanu Swiata...");
+   sleepms(500);
+   if(SaveWorldState())
+      print("Done saving");
+      Broadcast("Koniec Zapisywania.");
+   else
+   	  print("Save error");
+   endif
+
+endprogram

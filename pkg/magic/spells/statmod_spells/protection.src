@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 15;
+
+//-----------------------------------------------------------------------------
+
+program CastProtection( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  PlaySoundEffect(Caster, SFX_SPELL_PROTECTION);
+  PlayObjectCenteredEffect(Caster, FX_BLESS_EFFECT, 7,7);
+  
+  if (!CanMod(Caster,MOD_AR))
+    Fizzle(caster,"Jestes juz pod wplywem czaru!");
+    return;
+  endif
+  
+  var CasterMagery  := GetEffectiveSkill(caster, GetMageSkId(Caster));
+  var CasterMed     := GetEffectiveSkill(caster, SKILLID_MEDITATION);
+  var CasterEvalInt := GetEffectiveSkill(caster, GetMindSkId(Caster));
+  var CasterMusic   := GetEffectiveSkill(caster, SKILLID_MUSICIANSHIP);
+  var ModAmount     := CInt(RandomInt(3) + 2 + CasterMagery/30 + CasterEvalInt/30 + BonusInt(Caster)*2 );
+
+  if(CasterMusic > CasterMed)
+    ModAmount += CInt(CasterMusic/25);
+  else
+    ModAmount += CInt(CasterMed/25);
+  endif
+
+  var Duration      := CalcModDuration( Caster, SpellGlob.Circle );
+
+  DoMod(Caster, MOD_AR, ModAmount, Duration);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/logerror";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+program CheckResLogon(Parms)
+
+  if(!FillGlobChk(Parms))
+    return 0;
+  endif
+
+  var ArLogon := CInt(GetGlobalProperty(PROP_ARLOGON));
+
+  if(ArLogon == -1)
+
+    SetServerStatus(SERV_ST_DOWN);
+    print("GlobalCheck: Reslogon On.");
+    AlertGMs("Ograniczony login wlaczony.",FONT_NORMAL,COLOR_BLUE);
+    SetGlobalProperty(PROP_RESLOGON, 1);
+
+  elseif(ArLogon)
+
+    SetGlobalProperty(PROP_RESLOGON, 1);
+    print("GlobalCheck: Reslogon On ["+ArLogon+" min]");
+    AlertGMs("Ograniczony login wlaczony ["+ArLogon+" min].",FONT_NORMAL,COLOR_BLUE);
+    SetServerStatus(SERV_ST_RES);
+    Sleep(ArLogon*60);
+
+    if(GetGlobalProperty(PROP_RESLOGON))
+      EraseGlobalProperty(PROP_RESLOGON);
+      print("GlobalCheck: Reslogon Off.");
+      AlertGMs("Wylaczanie ograniczonego loginu.",FONT_NORMAL,COLOR_BLUE);
+      SetServerStatus(SERV_ST_UP);
+    endif
+  else
+    print("GlobalCheck: Reslogon Off.");
+    AlertGMs("Ograniczony login wylaczony.",FONT_NORMAL,COLOR_BLUE);
+    EraseGlobalProperty(PROP_RESLOGON);
+    SetServerStatus(SERV_ST_UP);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

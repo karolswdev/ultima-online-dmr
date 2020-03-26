@@ -1,0 +1,74 @@
+//--------------------------------------------------------------------------------
+
+include "board";
+include "include/items";
+
+//--------------------------------------------------------------------------------
+
+program ChessBoard_OnCreate(board)
+
+  SetObjProperty(board,"#Creating",GetPid());
+  
+  var Piece;
+  
+  for i := 1 to 8
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := BROWN_PAWN;
+    Piece.name    := PAWN_NAME;
+    
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := LIGHT_PAWN;
+    Piece.name    := PAWN_NAME;
+  endfor
+
+  for i := 1 to 2
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := BROWN_BISHOP;
+    Piece.name    := BISHOP_NAME;
+
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := LIGHT_BISHOP;
+    Piece.name    := BISHOP_NAME;
+
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := BROWN_KNIGHT;
+    Piece.name    := KNIGHT_NAME;
+
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := LIGHT_KNIGHT;
+    Piece.name    := KNIGHT_NAME;
+
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := BROWN_ROOK;
+    Piece.name    := ROOK_NAME;
+
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := LIGHT_ROOK;
+    Piece.name    := ROOK_NAME;
+  endfor
+
+  Piece           := CreateItemInCont(Board,UOBJ_PIECE,1);
+  Piece.graphic   := LIGHT_QUEEN;
+  Piece.name      := QUEEN_NAME;
+
+  Piece           := CreateItemInCont(Board,UOBJ_PIECE,1);
+  Piece.graphic   := LIGHT_KING;
+  Piece.name      := KING_NAME;
+
+  Piece           := CreateItemInCont(Board,UOBJ_PIECE,1);
+  Piece.graphic   := BROWN_QUEEN;
+  Piece.name      := QUEEN_NAME;
+
+  Piece           := CreateItemInCont(Board,UOBJ_PIECE,1);
+  Piece.graphic   := BROWN_KING;
+  Piece.name      := KING_NAME;
+
+  foreach Piece in EnumerateItemsInContainer(board)
+    SetObjProperty(Piece,"BoardSer",board.serial);
+  endforeach
+
+  EraseObjProperty(board,"#Creating");
+
+endprogram
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,136 @@
+//--------------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/start";
+include "include/items";
+include "include/coords";
+include "include/std";
+
+include ":wmtools:common";
+include ":baseitems:common";
+
+//--------------------------------------------------------------------------------
+
+include ":waypoints:include/waypoints";
+
+//--------------------------------------------------------------------------------
+
+program InitWayGates(Parms)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!FillGlobChk(Parms))
+    return 0;
+  endif
+
+  var WayCfg := ReadConfigFile(CFG_WAYPOINTS);
+  var Names  := GetConfigStringKeys(WayCfg);
+  var WayGate, WayStone;
+  var Loc, StoneLoc;
+
+  foreach Name in Names
+    
+    WayGate := 0;
+    Loc := GetLocFromString(WayCfg[Name].Coords);
+
+    if(WayCfg[Name].StoneCoords)
+      StoneLoc := GetLocFromString(WayCfg[Name].StoneCoords);
+    else
+      StoneLoc := Loc;
+      StoneLoc.y -= 3;
+    endif
+
+    foreach Item in ListItemsNearLocation(Loc.x, Loc.y, Loc.z, 0, Loc.realm)
+      if(Item.objtype == UOBJ_WAYGATE)
+        WayGate := Item;
+      elseif(!IsWms(Item) and !GetItemBINr(Item))
+        DestroyItem(Item);
+      endif
+    endforeach
+
+    if(!WayGate)
+      WayGate := CreateItemAtLoc(Loc.x, Loc.y, Loc.z, UOBJ_WAYGATE, 1, Loc.realm);
+      SetObjProperty(WayGate, PROP_WAYPOINT_NAME, Name);
+    elseif(WayGate.z != Loc.z)
+      MoveObject(WayStone, Loc.x, Loc.y, Loc.z, Loc.realm, MOVEOBJECT_FORCELOCATION);
+    endif
+
+    // Stone check
+    WayStone := 0;
+
+    foreach Item in ListItemsNearLocation(StoneLoc.x, StoneLoc.y, StoneLoc.z, 0, StoneLoc.realm)
+      if(Item.objtype == UOBJ_WAYSTONE)
+        WayStone := Item;
+      elseif(!IsWms(Item) and !GetItemBINr(Item))
+        DestroyItem(Item);
+      endif
+    endforeach
+
+    if(!WayStone)
+      WayStone := CreateItemAtLoc(StoneLoc.x, StoneLoc.y, StoneLoc.z, UOBJ_WAYSTONE, 1, StoneLoc.realm);
+      SetObjProperty(WayStone, PROP_WAYPOINT_NAME, Name);
+    elseif(WayStone.z != StoneLoc.z)
+      MoveObject(WayStone, StoneLoc.x, StoneLoc.y, StoneLoc.z, StoneLoc.realm, MOVEOBJECT_FORCELOCATION);
+    endif
+
+    var Desc := ToAscii(ToUnicode(WayCfg[Name].Desc));
+    SetName(WayGate, Desc);
+    SetName(WayStone, Desc);
+    
+    foreach Item in ListItemsNearLocation(StoneLoc.x, StoneLoc.y, StoneLoc.z, 15, StoneLoc.realm)
+      if(Item != WayStone and Item != WayGate)
+        if(Item.objtype == UOBJ_WAYSTONE or Item.objtype == UOBJ_WAYGATE)
+          DestroyItem(Item);
+        endif
+      endif
+    endforeach
+
+    if(WayCfg[Name].StoneCoords)
+    
+      Loc := GetLocFromString(WayCfg[Name].Coords);
+      Loc.y -= 3;
+
+      var StoneCoords := GetLocFromString(WayCfg[Name].StoneCoords);
+
+      if(StoneCoords.x != Loc.x or StoneCoords.y != Loc.y)
+        
+        foreach Item in ListItemsNearLocation(Loc.x, Loc.y, Loc.z, 0, Loc.realm)
+          if(Item.objtype == UOBJ_WAYSTONE)
+            DestroyItem(Item);
+          endif
+        endforeach
+
+      endif
+
+    endif
+
+    if(WayCfg[Name].OldCoords)
+
+      Loc := GetLocFromString(WayCfg[Name].OldCoords);
+    
+      foreach Item in ListItemsNearLocation(Loc.x, Loc.y, Loc.z, 0, Loc.realm)
+        if(Item.objtype == UOBJ_WAYGATE)
+          DestroyItem(Item);
+        endif
+      endforeach
+
+      if(WayCfg[Name].OldStoneCoords)
+        StoneLoc := GetLocFromString(WayCfg[Name].OldStoneCoords);
+      else
+        StoneLoc := Loc;
+        StoneLoc.y -= 3;
+      endif
+
+      foreach Item in ListItemsNearLocation(StoneLoc.x, StoneLoc.y, StoneLoc.z, 0, StoneLoc.realm)
+        if(Item.objtype == UOBJ_WAYSTONE)
+          DestroyItem(Item);
+        endif
+      endforeach
+
+    endif
+
+  endforeach
+
+endprogram
+
+//--------------------------------------------------------------------------------

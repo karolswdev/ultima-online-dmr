@@ -1,0 +1,68 @@
+use uo;
+use os;
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/client/fonts";
+include "include/unicode";
+
+program handleInscription(parms)
+
+	var who := parms[1];
+	var item := parms[2];
+	
+	PrintTextAbove(who, "Gratulacje!", FONT_NORMAL, COLOR_BLUE);
+
+	var text := SendGump(who);
+	
+	if(text == "ERROR")
+		start_script(":glyphs:specials/inscribe", {who, item});
+		return;
+	endif
+	
+	PrintTextAbove(item, "Nowa nazwa to: " + text);
+	
+	SetName(item, text);
+	SetObjProperty(item, "ToolTip", "Podpisano: <b>" + who.name + "</b>"); 
+	SendSysMessage(who, "Niesamowite. Przedmiot zmienil nazwe!", FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+
+function SendGump(who)
+
+    GInit(0, 0);
+	GMode(GMODE_NORMAL, GSMODE_PACKET);
+    GResPic(78, 98, 5170, 298, 149);
+    GGumpPic(135, 164, 1056, 0); 
+    GTextLine(117, 136, 0, "Wprowadz nazwe swojego przedmiotu");
+    GButton(193, 192, 247, 248, 66);
+    GTextEntry(142, 167, 100, 25, 1152, 5, "Nazwa");
+    
+	var res := GSend(who);
+	
+	var buttonId := res.butid;
+	var newName := res.text[5];
+	
+	SendSysMessage(who, "newName: " + newName);
+	SendSysMessage(who, "newName after conversion: " + CChrZ(newName));
+	SendSysMessage(who, "buttonId: " + buttonId);
+	
+	if(buttonId != 66)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+		return "ERROR";
+	endif
+	
+	if(newName.length() > 18)
+		SendSysMessage(who, "Nazwa moze miec maksimum 18 znakow.", FONT_NORMAL, COLOR_RED);
+		return "ERROR";
+	endif
+	
+	return newName;
+	
+endfunction
+	
+	
+	
+	
+	

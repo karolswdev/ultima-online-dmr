@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+
+include "magicwands";
+include "include/checks/objchecks";
+include "include/client/fonts";
+include "include/tools";
+
+//-----------------------------------------------------------------------------
+
+program MagicWands( who, wand )
+
+  if(!StandardItemCheck(who,wand, NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if (!IsToolEquipped(who, wand) )
+     return;
+  endif
+
+  WandCast(who,wand);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include "wearwolf";
+include ":character:name_check";
+
+//-----------------------------------------------------------------------------
+
+program ChooseWearwolfName(who)
+
+  if(!IsWearwolf(who) or GetBaseSkill(who, SKILLID_WEARWOLF) < 80 or GetObjProperty(who, "WolfName"))
+    return;
+  endif
+ 
+  SendSysMessage(who, "Zaraza likantropia pochlonela cie calkowicie! Masz mozliwosc jednorazowego wybrania swojego wilczego imienia.", FONT_NORMAL, COLOR_GREEN);
+
+  var NewName := SendTextEntryGump(who, "Wpisz swe wilcze imie.");
+
+  if(NewName)
+    var NameRes := IsBad(who, NewName, BNF_CHECK_BOTH | BNF_CHECK_SECNAME | BNF_CHECK_WOLFNAME);
+
+    while(!NameRes and IsLoggedIn(who))
+  
+      SendSysMessage(who,"Imie jakie wybral"+ggm(who,3)+" jest bledne: "+NameRes.errortext,FONT_NORMAL,COLOR_RED);
+      NewName := SendTextEntryGump(who,"Wpisz nowe imie");
+    
+      if(!NewName)
+        return;
+      endif
+
+      NameRes := IsBad(who, NewName, BNF_CHECK_BOTH | BNF_CHECK_SECNAME);
+    endwhile
+
+    if(IsLoggedIn(who))
+      SetObjProperty(who, "WolfName", NewName);
+      SendSysMessage(who, "Od tej chwili bedziesz znany jako "+NewName+" w mroku nocy!", FONT_NORMAL, COLOR_BLUE);
+      UndoMod(who, MOD_INCO, UMDF_WAIT);
+      DoMod(who, MOD_INCO,         GetWearwolfName(who),                          CInt(WW_DURATION * 60));
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

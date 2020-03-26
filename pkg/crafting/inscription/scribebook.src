@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program ScribeBook(who,book)
+
+  if(!StandardItemCheck(who,book))
+    return;
+  endif
+  
+  if(GetObjProperty(who,"CanScribe"))
+    SendSysMessage(who,"Juz znasz tajniki skryby.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  if(GetBaseSkill(who,SKILLID_INSCRIPTION) >= 100)
+    if(DestroyItem(book))
+      SendSysMessage(who,"Poznal"+ggm(who,3)+" tajniki skryby.",FONT_NORMAL,COLOR_GREEN);
+      SetObjProperty(who,"CanScribe",1);
+    else
+      SendSysMessage(who,"Ta ksiazka wydaje sie byc nie czytelna.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    Sendsysmessage(who, "Nie jestes w stanie zrozumiec o czym jest ta ksiazka.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

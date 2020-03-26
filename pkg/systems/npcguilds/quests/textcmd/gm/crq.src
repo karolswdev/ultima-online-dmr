@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-24
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/bits";
+include "include/move";
+include "include/player/misc";
+
+include ":npcguilds:common";
+include ":mq_npcs:common";
+include ":mq_npcs:quests";
+
+include ":quests:crquest";
+include ":quests:bq_gump";
+
+include ":npcguilds:shared";
+
+//-----------------------------------------------------------------------------
+
+program CreateQuestCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  if(text[1] == "?")
+    SendSysMessage(who, ".crq group quest_id [noto (evil/good/neutral) / src / trg]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var QuestGroup := 0;
+
+  if(!IsValidQuestGroup(text[1]))
+    QuestGroup := SelectQuestGroup(who);
+  else
+    QuestGroup := text[1];
+  endif
+
+  if(!QuestGroup)
+    SendSysMessage(who, "Nie wybrano grupy questow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var QId := CInt(text[2]);
+
+  if(!QId)
+    QId := SelectQuest(QuestGroup, who);
+  endif
+
+  if(!QId)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var i;
+  var CrFlags := 0;
+  var Source  := who;
+  var Targ    := who;
+
+  for(i:=2;i<=text.size();i:=i+1)
+    if(text[i] == "noto" and text[i+1] and text[i+1] in {CITYAL_EVIL, CITYAL_GOOD, CITYAL_NEUTRAL})
+      case(text[i+1])
+        CITYAL_EVIL:     SetBitOn(CrFlags, QGLOCF_MURDER);
+        CITYAL_GOOD:     SetBitOn(CrFlags, QGLOCF_GOOD);
+        CITYAL_NEUTRAL:  SetBitOn(CrFlags, QGLOCF_NEUTRAL);
+      endcase
+      i := i + 1;
+    elseif(text[i] == "src")
+      SendSysMessage(who, "Wskaz zrodlo.", FONT_NORMAL, COLOR_GREEN);
+      Source := ObjTarget(who);
+    elseif(text[i] == "trg")
+      SendSysMessage(who, "Wskaz cel.", FONT_NORMAL, COLOR_GREEN);
+      Targ := ObjTarget(who);
+    endif
+  endfor
+
+  var NewQuest := CreateQuest(QuestGroup, QId, Source, Targ, CrFlags);
+
+  if(!NewQuest)
+    SendSysMessage(who, "Blad: "+NewQuest.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  else
+    MoveToPack(NewQuest, who);
+    SendSysMessage(who, "Stworzyl"+ggm(who,3)+" Quest ID: "+QId, FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

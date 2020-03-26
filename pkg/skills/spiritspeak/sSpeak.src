@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program SpiritSpeak(who)
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  var Points   := GetDefaultPointsValue(SKILLID_SPIRITSPEAK);
+  var Duration := GetEffectiveSkill(who,SKILLID_SPIRITSPEAK);
+
+  
+  var Anims       := {0x10,0x11,0x10,0x11};
+  var i;
+  var x           := who.x;
+  var y           := who.y;
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_SPIRITSPEAK));
+  for(i:=1;i<=4;i:=i+1)
+    PerformAction(who,Anims[i]);
+    sleep(1);
+    if(x != who.x or y != who.y)
+      SendSysMessage(who,"Oddalil"+ggm(who,3)+" sie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endfor
+  
+  if(who.dead)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(CheckMoreSkill(who, SKILLID_SPIRITSPEAK, -1, Points))
+    SendSysMessage(who, "Porozumial"+ggm(who,3)+" sie z drugim swiatem.",FONT_NORMAL,COLOR_GREEN);
+    Detach();
+    DoMod(who,MOD_HGHOSTS,1,Duration);
+  else
+    SendSysMessage(who, "Nie udalo Ci sie porozumiec z drugim swiatem.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

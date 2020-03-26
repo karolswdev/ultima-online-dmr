@@ -1,0 +1,14 @@
+use uo;
+use os;
+
+
+include "include/items";
+include "mailextensions";
+
+program Post_Logon(who)
+
+	if(ParsePost(who).size() > 0)
+		start_script(":poczta:notify", who);
+	endif
+	
+endprogram

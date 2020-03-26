@@ -1,0 +1,276 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include ":banking:common";
+include "include/findcity";
+include "include/tempmods";
+include "include/checks/objchecks";
+include "include/items/containers";
+include "include/clock";
+
+include ":housing:housing";
+
+//-----------------------------------------------------------------------------
+
+const HOUSEDOOR_LOCK_DIFF := 100;
+const HOUSE_PUBLIC_TIMEDURATION :=21600;
+//-----------------------------------------------------------------------------
+
+program HouseDeed( who, deed )
+
+  if(!StandardItemCheck(who,deed))
+    return;
+  endif
+
+  var List := GetHouseOwnerList(who);
+
+  if(List.size() >= MAX_HOUSES_ON_PLAYER and !who.cmdlevel)
+    SendSysMessage(who, "Zbudowal"+ggm(who,3)+" juz "+List.size()+" dom"+Gam(List.size(),GAM_OW)+".", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  BuildHouse( who, deed );
+    
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildHouse( who, deed )
+
+  if(GetTopCont(deed) != who.backpack)
+    SendSysmessage( who, "Deed musi byc w twoim plecaku!",FONT_NORMAL,COLOR_RED );
+    return;
+  endif
+
+  var HouseType := GetHouseObjtype( deed );
+  var DeedCreated := GetObjProperty(deed, PROP_CREATED);
+
+  if(!DeedCreated)
+    // chcemy, by GM mogl tworzyc domy dla graczy, jesli deed jest graczowy.
+    ClearScriptObjCreator();
+  endif
+  
+  if (HouseType == error)
+    SendSysMessage( who, "Ten deed wydaje sie zepsuty.",FONT_NORMAL,COLOR_RED );
+    LogError( "BuildHouse: Deed " + deed.serial + "/"+deed.objtype+" nie posiada HouseType!" , LOGF_SCRIPTS);
+    return;
+  endif
+
+  var where := TargetMultiPlacement( who, housetype );
+  
+  if(!where or where.container or (where.x < 200 and where.y < 200))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsAdmin(who))
+    var Res := CanBuildHouseAt(deed.objtype, where, who.realm);
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+    
+  set_critical(1);
+
+  var created := CreatehouseKeysAndBuiltDeed( who, housetype, where, deed );
+
+  
+  set_critical(0);
+
+  if(!created)
+    return;
+  endif
+  
+  if(IsStaff(who))
+    SetObjProperty(created.house, "GMSerial", who.serial);
+    SetObjProperty(created.house, "GMAccName", who.acctname);
+    SetObjProperty(created.house, "GMName", GetRealName(who));
+  endif
+  
+  SetPublic(created.house,who);
+  DestroyItem( deed );
+
+  var lockid := AllocLockId();
+  SetItemLockID( created.packkey,lockid );
+  SetItemLockID( created.bankkey,lockid );
+
+  AddOnItems(where,housetype,created,lockid);
+
+  foreach item in (created.house.components)
+    if( Item.isa(POLCLASS_DOOR) or item.objtype == UOBJ_TENT_CHEST )
+      SetItemLockID(item, lockid);
+    elseif(GetHouseSignObjType(item.objtype))
+      Item := ReCreateHouseSign(Item);
+      
+      SetHouseItem(Item, created.house);
+      SetItemLockID(Item, lockid);
+    endif
+  endforeach
+
+  foreach item in (created.house.items)
+    if( Item.isa(POLCLASS_DOOR) or item.objtype == UOBJ_TENT_CHEST )
+      SetItemLockID(item, lockid);
+    elseif(GetHouseSignObjType(item.objtype))
+      Item := ReCreateHouseSign(Item);
+      SetHouseItem(Item, created.house);
+        
+      SetItemLockID(item, lockid);
+    endif
+  endforeach
+  
+  SetObjProperty(created.house,"SecNum",0);
+  SetObjProperty(created.house,"LockNum",0);
+  
+  // jesli to byl deed GMa, ustawiamy flage.
+  if(DeedCreated)
+    SetPropCreated(who,created.house);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddOnItems(where,housetype,created,lockid)
+
+  var AddOnItem,ix,iy,HouseComponents := array;
+  var ItemCfg := ReadConfigFile( ":housing:itemdesc" );
+
+  foreach AddOn in GetConfigStringArray(ItemCfg[housetype],"AddOnItem")
+    AddOn := SplitWords(AddOn);
+    if(AddOn[7])
+      for(ix := Cint(AddOn[1]);ix <= Cint(AddOn[8]); ix := ix + 1)
+        for(iy := Cint(AddOn[2]);iy <= Cint(AddOn[9]); iy := iy + 1)
+          AddOnItem := CreateItemAtLoc(where.x+ix,where.y+iy,where.z+CInt(AddOn[3]),Cint(AddOn[4]),1,created.house.realm);
+          CheckAddOnLock(AddOnItem,AddOn,lockid);
+          HouseComponents.append(AddOnItem.serial);
+          AddOnItem.movable := 0;
+        endfor
+      endfor
+    else
+      AddOnItem := CreateItemAtLoc(where.x+Cint(AddOn[1]),where.y+Cint(AddOn[2]),where.z+CInt(AddOn[3]),Cint(AddOn[4]),1,created.house.realm);
+      CheckAddOnLock(AddOnItem,AddOn,lockid);
+      AddOnItem.movable := 0;
+    endif
+    HouseComponents.append(AddOnItem.serial);
+    SetHouseItem(AddOnItem,created.house);
+  endforeach
+
+  var x,y,z;
+  
+  foreach Item in (created.house.components)
+    foreach Rep in GetConfigStringArray(ItemCfg[housetype],"RepItem")
+      Rep := SplitWords(Rep);
+      if(Item.objtype == CInt(Rep[1]))
+        x := Item.x;
+        y := Item.y;
+        z := Item.z;
+        DestroyItem(Item);
+        Item := CreateItemAtLoc(x,y,z,CInt(Rep[2]),1,created.house.realm);
+        Item.movable := 0;
+        SetHouseItem(Item,created.house);
+        created.house.add_component(Item);
+      endif
+    endforeach
+  endforeach
+
+  SetObjProperty(created.house,"Components",HouseComponents);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckAddOnLock(byref AddOnItem,AddOn,lockid)
+
+  if(Cint(AddOn[5]))
+    SetItemLockID(AddOnItem,lockid);
+  endif
+  if(Cint(AddOn[6]))
+    AddOnItem.locked := 1;
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateHouseKeysAndBuiltDeed( who, housetype, where, deed )
+
+    var bankbox  := FindBankBox( who );
+    var x := where.x, y := where.y, z := where.z;
+
+    if(!x or !y)
+      return 0;
+    endif
+
+    var packkey := CreateItemInPack( who, UOBJ_GOLD_KEY );
+    if (!packkey)
+      SendSysMessage( who, "Twoj plecak jest pelen!",FONT_NORMAL,COLOR_RED );
+      return 0;
+    endif
+
+    var bankkey := CreateItemInCont( bankbox, UOBJ_GOLD_KEY );
+    if (!bankkey)
+      SendSysMessage( who, "Twoja skrzynka bankowa jest pelna!",FONT_NORMAL,COLOR_RED );
+      DestroyItem( packkey );
+      return 0;
+    endif
+
+    if(who.cmdlevel)
+      MoveItemToContainer( bankkey, who.backpack);
+    endif
+
+    var flags := 0;
+    
+    if(IsAdmin(who))
+      flags := CRMULTI_IGNORE_ALL;
+//    elseif(IsStaff(who))
+//      flags := CRMULTI_IGNORE_WORLDZ;
+    endif
+
+    
+    var house := CreateMultiAtLocation(x,y,z,housetype,flags,who.realm);
+    
+    if(!house)
+      SendSysMessage( who, "Nie mozesz tu postawic domu.",FONT_NORMAL,COLOR_RED);
+      DestroyItem( packkey );
+      DestroyItem( bankkey );
+      return;
+    endif
+    
+    VerifyItemCreation(house);
+
+    SetHouseOwner(house, who);
+
+    if(housetype==0x6BB8 or housetype==0x6070 or housetype==0x6072)
+      house.movable := 0;
+      house.visible := 1;
+    endif
+
+    var KeyName := GetName(Deed);
+    var ItemCfg := ReadConfigFile( ":housing:itemdesc" );
+
+    if(!ItemCfg[Deed.objtype].NormalName)
+      LogError("CreateHouseKeysAndBuiltDeed: Brak normalnej nazwy domu! DeedObj ["+Deed.objtype+"]", LOGF_SCRIPTS);
+      KeyName["deed na "] := "";
+    else
+      KeyName := ItemCfg[Deed.objtype].NormalName;
+    endif
+    
+    SetName(PackKey, KeyName);
+    SetName(BankKey, KeyName);
+
+    var result := array;
+    
+    result .+ packkey   := packkey;
+    result .+ bankkey   := bankkey;
+    result .+ house     := house;
+    
+    return result;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,129 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/log";
+include "include/gumpboxes";
+include "include/clock";
+include "include/std";
+include "include/cmds/uof";
+include "include/cmds/loggumps";
+
+//-----------------------------------------------------------------------------
+
+var LogTypes  := GetLogNames();
+var LogPkg    := LOG_PKG;
+var Elems     := array;
+
+//-----------------------------------------------------------------------------
+
+program CheckLogs(who, atext)
+
+  SetLogRunCycles(LST_CMD);
+
+  var text := SplitWords(atext);
+
+  case(text[1])
+    "era":    if(!(text[2] in LogTypes))
+                SendSysMessage(who, "Nie rozpoznany log ["+text[2]+"]", FONT_NORMAL, COLOR_RED);
+              else
+                SendSysMessage(who, "Skasowac log ["+text[2]+"] ?", FONT_NORMAL, COLOR_GREEN);
+                if(YesNo(who,"Na pewno?"))
+                  WriteFile(LOG_PKG+text[2],{});
+                  SendSysMessage(who,"Skasowano log ["+text[2]+"].",FONT_NORMAL,COLOR_GREEN);
+                endif
+              endif
+              return;
+
+    "err":    if(text[2] == "sort")
+                atext["err sort "] := "";
+                atext["err sort"] := "";
+                ShowSortedLogs(who, ERROR_LOG, atext);
+              else
+                atext["err "] := "";
+                atext["err"] := "";
+                ShowLogs(who, ERROR_LOG, atext);
+              endif
+              return;
+
+    "not":    if(text[2] == "sort")
+                atext["not sort "] := "";
+                atext["not sort"] := "";
+                ShowSortedLogs(who, NOTICE_LOG, atext);
+              else
+                atext["not "] := "";
+                atext["not"] := "";
+                ShowLogs(who, NOTICE_LOG, atext);
+              endif
+              return;
+
+    "errera": if(YesNo(who, "Na pewno?"))
+                SendSysMessage(who, "Skasowano log ["+ERROR_LOG+"]", FONT_NORMAL, COLOR_GREEN);
+                WriteFile(ERROR_LOG, {});
+              else
+                SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+              endif
+              return;
+
+    "notera": if(YesNo(who, "Na pewno?"))
+                SendSysMessage(who, "Skasowano log ["+NOTICE_LOG+"]", FONT_NORMAL, COLOR_GREEN);
+                WriteFile(NOTICE_LOG, {});
+              else
+                SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+              endif
+              return;
+  endcase
+
+  if(text[1])
+    var Idx := RetIndex(LogTypes, text[1]);
+    if(!Idx)
+      SendSysMessage(who, "Bledny typ.", FONT_NORMAL, COLOR_RED);
+    else
+      var i;
+      var Filter := dictionary;
+      for(i:=2;i<text.size(); i+=2)
+        if(text[i] == "contserial" or text[i] == "serial" or text[i] == "nr" or text[i] == "objtype")
+          Filter[text[i]] := CInt(text[i+1]);
+        else
+          Filter[text[i]] := text[i+1];
+        endif
+      endfor
+
+      MakeSubGump(who, text[1], Filter);
+      return;
+    endif
+  endif
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res := MainGump(who);
+
+    if(Res)
+      MakeSubGump(who, LogTypes[Res]);
+    else
+      break;
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MainGump(who)
+
+  GInit  ( 10, 10 );
+  GResPic( 0, 0, 3600, 220, 340 );
+  var i := 1;
+  
+  foreach Type in LogTypes
+    GButton(  30,  (16+(i*20)), 2117, 2118, i);
+    GTextLine(50,  (13+(i*20)), 455, Type);
+    i := i + 1;
+  endforeach
+  
+  return GSend(who)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------

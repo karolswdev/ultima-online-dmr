@@ -1,0 +1,27 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include ":banking:common";
+include "include/checks/objchecks";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program OpenBankBox(who, Box)
+
+  if(!StandardItemCheck(who, Box, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  var bankbox := FindBankBox(who);
+
+  if(bankbox)
+    SendOpenSpecialContainer(who, bankbox);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

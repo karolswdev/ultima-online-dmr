@@ -1,0 +1,126 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/reputation/checks";
+include "include/reputation/criminal";
+include "include/proc";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const REPSYS_ONATTACK      := 1;
+const REPSYS_ONDAMAGE      := 2;
+const REPSYS_ONHELP        := 3;
+
+//-----------------------------------------------------------------------------
+
+program RepSysHook()
+
+  print("RepSysHook: ["+GetPid()+"] Done.");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function OnAttack(who, victim)
+
+  if(IsAggressorTo(who, victim, REPSYS_ONATTACK))
+    AddAggressorTo(who, victim, REPSYS_ONATTACK);
+  else
+    AddAggressorTo(victim, who, REPSYS_ONATTACK);
+  endif
+
+  if(CanLog(who, victim, REPSYS_ONATTACK))
+    LogCriminal(who, "OnAttack", "[RepSys Attack]: Zaatakowal postac "+GetMobCriminalDesc(victim));
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function OnDamage(who, victim)
+
+  if(!IsOrder(victim) and !IsAggressorTo(who, victim) or IsAggressorTo(who, victim, REPSYS_ONDAMAGE))
+    AddAggressorTo(who, victim, REPSYS_ONDAMAGE);
+  endif
+
+  var Log := CanLog(who, victim, REPSYS_ONDAMAGE);
+
+  if(Log)
+    var LogMsg := "";
+
+    if(Log == 2)
+      LogMsg := "[RepSys Attack+Damage]:";
+    else
+      LogMsg := "[RepSys Damage]:";
+    endif
+
+    LogCriminal(who, "OnDamage", LogMsg+" Zadal dmg postaci "+GetMobCriminalDesc(victim));
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function OnHelp(who, helped)
+
+  if(CanLog(who, helped, REPSYS_ONHELP))
+    LogCriminal(who, "OnHelp", "[RepSys Help]: Pomogl postaci "+GetMobCriminalDesc(helped));
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanLog(byref who, byref victim, byref RepSys)
+
+  if(GetObjProperty(who, "#RepSysNoLog"))
+    EraseObjProperty(who, "#RepSysNoLog");
+    return 0;
+  endif
+
+  var Noto;
+
+  case(RepSys)
+    REPSYS_ONATTACK:
+    REPSYS_ONDAMAGE:    Noto := TGTOPT_HARMFUL;
+
+    REPSYS_ONHELP:      Noto := TGTOPT_HELPFUL;
+
+    default:            return 0;
+  endcase
+
+  var Log := 0;
+
+  if(CanGetCriminal(who, victim, Noto))
+    var LastCrims := GetObjProperty(who, PROP_LASTCRIMINALSETS);
+
+    if(LastCrims.size() > 0)
+      var Crim := LastCrims[LastCrims.size()];
+      Log := (CInt(Crim[2]) + 1 < PolCore().systime);
+
+      if(!Log and RepSys == REPSYS_ONDAMAGE and Crim[3]["[RepSys Attack]:"])
+        LastCrims.erase(LastCrims.size());
+        SetObjProperty(who, PROP_LASTCRIMINALSETS, LastCrims);
+        Log := 2;
+      endif
+    else
+      Log := 1;
+    endif
+  endif
+
+  return Log;
+
+endfunction
+
+//-----------------------------------------------------------------------------

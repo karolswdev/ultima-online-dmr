@@ -1,0 +1,53 @@
+//-----------------------------------------------------------------------------
+
+include "../../tourney";
+include "include/move";
+include "include/coords";
+
+//-----------------------------------------------------------------------------
+
+program TourneyLocGoCmd(who,text)
+
+  if(!CInt(text))
+    SendSysMessage(who,".trlgo [nr]",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,TRLOC_MAIN+" - main.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_RED_ROOM+" - red room.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_BLUE_ROOM+" - blue room.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_ISLAND+" - island.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_MAINROOMS+" - main rooms.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_GUARD+" - straznik.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_OUTROOM+" - outroom.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_ROOMFOOD+" - foodroom.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_ARCHROOM+" - lucznicy.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_WARRROOM+" - wojowie.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_MAGEROOM+" - magowie.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_STABLES+" - stajnie.",FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(who,TRLOC_EVERYTHING+" - calosc.",FONT_NORMAL,COLOR_BLUE);
+    
+    
+    return;
+  else
+    text := Cint(text);
+    var Loc := GetTourneyProp(Text);
+    
+    if(!Loc)
+      SendSysMessage(who,"Pozycja ["+text+"] nie zostala ustalona.",FONT_NORMAL,COLOR_RED);
+      return;
+    else
+      if(Loc.size() == 4)
+        var x := Loc[1]+CInt((Loc[3]-Loc[1]) / 2);
+        var y := Loc[2]+CInt((Loc[4]-Loc[2]) / 2);
+        var z := CInt(GetStandZ(x, y, BRITB_REALM));
+        MoveObject(who, x, y, z, BRITB_REALM, MOVECHAR_FORCELOCATION);
+        SendSysMessage(who,"Przenoszenie do srodka pozycji ["+text+"], xS: "+Loc[1]+" yS: "+Loc[2]+" xE: "+Loc[3]+" yE: "+Loc[4]+".",FONT_NORMAL,COLOR_GREEN);
+      elseif(Loc.size() == 3)
+        MoveObject(who,Loc[1],Loc[2],Loc[3], BRITB_REALM,MOVECHAR_FORCELOCATION);
+        SendSysMessage(who,"Przenoszenie do pozycji ["+text+"], x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+".",FONT_NORMAL,COLOR_GREEN);
+      endif
+    endif
+    
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

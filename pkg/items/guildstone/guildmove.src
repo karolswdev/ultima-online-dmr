@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/move";
+
+include "guild";
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+program PackedStone(who,stone)
+
+  if(!StandardItemCheck(who,stone,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  var GId   := GetGuildId(Stone);
+  var Guild := FindGuild(GId);
+  var Gm    := FindGuildGm(Guild);
+
+  if(Gm != who and !IsAdmin(who))
+    SendSysMessage(who,"Tylko Mistrz Gildii moze postawic kamien.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!IsHouseOwner(who,who.multi) and !IsHouseCoOwner(who,who.multi) and !IsAdmin(who))
+    SendSysMessage(who, "Musisz byc we wlasnym domu by postawic kamien.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  foreach item in ListItemsNearLocation(who.x,who.y,who.z,2,who.realm)
+    if ((item.objtype >= UOBJ_DOORS_START) and (item.objtype <= UOBJ_DOORS_END))
+      if((((item.x == who.x +1) or (item.x == who.x -1)) and (item.y == who.y)) or (((item.y == who.y +1) or (item.y == who.y -1)) and (item.x == who.x)))
+        SendSysMessage(who, "Za blisko drzwi.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endif
+  endforeach
+  
+  foreach item in (who.multi.items)
+    if(item.objtype == UOBJ_GUILD_STONE and (item.multi == who.multi))
+      SendSysMessage(who,"Tylko jeden kamien gildii moze zostac postawiony w domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endforeach
+
+  MoveObject(stone,who.x,who.y,who.z,who.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+  stone.movable   := 0;
+  stone.newbie    := 1;
+  stone.graphic   := UOBJ_GUILDSTONE_GRAPHIC;
+  stone.usescript := "";
+  SetHouseItem(Stone,who.multi);
+
+endprogram
+
+//-----------------------------------------------------------------------------

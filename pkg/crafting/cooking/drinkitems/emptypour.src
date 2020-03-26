@@ -1,0 +1,179 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/client/fonts";
+include "include/effects";
+include "include/player/nutrition";
+
+//-----------------------------------------------------------------------------
+
+const DOIL_TIME    := 10;
+
+//-----------------------------------------------------------------------------
+
+var gItemCfg        := ReadConfigFile(ITEMS_CFG);
+var PourCfg, ItemsPour;
+
+//-----------------------------------------------------------------------------
+
+program EmptyPour(who, Item)
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+
+  SendSysMessage(who, "Co chcesz wlac do naczynia?",FONT_NORMAL,COLOR_GREEN);
+
+  var Targ := LocTarget(who);
+
+  if(Targ.item.container)
+    Targ := Targ.item;
+    if(!StandardItemCheck(who, Targ))
+      return;
+    endif
+  elseif(!StandardLocCheck(who, Targ, NEW_DIST_CHECK | NO_DIST_CHECK, 3))
+    return;
+  endif
+
+  PourCfg   := ReadConfigFile(":drinkitems:pouring");
+  ItemsPour := GetConfigStringArray(PourCfg["PourItems"],"ObjType");
+  MakeIntArray(ItemsPour);
+
+  if(Targ.isa(POLCLASS_NPC))
+    if(Targ.graphic == CID_COW1 or Targ.graphic == CID_COW2)
+      PourMilk(who, Item, Targ);
+    else
+      SendSysMessage(who, "Nie wiesz co mozesz zrobic z tym stworzeniem.", FONT_NORMAL, COLOR_RED);
+    endif
+  elseif(Targ.isa(POLCLASS_ITEM) and !(Targ.objtype in ItemsPour))
+    if(Targ != Item)
+      if(!PourItem(who, Item, Targ))
+        SendSysMessage(who,"Wskaz naczynie z ktorego chcesz przelac zawartosc do tego naczynia.",FONT_NORMAL,COLOR_RED);
+      endif
+    endif
+  elseif(IsWater(Targ.x, Targ.y, Targ.z, who.realm) or (Targ.objtype in ItemsPour))
+    PourWater(who, Item, Targ);
+  else
+    SendSysMessage(who,"Wskaz wode lub krowe.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PourWater(who, Glass, Targ)
+
+  if(!(Targ.objtype in ItemsPour))
+    PerformAction(who, ANIM_ATTACK_1HAND_WIDE);
+    if(!MakeWaterSplash(who, Targ))
+      return;
+    endif
+  endif
+
+  var WaterObj := gItemCfg[Glass.objtype].WaterItem;
+
+  if(DestroyItem(Glass))
+    if(CreateItemInPack(who, WaterObj, 1))
+      SendSysMessage(who,"Napelnil"+ggm(who,3)+" naczynie woda.",FONT_NORMAL,COLOR_GREEN);
+      PlaySoundEffect(who, SOUND_EFFECT_POUR);
+    else
+      SendSysMessage(who,"Masz za malo miejsca w plecaku.",FONT_NORMAL,COLOR_GREEN);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PourMilk(who, Glass, Cow)
+
+  if(!StandardMobCheck(who, Cow))
+    return;
+  endif
+
+  if(Distance(who, Cow) > 1)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetMaster(Cow) != who or IsSummoned(Cow))
+    SendSysMessage(who,"To nie twoja krowa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(CInt(GetObjProperty(Cow,"DoilTime")) > ReadGameClock())
+    SendSysMessage(who,"Musisz chwile poczekac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Doisz krowe...", FONT_NORMAL, COLOR_GREEN);
+
+  if(!MakeNoise(who))
+    return;
+  endif
+
+  var MilkObj := gItemCfg[Glass.objtype].MilkItem;
+  var dTime   := DOIL_TIME * CInt(gItemCfg[Glass.objtype].MaxUses);
+
+  if(DestroyItem(Glass))
+    if(CreateItemInPack(who, MilkObj, 1))
+      SendSysMessage(who,"Napelnil"+ggm(who,3)+" naczynie mlekiem.",FONT_NORMAL,COLOR_GREEN);
+      SetObjProperty(Cow, "DoilTime", ReadGameClock() + dTime + RandomInt(CInt(dTime/2)));
+      PlaySoundEffect(who, SOUND_EFFECT_POUR);
+    else
+      SendSysMessage(who,"Masz za malo miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PourItem(who, Glass, Item)
+
+  var ItemObj := 0;
+
+  if(gItemCfg[Glass.objtype].Glass)
+    if(gItemCfg[Item.objtype].Glass)
+      ItemObj := Item.objtype;
+    elseif(gItemCfg[Item.objtype].Pitcher)
+      ItemObj := gItemCfg[Item.objtype].GlassItem;
+    endif
+  elseif(gItemCfg[Glass.objtype].Pitcher)
+    if(gItemCfg[Item.objtype].Pitcher)
+      ItemObj := Item.objtype;
+    elseif(gItemCfg[Item.objtype].Glass)
+      ItemObj := gItemCfg[Item.objtype].PitcherItem;
+    endif
+  endif
+
+  if(!ItemObj)
+    return 0;
+  endif
+
+  var aUses := GetItemUses(Item);
+  var mUses := GetItemMaxUses(Glass);
+
+  if(aUses > mUses)
+    aUses := mUses;
+  endif
+
+  var Qual := GetFoodQual(Item);
+
+  if(!SubItemUses(Item, aUses))
+    SendSysMessage(who, "Zabraklo cieczy w naczyniu.", FONT_NORMAL, COLOR_RED);
+  elseif(DestroyItem(Glass))
+    PlaySoundEffect(who, SOUND_EFFECT_POUR);
+    var nItem := CreateItemInPack(who, ItemObj, 1);
+    if(Qual != error)
+      SetObjProperty(nItem, PROP_FOODQUALITY, Qual);
+    endif
+    SetItemUses(nItem, aUses);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,5 @@
+include "citizens";
+
+program ControlCitizensStone(Stone)
+
+endprogram

@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+const HOUR_GLASS_TIME   := 30;
+const HOUR_GLASS_START  := 6163;
+const HOUR_GLASS_END    := 6172;
+const HOUR_GLASS_CHANGE := 6162;
+
+//-----------------------------------------------------------------------------
+
+program HourGlass(who,HourGlass)
+
+  if(GetObjProperty(HourGlass,"#Timing"))
+    var Proc := GetProcess(GetObjProperty(HourGlass,"#Timing"));
+    if(Proc)
+      Proc.kill();
+      HourGlass.graphic := HOUR_GLASS_CHANGE;
+      sleepms(300);
+      HourGlass.graphic := HourGlass.objtype;
+      ReleaseItem(HourGlass);
+      return;
+    endif
+  endif
+
+  if(!StandardItemCheck(who,HourGlass, NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  Detach();
+  NoLongerBusy(who);
+  ReleaseItem(HourGlass);
+
+  SetObjProperty(HourGlass,"#Timing",GetPid());
+  
+  HourGlass.graphic := HourGlass.objtype;
+  sleepms(300);
+  HourGlass.graphic := HOUR_GLASS_CHANGE;
+  sleepms(300);
+  
+  var time := CInt(GetObjProperty(HourGlass,"Time"));
+  if(!time)
+    time := HOUR_GLASS_TIME;
+  endif
+  SendSysMessage(who, "Klepsydra zostala ustawiona na czas: " + CInt(time*(HOUR_GLASS_END-HOUR_GLASS_START)) + " sekund.", FONT_NORMAL, COLOR_GREEN);
+  var i;
+  for(i:=HOUR_GLASS_START;i<=HOUR_GLASS_END;i:=i+1)
+    HourGlass.graphic := i;
+    sleep(time);
+  endfor
+
+  PrintTextAbove(HourGlass, "*koniec*");
+
+  HourGlass.graphic := HourGlass.objtype;
+
+endprogram
+
+//-----------------------------------------------------------------------------

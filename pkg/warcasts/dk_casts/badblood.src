@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 66;
+
+//-----------------------------------------------------------------------------
+
+program DkBadBlood(Parms)
+
+  WarCast(Parms, DK_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Amt := CInt((GetEffectiveSkill(Caster, SKILLID_FANATICISM) / 10) + (GetEffectiveSkill(Caster, SKILLID_ZEAL) / 25)) + RandomInt(3);
+
+  PlaySoundEffect(Caster, SFX_SPELL_HEAL);
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 30, 0xF, 0x10, 5);
+
+  HealMobile(Caster, Amt, Caster);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "include/mobile/npcs/properties";
+
+//-----------------------------------------------------------------------------
+
+program UseBlindPotion(who,potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var Mob := ObjTarget(who);
+   
+  if(!StandardMobCheck(who,Mob,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+  var Sx := Mob.x;
+  var Sy := Mob.y;
+  
+  if(!ThrowPotion(who,Mob,potion))
+    return;
+  endif
+  
+  PlaySoundEffect(Mob, SFX_SPELL_NIGHT_SIGHT );
+  PlayStationaryEff( Mob.x, Mob.y, Mob.z, FX_SMOKE, 0xa, 0xa , 0, Mob.realm);
+
+  if(coordist(Sx,Sy,Mob.x,Mob.y) < 9)
+    DoMod(Mob,MOD_LIGHT, Strength, 25 * QualMod + ExpMod);
+
+    if(CanMod(Mob, MOD_SLOWDOWN))
+      var Amt := GetRunSpeedLowerAmount(Mob, 0.15); // spowalniamy o 20%
+      DoMod(Mob, MOD_SLOWDOWN, Amt, 100 * QualMod + ExpMod);
+    endif
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,307 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "ai/include/npcspeech";
+include "ai/include/npch";
+include "../pkg/systems/renthouse/renthouse";
+include "include/buildings";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+const MIN_WRITE_TICKET_COST  := 30;
+
+//-----------------------------------------------------------------------------
+
+program StoreMan_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH, SPEECH_RANGE);
+  EnableEvents(EVID_ITEM_GIVEN);
+
+  while(me)
+  
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    if(ev.type == EVID_ITEM_GIVEN and ev.item.objtype == UOBJ_STORE_TICKET)
+      if(!RealizeTicket(ev.item, ev.source))
+        MoveToPack(ev.source, ev.item);
+      endif
+      ev := 0;
+    else
+      StdCityNpcHandleEvent(ev);
+    endif
+
+    StdCityNpcEventLoop();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+ 
+  text := lower(text);
+
+  if(text["magazyn"])
+
+    TurnToward(who);
+    if(len(text) < 12)
+      Say("Co z magazynem?");
+      return 1;
+    elseif(!CanNpcSpeakWith(who))
+      return 1;
+    endif
+
+    var Sx := who.x;
+    var Sy := who.y;
+    var Sz := who.z;
+    var Rgc := ReadGameClock();
+    
+    Say("*hm...*");
+    Say("*szuka skrzyni...*");
+
+    while(Rgc + 4 > ReadGameClock())
+      ev := wait_for_event(5);
+
+      case(ev.type)
+        EVID_SPEECH:                 var ltext := lower(ev.text);
+        
+                                     if(ltext["magazyn"])
+                                       if(ev.source == who)
+                                         Say("Przeciez otwieram...");
+                                       else
+                                         Say("Poczekaj chwile...");
+                                       endif
+                                     endif
+
+        EVID_ITEM_GIVEN:             MoveToPack(ev.item, ev.source);
+
+        EVID_RUN:
+        EVID_WALK:                   break;
+
+        default:                     StdCityNpcHandleEvent(ev);
+      endcase
+
+    endwhile
+
+    TurnToward(who);
+    Say("O! jest...");
+    Say("*otwiera skrzynie*");
+    sleep(1);
+    
+    if(Sx != who.x or Sy != who.y or Sz != who.z)
+      Say("Gdzie on"+ggm(who,4)+" uciekl"+ggm(who,4)+"?");
+      Say("*zamyka skrzynie*");
+      return;
+    endif
+    
+    OpenStoreBox(who);
+
+  elseif(text["wypisz"] and text["kwit"])
+
+    WriteTicketForItem(who);
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WriteTicketForItem(who)
+
+  Say("Wybierz przedmiot z magazynu, na jaki chcesz, bym wypisal kwit.");
+
+  var hEv := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+  if(hEv)
+    var Item := hEv.Item;
+
+    if(Item)
+      var StoreBox := FindStoreBox(who);
+
+      if(GetTopCont(Item) != StoreBox)
+        Say("Nie wypisuje kwitow na przedmioty nie znajdujace sie w magazynie.");
+        return;
+      elseif(Item.isa(POLCLASS_CONTAINER))
+        Say("Nie wypisuje kwitow na pojemniki");
+        return;
+      endif
+
+      if(!ReserveItem(Item))
+        Say("Ten przedmiot jest aktualnie wykorzystywany!");
+        return;
+      elseif(Item.amount > 2000)
+        Say("Maksymalna ilosc to 2000 sztuk.");
+        ReleaseItem(Item);
+        return;
+      endif
+
+      var writeCost := CalcWriteTicketCost(Item);
+
+      Say("Koszt wypisania kwitu na ten przedmiot to "+writeCost+"gp, jestes pewn"+ggm(who,6)+"? tak?");
+
+      if(!NpcYesNo(who))
+        Say("Nooo widac jestes niezdecydowany, najpierw chcesz, a potem nie, przyjdz jak sie namyslisz!");
+        ReleaseItem(Item);
+        return;
+      elseif(!SpendGold(who, writeCost))
+        Say("Chcesz, ale nie masz takiej kwoty przy sobie. Wroc, gdy bedziesz ja miec.");
+        ReleaseItem(Item);
+        return;
+      else
+        var Ticket := CreateTicketForItem(Item, who);
+        if(Ticket)
+          Say("Dobrze, trzymaj kwit na ten przedmiot i nie zgub go!");
+        else
+          ReleaseItem(Item);
+        endif
+      endif
+
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcWriteTicketCost(Item)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  var Cost := CInt(CDbl(ItemCfg[Item.objtype].VendorBuysFor) * 0.5 * pow(log10(Item.amount), 3));
+
+  return ToMin(Cost, MIN_WRITE_TICKET_COST);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateTicketForItem(Item, who)
+
+  var Ticket := CreateItemInPack(who, UOBJ_STORE_TICKET);
+
+  if(!Ticket)
+    Say("*hmm..*");
+    Say("Chce ci dac kwit, lecz wydaje sie, jakbys nie mial"+ggm(who,4)+" miejsca w plecaku!");
+    return Ticket;
+  endif
+
+  var objProps := dictionary;
+  var Props := dictionary;
+
+  var propNames := GetObjPropertyNames(Item);
+
+  foreach propName in propNames
+    Props[propName] := GetObjProperty(Item, propName);
+  endforeach
+
+  objProps["objtype"] := Item.objtype;
+  objProps["color"]   := Item.color;
+  objProps["graphic"] := Item.graphic;
+  objProps["amount"]  := Item.amount;
+  objProps["name"]    := GetName(Item);
+
+  SetObjProperty(Ticket, "ItemObjProps", objProps);
+  SetObjProperty(Ticket, "ItemProps", Props);
+  SetObjProperty(Ticket, "WroteBy", me.serial);
+  SetObjProperty(Ticket, "WroteFor", who.serial);
+
+  var Flags := GDFIF_ADD_TYPE;
+
+  if(Item.amount == 1)
+    Flags := Flags | GDFIF_ONE_AMT;
+  endif
+
+  var Desc := GetDescForItem(Item.objtype, Flags);
+
+  SetName(Ticket, "Kwit na przedmiot: "+Item.amount+" "+Desc);
+
+  if(!DestroyItem(Item))
+    LogNotice("[Storeman] Cant destroy item! ABUSE "+GetRealName(who)+"/"+hex(who.serial)+"/"+who.acctname+" "+Desc+" ("+hex(Item.objtype)+") "+Item.amount+" Ticket: "+hex(Ticket.serial)+" Item: "+hex(Item.serial), LOGF_SCRIPTS);
+    DestroyItem(Ticket);
+    Say("Nie chcesz oddac materialu ?! To nie!");
+    return 0;
+  endif
+
+  return Ticket;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RealizeTicket(Ticket, who)
+
+  var objProps := GetObjProperty(Ticket, "ItemObjProps");
+  var Props    := GetObjProperty(Ticket, "ItemProps");
+
+  if(!objProps or !Props or !objProps["objtype"] or !objProps["graphic"] or !objProps["amount"])
+    Say("Ten kwit jest juz niewazny!");
+    return 0;
+  endif
+
+  if(!ReserveItem(Ticket))
+    Say("Nie moge przyjac tego przedmiotu.");
+    return 0;
+  endif
+
+  var StoreBox := FindStoreBox(who);
+  var Descr := GetItemDescriptor(objProps["objtype"]);
+  Descr.CProps := Props;
+
+  var Item := CreateItemInCont(StoreBox, Descr, objProps["amount"]);
+
+  if(!Item)
+    ReleaseItem(Ticket);
+    Say("Nie masz wystarczajaco miejsca w magazynie, by zdeponowac ten przedmiot.");
+    return 0;
+  endif
+
+  Item.graphic := objProps["graphic"];
+  Item.color   := objProps["color"];
+
+  if(CutDesc(GetName(Item)) != CutDesc(objProps["name"]))
+    LogNotice("[Storeman] Rozne nazwy itemu ["+Item.serial+"]: Na bilecie bylo ["+objProps["name"]+", Amt: "+objProps["amount"]+"], a item by mial ["+GetName(Item)+", Amt: "+Item.amount+"]. "+GetRealName(who)+"/"+who.serial, LOGF_SCRIPTS);
+    SetName(Item, CutDesc(objProps["name"])+"%%");
+  endif
+
+  DestroyItem(Ticket);
+  Say("Kwit wydaje sie byc prawidlowy! Zdeponowal"+ggm(me,8)+" przedmiot w twoim magazynie.");
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function OpenStoreBox(you)
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+  
+  TurnToward(you);
+  var StoreBox := FindStoreBox(you);
+
+  if(StoreBox)
+    SendOpenSpecialContainer(you, StoreBox);
+  else
+    Say(you.name+", nie posiadasz magazynu.");
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

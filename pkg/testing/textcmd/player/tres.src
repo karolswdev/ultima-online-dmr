@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/client/misc";
+include "include/client/fonts";
+
+include "include/move";
+include "include/items";
+include "include/resurrect";
+include "include/misc";
+include "include/finding";
+
+//-----------------------------------------------------------------------------
+
+program ResMeCmd(who, text)
+
+  if(who.dead)
+
+    ResurrectPlayer(who);
+    SetHp(who, GetMaxHP(who));
+    SetMana(who, GetMaxMana(who));
+    SetStamina(who, GetMaxStamina(who));
+
+    var dRobe := GetEquipmentByLayer(who, LAYER_ROBE);
+    if(dRobe)
+      DestroyItem(dRobe);
+    endif
+
+    var Corpse := FindItemBySerial(GetObjProperty(who, PROP_CORPSESER));
+
+    if(Corpse and text != "norm")
+      foreach sItem in ListRootItemsInContainer(Corpse)
+        if(!EquipItem(who, sItem))
+          MoveToPack(sItem, who);
+        endif
+      endforeach
+    endif
+
+  else
+
+    var Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+    if(!IsPlayer(Targ))
+      SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(!Targ.dead)
+      SendSysMessage(who, "Ta osoba zyje.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    ResurrectPlayer(Targ);
+    SendSysMessage(who, "Wskrzesil"+ggm(who,3)+" osobe "+Targ.name+".", FONT_NORMAL, COLOR_GREEN);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

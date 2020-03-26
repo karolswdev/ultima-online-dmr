@@ -1,0 +1,195 @@
+//-----------------------------------------------------------------------------
+
+use file;
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/clock";
+include "include/names";
+include "include/cmds/cmds";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+const WEEK_TIME   := 604800;
+const MONTH_TIME  := 2419200;
+
+//-----------------------------------------------------------------------------
+
+program ActivityCmd(who, text)
+
+  __ParamUnused(text);
+
+  BuildActivityGump(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildActivityGump(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  var Activity := GetTeamActivity();
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 800, 500);
+  GAddPageData(765,16,2650,2651,765,463,2648,2647);
+
+  GTextLine(330, 20, 999, "Aktywnosc GMow");
+  GTextLine(20, 40, 999,  "Nr");
+  GTextLine(60, 40, 999,  "Imie");
+  GTextLine(160,40, 999,  "Konto");
+  GTextLine(280,40, 999,  "Istnieje");
+  GTextLine(440,40, 999,  "Online");
+  
+  var i;
+  var curTime := PolCore().systime;
+
+  for(i:=1; i<=4; i:=i+1)
+    GTextLine(20+(i*130), 60, 999, CUnixTime(curTime - (WEEK_TIME * i), RLT_SDATE)+":"+CUnixTime(curTime - (WEEK_TIME * (i-1)), RLT_SDATE) );
+  endfor
+
+  GTextLine(140+(4*130), 60, 999, CUnixTime(curTime - (WEEK_TIME * 4), RLT_SDATE)+":"+CUnixTime(curTime, RLT_SDATE) );
+
+  GGumpPic(15, 85, 0xBB9);
+  GGumpPic(255, 85, 0xBB9);
+  GGumpPic(395, 85, 0xBB9);
+  GGumpPic(545, 85, 0xBB9);
+
+  GMultiPage();
+
+  foreach CharData in Activity
+
+    GCheckNextPage(18);
+    GTextLine(20,90+GNPCount()*20, 670,   _CharData_iter);
+    GTextLine(60,90+GNPCount()*20, 550,   CharData["Name"]);
+    GTextLine(160,90+GNPCount()*20, 1419, CharData["Account"]);
+    GTextLine(280,90+GNPCount()*20, 560,  RealTime(CharData["ExistsTime"], RLT_MONTH));
+    GTextLine(440,90+GNPCount()*20, 560,  RealTime(CharData["Online"], RLT_MONTH));
+    GTextLine(620,90+GNPCount()*20, 1152,  GetLastMwGidForAcc(CharData["Account"]));
+
+    GCheckNextPage(18);
+
+    var Sums := array(0, 0);
+
+    for(i:=1; i<=4; i:=i+1)
+      GTextLine(60+(i*120), 90+GNPCount()*20, 1320,  CharData["WeeksCount"][i]);
+      GTextLine(85+(i*120), 90+GNPCount()*20, 1424,  RealTime(CharData["WeeksTime"][i]));
+      Sums[1] := Sums[1] + CharData["WeeksCount"][i];
+      Sums[2] := Sums[2] + CharData["WeeksTime"][i];
+    endfor
+
+    GTextLine(180+(4*120), 90+GNPCount()*20, 1320,  Sums[1]);
+    GTextLine(205+(4*120), 90+GNPCount()*20, 1424,  RealTime(Sums[2]));
+
+    GCheckNextPage(20);
+    GGumpPic(15, 97+GNPCount()*20, 0xBB9);
+    GGumpPic(255, 97+GNPCount()*20, 0xBB9);
+    GGumpPic(395, 97+GNPCount()*20, 0xBB9);
+    GGumpPic(545, 97+GNPCount()*20, 0xBB9);
+
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTeamChars()
+
+  var Chars := array;
+  var i, Char;
+
+  foreach Acc in ListAccounts()
+
+    Acc := FindAccount(Acc);
+    
+    for(i:=1;i<=5;i:=i+1)
+
+      Char := Acc.GetCharacter(i);
+
+      if(Char and Char.cmdlevel)
+        Chars.append(Char);
+      endif
+
+    endfor
+
+  endforeach
+
+  return Chars;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTeamActivity()
+
+  var TeamChars := GetTeamChars();
+  var Activity := array;
+
+  foreach Char in TeamChars
+
+    var actData := GetCharActivity(Char);
+    Activity.append(actData);
+
+  endforeach
+
+  return Activity;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCharActivity(Char)
+
+  var Data := dictionary;
+  var passTime := ReadGameClock() - CInt(Char.acct.GetProp(PROP_CREATE_TIME));
+
+  var LastIPs := ReadFile(LASTLOG_PKG + Char.acctname);
+  var curTime := PolCore().systime;
+  var Time, Logged, WeekIdx;
+
+  var Weeks := dictionary;
+
+  Weeks["Time"]  := array(0, 0, 0, 0);
+  Weeks["Count"] := array(0, 0, 0, 0);
+
+  if(LastIPs and LastIPs.size())
+    LastIps.reverse();
+
+    foreach IP in LastIPs
+
+      IP     := UnPack(IP);
+      Time   := CInt(IP[3]);
+
+      if(curTime - MONTH_TIME < Time)
+        Time    := curTime - Time;
+        WeekIdx := 1 + CInt(Time / WEEK_TIME);
+
+        Logged := CInt(IP[4]);
+        Weeks["Time"][WeekIdx]  := Weeks["Time"][WeekIdx] + Logged;
+        Weeks["Count"][WeekIdx] := Weeks["Count"][WeekIdx] + 1;
+      endif
+
+    endforeach
+
+  endif
+
+  Data["Name"]       := GetRealName(Char);
+  Data["Serial"]     := Char.serial;
+  Data["Account"]    := Char.acctname;
+  Data["Online"]     := GetOnlineTimer(Char);
+  Data["ExistsTime"] := passTime;
+  Data["WeeksTime"]  := Weeks["Time"];
+  Data["WeeksCount"] := Weeks["Count"];
+  
+  return Data;
+
+endfunction
+
+//-----------------------------------------------------------------------------

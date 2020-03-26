@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 43;
+
+//-----------------------------------------------------------------------------
+
+program PdBattleRage(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+  
+  var MainBSk   := GetBaseSkill(Caster, SKILLID_PALADINISM);
+  var MainEfSk  := GetEffectiveSkill(Caster, SKILLID_PALADINISM);
+                   //+1 za bazowe 105                 +1 za effective 5 powyzej 110      +4 za 100 paladyna  +1 za kazde 30 many          + losowe -1,0,+1
+  var Mod       := CInt( CInt(ToMin(MainBSk-104,0)) + CInt(ToMin(MainEfSk-105, 0) / 5) + CInt(MainBSk/ 20) + CInt(GetMaxMana(Caster)/25)) + CInt(RandomInt(3)-1);
+  var Duration  := GetWarCastDuration(Caster, WCT_PALADIN);
+  var Gained := 0;
+
+  if(Mod > 1)
+    var SkIds := GetFightSkIDs(Caster);
+    
+    if(SkIds == error)
+      WcFizzleId(Caster, "Nie posiadasz umiejetnosci bojowej!", PD_WCID);
+    endif
+
+    foreach SkID in SkIDs
+      if(CanSkillMod(Caster, SkID) == 0 and !Gained)
+        Gained := GainWarcastPoints(Caster, CastOn, PD_WCID, WCGAIN_DEFENSIVE);
+      endif
+
+      DoSkillMod(Caster, SkId, CInt(Mod), Duration);
+    endforeach
+  endif
+
+  PlayPcEffect(Caster, FX_FLAMESTRIKE, 99, 0xF, 0x1F, 3);
+  PlaySoundEffect(Caster, SFX_WILD_FIRE);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

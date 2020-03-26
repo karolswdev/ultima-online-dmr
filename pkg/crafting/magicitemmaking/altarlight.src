@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "altar";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program AltarLight(who,light)
+
+  if(!IsAdmin(who))
+    return;
+  endif
+  
+  var Change;
+  
+  case(light.graphic)
+    GRAPHIC_ALTAR_GREENLIGHTON:     Change := GRAPHIC_ALTAR_GREENLIGHTOFF;
+    GRAPHIC_ALTAR_REDLIGHTON:       Change := GRAPHIC_ALTAR_REDLIGHTOFF;
+    GRAPHIC_ALTAR_GREENLIGHTOFF:    Change := GRAPHIC_ALTAR_GREENLIGHTON;
+    GRAPHIC_ALTAR_REDLIGHTOFF:      Change := GRAPHIC_ALTAR_REDLIGHTON;
+    default:                   return;
+  endcase
+
+  light.graphic := Change;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

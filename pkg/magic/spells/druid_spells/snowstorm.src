@@ -1,0 +1,156 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+include ":wearwolf:common";
+
+include ":magic:mass_spells";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 94;
+
+//-----------------------------------------------------------------------------
+
+var PcSend := dictionary;
+var Mobs   := array;
+
+//-----------------------------------------------------------------------------
+
+program CastSnowStorm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  if(IsWearWolfMorphed(Caster))
+    Fizzle(Caster, "Nie mozesz w tej formie rzucic tego czaru.");
+    return;
+  endif
+
+  var CasterDruid := GetEffectiveSkill(Caster,SKILLID_DRUID);
+  var CasterAl    := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var Range       := Cint(CasterDruid/20 + CasterAl/20);
+  var Duration    := Cint(CasterDruid/20 + CasterAl/20);
+  var dmg         := 0;
+  var sNum        := CInt(Range/3);
+  var Damaged      := array;
+  var Num, Gained := 0;
+  if(sNum < 2)
+    sNum := 2;
+  endif
+
+  var Factor := GetMassSpellRangeFactor(CastOn, Range);
+  AddMassSpellGlobalArea(CastOn, Range, CInt(Duration*2.5));
+
+  if(Factor < 1.0)
+    SendBad(Caster, "To miejsce zostalo juz zaczarowane! Twoje czary beda mialy znikomy efekt!", COLOR_ORANGE);
+  endif
+
+  var Loc    := struct;
+  Loc.+x     := CastOn.x;
+  Loc.+y     := CastOn.y;
+  Loc.+z     := CastOn.z;
+  Loc.+realm := Caster.realm;
+
+  for i := 1 to Duration
+    Num := 0;
+
+    foreach mobile in ListMobilesNearLocationEx(Loc.x, Loc.y, Loc.z, range, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, Loc.realm)
+
+      mobile.hidden := 0;
+
+      if(CanDamage(Caster, mobile, CAN_DAMAGE_HIDDEN, CastOn))
+        
+        if(!(mobile in Damaged))
+          Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type) / 4);
+          Damaged.append(mobile);
+        else
+          Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type) / 6);
+        endif
+        
+        Dmg := Max(CInt(Dmg * Factor), 1);
+        
+        var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type, NO_RESIST_GAIN);
+        AddMurdReport(mobile, Caster);
+        PlaySoundEffect (mobile, 0x15);
+        PlaySoundEffect (mobile, 0x15);
+        TemporarySlowdown(mobile, Max(CInt(6*Factor), 1));
+
+        DoMod(mobile, MOD_FASTER_CAST, -2 , Max(CInt(10*Factor), 1));
+
+        if(Factor >= 1.0)
+          DoMod(mobile, MOD_CASTSIGHT, 8 , 5);
+          DoMod(mobile, MOD_DMG_REDUCE, 40 , 5);
+        endif
+
+        Num := Num + 1;
+
+        if(Num >= 10)
+          break;
+        endif
+
+        if(Gained < 6 and DmgRes == 1)
+          Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE); 
+        endif
+
+      endif
+
+      Sleepms(1);
+    endforeach
+
+    var Trg := struct;
+    Trg.+x;
+    Trg.+y;
+    Trg.+z;
+    Trg.+realm := Caster.realm;
+
+    for j := 1 to sNum
+      Trg.x := Loc.x - range + RandomInt (2*range+2);
+      if (Trg.x < Loc.x-range)
+        Trg.x := Loc.x-range;
+      elseif (Trg.x > Loc.x+range)
+        Trg.x := Loc.x+range;
+      endif
+
+      Trg.y := Loc.y - range + RandomInt (2*range+2);
+      if (Trg.y < Loc.y-range)
+        Trg.y := Loc.y-range;
+      elseif (Trg.y > Loc.y+range)
+        Trg.y := Loc.y+range;
+      endif
+
+      Trg.z := Loc.z + 4;
+      PlaySnowEffect(Trg);
+    endfor
+
+    sleep (2);
+  endfor
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlaySnowEffect(Trg)
+
+  if(!PcSend[Trg.x+" "+Trg.y])
+    PcSend[Trg.x+" "+Trg.y] := 1;
+    PlayPcStEffect(Trg.x, Trg.y, Trg.z, Trg.realm, FX_SPARK_EFFECT, 0x480, 0x10, 0xFF);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

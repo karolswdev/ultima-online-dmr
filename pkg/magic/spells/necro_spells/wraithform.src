@@ -1,0 +1,111 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/reputation/murderer";
+include "include/packets";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const WRAITH_GRAPHIC := 0x1a;
+const WRAITH_COLOR   := 0x482;
+const SPELL_ID       := 75;
+
+//-----------------------------------------------------------------------------
+
+program CastWraithForm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  if(!CanMod(Caster,MOD_GRAPHIC) or !CanMod(Caster, MOD_COLOR))
+    Fizzle(Caster,"Nie jestes w stanie zmienic teraz formy!");
+    return;
+  endif
+
+  var Duration := GetNecroSpellDur( Caster ) / 20;
+  var Range    := CInt(GetMagicSkillValue(Caster, SpellGlob.Type) / 30) + CInt(GetMindSkillValue(Caster, SpellGlob.Type) / 30);
+  var Dmg      := 0;
+  var Delay    := 5 - CInt(GetMagicSkillValue(Caster, SpellGlob.Type) / 100);
+  var aDmg, Num;
+  var Gained := 0;
+
+  UndoMod(Caster, MOD_GRAPHIC, UMDF_WAIT);
+  UndoMod(Caster, MOD_COLOR, UMDF_WAIT);
+  DoMod(Caster,MOD_GRAPHIC,WRAITH_GRAPHIC, Duration );
+  DoMod(Caster,MOD_COLOR  ,WRAITH_COLOR  , Duration );
+
+  sleepms(250);
+  PlaySoundEffect(Caster, SFX_SPELL_WRAITHFORM);
+
+  Duration := ReadGameClock() + Duration;
+
+  While (Duration > ReadGameClock())
+
+    aDmg := 0;
+    Num  := 0;
+
+    foreach mobile in ListMobilesNearLocation(caster.x, caster.y, caster.z, Range,Caster.realm)
+      if(CanDamage(Caster,mobile))
+
+        if(Dispersed(Caster, Mobile))
+          continue;
+        endif
+
+        Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type) / 3);
+
+        PlayPcEffect(mobile, FX_SMOKE, 5, 0xf, 0xf, 4);
+        PlaySoundEffect(mobile, SFX_SPELL_MANA_VAMPIRE);
+        PlaySoundEffect(mobile, SFX_SPELL_MASS_DISPEL);
+
+        if(Dmg > GetHp(mobile))
+          Dmg := GetHp(mobile);
+        endif
+
+        var DmgRes := 0;
+
+        if(Dmg)
+          DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type, NO_RESIST_GAIN);
+          AddMurdReport(mobile, Caster);
+          HealMana(Caster, Dmg, Caster);
+          SendChEvent(mobile,Caster,EVID_ENGAGED);
+          aDmg := aDmg + Dmg;
+        endif
+
+        Num := Num + 1;
+
+        if(Gained < 3 and DmgRes > 0)
+          Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+        endif
+
+        if(Num >= 5)
+          break;
+        endif
+      endif
+    endforeach
+
+    if(Dmg)
+      PlayPcEffect(Caster, FX_FLAMESTRIKE, 5, 0x10, 0x10, 4);
+    endif
+
+    Sleep(Delay);
+
+  endwhile
+
+  PlayPcEffect(Caster, FX_FLAMESTRIKE, 5, 0x10, 0x10, 4);
+
+endfunction
+
+//-----------------------------------------------------------------------------

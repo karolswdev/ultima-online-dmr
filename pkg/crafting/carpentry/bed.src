@@ -1,0 +1,75 @@
+//-----------------------------------------------------------------------------
+
+include "bed";
+include "include/checks/objchecks";
+include "include/effects";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program UseBed(who,Bed)
+
+  if(!StandardItemCheck(who,Bed,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  if(Distance(who,Bed) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!ReserveBed(Bed))
+    SendSysMessage(who,"Ktos juz cos robi z tym lozkiem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+    
+  if(CInt(ItemCfg[Bed.objtype].Blanket) == Bed.objtype or GetObjProperty(Bed,"Blanket"))
+    if(!GetObjProperty(Bed,"Pillowed"))
+      ChangeBedGraphic(who,Bed,"Pillowed");
+      return;
+    endif
+    
+    if(GetObjProperty(Bed,"Dirty"))
+      BlankOn(who,Bed);
+      return;
+    endif
+    
+    if(FindPlayerBySerial(GetObjProperty(Bed,"Sleeping")))
+      SendSysMessage(who,"W tym lozku juz ktos spi.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    SendSysMessage(who,"Kladziesz sie do lozka...",FONT_NORMAL,COLOR_BLUE);
+    if(!MakeNoise(who))
+      return;
+    endif
+    
+    SendSysMessage(who,"Powoli zasypiasz...",FONT_NORMAL,COLOR_BLUE);
+    if(!MakeNoise(who))
+      return;
+    endif
+
+    SendSysMessage(who,"Zasn"+ggm(who,5)+".",FONT_NORMAL,COLOR_BLUE);
+    GoSleep(who,Bed);
+
+  else
+    SendSysMessage(who,"To lozko nie jest poscielone.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GoSleep(who,Bed)
+
+  SetObjProperty(who, PROP_SAFELOGOFF, 1);
+  SetObjProperty(who,"BedSleep",Bed.serial);
+  SetObjProperty(Bed,"Sleeping",who.serial);
+  DisconnectClient(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

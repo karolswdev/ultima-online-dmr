@@ -1,0 +1,51 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumpboxes";
+
+//--------------------------------------------------------------------------------
+
+program BardBookSpeak(Parms)
+
+  var who   := Parms[1];
+  var Book  := Parms[2];
+  var Data  := Parms[3];
+  var Color := CInt(Parms[4]);
+  var From  := CInt(Parms[5]);
+  var ToV   := CInt(Parms[6]);
+  var i     := 1;
+
+  if(From)
+    i := From;
+  endif
+
+  SetObjProperty(who,"#BardBookSpeak",GetPid());
+  while(IsLoggedIn(who) and who and !who.dead and (GetObjProperty(who,"#BardBookSpeak") and GetObjProperty(who,"#BardBookSpeak") == GetPid()))
+
+    if(i > Data.size())
+      break;
+    endif
+
+    if(!Data[i])
+      i := i + 1;
+      continue;
+    endif
+    
+    if(Color)
+      PrintTextAbove(who,CLStr(Data[i]),FONT_NORMAL,Color);
+    else
+      PrintTextAbove(who,CLStr(Data[i]),FONT_NORMAL,Color);
+    endif
+    
+    if(ToV)
+      if(i >= ToV)
+        break;
+      endif
+    endif
+    sleep(3);
+    i := i + 1;
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------

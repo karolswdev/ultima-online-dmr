@@ -1,0 +1,80 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-25
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/move";
+include "include/predef_effects";
+include "include/client/effects";
+include "include/items/temp_storage";
+include "include/mobile/npcs/attack";
+include "include/mobile/npcs/specs";
+include "include/mobile/npcs/properties";
+
+include ":magic:magicatt";
+
+//-----------------------------------------------------------------------------
+
+program StoneFallAttack(Params)
+
+  var Caster := Params[1];
+  var CastOn := Params[2];
+  var Locs;
+
+  if(CastOn.isa(POLCLASS_MOBILE))
+    Locs := PlayStoneFallEffect(CastOn);
+    DealManaDamage(CastOn, GetMana(CastOn)-2, Caster);
+    DealStaminaDamage(CastOn, GetStamina(CastOn)-2, Caster);
+    PlaySoundEffect(CastOn, SFX_FIRE1);
+    PlaySoundEffect(CastOn, SFX_FIRE_STRIKE);
+    DoMagicDamage(CastOn, Caster, (GetHp(CastOn)+3)-RandomInt(8), 9, DMGTYPE_FIRE);
+    sleep(1);
+  elseif(HaveChance(20))
+    Locs := PlayStoneFallEffect(CastOn);
+    sleep(1);
+  else
+    PlayPcStEffect(CastOn.x, CastOn.y, CastOn.z, CastOn.realm, FX_EXPLODE_3, 0, 0x10, 0x10);
+  endif
+
+  if(!Locs)
+    return;
+  endif
+
+  var Stones := array;
+  var Walls := array;
+
+  foreach Loc in Locs
+    var Stone := PullTempItemAtLoc(Loc[1], Loc[2], GetStandZ(Loc[1], Loc[2], Caster.realm), GetRandomStoneShard(), Caster.realm);
+    Stones.append( Stone );
+    PlayPcStEffect(Stone.x, Stone.y, Stone.z, Stone.realm, FX_EXPLODE_3, 0, 0x10, 0x10);
+  endforeach
+
+  Locs := GetRandomLocsNear(CastOn, 3);
+
+  foreach Loc in Locs
+    if(HaveChance(38))
+      var Wall := CreateItemAtLoc(Loc.x, Loc.y, Loc.z, __IfElse(RandomInt(2) == 1, UOBJ_FIREFIELD_EW, UOBJ_FIREFIELD_NS), 1, Loc.realm);
+      PlayPcStEffect(Loc.x, Loc.y, Loc.z, Loc.realm, FX_EXPLODE_3, 0, 0x10, 0x10);
+      Wall.movable := 0;
+      SetObjProperty (Wall, PROP_SUMMONED_FIELD, Caster.serial);
+      Walls.append(Wall);
+    endif
+  endforeach
+
+  sleep(30+RandomInt(50));
+
+  foreach Stone in Stones
+    PlayPcStEffect(Stone.x, Stone.y, Stone.z, Stone.realm, FX_SMOKE, 0, 0x10, 0x10);
+    ReturnTempItem(Stone);
+    sleep(5+RandomInt(15));
+  endforeach
+
+  foreach Wall in Walls
+    PlayPcStEffect(Wall.x, Wall.y, Wall.z, Wall.realm, FX_SMOKE, 0, 0x10, 0x10);
+    DestroyItem(Wall);
+    sleep(5+RandomInt(10));
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

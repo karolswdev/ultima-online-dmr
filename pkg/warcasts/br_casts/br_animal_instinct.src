@@ -1,0 +1,89 @@
+//-----------------------------------------------------------------------------
+
+include "include/packets";
+include "include/gumps";
+include "include/calc";
+include "include/dirs";
+include "include/objects/location";
+
+include ":wearwolf:wearwolf";
+include ":tracking:tracking";
+include ":detecthidden:common";
+
+//-----------------------------------------------------------------------------
+
+const BR_WCID                := 144;
+
+//-----------------------------------------------------------------------------
+
+program BrAnimalInstinct(Parms)
+
+  WarCast(Parms, BR_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var SkBarb   := GetEffectiveSkill(Caster, SKILLID_BARBARIAN);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var Range    := CInt((SkBarb + SkTact) * 0.30);
+  var NearMobs := array;
+  var Mobs     := array;
+
+  GetTrackNearbyMobs(Caster, Range, NearMobs, SKILLID_BARBARIAN);
+
+  foreach Mob in NearMobs
+    if(Mob.murderer != Caster.murderer)
+      Mobs.append(Mob);
+    endif
+  endforeach
+
+  if(Mobs.size())
+    var MobId := SelectTrackMob(Caster, Mobs);
+
+    if(!MobId)
+      WcFizzle(Caster, "Anulowano", GetWcType(BR_WCID));
+      return 0;
+    endif
+
+    TrackMobile(Caster, Range, Mobs[MobId], TRACKF_HALF_EFFICENT, SKILLID_BARBARIAN);
+  else
+    WcFizzle(Caster, "Instynkt mowi Ci, ze nie ma nikogo w poblizu.", GetWcType(BR_WCID));
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SelectTrackMob(Caster, byref Mobs)
+
+  GInit(50, 50);
+  GResPic(0, 0, 3600, 340, 470);
+  GTextLine(100, 20, 999, "Wybierz osobe");
+  GPage();
+  GAddPageData(305,15,2650,2651,305,435,2648,2647);
+
+  foreach Mob in Mobs
+    GCheckNextPage(20);
+    GButton(25, 50+GNPCount()*20, 2714, 2715, _Mob_iter);
+    GTextLine(50, 50+GNPCount()*20, 999, _Mob_iter+".");
+
+    if(IsPlayer(Mob))
+      GTextCrop(80, 50+GNPCount()*20, 210, 20, 1419, Mob.name);
+    else
+      GTextCrop(80, 50+GNPCount()*20, 210, 20, 550, Mob.name);
+    endif
+  endforeach
+
+  return GSend(Caster)[0];
+
+endfunction
+
+//--------------------------------------------------------------------------------

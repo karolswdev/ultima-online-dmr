@@ -1,0 +1,63 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-09-25
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumpboxes";
+include "include/log";
+include "include/cmds/cmds";
+
+include ":baseitems:common";
+include ":housing:housing";
+
+//-----------------------------------------------------------------------------
+
+program MassDestroyCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var range := CInt(text);
+  if (!range)
+    range := 0;
+  endif
+  
+  if(range > 100 and !IsAdmin(who))
+    SendBad(who, "Za duzy zasieg!");
+    return;
+  elseif(range > 20)
+    SendSysMessage(who, "Zasieg wiekszy od 20.", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(who,"Na pewno?"))
+      return;
+    endif
+  endif
+
+  var Prog := dictionary;
+  var Flags, Res, n := 0;
+  SetDestroyItemFlags(who, Flags, text);
+
+  foreach Item in ListObjectsInBox(who.x-range, who.y-range, -127, who.x + range , who.y + range, 127, who.realm)
+    if(Item.isa(POLCLASS_ITEM))
+      Res := CanDestroyItem(Item, Flags);
+      if(Res)
+        OnDestroyItem(Item);
+        Prog[Res] := CInt(Prog[Res]) + 1;
+        LogMsg(DESTROY_LOG,who,Item);
+        if(DestroyItem(Item))
+          n := n + 1;
+        endif
+      else
+        Prog[Res.errortext] := CInt(Prog[Res.errortext]) + 1;
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who, "["+CInt(Prog[1])+"]: Zaakceptowano, ["+n+"]: Zniszczono.", FONT_NORMAL, COLOR_GREEN);
+  foreach Entry in Prog
+    if(_Entry_iter != 1)
+      SendSysMessage(who, "["+Entry+"]: "+_Entry_iter, FONT_NORMAL, COLOR_RED);
+    endif
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

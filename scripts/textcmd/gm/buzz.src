@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-04-15
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/misc";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program BuzzCmd( who )
+
+   SendSysMessage( who, "Kogo obciac?", FONT_NORMAL, COLOR_GREEN );
+   var Targ := ObjTarget(who);
+   if(!Targ)
+     SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+   else
+     var hair  := GetEquipmentByLayer( Targ, LAYER_HAIR );
+     DestroyItem( hair );
+   endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

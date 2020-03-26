@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_merchant:utils/misc";
+
+include "include/gumpboxes";
+include "include/items";
+include "include/npcs";
+
+//-----------------------------------------------------------------------------
+
+program NpcSpeechPush(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+
+  var Event := struct;
+
+  Event.+type := EVID_PUSH;
+  Event.+source := Data.source;
+
+  SendEvent(Data.npc, Event);
+  
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

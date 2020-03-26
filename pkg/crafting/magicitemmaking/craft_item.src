@@ -1,0 +1,160 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/key";
+include "include/speech";
+include "include/buildings";
+
+include ":crafting:common";
+include ":lumberjacking:trees";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+include ":crafting:exceptional";
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program MagicItemMakingCraftItem(Params)
+
+  var who := Params[1];
+  var Book := Params[2];
+  var CraftData := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Book))
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareCraft(who, CraftData.objtype, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_MAGICITEMMAKING, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, CraftData.objtype, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, ObjType, byref Materials)
+
+  var SkillCfg  := ReadConfigFile(":magicitemmaking:crystals");
+
+  Materials := DefineCraftMaterialsFromCfg(who, SkillCfg[ObjType], "reagent", who.backpack);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, ObjType, byref IterData, byref Materials)
+
+  var SkillCfg  := ReadConfigFile(":magicitemmaking:crystals");
+
+  var Diff       := CInt(SkillCfg[ObjType].Diff);
+  var CraftLevel := CInt(SkillCfg[ObjType].CraftLevel);
+  var Points     := GetCraftPoints(SKILLID_MAGICITEMMAKING, Diff);
+  var MySkill    := GetEffectiveSkill(who,SKILLID_MAGICITEMMAKING);
+  var MagSkill   := GetEffectiveSkill(who,SKILLID_MAGERY);
+  var MagicLvl   := Cint(MySkill/30) + Cint(MagSkill/50);
+  var NewName    := GetDescForItem(ObjType);
+  var ExpMod     := 10 + CInt(GetIntelligence(who) / 2);
+  var ObjDesc    := GetItemDescriptor(ObjType);
+  var ProdAmount := 1;
+  
+  if(MagicLvl < 1)
+    MagicLvl := 1;
+  endif
+
+  if(MySkill >= Diff)
+    ExpMod := ExpMod + Cint((MySkill - Diff)/2);
+  endif
+
+  if(MySkill < (Diff - 10) or MagSkill < (Diff - 10))
+    SendSysMessage(who,"Twa wiedza jeszcze za mala.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SOUND_EFFECT_GRIND))
+    return 0;
+  endif
+  
+  if(!CheckMoreSkill(who,SKILLID_MAGICITEMMAKING,Diff,0) or !CheckSkill(who,SKILLID_MAGERY,Diff,0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Reka Ci sie posliznela i zle zmieszal"+ggm(who, 3)+" skladniki!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SOUND_EFFECT_GRIND))
+    return 0;
+  endif
+  
+  PlaySoundEffect(who,SFX_SPELL_BLESS);
+  PlayObjectCenteredEffect(who,FX_MARK_EFFECT,0x10,0x10);
+
+  var ExpData := CraftExceptional(who, SKILLID_MAGICITEMMAKING, ExpMod, CraftLevel);
+
+  if(ExpData.makeExp)
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" wyjatkowej jakosci krysztal.",FONT_NORMAL,COLOR_BLUE);
+    if(ExpData.makeNamed)
+      NewName := NewName + " [wykonal"+ggm(who,4)+" "+GetRealName(who)+"]";
+    else
+      NewName := EXP_ITEM_NAME + " " + NewName;
+    endif
+    MagicLvl := MagicLvl + 3;
+  elseif(RandomInt(50) > Cint(MySkill/2))
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" sredniej jakosci krysztal.",FONT_NORMAL,COLOR_RED);
+    MagicLvl := Cint(MagicLvl - RandomInt(3));
+    if(MagicLvl < 1)
+      MagicLvl := 1;
+    endif
+  else
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" krysztal.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  ObjDesc.CProps[PROP_MADE] := GenMade(who, MTYPE_MAGIC, MagicLvl);
+
+  var Crystal := CreateItemInPack(who, ObjDesc);
+
+  if(!Crystal)
+    SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  SetName(Crystal, NewName);
+
+  AwardPoints(who, SKILLID_MAGICITEMMAKING, CInt(Points));
+  SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_MAGICITEMMAKING, array(Crystal, 0));
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

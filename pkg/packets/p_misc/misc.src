@@ -1,0 +1,144 @@
+//-----------------------------------------------------------------------------
+
+include "include/finding";
+include "include/checks/stdchecks";
+include "include/bits";
+include "include/player/target";
+include "include/logerror";
+include "include/const/misc";
+include "include/events";
+
+include ":tips:tips";
+
+//-----------------------------------------------------------------------------
+
+program MiscPackets()
+
+  print("[0x00]: Create Character");
+  print("[0x06]: Double Click");
+  print("[0xB1]: Gump Response");
+  print("[0x99]: Target Multi");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function DblClick(who,byref Packet)
+
+  var Serial := Packet.GetInt32(1);
+
+  if(Serial > 0x40000000)
+    var Item := FindItemBySerial(Serial);
+    if(Item.isa(POLCLASS_ITEM))
+      if(!Accessible(who,Item))
+        if(Item.objtype == 0x6300 or Item.objtype == 0x1940 or Item.objtype == 0x0e83 or Item.objtype == 0x0EFA)
+          return 1;
+        endif
+      endif
+    endif
+  elseif(!who.warmode)
+    var Mob := FindPlayerBySerial(Serial);
+    if(Mob != who)
+      if(IsHuman(Mob))
+        if(Distance(who, Mob) < 10)
+          OpenPaperdoll(who, Mob);
+        endif
+        return 1;
+      endif
+    endif
+  endif
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function CreateChar(who, byref Packet)
+
+  __ParamUnused(who);
+  __ParamUnused(Packet);
+  // blokujemy CreateChar - nie powinien tutaj nawet wchodzic.
+  // od 2012-09-17 bedziemy obslugiwac tworzenie postaci calkowicie sami, przez moj super trick podmiany nazwy chara ;)
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function GumpResponse(who, byref packet)
+
+  if(GetObjProperty(who, "#CsG_"+Packet.GetInt32(7)))
+    EraseObjProperty(who, "#CsG_"+Packet.GetInt32(7));
+    var Pid       := GetProcess(Packet.GetInt32(7));
+    if(Pid)
+      var gEv       := struct;
+      gEv.+butid    := Packet.GetInt32(11);
+      gEv.+switches := array;
+      gEv.+text     := dictionary;
+      gEv.+unitext  := dictionary;
+
+      var swCount   := Packet.GetInt32(15);
+      var i;
+      var n := 19;
+
+      if(swCount)
+        for(i:=1;i<=swCount;i:=i+1)
+          gEv.switches[i] := Packet.GetInt32(n);
+          n := n + 4;
+        endfor
+      endif
+
+      var txCount := Packet.GetInt32(n);
+      var txLen;
+
+      n := n + 4;
+
+      if(txCount)
+        for(i:=1;i<=txCount;i:=i+1)
+          txLen := Packet.GetInt16(n+2);
+          if(txLen)
+            gEv.unitext[Packet.GetInt16(n)] := Packet.GetUnicodeString(n+4, txLen);
+            gEv.text[Packet.GetInt16(n)] := CChrZ(gEv.unitext[Packet.GetInt16(n)]);
+          else
+            gEv.unitext[Packet.GetInt16(n)] := array;
+            gEv.text[Packet.GetInt16(n)] := "";
+          endif
+          n := n + txLen*2 + 4;
+        endfor
+      endif
+
+      Pid.sendevent(gEv);
+    endif
+    return 1;
+  endif
+
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function SendTargetMulti(who, byref Packet)
+
+  __ParamUnused(Packet);
+
+  SetTempFlag(who, PCF_TARGETING);
+  return 0;
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+exported function SendWarmode(who, byref Packet)
+
+  __ParamUnused(Packet);
+
+  TriggerTipEvent(who, TEID_WARMODE);
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

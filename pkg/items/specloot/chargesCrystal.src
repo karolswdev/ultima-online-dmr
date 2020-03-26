@@ -1,0 +1,39 @@
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/effects";
+
+
+program speclootdye(who, itemCrystal)
+
+  if(!StandardItemCheck(who,itemCrystal))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz przedmiot naprawy.",FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+ 
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+  if(!ItemCfg[Item.objtype].repairable or !GetItemMaxHp(Item))
+    if(IsPlayer(who))
+      SendSysMessage(who,"Tego sie nie da naprawic.",FONT_NORMAL,COLOR_RED);
+    endif
+    return 0;
+  endif
+ 
+  if(GetItemHp(Item) == GetItemMaxHp(Item))
+    if(IsPlayer(who))
+      SendSysMessage(who, "Przedmiot nie jest zniszczony.",FONT_NORMAL,COLOR_BLUE);
+    endif
+    return 0;
+  endif
+
+   //SetItemMaxHpMod(Item, GetItemMaxHpMod(Item)-1);
+  SetItemHp(Item,GetItemMaxHP(Item));
+  SendSysMessage(who,"Naprawil"+ggm(who,3)+" ten przedmiot calkowicie.",FONT_NORMAL,COLOR_BLUE);
+
+  DestroyItem(itemCrystal);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

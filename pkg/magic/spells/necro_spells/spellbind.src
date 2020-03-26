@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/mobile/misc";
+include "ai/include/tamed";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 68;
+
+//-----------------------------------------------------------------------------
+
+program CastSpellbind( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NPC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsTamed(CastOn))
+    Fizzle(Caster,"To stworzenie wydaje sie juz byc kontrolowane.");
+    return;
+  endif
+
+  var Duration    := GetNecroSpellDur( Caster );
+  var CasterSk    := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var MaxStr      := CasterSk * 2 + MinMax(CasterSk - 95, 0, 10) * 10;
+
+  if(((GetStrength(CastOn) + GetMaxHp(CastOn) + GetMaxMana(CastOn)) / 3) > MaxStr or !NpcHaveFlag(CastOn, "provoke"))
+    Fizzle(Caster,"To stworzenie jest za silne, by sie poddac twej mocy!");
+    SendChEvent(CastOn, Caster, EVID_ENGAGED);
+    return;
+  endif
+
+  if(!WasPrevTamedBy(CastOn, Caster))
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+  SetNecroControl(CastOn, Caster, ReadGameClock()+Duration);
+
+  PlayPcEffect(CastOn, FX_MARK_EFFECT, 3, 0xF, 0xF, 2);
+  PlaySoundEffect(CastOn, SFX_SPELL_SUMMON_DAEMON);
+  PlaySoundEffect(CastOn, SFX_SPELL_SUMMON_ELEMENTAL);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

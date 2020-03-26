@@ -1,0 +1,95 @@
+//-----------------------------------------------------------------------------
+
+include "../../wcbook";
+
+//-----------------------------------------------------------------------------
+
+program WarCastCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+  
+  if(IsBusy(who, NO_BUSY_DELAY_CHECK | NO_COMBAT_CHECK))
+    return 0;
+  endif
+
+  if(!text)
+    SendSysMessage(who, ".rzuc ?", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(text == "?")
+    SendSysMessage(who, "Wpisz typ i nazwe zaklecia.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "w: wilkolak.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "v: wampir.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "p: paladyn.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "m: mroczny rycerz.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "b: barbarzynca.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "k: kensai.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "h: lowca.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, "Przyklad: .rzuc w Skok, rzuc v burz", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var WarCfg;
+
+  case(text[1])
+    "w":      WarCfg := ReadConfigFile(":ww_casts:warcasts");
+    "v":      WarCfg := ReadConfigFile(":vw_casts:warcasts");
+    "p":      WarCfg := ReadConfigFile(":pd_casts:warcasts");
+    "m":      WarCfg := ReadConfigFile(":dk_casts:warcasts");
+    "b":      WarCfg := ReadConfigFile(":br_casts:warcasts");
+    "k":      WarCfg := ReadConfigFile(":kn_casts:warcasts");
+    "h":      WarCfg := ReadConfigFile(":hn_casts:warcasts");
+    default:  SendSysMessage(who, "Bledny typ. pomoc: .rzuc ?", FONT_NORMAL, COLOR_RED);
+              return;
+  endcase
+
+  text[1,2] := "";
+
+  if(!text)
+    SendSysMessage(who, "Brak nazwy zaklecia. pomoc: .rzuc ?", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!WarCfg)
+    WarCfg := GetWarCastCfg();
+  endif
+
+  var ltext  := lower(text);
+  var wcId   := 0;
+  var wcName;
+
+  foreach iId in GetConfigIntKeys(WarCfg)
+    wcName := lower(WarCfg[iId].Name);
+    if(wcName == ltext)
+      wcId := iId;
+      break;
+    endif
+  endforeach
+
+  if(!wcId)
+    foreach iId in GetConfigIntKeys(WarCfg)
+      wcName := lower(WarCfg[iId].Name);
+      if(wcName[ltext])
+        wcId := iId;
+        break;
+      endif
+    endforeach
+  endif
+
+  if(wcId)
+    var Item := CanCastWarCast(who, wcId);
+    if(Item)
+      if(Item.isa(POLCLASS_ITEM))
+        StartWarCast(who, wcId, Item);
+      else
+        StartWarCast(who, wcId);
+      endif
+    else
+      SendSysMessage(who, "Nie umiesz jeszcze zaklecia "+WarCfg[wcId].name+".", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "Nie znaleziono nic pasujacego do "+text+".", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

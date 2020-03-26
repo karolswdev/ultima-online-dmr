@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UsePolyMorphPotion(who,potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+ 
+
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+
+  var graphic := 80;
+  
+  case((RandomInt(3)+1))
+    1:  graphic := 33; //lizard
+    2:  graphic := 17; //orc
+    3:  graphic := 80; //giant toad
+  endcase
+  
+  if(ExpMod)
+    graphic := 55;
+    case((RandomInt(4)+1))
+      1: graphic := 55;  //Troll
+      2: graphic := 1;   //Ogr
+      3: graphic := 75;  //Cyclopse
+      4: graphic := 4;	 //gargoyle
+    endcase
+    if(ExpMod >= 15 and RandomInt(100) < 50)
+      graphic := 0x3c;   //Drake
+    endif
+  endif
+  
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+  
+  DoMod(who,MOD_GRAPHIC,graphic, STANDARD_POTION_MOD_DUR * QualMod + (ExpMod * 30));
+  
+endprogram
+
+//-----------------------------------------------------------------------------

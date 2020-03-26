@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/client/fonts";
+include "include/objtypes/misc";
+include "include/items";
+include "include/misc";
+
+
+//-----------------------------------------------------------------------------
+
+program MakeKeyCmd(who)
+
+  SendSysMessage( who, "Wybierz drzwi lub kontener." ,FONT_NORMAL,COLOR_GREEN);
+  var LockedItem := ObjTarget( who, TGTOPT_NOCHECK_LOS );
+
+  if(!LockedItem.isa(POLCLASS_ITEM))
+    SendSysMessage( who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!LockedItem.isa(POLCLASS_LOCKABLE))
+    SendSysMessage( who, "Tego nie da sie zamknac.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var lockid := GetObjProperty(lockeditem, "lockid");
+  var key    := CreateItemInPack( who, UOBJ_GOLD_KEY, 1 );
+  SetObjProperty(key, PROP_GM_KEY, who.serial);
+  key.newbie := 1;
+  key.color := 70+RandomInt(30);
+  key.name := "Magiczny Klucz";
+  
+  if(lockid)
+    SetObjProperty(key,"lockid",lockid);
+    SendSysMessage( who, "Stworzono klucz pasujacy do zamka przedmiotu "+GetName(LockedItem)+".", FONT_NORMAL,COLOR_GREEN );
+  else
+    SendSysMessage( who, "Stworzono klucz i zamek do przedmiotu "+GetName(LockedItem)+".", FONT_NORMAL,COLOR_GREEN );
+    SetItemLocked(lockeditem,key,50);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

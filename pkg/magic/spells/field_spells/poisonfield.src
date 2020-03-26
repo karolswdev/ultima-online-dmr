@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":magic:fields";
+include "include/buildings";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 39;
+
+//-----------------------------------------------------------------------------
+
+program CastPoisonField( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  if(IsInBuilding(CastLoc.x,CastLoc.y,Caster.realm))
+    Fizzle(Caster,"Nie uda ci sie postawic w tym miejscu sciany.");
+    return;
+  endif
+
+  var CasterMagery := GetEffectiveSkill(Caster,SKILLID_MAGERY);
+  var Duration     := CInt(10 + CasterMagery/2);
+
+  CreateField(Caster, CastLoc.x,CastLoc.y,CastLoc.z, MFIELDT_POISON, duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

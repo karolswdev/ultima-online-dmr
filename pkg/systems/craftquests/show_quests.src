@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include "include/attributes/skills";
+include "include/mobile/npcs/utils";
+include "include/items/groups";
+include "include/dirs";
+include "include/clock";
+include "include/gumps";
+
+include "craftquests";
+
+//-----------------------------------------------------------------------------
+
+program HandlerShowCraftQuests(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+  
+  if(!NpcHaveFlag(Data.npc, "CanGiveCraftQuest"))
+    return 0;
+  endif
+
+  var res := ShowCraftQuests(Data.source, Data.npc);
+
+  if(Res)
+    AcceptCraftOrder(Data.source, Data.npc, Res.Idx, Res.Level, Res.Harvest);
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

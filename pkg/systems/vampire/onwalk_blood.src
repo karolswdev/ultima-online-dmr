@@ -1,0 +1,175 @@
+//-----------------------------------------------------------------------------
+// OnWalk Coffin Blood Control
+//-----------------------------------------------------------------------------
+
+include "include/client/effects";
+include "include/client/sounds";
+include "include/misc";
+include "include/checks/objchecks";
+include "include/packets";
+include "include/resurrect";
+
+include ":housing:common";
+
+include "coffin";
+include "common";
+
+//-----------------------------------------------------------------------------
+
+program OnWalkCoffinBlood(who, Blood, lx, ly, lz)
+
+  RepairOldCoffin(Blood);
+
+  if(who.concealed or !IsVampire(who) or !who.dead)
+    return;
+  endif
+
+  if(Blood.multi)
+    if(!IsHouseOwner(who, Blood.multi) and !IsHouseCoOwner(who, Blood.multi) and !IsHouseFriend(who, Blood.multi))
+      return;
+    endif
+  endif
+
+  var Time    := CInt(GetObjProperty(Blood, "LastUseTime"));
+  var Delay   := (Time + COFFIN_CLOSE_TIME) - ReadGameClock();
+  var Charges := CInt(GetObjProperty(Blood, "Charges"));
+
+  if(Delay > 0)
+    SendSysMessage(who, "Ta trumna nie jest jeszcze gotowa.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Charges <= 0 and GetHouseSerial(Blood))
+    SendSysMessage(who, "Ta trumna nie posiada wiecej mocy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(who.dead)
+  
+    var i;
+
+    for(i:=1;i<=3;i:=i+1)
+      PlayPcStEffect(Blood.x, Blood.y, Blood.z, Blood.realm, FX_HEAL_EFFECT, 40, 0x1F, 0x1F, 3);
+      sleep(1);
+      if(Blood.x != who.x or Blood.y != who.y)
+        return;
+      endif
+    endfor
+
+    if(Blood.x == who.x or Blood.y == who.y)
+      if(Resurrection(who, 1))
+        PlaySoundEffect(who, SFX_SPELL_RESSURECTION);
+        SetObjProperty(who,"Ressurected", {Blood.serial, ReadGameClock()});
+        SetObjProperty(Blood, "LastUseTime", ReadGameClock());
+        SetObjProperty(Blood, "#NoDestroy", ReadGameClock());
+
+        var Parts := GetCoffinParts(Blood);
+
+        ChangeCoffin(Parts, 0);
+        start_script("coffin_blood", Blood);
+
+        if(GetHouseSerial(Blood))
+          Charges -= 1;
+          SetObjProperty(Blood, "Charges", Charges);
+
+          if(Charges)
+            SendSysMessage(who, "Ta trumna ma jeszcze "+Charges+" ladun"+gam(Charges, GAM_EK)+".", FONT_NORMAL, COLOR_GREEN);
+          else
+            SendSysMessage(who, "Ta trumna stracila swa moc!", FONT_NORMAL, COLOR_RED);
+          endif
+        endif
+      endif
+    endif
+    
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function RepairOldCoffin(Blood)
+  
+  var Parts := GetCoffinParts(Blood);
+  
+  if(!Parts)
+    return 0;
+  endif
+
+  var oPart := struct;
+  oPart.+pNames := 0;
+  
+  foreach Part in (Parts.coffin)
+    if(Part.objtype == 0x21A3)
+      oPart.+item := Part;
+      oPart.+serial := Part.serial;
+      oPart.+x := Part.x;
+      oPart.+y := Part.y;
+      oPart.+z := Part.z;
+      oPart.+realm := Part.realm;
+      oPart.pNames := GetObjPropertyNames(Part);
+    elseif(Part.objtype == 0x21A2)
+      return 1;
+    endif
+  endforeach
+  
+  if(!oPart.pNames)
+    return 0;
+  endif
+  
+  var Props := {};
+  var Prop := struct;
+  Prop.+name;
+  Prop.+value;
+  
+  foreach pName in (oPart.pNames)
+    Prop.name := pName;
+    Prop.value := GetObjProperty(oPart.item, pName);
+    Props.append(Prop);
+  endforeach
+  
+  if(!DestroyItem(oPart.item))
+    return 0;
+  endif
+
+  var nPart := CreateItemAtLoc(oPart.x, oPart.y, oPart.z, 0x21A2, 1, oPart.realm);
+
+  if(!nPart)
+    return 0;
+  endif
+
+  nPart.movable := 0;
+
+  foreach Prop in Props
+    SetObjProperty(nPart, Prop.name, Prop.value);
+  endforeach
+  
+  var i, arSerials := GetObjProperty(Blood, PROP_PARTS_SERS);
+
+  if(!arSerials.size())
+    return 0;
+  endif
+
+  for(i:=1;i<=arSerials.size();i+=1)
+    if(arSerials[i] == oPart.serial)
+      arSerials[i] := nPart.serial;
+    endif
+  endfor
+
+  SetObjProperty(Blood, PROP_PARTS_SERS, arSerials);
+
+  Parts := GetCoffinParts(Blood);
+
+  if(!Parts)
+    return 0;
+  endif
+
+  foreach Part in (Parts.coffin)
+    if(Part)
+      SetObjProperty(Part, PROP_PARTS_SERS, arSerials);
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+

@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magicbag";
+include "include/checks/objchecks";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program AddDruidRune (character, rune)
+
+  SendSysMessage (character, "Wybierz worek do ktorego chcesz wlozyc runo.",FONT_NORMAL,COLOR_GREEN);
+  var bag := ObjTarget(character);
+
+  if(!StandardItemCheck(character,bag))
+    return;
+  endif
+  
+  if(bag.objtype != 0x706b)
+    SendSysMessage (character, "Druidyczne runa mozesz wlozyc tylko do worka na druidyczne runy.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if (CheckForRuneInBag (bag, rune.objtype))
+    SendSysMessage (character, "Takie same runo znajduje sie juz w worku.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var RuneObj := rune.objtype;
+
+  if(DestroyItem (rune))
+    SendSysMessage (character,"Wlozyl"+ggm(character,3)+" runo do worka.",FONT_NORMAL,COLOR_GREEN);
+    PutRuneInBag (bag, RuneObj);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

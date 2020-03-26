@@ -1,0 +1,81 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/misc";
+include "include/const/props";
+include "include/checks/stdchecks";
+include "include/mobile/titles";
+include "include/items";
+include "include/move";
+include "include/log";
+include "include/player/target";
+
+include "include/equipment";
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program CopyLookCmd(who, text)
+
+  if(text["?"])
+    SendSysMessage(who, ".tcopylook [all]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz cel z ktorego chcesz skopiowac wyglad.", FONT_NORMAL, COLOR_GREEN);
+  var FromMob := ObjTarget(who);
+
+  if(!FromMob.isA(POLCLASS_MOBILE))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var ToMob := who;
+
+  var FromMobInfo := "";
+
+  if(FromMob.npctemplate)
+    FromMobInfo := FromMob.npctemplate;
+  elseif(FromMob.acctname)
+    FromMobInfo := FromMob.acctname;
+  endif
+
+  var Cont := CreateItemInPack(who.backpack, UOBJ_BACKPACK);
+  UnEquipAll(ToMob, array, Cont);
+  DestroyItem(Cont);
+
+  var eItem,i;
+
+  for(i:=1;i<=25;i:=i+1)
+    if(i != LAYER_PACK)
+      eItem := GetEquipmentByLayer(ToMob,i);
+      if(eItem)
+        DestroyItem(eItem);
+      endif
+
+      eItem := GetEquipmentByLayer(FromMob,i);
+      eItem := CreateItemCopyAtLoc(ToMob.x, ToMob.y, ToMob.z, eItem, ToMob.realm);
+
+      if(eItem)
+        if(!who.cmdlevel) // tester kopiuje sobie? 
+          EraseObjProperty(eItem, PROP_CREATED);
+        endif
+        EquipItem(ToMob, eItem);
+      endif
+    endif
+  endfor
+
+  ToMob.gender  := FromMob.gender;
+  ToMob.graphic := FromMob.graphic;
+  ToMob.color   := FromMob.color;
+  ToMob.name    := FromMob.name;
+
+  if(text == "all")
+    CopyLookAll(FromMob, ToMob);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

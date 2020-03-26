@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 66;
+
+//-----------------------------------------------------------------------------
+
+program CastCommune( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  var Duration := GetNecroSpellDur(caster);
+  
+  PlaySoundEffect(CastOn, SFX_SKILL_SPIRITSPEAK);
+  PlayObjectCenteredEffect(CastOn, FX_SPARK_EFFECT, 7, 0x10);
+  
+  DoMod(CastOn,MOD_HGHOSTS,1,Duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

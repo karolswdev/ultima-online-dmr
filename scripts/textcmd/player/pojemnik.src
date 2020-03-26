@@ -1,0 +1,44 @@
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/nutrition";
+include "include/attack";
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/checks/stdchecks";
+include "include/checks/objchecks";
+
+include ":harvesting:harvcont";
+
+//-----------------------------------------------------------------------------
+
+program SetHarvCont(who)
+
+  var Cfg := ReadConfigFile(ATTRIBUTES_CFG);
+  var Skills := dictionary;
+
+  foreach AttrId in GetConfigStringKeys(Cfg)
+    if(Cfg[AttrId].AttrGroup == "harvest")
+      Skills[Cfg[AttrId].SkillID] := Cfg[AttrId].Name;
+    endif
+  endforeach
+
+  var SkId := SelectListGump(who, Skills, "Wybierz umiejetnosc");
+
+  if(SkId != error)
+    var Loc := LocTarget(who);
+
+    if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK|NO_ITEMCONT_CHECK | NO_DIST_CHECK | NEW_DIST_CHECK, 2))
+      return;
+    endif
+
+    if(!SetHarvestContainerFromLoc(who, Loc, SkId))
+      SendBad(who, "Wybierz pojemnik lub zwierza z juka.");
+    endif
+
+  endif
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

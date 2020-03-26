@@ -1,0 +1,1168 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/poison";
+include "include/mount";
+include "include/logerror";
+include "include/coords";
+include "include/std";
+include "include/attack";
+include "include/tools";
+include "include/player/misc";
+include "include/player/young";
+include "include/mobile/npcs/specs";
+include "include/attributes/npcs_cag";
+include "include/checks/locchecks";
+include "include/calc";
+include "include/reputation/criminal";
+include "include/checks/objchecks";
+include ":character:include/checks";
+
+include ":lumberjacking:trees";
+include ":magic:magicgain";
+include ":warcasts:wcgain";
+include ":magicitems:magicitems";
+include ":vampire:common";
+include ":wearwolf:common";
+include ":tourney:tourney";
+include ":barbarian:common";
+include ":party:party";
+include ":kensai:common";
+include ":paladin:common";
+include ":darkknight:common";
+include ":necromancy:common";
+include ":druid:common";
+include ":hunter:common";
+include ":traits:npcbonus";
+
+//-----------------------------------------------------------------------------
+
+const SKF_NEEDED_TO_ST       := 45;
+const ST_SPAR_LIMIT          := 70;
+
+//-----------------------------------------------------------------------------
+
+var aNpcElem, dNpcElem, gItemCfg, _Shield, ADamage, FDamage, StGain, StGainValue, Blood;
+var aBSkCombat, dBSkCombat, aBSkTact, dBSkTact, _SkID, DefSkID, Parried, Hitted, ArchBonus;
+var gWeapon, secWeapon, gBlockGain := 0;
+  
+var IsTesting := IsOnDMRTest();
+
+//-----------------------------------------------------------------------------
+
+program MainAttackHook()
+
+  SetLogRunCycles(LST_HOOK);
+
+  gItemCfg     := Readconfigfile(ITEMS_CFG);
+
+  print("AttackHook: ["+GetPid()+"] Done.");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function AttackHook(attacker, defender)
+
+  if(GetObjProperty(Attacker, PROP_NO_FIGHT))
+    return 1;
+  elseif(CanMod(Attacker, MOD_BLOCK_FIGHT) == 0)
+    return 1;
+  endif
+  
+  if(CInt(GetObjProperty(Attacker,PROP_FIGHT_DELAY)) > ReadMillisecondClock())
+    return 1;
+  endif
+
+  if(!CanVsAttack(Attacker, Defender))
+    return 1;
+  endif
+
+  _Shield     := 0;
+  ADamage     := 0;
+  FDamage     := 0;
+  StGain      := 0;
+  Parried     := 0;
+  ArchBonus   := 0;
+  gBlockGain  := 0;
+
+  if(!attacker or !defender)
+    return 1;
+  endif
+
+  if(defender == attacker)
+    return 1;
+  endif
+
+  if(attacker.isa(POLCLASS_NPC))
+    aNpcElem := GetNpcConfig(attacker);
+  endif
+  
+  if(Attacker.weapon.objtype == UOBJ_MOONCLAW)
+    gWeapon            := struct;
+    gWeapon.+objtype   := UOBJ_WRESTLE;
+    gWeapon.+hp        := 100;
+    gWeapon.+maxhp     := 100;
+    gWeapon.+dmg_mod   := 0;
+    gWeapon.+quality   := 1;
+  else
+    gWeapon := Attacker.weapon;
+  endif
+
+  secWeapon := gWeapon;
+
+  if(gWeapon.hp > gWeapon.maxhp)
+    gWeapon.hp := gWeapon.maxhp;
+  endif
+
+  _SkID := GetAttackSkill(attacker);
+  
+  if(_SkID == SKILLID_ARCHERY)
+  
+    var ArchDelayMod := 0;
+    if(!GetEquipmentByLayer(Attacker, LAYER_MOUNT) and CanMod(Attacker, MOD_RUN_SPEED))
+      ArchDelayMod := -0.20;
+      ArchBonus := 0.20;
+    endif
+    ArchDelay(Attacker, gWeapon, ArchDelayMod);
+    
+  endif
+
+  if(ChNocZone(Attacker))
+    return 1;
+  endif
+
+  PerformAttack(attacker, defender);
+
+  gBlockGain := 1;
+
+  if(_SKID == SKILLID_ARCHERY)
+    if(CanMod(attacker, MOD_MULTI_SHOT) == 0)
+      var ModAmt := GetModAmount(attacker, MOD_MULTI_SHOT);
+      var Cnt := 0;
+      var Hostiles := ListHostiles(attacker);
+
+      foreach Mob in ListMobilesNearLocation(defender.x, defender.y, defender.z, Max(1, ModAmt), defender.realm)
+        if(Mob == attacker or Mob == defender)
+          continue;
+        endif
+
+        if(!(mob in Hostiles))
+          if(!CanDamage(attacker, mob) or (mob.isa(POLCLASS_NPC) and GetNpcConfig(mob).alignment == CITYAL_NEUTRAL))
+            continue;
+          endif
+        endif
+
+        PerformAttack(attacker, Mob);
+        Cnt += 1;
+
+        if(Cnt == 2)
+          break;
+        endif
+      endforeach
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PerformAttack(attacker, defender)
+
+  if(attacker.dead or defender.dead or attacker.paralyzed or attacker.frozen or defender.enabled("invul"))
+    return 1;
+  endif
+
+  // drugi raz bo moze byc inny defender z multishot
+  if(!CanVsAttack(Attacker, Defender))
+    return 1;
+  endif
+
+  if(defender.isa(POLCLASS_NPC))
+    dNpcElem := GetNpcConfig(defender);
+  endif
+
+  if(!CheckSpecialLos(Attacker,Defender))
+    return 1;
+  endif
+
+  if(defender.isa(POLCLASS_NPC))
+    SendChEvent(defender,attacker,EVID_ENGAGED);
+  endif
+
+  _Shield := GetShield(defender);
+
+  SetObjProperty(attacker,"#CombatBusy",ReadGameClock()+5);
+  SetObjProperty(defender,"#CombatBusy",ReadGameClock()+5);
+
+  if(!attacker.isa(POLCLASS_NPC))
+    if(gItemCfg[gWeapon.objtype].Projectile)
+      var Ammo := FindObjTypeInContainer(attacker.backpack,CInt(gItemCfg[gWeapon.objtype].ProjectileType));
+      if(!Ammo)
+        SendSysMessage(attacker,"Nie masz amunicji.",FONT_NORMAL,COLOR_RED);
+        return 1;
+      elseif(!SubtractAmount(Ammo,1))
+        SendSysMessage(attacker,"Nie masz amunicji.",FONT_NORMAL,COLOR_RED);
+        return 1;
+      endif
+    endif
+  endif
+
+  DefSkId := GetAttackSkill(defender);
+
+  Hitted := 0;
+
+  aBSkCombat := GetEffectiveSkillBaseValue(attacker, _SkID);
+  dBSkCombat := GetEffectiveSkillBaseValue(defender, DefSkID);
+  aBSkTact   := GetEffectiveSkillBaseValue(attacker, GetTacticsSkId(attacker));
+  dBSkTact   := GetEffectiveSkillBaseValue(defender, GetTacticsSkId(defender));
+
+  if(attacker.isa(POLCLASS_NPC))
+    if(!aBSkCombat and !IsGmCreated(attacker))
+      if(!GetObjProperty(attacker,"#ForceFlee"))
+        LogError("NPC template "+attacker.npctemplate+"/"+attacker.serial+" ma atrybut walki "+GetSkillConfigElem(_SkID).Name+", a nie ma umiejetnosci!", LOGF_SCRIPTS);
+        SendChEvent(attacker, defender, EVID_FLEE);
+        PrintTextAbove(attacker, "*zdezorientowan"+ggm(attacker, 6)+"*");
+      else
+        if(CInt(GetObjProperty(attacker,"#ForceFlee")) + 10 < ReadGameClock())
+          SendChEvent(attacker, defender, EVID_FLEE);
+          PrintTextAbove(attacker, "*zdezorientowan"+ggm(attacker, 6)+"*");
+        endif
+      endif
+
+      SetObjProperty(attacker, "#ForceFlee", ReadGameClock());    
+      SetObjProperty(attacker, "#NoAttack", -1);
+    elseif(GetObjProperty(attacker, "#NoAttack") == -1)
+      EraseObjProperty(attacker, "#NoAttack");
+      EraseObjProperty(attacker, "#ForceFlee");
+    endif
+  endif
+
+  var Cth    := CalcChanceToHit(attacker, defender, ArchBonus);
+  
+  if(RandomInt(1000) < Cth)
+    if(HaveForceField(defender,attacker))
+      ADamage := 0;
+    else
+      CalcDamage(attacker, defender, gWeapon);
+      Hitted  := 1;
+      FDamage := ADamage;
+      CheckOnHitScripts(attacker,defender,secWeapon);
+      CheckAddOns(attacker,defender,gWeapon);
+      CheckModsDmg(attacker,defender);
+    endif
+
+    if(ADamage)
+    
+      if(IsTesting)
+        if(GetObjProperty(defender, "#AttackDebug"))
+          syslog(attacker.name+" > "+defender.name+" Weapon: "+attacker.weapon.desc+" (DefAR: "+defender.ar+") > Final Damage: "+ADamage);
+        endif
+      endif
+
+      case(_SkID)
+        SKILLID_SWORDSMANSHIP:
+        SKILLID_FENCING:
+          if(HaveChance(5))
+            DropBlood(defender);
+          endif
+      endcase
+      DealDamage(defender, ADamage, attacker);
+      CheckTourneyDamage(defender, ADamage, attacker);
+      if(!Blood)
+        Blood := CreateNpcBlood(defender, 3, CB_SMALL);
+      endif
+    endif
+  endif
+
+  PlayCombatEffect(Attacker,Defender,gWeapon);
+
+  if(!attacker.isa(POLCLASS_NPC))
+    if(gWeapon.objtype != UOBJ_WRESTLE and gWeapon)
+      CheckToolWear(attacker, gWeapon, _SkID, GetEquipUsageFactor(defender, attacker));
+    endif
+    if(secWeapon)
+      CheckToolWear(attacker, secWeapon, _SkID, GetEquipUsageFactor(defender, attacker));
+    endif
+  endif
+
+  if(IsPlayer(defender))
+    DamageDefenderArmor(defender, attacker);
+  endif
+
+  if(Hitted)
+    if(aNpcElem.WearWolfBite)
+      WearWolfBite(defender);
+    elseif(aNpcElem.VampireBite)
+      VampireBite(defender);
+    elseif(IsNpcGuard(attacker))
+      if(defender.isa(POLCLASS_NPC))
+        SetFlag(defender, NPCF_NO_LOOT);
+      endif
+    endif
+
+    if(IsPlayer(attacker) and IsPlayer(defender))
+      if(Parried)
+        if(CanMod(defender, MOD_MAGIC_SHIELD) == 0)
+          var Amt := GetModAmount(defender, MOD_MAGIC_SHIELD);
+        
+          case(Amt[1])
+            DMGTYPE_FIRE:          PlaySoundEffect( attacker, SFX_SPELL_EXPLOSION );
+                                   PlayObjectCenteredEffect(attacker, FX_EXPLODE_3, 0x7, 0x10);
+            DMGTYPE_COLD:          PlaySoundEffect( attacker, 0x15);
+                                   PlayPcEffect(attacker, FX_CURSE_EFFECT, 1151, 0xF, 0xE);
+            DMGTYPE_ELECTRIC:      PlaySoundEffect( attacker, SFX_LIGHTNING_STRIKE);
+                                   PlayPcEffect(attacker, FX_HEAL_EFFECT, 90, 0xF, 0x8, 0x2);
+          endcase
+
+          DoMagicDamage(attacker, defender, RandomDiceRoll(Amt[2]), 5, Amt[1], SPTYPE_NONE, NO_RESIST_GAIN);
+        endif
+      endif
+
+      if(_SkID == SKILLID_ARCHERY)
+        var AmmoType := CInt(gItemCfg[gWeapon.objtype].AmmoType);
+        var ModType := gItemCfg[AmmoType].ModType;
+
+        if(ModType)
+          ModType := SplitWords(ModType);
+          DoMod(defender, CInt(ModType[1]), CInt(ModType[2]), CInt(ModType[3]));
+        endif
+      endif
+    endif
+
+  endif
+
+  GainSkPoints(attacker, defender);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcChanceToHit(attacker, defender, bonus := 0)
+
+  if(!Attacker or !defender)
+    return 0;
+  endif
+
+  var Chance    := aBSkCombat - dBSkCombat + 400;
+  var Mod       := GetTempModAmount(attacker, MOD_CTH);
+  var Penetrate := GetTempModAmount(defender, MOD_PENETRATE);
+
+  if(IsPlayer(attacker))
+    if(IsPlayer(defender))
+      Chance := Chance + CInt((aBSkTact - dBSkTact) / 5) + CInt((GetDexterity(attacker) - GetDexterity(defender)) * 2.5);
+      StGain := NO_STAT_AWARD;
+    endif
+    ModifyGainByNutr(attacker, Chance, ATTRIBUTEID_DEXTERITY);
+  endif
+  
+  if(IsWarriorBySkill(attacker) and IsWarriorBySkill(defender))
+	Chance := Chance + RandomInt(10);
+  endif
+
+  if(Mod)
+    CheckBarbAttackGain(attacker, defender);
+    CheckKensaiAttackGain(attacker, defender);
+    Chance := Chance + Mod;
+  endif
+
+  if(Penetrate)
+    Chance := Chance + Penetrate;
+  endif
+
+  if(_SkID == SKILLID_ARCHERY)
+    Mod := GetTempModAmount(defender, MOD_DEFENSE);
+    if(Mod)
+      Mod    := MinMax(Mod, -50, 50);
+      Chance := Chance - Mod*2;
+    endif
+  endif
+
+  Chance := ToMax(Chance + bonus*Chance, 1000); 
+  
+  return CInt(Chance);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcDamage(attacker, defender, byref weapon)
+
+  if(!Attacker or !defender)
+    return 0;
+  endif
+   
+  var DefShield := GetShield(defender);
+  var ParrySound := gItemCfg[DefShield.objtype].ParrySound;
+
+  if(gItemCfg[weapon.objtype].trening)
+    if(RandomInt(70) > (20 + (aBSkCombat / 10)))
+      ADamage := RandomInt(4);
+    else
+      ADamage := 0;
+    endif
+    StGain := NO_STAT_AWARD;
+  else
+    if(attacker.isa(POLCLASS_NPC))
+      ADamage := CStr(aNpcElem.AttackDamage);
+
+      if(IsTesting)
+        if(GetObjProperty(attacker, "Damage"))
+          ADamage := GetObjProperty(attacker, "Damage");
+        endif
+      endif
+
+      if(ADamage["d"])
+        ADamage := CInt(RandomDiceRoll(ADamage));
+      else
+        ADamage := CInt(ADamage);
+      endif
+
+      if(GetObjProperty(attacker,"NpcDmgMod"))
+        ADamage := CInt(ADamage * CDbl(GetObjProperty(attacker,"NpcDmgMod")));
+      endif
+      
+      if(IsPlayer(Defender) and IsTamed(Attacker) and IsPlayer(GetMaster(Attacker)))
+        ADamage := CInt(ADamage * 0.66);
+      endif
+    else
+      ADamage := CInt(RandomDiceRoll(gItemCfg[weapon.objtype].Damage));
+      ADamage := ADamage + Cint(weapon.dmg_mod);
+      ADamage := CInt(ADamage * 0.75);
+    endif
+
+    if(IsPlayer(attacker))
+      if(IsWearWolfMorphed(attacker))
+        if(_SkID == SKILLID_WRESTLING)
+          ADamage := ADamage * (1.00 + (GetEffectiveSkill(attacker,SKILLID_WEARWOLF) * 0.015));
+        else
+          ADamage := 0;
+        endif
+      endif
+
+      var NewDmg := ADamage;
+
+      if(_SkID == SKILLID_WRESTLING and weapon.objtype == UOBJ_WRESTLE)
+        var Gloves := GetEquipmentByLayer(attacker,LAYER_GLOVES);
+        if(Gloves)
+          if(Gloves.quality)
+            NewDmg := CInt(ADamage * (Gloves.quality));
+          endif
+          NewDmg := NewDmg + CInt(ADamage * (1.00 + (CInt(gItemCfg[Gloves.objtype].AR) * 0.01)));
+          NewDmg := NewDmg + CInt(ADamage * (1.00 + (CInt(Gloves.ar_mod) * 0.02)));
+          if(CanMod(attacker, MOD_FIRE_DMG) == 0)
+            NewDmg += CInt(GetTempModAmount(attacker, MOD_FIRE_DMG) * (0.10 + (CInt(Gloves.ar_mod) * 0.08)));
+          endif
+          CheckToolWear(attacker,Gloves,_SkID, GetEquipUsageFactor(defender, attacker));
+        endif
+      elseif(weapon.quality)
+        NewDmg := CInt(ADamage * (weapon.quality));
+      endif
+
+      NewDmg := NewDmg + CInt(ADamage * (CInt(aBSkCombat / 40) * 0.01));
+      NewDmg := NewDmg + CInt(ADamage * (CInt(aBSkTact / 40) * 0.01));
+      NewDmg := NewDmg + CInt(ADamage * (CInt(GetEffectiveSkill(attacker,SKILLID_ANATOMY) / 4) * 0.01));
+
+      NewDmg  := NewDmg + CInt(ADamage * (CInt(GetStrength(attacker) / 3 ) * 0.01));
+      ADamage := NewDmg;
+    endif
+	
+	if(CInt(gItemCfg[weapon.objtype].TwoHanded) && !(IsMageBySkill(attacker)) && (!IsArcherBySkill(attacker)))
+		ADamage := CInt(ADamage * 1.5);
+	endif
+
+    if(_Shield)
+      if((GetEffectiveSkillBaseValue(defender,SKILLID_PARRY) - aBSkCombat + 300) > RandomInt(1000))
+        ADamage := CInt(ADamage / 2);
+        Parried := 1;
+
+        if(ParrySound)
+          ParrySound := SplitWords(ParrySound);
+          if(ParrySound.size() > 1)
+            ParrySound := CInt(ParrySound[RandomInt(ParrySound.size())+1]);
+          else
+            ParrySound := CInt(ParrySound[1]);
+          endif
+          PlaySoundEffect(defender, ParrySound);
+        endif
+      endif
+    endif
+
+    ADamage := ADamage - CalculateArReduction(ADamage, attacker, defender);
+
+    if(RandomInt(100) < 50)
+      var Mod := GetTempModAmount(defender, MOD_CRIT_HIT);
+      CheckKensaiAttackGain(attacker, defender);
+      if((aBSkTact - dBSkTact + 250) + Mod > RandomInt(1000))
+        ADamage := CInt(ADamage * 1.3);
+        PlayPcEffect(defender, FX_MARK_EFFECT, 1000, 0x1F, 0x10, 0x4);
+        if(!Blood)
+          Blood := DropBlood(defender);
+        endif
+      endif
+    endif
+
+    if(IsPlayer(attacker))
+      ModifyGainByNutr(attacker, ADamage, ATTRIBUTEID_STRENGTH);
+
+      if(ADamage and weapon.hp)
+        ADamage := CInt(ADamage * (0.50 + (((weapon.hp * 100) / weapon.maxhp) * 0.01) / 2));
+        if(!ADamage)
+          ADamage := 1;
+        endif
+      endif
+      ADamage := CInt(ADamage * 0.80);
+
+      ADamage := RedPvPDamage(Attacker,Defender,ADamage,PHYSIC_DMG);
+    elseif(attacker.isa(POLCLASS_NPC))
+      if(defender.isa(POLCLASS_NPC))
+        if(IsNpcGuard(attacker))
+          if(IsSummoned(defender) or IsTamed(defender))
+            var Master := GetMaster(defender);
+            if(Distance(attacker, Master) < 10 and CheckLineOfSight(attacker, Master))
+              if((IsPlayer(Master) and IsLoggedIn(Master)) or Master.isa(POLCLASS_NPC))
+                SendChEvent(attacker, Master, EVID_ENGAGED, {"Gmr", GMR_TAMEDFIGHT});
+              endif
+            endif
+          endif
+
+          if(GetMaxHp(defender) > 300)
+            ADamage := GetMaxHp(defender) * 0.10;
+          endif
+        endif
+      elseif((defender.murderer and !attacker.murderer) or (attacker.murderer and !defender.murderer))
+        if(IsNpcGuard(attacker))
+          ADamage := CInt(ADamage * 1.2);
+        endif
+      endif
+    endif
+  endif
+
+  if(_SkID == SKILLID_ARCHERY)
+    if(IsPlayer(defender))
+      var Dist := Distance(attacker, defender);
+      var Perc; 
+      if(Dist <= 3)
+        Perc := 1 + (4 - Dist)*0.1;
+      elseif(Dist >= 9)
+        Perc := 1 - (Dist-8)*0.025;
+      else
+        Perc := 1;
+      endif
+      ADamage := CInt(ADamage * Perc);
+    endif
+
+    if(CanMod(attacker, MOD_MULTI_SHOT) == 0)
+      ADamage := CInt(ADamage * 0.60);
+    endif
+  endif
+
+  if(ADamage <= 0)
+    ADamage := 0;
+  else
+    if(IsPlayer(attacker) and defender.isa(POLCLASS_NPC))
+      var DmgMod := GetDamageBonusForNpc(attacker, defender);
+
+      if(DmgMod)
+        ADamage += ADamage*DmgMod;
+      endif
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayCombatEffect(attacker,defender, byref weapon)
+
+  var Anim      := ANIM_ATTACK_1HAND_WIDE;
+  var HitSound  := CInt(gItemCfg[weapon.objtype].HitSound);
+  var MissSound := CInt(gItemCfg[weapon.objtype].MissSound);
+  var DmgSound  := 0;
+  var DmgAnim   := ANIM_HIT;
+
+  if(gItemCfg[weapon.objtype].Projectile)
+    var AnimType := SplitWords(gItemCfg[weapon.objtype].ProjectileAnim);
+
+    if(AnimType.size() == 1)
+      PlayMovingEff( attacker, defender, CInt(AnimType[1]), 0x8, 0xb);
+    else
+      PlayPcMovEffect(attacker, defender, CInt(AnimType[1]), CInt(AnimType[2]), 0x8, 0xb, CInt(AnimType[3]), 0, CInt(AnimType[4]));
+    endif
+  endif
+
+  if(IsHuman(defender))
+    case(defender.gender)
+      0: DmgSound := SFX_MALE_DMGSOUND   + RandomInt(8);
+      1: DmgSound := SFX_FEMALE_DMGSOUND + RandomInt(8);
+    endcase
+  endif
+
+  if(attacker.isa(POLCLASS_NPC))
+    if(Cint(aNpcElem.AttackHitSound))
+      HitSound  := Cint(aNpcElem.AttackHitSound);
+    endif
+    if(Cint(aNpcElem.AttackMissSound))
+      MissSound := Cint(aNpcElem.AttackMissSound);
+    endif
+  endif
+
+  if(IsHuman(attacker))
+    if(gItemCfg[weapon.objtype].AnimMounted and GetEquipmentByLayer(attacker,LAYER_MOUNT))
+      Anim := gItemCfg[weapon.objtype].AnimMounted;
+    else
+      Anim := gItemCfg[weapon.objtype].Anim;
+    endif
+
+    if(Anim)
+      Anim := SplitWords(Anim);
+      Anim := CInt(Anim[RandomInt(Anim.size())+1]);
+    else
+      Anim := ANIM_ATTACK_1HAND_WIDE;
+    endif
+  else
+    var HitAnimArr;
+
+    if(attacker.isa(POLCLASS_NPC))
+      if(aNpcElem.HitAnim)
+        HitAnimArr := SplitWords(aNpcElem.HitAnim);
+      else
+        HitAnimArr := {0x5,0x6,0xc};
+      endif
+    else
+      HitAnimArr := {0x5,0x6,0xc};
+    endif
+
+    Anim := CInt(HitAnimArr[RandomInt(HitAnimArr.size())+1]);
+    if(!Anim)
+      Anim := CInt(HitAnimArr[1]);
+    endif
+  endif
+
+  if(defender.isa(POLCLASS_NPC))
+    if(CInt(dNpcElem.DamagedSound))
+      DmgSound := CInt(dNpcElem.DamagedSound);
+    endif
+  endif
+
+  if(!IsHuman(defender))
+    var DmgAnimArr := {0xf};
+
+    if(defender.isa(POLCLASS_NPC))
+      if(dNpcElem.DmgAnim)
+        DmgAnimArr := SplitWords(dNpcElem.DmgAnim);
+      endif
+    endif
+
+    DmgAnim := CInt(DmgAnimArr[RandomInt(DmgAnimArr.size())+1]);
+    if(!DmgAnim)
+      DmgAnim := CInt(DmgAnimArr[1]);
+    endif
+  endif
+
+  PlayAction(attacker, Anim);
+
+  if(Hitted)
+    PlaySoundEffect(attacker,HitSound);
+    if(ADamage)
+      if(DmgSound)
+        PlaySoundEffect(defender,DmgSound);
+      endif
+      if(ADamage > GetHp(defender))
+        PlayAction(defender, DmgAnim);
+      endif
+    endif
+  else
+    PlaySoundEffect(attacker, MissSound);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckOnHitScripts(attacker, defender, byref weapon)
+
+  if(ADamage > 0)
+    CheckModArmors(attacker,defender);
+
+    if(attacker.isa(POLCLASS_NPC))
+      foreach Hit in GetOnHitScripts(attacker)
+        CheckHit(Hit,attacker,defender,weapon);
+      endforeach
+    endif
+
+    if(weapon.objtype == UOBJ_WRESTLE)
+      var Gloves := GetEquipmentByLayer(attacker, LAYER_GLOVES);
+      if(Gloves)
+        weapon := Gloves;
+      endif
+    endif
+
+    foreach Hit in GetOnHitScripts(weapon)
+      CheckHit(Hit,attacker,defender,weapon);
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ApplyAddOn(defender, weapon, attacker)
+
+  case(_SkID)
+    SKILLID_FENCING:        if(gItemCfg[weapon.objtype].TwoHanded)
+                              DoMod(defender,MOD_PARA,1,3);
+                            endif
+
+    SKILLID_SWORDSMANSHIP:  if(gItemCfg[weapon.objtype].TwoHanded)
+                              DealManaDamage(defender,CInt(GetMana(defender) / 4), attacker);
+                            endif
+
+    SKILLID_AXESMANSHIP:    if(_Shield)
+                              CheckToolWear(defender, _Shield, DefSkid, 4 + RandomInt(ToMin(40 - gItemCfg[_Shield.objtype].AR, 10)));
+                            endif
+
+    SKILLID_MACEFIGHTING:   if(weapon.objtype == 0x1438)
+                              ADamage := CInt(ADamage * 1.4);
+                              FDamage := CInt(FDamage * 1.4);
+                            else
+                              DealStaminaDamage(defender, CInt(GetStamina(defender) / 5));
+                            endif
+
+    SKILLID_WRESTLING:      DoMod(defender,MOD_PARA,1,5);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DamageDefenderArmor(defender, attacker)
+
+
+  if(RandomInt(3) == 2)
+   
+   foreach Item in ListEquippedItems(defender)
+     if(Item.isa(POLCLASS_ARMOR))
+       CheckToolWear(defender, Item, DefSkid, GetArmorUsageFactor(defender, attacker));
+     endif
+   endforeach
+   
+   endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetEquipUsageFactor(defender, attacker)
+
+  if(IsPlayer(attacker) and IsPlayer(defender))
+    return 4;
+  else
+    return 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetArmorUsageFactor(defender, attacker)
+
+  if(IsPlayer(attacker) and IsPlayer(defender))
+    return Max(2.0, CDbl(ADamage) / 8.0);
+  else
+    return Max(1.0, CDbl(ADamage) / 15.0);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckAddOns(attacker, defender, byref weapon)
+
+  if(CInt(aBSkCombat / 10) > 85)
+    if(RandomInt(100) < CInt(GetEffectiveSkill(attacker,SKILLID_ANATOMY) / 20))
+      ApplyAddOn(defender, weapon,attacker);
+    endif
+  endif
+
+  if(_SkID == SKILLID_WRESTLING)
+   // disarm na razie off - dla BMa wrest z disarmem to zly pomysl - BM ma lepsze opcje
+   // czysty mag natomiast.. nie ma dobrej opcji by mu dac ten bonus do disarma nie promujac go za mocno
+   // wywalam poki nie wymyslimy czegos sensownego
+    /*if(IsPlayer(defender))
+      var aAlSk := GetEffectiveSkill(attacker, SKILLID_TACTICS);
+      if(CInt(aBSkCombat / 10) > 85 and aAlSk > 85)
+        if(RandomInt(100) < CInt(aAlSk / 10))
+          Disarm(defender);
+        endif
+      endif
+    endif*/
+  elseif(RandomInt(100) < 15)
+    if(_SkID == SKILLID_ARCHERY and defender.isa(POLCLASS_NPC))
+	  ADamage := CInt(ADamage * 1.33);
+      if(CInt(gItemCfg[weapon.objtype].AmmoType))
+        var Arrows := FindItemInContainer(defender.backpack, CInt(gItemCfg[weapon.objtype].AmmoType));
+        if(!Arrows)
+          Arrows := CreateItemInCont(defender.backpack, CInt(gItemCfg[weapon.objtype].AmmoType));
+        else
+          AddAmount(Arrows, 1);
+        endif
+      endif
+    endif
+  endif
+  
+  var SilvDmg := 2.0;
+  var NoSilvDmg := 1.0;
+
+  if(GetBaseSkill(defender, SKILLID_WEARWOLF) > 0)
+    var ExpMod := CalcSkillExponential(defender, SKILLID_WEARWOLF, 0.44);
+    SilvDmg := SilvDmg - ExpMod;
+    NoSilvDmg := NoSilvDmg - (ExpMod * 0.5);
+  endif
+
+  if(weapon.color == SILVER_COLOR)
+    if(defender.isa(POLCLASS_NPC))
+      if(IsNpcElemental(defender, NPCELEM_UNDEAD))
+        ADamage := CInt(ADamage * 1.5);
+        FDamage := CInt(FDamage * 1.5);
+      endif
+    elseif(IsWearWolfMorphed(defender))
+      ADamage := CInt(ADamage * SilvDmg);
+      FDamage := CInt(FDamage * SilvDmg);
+    endif
+  elseif(IsWearWolfMorphed(defender))
+    ADamage := CInt(ADamage * NoSilvDmg);
+    FDamage := CInt(FDamage * NoSilvDmg);
+  endif
+
+  if(attacker.isa(POLCLASS_NPC))
+    CheckNpcAdds(attacker, defender);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GainSkPoints(attacker, defender)
+
+  if(!attacker or !defender)
+    return;
+  elseif(IsNpcGuard(defender))
+    return;
+  elseif(GetObjProperty(Attacker, PROP_NO_FIGHT) or GetObjProperty(defender, PROP_NO_FIGHT))
+    return;
+  elseif(gBlockGain)
+    return;
+  endif
+
+  if(!CheckForceField(defender,1,1))
+    return;
+  endif
+
+  var CPoints := GetDefaultPointsValue(_SkID);
+  var TactId  := GetTacticsSkId(attacker);
+  var TPoints := GetDefaultPointsValue(TactId);
+
+  if(IsPlayer(attacker))
+    if(gItemCfg[gWeapon.objtype].NoCombatSkillGain)
+      return 0;
+    endif
+
+    if(defender.isa(POLCLASS_NPC))
+      
+      if(!IsMobGainable(defender, attacker))
+        return;
+      endif
+      
+      if(GetBaseSkill(attacker, SKILLID_PALADINISM) > 10)
+        if(IsNpcElemental(defender, NPCELEM_UNDEAD))
+          AwardPoints(attacker, SKILLID_ZEAL, GetDefaultPointsValue(SKILLID_ZEAL));
+        endif
+
+      elseif(GetBaseSkill(attacker, SKILLID_FANATICISM) > 10)
+        if(IsGoodNpc(defender))
+          AwardPoints(attacker, SKILLID_ZEAL, GetDefaultPointsValue(SKILLID_ZEAL));
+        endif
+        
+      elseif(GetBaseSkill(attacker, SKILLID_HUNTER) > 10)
+
+        AwardPoints(attacker, SKILLID_INSIGHT, GetDefaultPointsValue(SKILLID_INSIGHT));
+
+      endif
+    endif
+
+    if(FDamage * 3 > 100)
+      FDamage := 33;
+    endif
+
+    if(IsSummoned(defender) or IsSleeping(defender))
+      return 0;
+    endif
+
+    CPoints     := CInt(CPoints / 2) + CInt((CPoints / 2) * (FDamage * 0.03));
+    TPoints     := CInt(TPoints / 2) + CInt((TPoints / 2) * (FDamage * 0.03));
+    
+  
+    if(IsWearWolfMorphed(attacker) and _SkID == SKILLID_WRESTLING)
+      if(GetEffectiveSkill(attacker, SKILLID_WEARWOLF) < ST_SPAR_LIMIT and !IsPlayer(defender))
+        var WPoints := GetDefaultPointsValue(SKILLID_WEARWOLF);
+        WPoints     := CInt(WPoints / 2) + CInt((WPoints / 2) * (FDamage * 0.03));
+        AwardPoints(attacker,SKILLID_WEARWOLF, WPoints, STAT_GAIN_MODIFIED, FDamage * 3);
+        AwardPoints(attacker,SKILLID_ANIMALLORE, WPoints, NO_STAT_AWARD);
+      endif
+    endif
+
+    if(IsPlayer(defender) or gItemCfg[gWeapon.objtype].trening or gItemCfg[defender.weapon.objtype].trening or (CPoints == GetDefaultPointsValue(_SkID)) or IsTamed(defender))
+      if(CInt(aBSkCombat / 10) >= ST_SPAR_LIMIT)
+        return;
+      endif
+      if(CInt(aBSkTact / 10) >= ST_SPAR_LIMIT)
+        if(CInt(aBSkCombat / 10) < ST_SPAR_LIMIT)
+          AwardPoints(attacker, _SkID, CPoints, NO_STAT_AWARD);
+        endif
+        return;
+      endif
+      StGain := NO_STAT_AWARD;
+    elseif(CInt(aBSkCombat / 10) < SKF_NEEDED_TO_ST)
+      StGain := NO_STAT_AWARD;
+    endif
+
+    if(IsPlayer(attacker) and IsPlayer(defender))
+      StGain := NO_STAT_AWARD;
+    endif
+
+    if(StGain != NO_STAT_AWARD)
+      if(GetObjProperty(attacker,"#AFight"))
+        StGain := NO_STAT_AWARD;
+        if(CInt(aBSkCombat / 10) >= 80)
+          return;
+        endif
+      else
+        StGain := STAT_GAIN_MODIFIED;
+        StGainValue := CInt(FDamage * 3);
+      endif
+    endif
+
+    CheckBarbAttackGain(attacker, defender);
+    var HelpYoungPlayer := 0;
+
+    if(attacker.party)
+      foreach student in GetNearbyPartyMembers(attacker)
+
+        //if(IsYoung(student))
+        //  HelpYoungPlayer := 1;
+        //endif
+
+        var sSkId   := GetFightSkId(student);
+        var stSkill := GetBaseSkill(student, sSkId);
+        var stTact  := GetBaseSkill(student, TactId);
+        var stAnat  := GetBaseSkill(student, SKILLID_ANATOMY);
+        var stSkillPoints := CInt(CPoints / 5);
+        var stTactPoints := CInt(TPoints / 5);
+  
+        if(stSkill > 33 and stSkill < 100)
+          AwardPoints(student,sSkId,stSkillPoints,StGain,StGainValue);
+        endif 
+
+        if(stTact > 33 and stTact < 100)
+          AwardPoints(student,TactId,stTactPoints,StGain, StGainValue);
+        endif
+
+        if(stAnat > 33 and stAnat < 100)
+          AwardPoints(student,SKILLID_ANATOMY,stTactPoints,StGain, StGainValue);
+        endif  
+
+      endforeach
+    endif
+
+    if(StGain == STAT_GAIN_MODIFIED and HelpYoungPlayer)
+      StGainValue := CInt(StGainValue*1.1); // doda 10% wiecej gaina. StGain to wartosc 100 + dodatkowy gain. w postaci %.
+    endif
+
+    AwardPoints(attacker, _SkID, CPoints, StGain, StGainValue);
+    AwardPoints(attacker, TactId, TPoints, StGain, StGainValue);
+    AwardPoints(attacker, SKILLID_ANATOMY, CInt(TPoints*SECOND_SKILL_GAIN_MOD), StGain, StGainValue);
+    CagNpcDamaged(defender, Max(CInt(CPoints*0.2), 1), attacker);
+
+  else
+
+    if(!IsMobGainable(defender, attacker))
+      return;
+    endif
+
+    if((IsPlayer(defender) and !IsTamed(attacker)) or defender.isa(POLCLASS_NPC) )
+      AwardPoints(attacker,_SkID,CPoints,NO_STAT_AWARD);
+      AwardPoints(attacker,TactId,TPoints,NO_STAT_AWARD);
+      AwardPoints(attacker, SKILLID_ANATOMY, TPoints, NO_STAT_AWARD);
+    endif
+  endif
+
+  if(_Shield and Hitted and IsPlayer(defender))
+    if(!IsMobGainable(attacker, defender))
+        return;
+      endif
+
+    if(!CheckForceField(attacker,1,1))
+      return;
+    endif
+
+    if(Distance(attacker,defender) > 1)
+      return;
+    endif
+
+    if(IsPlayer(attacker) or gItemCfg[gWeapon.objtype].trening or gItemCfg[defender.weapon.objtype].trening or IsTamed(attacker))
+      if(GetEffectiveSkill(defender,SKILLID_PARRY) >= ST_SPAR_LIMIT)
+        return;
+      endif
+      StGain := NO_STAT_AWARD;
+    elseif(CInt(dBSkCombat / 10) < SKF_NEEDED_TO_ST)
+      StGain := NO_STAT_AWARD;
+    endif
+
+    var PPoints := GetDefaultPointsValue(SKILLID_PARRY);
+    PPoints     := CInt(PPoints / 2) + CInt((PPoints / 2) * (FDamage * 0.03));
+
+    if(!Parried)
+      PPoints := (PPoints / 2);
+    endif
+
+    if(StGain != NO_STAT_AWARD)
+      if(GetObjProperty(defender,"#AFight"))
+        StGain := STAT_GAIN_MODIFIED;
+        StGainValue := FDamage;
+      else
+        StGain := STAT_GAIN_MODIFIED;
+        StGainValue := CInt(FDamage * 3);
+      endif
+    endif
+
+    var HelpYoungPlayer := 0;
+    
+
+    if(defender.party)
+      foreach student in GetNearbyPartyMembers(defender)
+        //if(IsYoung(student))
+        //  HelpYoungPlayer := 1;
+        //endif
+        var stParry := GetBaseSkill(student, SKILLID_PARRY);
+        var stParryPoints := CInt(PPoints / 5);
+        if(stParry > 33 and stParry < 100)
+          AwardPoints(student, SKILLID_PARRY,stParryPoints,StGain,StGainValue);
+        endif
+      endforeach
+    endif
+
+    if(StGain == STAT_GAIN_MODIFIED and HelpYoungPlayer)
+      StGainValue := CInt(StGainValue*1.1); // doda 10% wiecej gaina. StGain to wartosc 100 + dodatkowy gain. w postaci %.
+    endif
+
+    AwardPoints(defender, SKILLID_PARRY, PPoints, StGain, StGainValue);
+    CagNpcDamaged(attacker, Max(CInt(PPoints*0.5), 4), defender);
+
+  endif
+
+//debug mode
+//  printtextabove(attacker,"strzal: " + CInt(ReadMillisecondclock()- getobjproperty(attacker, "#propek")));
+//  setobjproperty(attacker, "#propek", ReadMillisecondClock());
+//endofdebugmode
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTacticsSkId(who)
+
+  var SkID := SKILLID_TACTICS;
+  
+  if(IsWearWolf(who))
+    SkID := SKILLID_ANIMALLORE;
+  elseif(IsVampire(who))
+    SkID := SKILLID_SPIRITSPEAK;
+  elseif(GetBaseSkill(who, SKILLID_PALADINISM) > 0 or GetBaseSkill(who, SKILLID_FANATICISM) > 0)
+    SkID := SKILLID_ZEAL;
+  // hunter ma miec 200%, bo nie ma innych minusow.
+  //elseif(GetBaseSkill(who, SKILLID_HUNTER) > 0)
+  //  SkID := SKILLID_INSIGHT;
+  endif
+
+  if(SkID != SKILLID_TACTICS)
+    if(GetBaseSkillBaseValue(who, SkID) < GetBaseSkillBaseValue(who, SKILLID_TACTICS))
+      SkID := SKILLID_TACTICS;
+    endif
+  endif
+
+  return SkID;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalculateArReduction(Damage, attacker, defender)
+
+  if(Damage <= 1)
+    return 0;
+  endif
+
+  var RedDmg := 0;
+
+  if(IsPlayer(attacker) and IsPlayer(defender))
+
+    RedDmg := CInt(CInt(Damage * (CDbl(defender.ar) * 0.011)) * (1.00 - (CDbl(defender.ar) * 0.25 * 0.01)));
+
+  elseif(defender.isa(POLCLASS_NPC))
+
+    RedDmg := CInt(Damage * (defender.ar * 0.01));
+   
+  elseif(attacker.isa(POLCLASS_NPC) and aNpcElem.NoArRed)
+
+    RedDmg := 0;
+
+  else
+
+    var Perc;
+
+    // obnizka ar do 100% o 70%.
+    // powyzej 100 do 160 o kolejne 20%.
+    // max obnizki to 90%.
+
+    if(defender.ar > 100)
+      Perc := 74.0 + 19.0 * ((defender.ar - 100.0) / 60); // powyzej ar-100 to juz obnizka w skali 20% za 60ar
+    else
+      Perc := CDbl(defender.ar) * 0.74; // 70% redukcji max do 100 ar.
+    endif
+
+    Perc := MinMax(Perc*0.01, 0.05, 1.0); // 0-95% redukcji.
+    RedDmg := CInt(CDbl(Damage) * Perc); // CInt(CInt(Damage * (CDbl(defender.ar) * 0.01)) * (1.00 - (CDbl(defender.ar * 0.30) * 0.01))); - stary, troche jebniety wzor.
+
+  endif
+
+  if(RedDmg == Damage)
+    RedDmg := Damage-1;
+  endif
+
+  if(IsTesting)
+    if(GetObjProperty(defender, "#AttackDebug"))
+      syslog(attacker.name+" > "+defender.name+" Weapon: "+attacker.weapon.desc+" (DefAR: "+defender.ar+") > Damage: "+Damage+" Red: "+RedDmg+" AfterDmg: "+(Damage - RedDmg));
+    endif
+  endif
+
+  if(attacker.isa(POLCLASS_NPC) and IsPlayer(defender))
+    var ArMod := GetArmorBonusForNpc(defender, attacker);
+
+    if(ArMod)
+      RedDmg += Damage*ArMod;
+    endif
+  endif
+
+  return RedDmg;
+
+endfunction
+
+//-----------------------------------------------------------------------------

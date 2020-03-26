@@ -1,0 +1,32 @@
+use uo;
+use os;
+
+include "include/equipment";
+
+
+program ShieldOilControl(item)  
+
+  var item_serial := item.serial;
+  var Oiled := GetObjProperty(item, "Oiled");
+  
+  while( readgameclock() < (Oiled.time + 7200)  ) // olej trwa 2h
+    sleep(30); 
+  endwhile
+
+  EraseObjProperty(item, "Oiled");
+  EraseToolTipProp(item,"Natarta olejem");
+  
+  var Oiled_shields := GetGlobalProperty("OiledShields");
+
+  if(!Oiled_shields)
+    return;
+  endif
+
+  Oiled_shields.erase(retindex(Oiled_shields, item_serial));
+  SetGlobalProperty("OiledShields", Oiled_shields);
+
+
+
+
+
+endprogram

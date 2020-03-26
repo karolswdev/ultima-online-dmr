@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "../../guild";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program DestroyGl(who,text)
+ 
+  if(!CInt(text))
+    Sendsysmessage(who,".destroyguild [guildid]",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+  
+  var Guild := FindGuild(Cint(text));
+  if(!Guild)
+    Sendsysmessage(who,"nie znaleziono gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Stone := GetStoneFromGuild(Guild);
+  var Name  := GetGuildName(Guild);
+  if(Stone)
+    if(DestroyItem(Stone))
+      Sendsysmessage(who,"Zniszczono gildie ["+text+"] N ["+Name+"].",FONT_NORMAL,COLOR_GREEN);
+    endif
+  else
+    ClearGuildData(Guild);
+    var Res := DestroyGuild(Guild);
+    if(Res)
+      SendSysMessage(who,"Zniszczono gildie ID ["+text+"] N ["+Name+"].",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie udalo sie zniszczyc gildii ID ["+text+"] N ["+Name+"] - ["+Res+"].",FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

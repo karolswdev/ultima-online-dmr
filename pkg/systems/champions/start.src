@@ -1,0 +1,15 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(CHCORE_SCNAME, "Champion Core");
+  StartGlobCtrlScript(CHCORE_SCNAME);
+
+endprogram
+
+//-----------------------------------------------------------------------------

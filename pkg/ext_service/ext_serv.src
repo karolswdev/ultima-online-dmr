@@ -1,0 +1,876 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "include/misc";
+include "include/player/misc";
+include "include/clock";
+include "include/accounts";
+include "include/mobile/age";
+include "include/mobile/titles";
+include "include/names";
+include "include/std";
+include "include/unicode";
+
+include ":character:common";
+include ":guildstone:guild";
+include ":housing:housing";
+
+//--------------------------------------------------------------------------------
+
+var gConn, gId;
+var Identified;
+
+//--------------------------------------------------------------------------------
+
+program ExternalService( Conn )
+
+  SetLogRunCycles(LST_CONTROL);
+
+  gConn := Conn;
+  gId := GetPid()+":"+gConn.ip;
+
+  syslog("[External]: ["+gId+"] Connected.");
+
+  if(VerifyAccess())
+
+    var ev;
+
+    while(Conn)
+      ev := wait_for_event( 5 );
+
+      if(ev)
+        if(!HandleEvent(ev.value))
+          break;
+        endif
+      endif
+
+    endwhile
+
+  endif
+
+  syslog("[External]: ["+gId+"] Disconnected.");
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function HandleEvent(ev)
+
+  var bRes := 0;
+
+  if(!Identified)
+
+    case(ev.type)
+      "ident":      if(ev.secret != "my312teID")
+                      TransmitError("Access denied");
+                    else
+                      TransmitPacket(ev.type, "Access granted");
+                      bRes := 1;
+                      Identified := ev.secret;
+                      syslog("[External]: ["+gId+"] Identified.");
+                    endif
+
+      default:      TransmitError("Access denied");
+    endcase
+
+  else
+
+    case(ev.type)
+      "create_acc":    bRes := CmdCreateAccount(ev);
+
+      "login_exists":  bRes := CmdLoginExists(ev);
+
+      "change_pass":   bRes := CmdChangeAccountPassword(ev);
+
+      "remove_masks":  bRes := CmdRemoveAccountMasks(ev);
+
+      "freeze_acc":    bRes := CmdFreezeAccount(ev);
+
+      "get_acc_info":  bRes := CmdGetAccountInfo(ev);
+
+      "apocalypse":    bRes := CmdApocalypse(ev);
+
+      "exchange_acc":  bRes := CmdExchangeAccounts(ev);
+      
+      "guilds_list":   bRes := CmdSendGuildsList(ev);
+
+      "guild_info":    bRes := CmdSendGuildInfo(ev);
+      
+      "mod_royal_coins": bRes := CmdModifyRoyalCoins(ev);
+
+      default:         TransmitError("Nieznana komenda ["+ev.type+"]");
+                       bRes := 0;
+    endcase
+
+  endif
+
+  return bRes;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function VerifyAccess()
+
+  if(gConn.ip != "127.0.0.1" and substr(gConn.ip, 1, 4) != "192.")
+    syslog("[External]: ["+gId+"] access from that ip not allowed!");
+    TransmitError("Access not allowed from your IP address.");
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function TransmitPacket(type, value)
+
+  var pc := struct;
+  pc.+type  := type;
+  pc.+value := value;
+
+  gConn.Transmit(pc);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function TransmitError(msg, errId := 0)
+
+  var pc := struct;
+  pc.+type  := "error";
+  pc.+value := msg;
+  pc.+error_id := errId;
+
+  syslog("[External]: ["+gId+"] ERROR: "+msg+" ("+errId+")");
+
+  gConn.Transmit(pc);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+// Commands
+//--------------------------------------------------------------------------------
+
+function CmdCreateAccount(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Create account.");
+
+  var uname := ev["login"];
+  var pword := ev["password"];
+  var profile := ev["profile"];
+
+  foreach acctname in ListAccounts()
+    if(uname == acctname)
+      TransmitError("Ta nazwa konta juz istnieje.");
+      return 0;
+    endif
+  endforeach
+
+  var act := CreateAccount(uname, pword, 1);
+  if(act.errortext)
+    TransmitError("Blad podczas tworzenia konta: " + act.errortext);
+    return 0;
+  endif
+
+  var ProfData := struct;
+  ProfData.+login := profile;
+  ProfData.+lasttime := PolCore().systime;
+  act.SetProp("profile", ProfData);
+
+  act.SetProp(PROP_CREATE_TIME,ReadGameClock());
+  act.set_uo_expansion("HSA");
+  TransmitPacket("create_acc", "Konto stworzone ["+uname+"] Profil: ["+profile+"]");
+
+  syslog("[External]: ["+gId+"] Account created ["+uname+"].");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdLoginExists(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Login exists.");
+
+  var uname := lower(ev["login"]);
+
+  foreach acctname in ListAccounts()
+    if(uname == lower(acctname))
+      TransmitError("Ta nazwa konta ["+ev["login"]+"] juz istnieje.");
+      return 0;
+    endif
+  endforeach
+
+  TransmitPacket("login_exists", "Konto o podanej nazwie nie istnieje.");
+
+  syslog("[External]: ["+gId+"] Login exists checked ["+ev["login"]+"].");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdChangeAccountPassword(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Change password.");
+
+  var uname := ev["login"];
+  var pword := ev["new_password"];
+  var profile := ev["profile"];
+
+  var Acc := FindAccount(uname);
+
+  if(!Acc)
+    TransmitError("Konto o nazwie "+uname+" nie istnieje.", 106);
+    return 0;
+  endif
+
+  var ProfData := Acc.GetProp("profile");
+
+  if(ProfData.login != profile)
+    TransmitError("Konto o nazwie '"+uname+"' nie jest przypisane do profilu '"+profile+"'.", 108);
+    return 0;
+  endif
+
+  Acc.SetPassword(pword);
+
+  TransmitPacket("change_pass", "Haslo zostalo zmienione na konto "+uname+".");
+
+  syslog("[External]: ["+gId+"] Account ["+uname+"] password changed by profile ["+profile+"].");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdRemoveAccountMasks(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Remove masks.");
+
+  var uname := ev["login"];
+  var profile := ev["profile"];
+
+  var Acc := FindAccount(uname);
+
+  if(!Acc)
+    TransmitError("Konto o nazwie "+uname+" nie istnieje.", 106);
+    return 0;
+  endif
+
+  var ProfData := Acc.GetProp("profile");
+
+  if(ProfData.login != profile)
+    TransmitError("Konto o nazwie '"+uname+"' nie jest przypisane do profilu '"+profile+"'.", 108);
+    return 0;
+  endif
+
+  Acc.SetProp("RestIP", array);
+
+  TransmitPacket("remove_masks", "Maski zostaly zdjete z konta "+uname+".");
+
+  syslog("[External]: ["+gId+"] Account ["+uname+"] masks removed by profile ["+profile+"].");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdFreezeAccount(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Freeze account.");
+
+  var uname := ev["login"];
+  var profile := ev["profile"];
+
+  var Acc := FindAccount(uname);
+
+  if(!Acc)
+    TransmitError("Konto o nazwie "+uname+" nie istnieje.", 106);
+    return 0;
+  endif
+
+  var ProfData := Acc.GetProp("profile");
+
+  if(ProfData.login != profile)
+    TransmitError("Konto o nazwie '"+uname+"' nie jest przypisane do profilu '"+profile+"'.", 108);
+    return 0;
+  endif
+
+  var Res := FreezeAccount(Acc);
+
+  if(Res == error)
+    TransmitError(Res.errortext, 109);
+    return 0;
+  endif
+
+  TransmitPacket("freeze_acc", "Konto "+uname+" zostalo zamrozone.");
+
+  syslog("[External]: ["+gId+"] Account ["+uname+"] account frozen by profile ["+profile+"].");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetAccountInfo(Acc)
+
+  var Info := "";
+
+  if(IsAccountFrozen(Acc))
+
+    var leftTime := GetAccountFreezeTime(Acc);
+
+    Info := "Twoje konto jest <font color=lightblue>zamrozone</font>.<br/>";
+
+    if(Acc.banned)
+      Info := Info + "Odmrozenie bedzie mozliwe za: <font color=yellow>" + RealTime(leftTime) + " </font>";
+    else
+      Info := Info + "Odmrozenie jest <font color=yellow>mozliwe</font>.";
+    endif
+
+    Info := Info + "<br/>Pamietaj, 瞠 czas ten jest liczony tylko gdy serwer gry jest wlaczony.";
+
+  elseif(Acc.banned)
+
+    var BanReason  := Acc.GetProp("BanReason");
+    var BanTime    := Acc.GetProp("BanTime");
+    var leftTime   := (Acc.GetProp("LastLogin") + BanTime) - ReadGameClock();
+
+    if(!BanReason)
+      BanReason := "nieznany.";
+    endif
+
+    if(!BanTime)
+      BanTime := -1;
+    endif
+
+    Info := "Twoje konto zostalo <font color=red>zbanowane</font>. <br/> Powod: <font color=yellow>"+BanReason+"</font>. <br/>Czas bana: ";
+
+    if(BanTime == -1)
+      Info := Info + "<font color=yellow>do odwo豉nia</font>.";
+    else
+      Info := Info + "<font color=yellow>" + RealTime(BanTime) + "</font>";
+      Info := Info + "<br/>Pozostaly czas: <font color=lightblue>" + RealTime(leftTime) + "</font>";
+      Info := Info + "<br/>Pamietaj, 瞠 czas ten jest liczony tylko gdy serwer gry jest wlaczony.";
+    endif;
+
+
+  endif
+
+  return Info;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdGetAccountInfo(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Get account info.");
+
+  var uname := ev["login"];
+  var uphash := ev["userpasshash"];
+  var passwd := ev["passwd"];
+  var profile := ev["profile"];
+
+  var Acc := FindAccount(uname);
+
+  // 106/107 - okresla id bledu - wykorzystuje go potem na stronie, by stwierdzic czy konto jeszcze istnieje i czy haslo jest prawidlowe.
+
+  if(!Acc)
+    TransmitError("Konto o nazwie "+uname+" nie istnieje lub has這 jest b喚dne.", 106);
+    return 0;
+  endif
+
+  if(uphash)
+    if(Acc.usernamepasswordhash != uphash)
+      TransmitError("Konto o nazwie "+uname+" nie istnieje lub has這 jest b喚dne.", 107);
+      return 0;
+    endif
+  else
+    if(!Acc.checkpassword(passwd))
+      TransmitError("Konto o nazwie "+uname+" nie istnieje lub has這 jest b喚dne.", 107);
+      return 0;
+    endif
+  endif
+
+  var pc := struct;
+  pc.+type := "get_acc_info";
+  pc.+info := "";
+
+  var ProfData := Acc.GetProp("profile");
+
+  if(!ProfData.login)
+    ProfData := struct;
+    ProfData.+login := "";
+    ProfData.+lasttime := "";
+  endif
+
+  if(ProfData.login != profile)
+    pc.info := "Uaktualniono profil na koncie gry.";
+  endif
+
+  ProfData.login := profile;
+  ProfData.lasttime := PolCore().systime;
+
+  Acc.SetProp("profile", ProfData);
+
+  var createTime := Acc.GetProp(PROP_CREATE_TIME);
+  var lastTime   := Acc.GetProp("LastLogin");
+
+  var accInfo := struct;
+  accInfo.+name        := Acc.name;
+  accInfo.+password    := Acc.usernamepasswordhash;
+  accInfo.+serv_info   := GetAccountInfo(Acc);
+  accInfo.+login_time  := ReadGameClock() - lastTime;
+
+  if(createTime)
+    accInfo.+create_date := GetFullDate(createTime);
+    accInfo.+exist_time  := ReadGameClock() - createTime;
+  else
+    accInfo.+create_date := "Brak - stare konto.";
+    accInfo.+exist_time  := 0;
+  endif
+
+  var charsInfo := array;
+  var classInfo;
+
+  var i;
+
+  for(i:=1; i<=5; i:=i+1)
+    var Char := Acc.GetCharacter(i);
+
+    if(Char)
+      var charInfo := struct;
+      classInfo := array(GetCharClassTitle(Char), GetCharSubClassTitle(Char));
+
+      charInfo.+idx         := i;
+      charInfo.+name        := GetRealName(Char);
+      charInfo.+online_time := Cint(GetObjProperty(Char, PROP_ONLINETIMER));
+      charInfo.+create_date := GetFullDate(GetCreatedAt(Char));
+
+      charInfo.+age         := GetRealAge(Char);
+      charInfo.+gender      := Char.gender % 2;
+      charInfo.+class       := classInfo[1];
+      charInfo.+subclass    := classInfo[2];
+      charInfo.+description := GetStringDescription(Char);
+
+      BuildCharAttributes(Char, charInfo);
+
+      if(CInt(GetObjProperty(Char, "longmurders")) > 4)
+        charInfo.+status    := 1;
+      else
+        charInfo.+status    := 0;
+      endif
+
+      if(Char.cmdlevel)
+        charInfo.+title_race   := "Valar";
+        charInfo.+title_guild  := "Valarowie";
+        charInfo.+title_prefix := "";
+        charInfo.+title_suffix := "";
+      else
+
+        var GuildId := CInt(GetObjProperty(Char, PROP_GUILDID));
+        var gTitle := "";
+
+        if(GuildId)
+
+          var Guild := FindGuild(GuildId);
+
+          if(Guild)
+            gTitle := Char.title_guild + " - " + GetGuildName(Guild)+" ["+GetGuildAbv(Guild)+"]";
+          endif
+
+        endif
+
+        charInfo.+title_race   := Char.title_race;
+        charInfo.+title_guild  := GetTitleGuild(Char);
+        charInfo.+title_prefix := GetTitlePrefix(Char);
+        charInfo.+title_suffix := GetTitleSuffix(Char);
+      endif
+
+      charsInfo.append(charInfo);
+    endif
+
+  endfor
+
+  pc.+acc   := accInfo;
+  pc.+chars := charsInfo;
+
+  gConn.Transmit(pc);
+
+  syslog("[External]: ["+gId+"] Account info sent ["+uname+"] for profile ["+profile+"]");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function BuildCharAttributes(Char, byref charInfo)
+
+  var sSkills := "";
+  var sStats  := "";
+  
+  var maxSkId := GetMaxSkillId();
+  var SkID;
+
+  for(SkID := 0;SkID <= maxSkId;SkID := SkID + 1)
+  
+    var SkElem := GetSkillConfigElem(SkID);
+    var SkVal := GetBaseSkillBaseValue(Char, SkID);
+
+    if(SkVal > 0)
+      if(len(sSkills) > 0)
+        sSkills := sSkills + ";";
+      endif
+
+      sSkills := sSkills + SkElem.name+"="+SkVal;
+    endif
+
+  endfor
+
+  sStats := "Sila="+GetBaseStrengthBaseValue(Char);
+  sStats := sStats + ";Zrecznosc="+GetBaseDexterityBaseValue(Char);
+  sStats := sStats + ";Inteligencja="+GetBaseIntelligenceBaseValue(Char);
+
+  charInfo.+skills := sSkills;
+  charInfo.+stats  := sStats;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetStringDescription(Char)
+
+  var Desc := GetObjProperty(Char, PROP_DESCRIPTION);
+  var strDesc := "", cSep := "";
+
+  if(Desc)
+
+    foreach Line in Desc
+
+      ConvUniToIso(Line);
+      ConvToAscii(Line);
+
+      if(Line)
+        strDesc := strDesc + cSep + Line;
+        cSep := "<br/>";
+      else
+        cSep := cSep + "<br/>";
+      endif
+
+    endforeach
+
+  endif
+
+  return strDesc;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdApocalypse(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Apocalypse.");
+
+  if(ev["stop"])
+
+    var Res;
+
+    if(GetGlobalProperty("#AutoShutDown"))
+      Res := "Zatrzymano automatyczna apokalipse.";
+      EraseGlobalProperty("#AutoShutDown");
+    elseif(GetGlobalProperty("#ShutDown"))
+      Res := "Zatrzymano apokalipse.";
+      EraseGlobalProperty("#ShutDown");
+    else
+      TransmitError("Apokalipsa nie jest w toku.", 200);
+      return 0;
+    endif
+
+    TransmitPacket("apocalypse", Res);
+
+  else
+
+    if(GetGlobalProperty("#AutoShutDown"))
+      TransmitError("Apokalipsa w toku.", 201);
+      return 0;
+    elseif(GetGlobalProperty("#ShutDown"))
+      TransmitError("Apokalipsa w toku.", 201);
+      return 0;
+    endif
+
+    var time := CInt(ev["time"]);
+
+    if(time > 0 and time < 20)
+      start_script("::apocalypse", array(time, 1));
+    else
+      TransmitError("Nie podano czasu lub jest za duzy (20 min max).", 107);
+      return 0;
+    endif
+
+    TransmitPacket("apocalypse", "Apokalipsa rozpoczeta.");
+
+    syslog("[External]: ["+gId+"] apocalypse started ["+time+" min].");
+
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdExchangeAccounts(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Exchange Accounts.");
+
+  var srcAccName := ev["src_acc_name"];
+  var dstAccName := ev["dst_acc_name"];
+  var curSrcPasswd := ev["src_passwd"];
+  var curDstPasswd := ev["dst_passwd"];
+
+  var srcAcc := FindAccount(srcAccName);
+  var dstAcc := FindAccount(dstAccName);
+
+  if(!srcAcc)
+    TransmitError("Konto o nazwie "+srcAccName+" nie istnieje.", 106);
+    return 0;
+  endif
+
+  if(!dstAcc)
+    TransmitError("Konto o nazwie "+dstAccName+" nie istnieje.", 106);
+    return 0;
+  endif
+
+  if(srcAcc.banned)
+    TransmitError("Konto o nazwie "+srcAccName+" jest zbanowane!", 109);
+    return 0;
+  endif
+
+  if(dstAcc.banned)
+    TransmitError("Konto o nazwie "+dstAccName+" jest zbanowane!", 109);
+    return 0;
+  endif
+
+  if(srcAcc.usernamepasswordhash != curSrcPasswd)
+    TransmitError("Blad weryfikacji konta "+srcAccName+". Bledne haslo! Haslo przypisanego konta na witrynie nie jest takie same jak rzeczywiste haslo na koncie gry.", 107);
+    return 0;
+  endif
+
+  if(dstAcc.usernamepasswordhash != curDstPasswd)
+    TransmitError("Blad weryfikacji konta "+dstAccName+". Bledne haslo! Haslo przypisanego konta na witrynie nie jest takie same jak rzeczywiste haslo na koncie gry.", 107);
+    return 0;
+  endif
+
+  var srcPasswd := GenerateAccountPassword();
+  var dstPasswd := GenerateAccountPassword();
+
+  var srcProfData := srcAcc.GetProp("profile");
+  var dstProfData := dstAcc.GetProp("profile");
+
+  var srcNotes := srcAcc.GetProp("Notes");
+  var dstNotes := dstAcc.GetProp("Notes");
+
+  var srcRoyals := srcAcc.GetProp("Royals");
+  var dstRoyals := dstAcc.GetProp("Royals");
+
+  var srcMakros := srcAcc.GetProp("Makros");
+  var dstMakros := dstAcc.GetProp("Makros");
+
+
+  SaveAccExchangeData(srcAcc, dstAcc);
+
+  srcAcc.SetPassword(srcPasswd);
+  dstAcc.SetPassword(dstPasswd);
+
+  srcAcc.SetProp("profile", dstProfData);
+  dstAcc.SetProp("profile", srcProfData);
+
+  srcAcc.SetProp("Notes", dstNotes);
+  dstAcc.SetProp("Notes", srcNotes);
+
+  srcAcc.SetProp("Royals", dstRoyals);
+  dstAcc.SetProp("Royals", srcRoyals);
+
+  srcAcc.SetProp("Makros", dstMakros);
+  dstAcc.SetProp("Makros", srcMakros);
+
+  ClearHousePrivilegesForAcc(dstAcc);
+  ClearHousePrivilegesForAcc(srcAcc);
+
+  var pc := struct;
+  pc.+type  := "exchange_acc";
+  pc.+value := "Konta zostaly wymienione!";
+  pc.+src_passwd := srcPasswd;
+  pc.+dst_passwd := dstPasswd;
+
+  gConn.Transmit(pc);
+
+  syslog("[External]: ["+gId+"] Exchange Accounts ["+srcAccName+"] <=> ["+dstAccName+"] DONE!");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SaveAccExchangeData(srcAcc, dstAcc)
+
+  var ExchangeInfo := dictionary;
+
+  ExchangeInfo["src_acc"]     := srcAcc.name;
+  ExchangeInfo["dst_acc"]     := dstAcc.name;
+  ExchangeInfo["game_time"]   := ReadGameClock();
+  ExchangeInfo["sys_time"]    := PolCore().systime;
+  ExchangeInfo["src_profile"] := srcAcc.GetProp("profile").login;
+  ExchangeInfo["dst_profile"] := dstAcc.GetProp("profile").login;
+
+  var Exchange := srcAcc.GetProp("Exchange");
+
+  if(!Exchange or !Exchange.size())
+    Exchange := array;
+  endif
+
+  Exchange.append(ExchangeInfo);
+  srcAcc.SetProp("Exchange", Exchange);
+
+  Exchange := dstAcc.GetProp("Exchange");
+
+  if(!Exchange or !Exchange.size())
+    Exchange := array;
+  endif
+
+  Exchange.append(ExchangeInfo);
+  dstAcc.SetProp("Exchange", Exchange);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdSendGuildsList(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Guilds List.");
+
+  var GuildsList := array();
+  var Guilds := ListGuilds();
+
+  foreach Guild in Guilds
+    GuildsList.append(Guild.guildid);
+  endforeach
+  
+  var pc := struct;
+  pc.+type  := ev.type;
+  pc.+value := "Lista gildii.";
+  pc.+guilds := GuildsList;
+
+  gConn.Transmit(pc);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdSendGuildInfo(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Guild Info.");
+
+  var GuildId := ev.guild_id;
+
+  var Guild := FindGuild(GuildId);
+
+  if(!Guild)
+    TransmitError("Gildia o ID  "+GuildId+" nie istnieje.", 106);
+    return 0;
+  endif
+
+  var GuildInfo := GetGuildInfo(Guild);
+
+  var pc := struct;
+  pc.+type  := ev.type;
+  pc.+value := "Info dla gildii "+GuildId+".";
+  pc.+info  := GuildInfo;
+  
+  gConn.Transmit(pc);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetGuildInfo(Guild)
+
+  var Info := dictionary;
+
+  var Members := Guild.members;
+  var MembersNames := array;
+  var RecruitsNames := array;
+
+  foreach Memb in Members
+    MembersNames.append(GetRealName(Memb));
+  endforeach
+
+  foreach Rec in GetGuildRecruits(Guild)
+    RecruitsNames.append(GetRealName(Rec));
+  endforeach
+
+  Info["guild_id"]    := Guild.guildid;
+  Info["name"]        := GetGuildName(Guild);
+  Info["abv"]         := GetGuildAbv(Guild);
+  Info["create_date"] := GetFullDate(GetGuildCreateTime(Guild));
+  Info["status"]      := GetGuildStatus(Guild);
+  Info["master_name"] := GetRealName(FindGuildGm(Guild));
+  Info["seer_name"]   := GetRealName(FindGuildSeer(Guild));
+
+  Info["members"]     := MembersNames;
+  Info["recruits"]    := RecruitsNames;
+
+  return Info;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CmdModifyRoyalCoins(ev)
+
+  syslog("[External]: ["+gId+"] CMD: Modify royal coins.");
+
+  var amount  := ev["amount"];
+  var account := ev["account"];
+
+  var Acc := FindAccount(account);
+
+  // 106/107 - okresla id bledu - wykorzystuje go potem na stronie, by stwierdzic czy konto jeszcze istnieje i czy haslo jest prawidlowe.
+
+  if(!Acc)
+    TransmitError("Konto o nazwie "+account+" nie istnieje lub has這 jest b喚dne.", 106);
+    return 0;
+  endif
+
+  var pc := struct;
+  pc.+type := "mod_royal_coins";
+  pc.+account := account;
+
+  var CurRoyals := Acc.GetProp("Royals");
+
+  if(!CurRoyals)
+    CurRoyals := dictionary;
+  endif
+
+  CurRoyals["donation"] := CDbl(CurRoyals["donation"]) + CDbl(amount);
+  CurRoyals["coins"]    := CInt(CurRoyals["coins"]) + CInt(ceil(amount / 5));
+
+  Acc.SetProp("Royals", CurRoyals);
+
+  pc.+coins := CurRoyals["coins"];
+
+  gConn.Transmit(pc);
+
+  syslog("[External]: ["+gId+"] Royal coins modified for ["+account+"]");
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

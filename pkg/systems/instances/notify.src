@@ -1,0 +1,14 @@
+use uo;
+use os;
+use cfgfile;
+
+include "include/client/fonts";
+include ":discord:outbound";
+
+program notifyInstances(text)
+
+	sleep(360);
+	BroadCast(text, FONT_NORMAL, COLOR_BLUE);
+	PresetDiscordMessage(text);
+
+endprogram

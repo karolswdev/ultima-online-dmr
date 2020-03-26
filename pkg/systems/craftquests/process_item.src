@@ -1,0 +1,174 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include "include/attributes/skills";
+include "include/mobile/npcs/utils";
+include "include/findcity";
+include "include/move";
+include "include/items/groups";
+include ":banking:gold";
+include "include/npcs";
+
+include "craftquests";
+include ":npcguilds:guilds";
+include ":crafting:receptures";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+program HandlerCraftProcessItem(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+  
+  if(!NpcHaveFlag(Data.npc, "CanGiveCraftQuest"))
+    return 0;
+  endif
+
+  var Res := -1;
+
+  if(Data.param.objtype == UOBJ_CRAFT_TICKET)
+
+    Res := CheckCraftTicket(Data.npc, Data.source, Data.param);
+
+  elseif(CInt(GetObjProperty(Data.npc, PROP_CRAFTITEM_GET + CStr(Data.source.serial))[1]) > ReadGameClock())
+
+    Res := CheckCraftItem(Data.npc, Data.source, Data.param);
+
+  endif
+
+  if(!Res)
+    MoveToPack(Data.param, Data.source);
+  endif
+
+  if(Res == -1)
+    return 0;
+  endif
+
+  return Max(Res, 1);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckCraftTicket(me, who, Item)
+
+  var Order     := GetObjProperty(Item, PROP_CRAFT_DATA);
+  var ExpTime   := __IfElse(Order.ExpTime, Order.ExpTime, CQ_DEF_EXP_TIME);
+
+  if(Order.Source != me.serial)
+    NpcSpeechJustSay(me, who, "Hm.. to zamowienie nie jest odemnie.");
+    return 0;
+  elseif(Order.Player != who.serial)
+    NpcSpeechJustSay(me, who, "Hm.. nie Tobie dal"+ggm(who, GGM_AM)+" to zamowienie.");
+    return 0;
+  elseif(Order.aTime + ExpTime < ReadGameClock())
+    NpcSpeechJustSay(me, who, "To zamowienie jest juz nieaktualne. Nie potrzebuje juz tych przedmiotow!");
+    return 0;
+  elseif(Order.Comp)
+    NpcSpeechJustSay(me, who, "To zamowienie zostalo juz wykonane.");
+    return 2;
+  endif
+
+  NpcSpeechJustSay(me, who, "Pokaz wiec przedmioty z zamowienia.");
+  SetObjProperty(me, PROP_CRAFTITEM_GET + who.serial, array(ReadGameClock() + CRQS_IGET_DELAY, Item.serial) );
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckCraftItem(me, who, Item)
+
+  var Ticket := FindItemBySerial(GetObjProperty(me, PROP_CRAFTITEM_GET + who.serial)[2]);
+  if(!Ticket)
+    PrintTextAbove(me, "A gdzie zgubil"+ggm(who,3)+" bilet?");
+    EraseObjProperty(me, PROP_CRAFTITEM_GET + who.serial);
+    return 0;
+  endif
+
+  SetObjProperty(me, PROP_CRAFTITEM_GET + who.serial, array(ReadGameClock() + CRQS_IGET_DELAY, Ticket.serial) );
+
+  var Order := GetObjProperty(Ticket, PROP_CRAFT_DATA);
+  var Table := dictionary;
+  var i     := 1;
+  var finRes := 1;
+
+  if(Order.Player != who.serial)
+    NpcSpeechJustSay(me, who, "Hm.. nie Tobie dal"+ggm(who, GGM_AM)+" to zamowienie.");
+    return 0;
+  endif
+
+  if(Order.Comp)
+    NpcSpeechJustSay(me, who, "Zamowienie zostalo juz wykonane.");
+    EraseObjProperty(me, PROP_CRAFTITEM_GET + who.serial);
+    return 0;
+  endif
+
+  foreach Item in (Order.Items)
+    Table[Item.ObjType] := i;
+    i := i + 1;
+  endforeach
+
+  if(Item.isa(POLCLASS_CONTAINER) and Item.item_count-1 > 0)
+    var Res := CheckCraftItemCont(Item, Table);
+    if(!Res)
+      NpcSpeechJustSay(me, who, "W tym pojemniku nie ma nic co by mnie interesowalo.");
+      return 0;
+    endif
+  else
+    if(!Table[Item.objtype])
+      NpcSpeechJustSay(me, who, "Tego nie bylo w zamowieniu, nie potrzebuje tego.");
+      return 0;
+    endif
+
+    if(GetItemMakerSerial(Item) != who.serial and GetHarvesterSerial(Item) != who.serial)
+      NpcSpeechJustSay(me, who,  "Hm.. wyglada podejrzanie, czy oby na pewno ty to wykonal"+ggm(who,3)+"?!");
+      return 0;
+    endif
+  endif
+
+  var RepLvl   := GetPlayerNpcGuildCityLvl(who, FindCity(me));
+  var OldPrice := Order.Price;
+  var SkId := GetOrderSkillId(Order);
+
+  SubtractCraftItems(who, Item, Table, Order.Items, RepLvl, Order.Price);
+
+  if(CheckOrderComplete(me, who, Order))
+    Ticket.color := CRQS_TICKETDONE_CLR;
+    finRes := 2;
+    if(Order.Level > 1 and Order.Level < 4 and HaveSkillReceptures(SkId))
+      PrintTextAbovePrivate(me, "Pamietaj, moge nauczyc Cie receptury za wykonanie tego zamowienia.", who);
+      PrintTextAbovePrivate(me, "Jesli chcesz, abym Cie czegos nauczyl"+ggm(me,4)+", po prostu podaj mi list z zamowieniem.", who);
+    endif
+
+  elseif(OldPrice == Order.Price)
+    NpcSpeechJustSay(me, who, "Hm.. nie przyda mi sie juz nic, z tego co mi dal"+ggm(who,3)+".", who);
+  elseif(OldPrice < Order.Price)
+    OldPrice := Order.Price - OldPrice;
+    case(RandomInt(5))
+      1:        PrintTextAbovePrivate(me, "Tak, to jest to czego potrzebuje, zaplace za to "+OldPrice+" zlota.", who);
+      2:        PrintTextAbovePrivate(me, "Zaplace za to "+OldPrice+" zlota.", who);
+      3:        PrintTextAbovePrivate(me, "Dzieki, tego mi trzeba, dam za to "+OldPrice+" zlota.", who);
+      4:        PrintTextAbovePrivate(me, "Wlasnie, o to mi chodzilo, jestem w stanie dac za to "+OldPrice+" zlota.", who);
+      default:  PrintTextAbovePrivate(me, "Dzieki, dam za to "+OldPrice+" zlota.", who);
+    endcase
+  endif
+  SetObjProperty(Ticket, PROP_CRAFT_DATA, Order);
+
+  if(Item)
+    MoveToPack(Item, who);
+  endif
+
+  return finRes;
+
+endfunction
+
+//-----------------------------------------------------------------------------

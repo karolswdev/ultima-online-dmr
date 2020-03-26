@@ -1,0 +1,727 @@
+//-----------------------------------------------------------------------------
+
+use boat;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "plankutil";
+include "include/events";
+include "include/gumpboxes";
+include "include/key";
+include "include/items";
+include "include/move";
+include "include/player/misc";
+include "include/effects";
+include "include/logerror";
+include "include/resurrect";
+
+//-----------------------------------------------------------------------------
+
+const STATE_STATIONARY := 0;
+const STATE_MOVING     := 1;
+const STATE_DRIFTING   := 2;
+const DELAY_DRIFTING   := 15000;
+
+//-----------------------------------------------------------------------------
+
+var state := STATE_STATIONARY;
+var relative_direction;
+var ms_delay_between_moves := 200;
+var boat;
+var tillerman;
+var owner;
+var decay;
+var WCfg  := ReadConfigFile(":boat:wir");
+var g_Text,g_LockId;
+var MaxDim;
+
+//-----------------------------------------------------------------------------
+
+program BoatControl(param)
+
+  boat := param;
+  if(!boat)
+    LogError("[BoatControl] Brak lodzi ["+CStr(boat)+"]", LOGF_SCRIPTS);
+    return;
+  endif
+
+  tillerman := boat.tillerman;
+  if(!tillerman)
+    LogError("[BoatControl] Lodka nie ma sternika "+boat.serial+" Loc: " +(boat.x-1) +","+ boat.y +","+ boat.z+" "+boat.realm, LOGF_SCRIPTS);
+    foreach mob in(boat.items)
+      DestroyItem(mob);
+    endforeach
+    var res := DestroyMulti(boat);
+    if(!res)
+      LogError("[BoatControl] Nie udalo sie zniszczyc lodki: "+res+" Ser: "+boat.serial, LOGF_SCRIPTS);
+    else
+      LogNotice("[BoatControl] Zniszczono lodke z powodu bledu. Ser: "+boat.serial, LOGF_SCRIPTS | LOGF_NO_NEED);
+    endif
+    return;
+  endif
+
+  SetObjProperty(boat.tillerman, "#BoatPid", GetPid());
+  EnableEvents(EVID_SPEECH, 15);
+  RegisterForSpeechEvents(tillerman, 15);
+  var nextencounter := ReadGameClock()+(RandomInt(120) + 120);
+  var nextsound     := ReadGameClock()+5;
+  var driftcounter  := 1;
+  var x,y,ev;
+  g_LockId            := GetItemLockID(boat.tillerman);
+  SetMaxDimension();
+  set_critical(0);
+
+  while(boat)
+    if(GetObjProperty(boat.hold, "#speed"))
+      state := STATE_MOVING;
+      ms_delay_between_moves := GetObjProperty(boat.hold, "#speed"); 
+      relative_direction     := GetObjProperty(boat.hold, "#relativedir");
+      eraseobjproperty(boat.hold, "#speed");
+      eraseobjproperty(boat.hold, "#relativedir");    
+    endif
+    decay := GetObjProperty(boat.tillerman,"decay");
+    if(decay and !GetObjProperty(tillerman,"nodecay"))
+      if(ReadGameClock() > decay)
+        PrintTextAbove(tillerman, "Arrrrrgh!  On idzie na dno! Kapitanie opuszczamy statek!");
+        sleep(4);
+        foreach item in EnumerateItemsInContainer( boat.hold )
+          DestroyItem(item);
+        endforeach
+        foreach mob in(boat.items)
+          DestroyItem(mob);
+        endforeach        
+        foreach mob in(boat.mobiles)
+          if(boat.realm == BRITA_REALM)
+            MoveObject(mob, 3638, 1064, 0, BRITA_REALM, MOVECHAR_FORCELOCATION);
+          else
+            MoveObject(mob, 1487, 1869, 0, _DEFAULT_REALM, MOVECHAR_FORCELOCATION);
+          endif
+          SendSysMessage(mob, "Statek sie nie utrzymal i zatonal w falach!",FONT_NORMAL,COLOR_RED);
+          SendSysMessage(mob, "Obudzil"+ggm(mob,3)+" sie na dalekim brzegu...",FONT_NORMAL,COLOR_GREEN);
+        endforeach
+        if(boat.has_offline_mobiles)
+          if(boat.realm == BRITA_REALM)
+            boat.move_offline_mobiles(3638, 1064, 0);
+          else
+            boat.move_offline_mobiles(1487, 1869, 0, _DEFAULT_REALM);
+          endif
+        endif
+        DestroyMulti(boat);
+      endif
+    endif
+    case(state)
+      STATE_MOVING:     if(ReadGameClock() > nextsound)
+                          PlayBoatSounds();
+                          nextsound := ReadGameClock()+5;
+                        endif
+                        x := boat.x;
+                        y := boat.y;
+                        if(IsWraping(x,y))
+                          WorldWrap();
+                        elseif(WCfg[x+"_"+y])
+                          WirMove();
+                        else
+                          MoveBoatRelative(boat, relative_direction);
+                          if((x == boat.x) and (y == boat.y))
+                            ms_delay_between_moves := 1000;
+                            state := STATE_DRIFTING;
+                            PrintTextAbove(tillerman, "Aaargh! Doplynelismy na lad!");
+                            SmackEveryone();
+                          endif
+                          sleepms(ms_delay_between_moves);
+                        endif
+                        while(events_waiting())
+                          process_event(wait_for_event(0));
+                        endwhile
+      STATE_DRIFTING:   x := boat.x;
+                        y := boat.y;
+                        if(IsWraping(x,y))
+                          WorldWrap();
+                        elseif(WCfg[x+"_"+y])
+                          WirMove();
+                        else
+                          if(ReadGameClock() > nextsound)
+                            PlayBoatSounds();
+                            nextsound := ReadGameClock()+5;
+                          endif
+                          if(driftcounter > 15)
+                            MoveBoatRelative(boat, RandomInt(8));
+                            driftcounter := 1;
+                          else
+                            driftcounter := driftcounter + 1;
+                          endif
+                        endif
+                        sleepms(1000);
+                        while(events_waiting())
+                          process_event(wait_for_event(0));
+                        endwhile
+      STATE_STATIONARY: ev := wait_for_event(120);
+                        if(ev)
+                          process_event(ev);
+                        endif
+    endcase
+    if(ReadGameClock() > nextencounter)
+      CheckRes();
+      nextencounter := ReadGameClock()+120;
+    endif
+    foreach mob in (boat.mobiles)
+      if(mob.dead)
+        state := STATE_STATIONARY;
+      endif
+    endforeach
+    sleepms(100);
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function handle_speech()
+  if(g_Text["dryfuj"] || g_Text["wynurz kotwice"])
+    ms_delay_between_moves := 1000;
+    state := STATE_DRIFTING;
+  elseif(g_Text["naprzod"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      state := STATE_MOVING;
+      if(g_Text["ster lewo na burte"])
+        relative_direction := DIR_NW;
+      elseif(g_Text["ster prawo na burte"])
+        relative_direction := DIR_NE;
+      else
+        relative_direction := DIR_N;
+      endif
+    endif
+    if(g_Text["cala naprzod"])
+      if(state != STATE_STATIONARY)
+        PrintTextAbove(tillerman, "Aye Aye Kapitanie! Cala naprzod!");
+        ms_delay_between_moves := 100;
+      endif
+    endif
+  elseif(g_Text["wstecz"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      state := STATE_MOVING;
+      if(g_Text["ster lewo na burte"])
+        relative_direction := DIR_SW;
+      elseif(g_Text["ster prawo na burte"])
+        relative_direction := DIR_SE;
+      else
+        relative_direction := DIR_S;
+      endif
+    endif
+    if(g_Text["cala wstecz"])
+      if(state != STATE_STATIONARY)
+        PrintTextAbove(tillerman, "Aye Aye Kapitanie! Cala wstecz!");
+        ms_delay_between_moves := 100;
+      endif
+    endif
+  elseif(g_Text["stop"])
+    PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+    ms_delay_between_moves := 1000;
+    state := STATE_DRIFTING;
+  elseif(g_Text["zanurz kotwice"])
+    PrintTextAbove(tillerman, "Aye Aye Kapitanie! Katowica zanurzona.");
+    ms_delay_between_moves := 1000;
+    state := STATE_STATIONARY;
+  elseif(g_Text["skrec w prawo"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      TurnBoat(boat, 1);
+    endif
+  elseif(g_Text["ster prawo na burte"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      state := STATE_MOVING;
+      relative_direction := DIR_E;
+    endif
+  elseif(g_Text["skrec w lewo"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      TurnBoat(boat, 3);
+    endif
+  elseif(g_Text["ster lewo na burte"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      state := STATE_MOVING;
+      relative_direction := DIR_W;
+    endif
+  elseif(g_Text["obroc"])
+    if(state == STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Kotwica jest zanurzona Kapitanie!");
+    else
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+      TurnBoat(boat, 2);
+      sleep(1);
+    endif
+  endif
+  if(g_Text["powoli"])
+    if(state != STATE_STATIONARY)
+      PrintTextAbove(tillerman, "Aye Aye Kapitanie! ");
+      ms_delay_between_moves := 1000;
+    endif
+  endif
+  sleep(1);
+  if(g_Text["raz"])
+    if(state != STATE_STATIONARY)
+      MoveBoatRelative(boat, relative_direction);
+      state := STATE_STATIONARY;
+    endif
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function process_event(event)
+  if(event.type == EVID_SPEECH)
+    if(CanCommandMe(event.source))
+      g_Text := lower(event.text);
+      if(g_Text["do portu"])
+        PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+        drydock(event);
+        sleep(1);
+      elseif(g_Text["status"])
+        decay := GetObjProperty(boat.tillerman, "decay");
+        if((decay - ReadGameClock() ) > 861000 )
+          PrintTextAbove( tillerman, "Arrh, Statek jest w wspanialej formie, Kapitanie!" );
+        elseif((decay - ReadGameClock() ) > 604800 )
+          PrintTextAbove( tillerman, "Jest juz troche zuzyty, Kapitanie.");
+        elseif((decay - ReadGameClock() ) > 259200 )
+          PrintTextAbove(tillerman, "Jest juz zuzyty Kapitanie.");
+        elseif((decay - ReadGameClock() ) > 86400 )
+          PrintTextAbove(tillerman, "Arrr, jest juz porzadnie zuzyty i potrzebuje naprawy, Kapitanie!");
+        else 
+          PrintTextAbove(tillerman, "Arrr, zatonie niebawem jesli sie go nie naprawi, Kapitanie!");
+        endif
+      elseif(g_Text["zmien zamki"])
+        ChangeKey(event.source);
+      elseif((g_Text["myj"] or g_Text["czysc"]) and g_Text["poklad"])
+        ClearDeck(event.source);
+      else
+        handle_speech();
+      endif
+    endif
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanCommandMe(who)
+  owner  := CInt(GetObjProperty(boat.tillerman, "owner"));
+  if(who.serial == owner)
+    return 1;
+  else
+    foreach thing in EnumerateItemsInContainer(who.backpack)
+      if(GetItemLockID(thing) == g_LockId)
+        return 1;
+      endif
+    endforeach
+  endif
+  
+  return 0;
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function checkres()
+  var x,y;
+  if(!boat)
+    return;
+  endif
+  foreach who in  ListMobilesNearLocationEx(boat.x, boat.y, GetMapInfo(boat.x, boat.y,boat.realm).z, 10, LISTEX_FLAG_GHOST,boat.realm)
+    if(who in boat.mobiles)
+      x := who.x;
+      y := who.y;
+      if(YesNo(who,"Wskrzesic?"))
+        if(who.x == x and who.y == y)
+          PlaySoundEffect(who, SFX_SPELL_RESSURECTION);
+          PlaySoundEffect(who, SFX_SPELL_RESSURECTION);
+          Resurrection(who,1);
+        endif
+      endif
+    endif
+  endforeach
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DryDock(event)
+  if(GetObjProperty(event.source, "#DryDocking"))
+    SendSysMessage(event.source, "Robisz co innego teraz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetObjProperty(event.source, "#DryDocking", 1);
+
+  if(DryDockBoat(event))
+    EraseObjProperty(event.source, "#DryDocking");
+    exit;
+  endif
+
+  EraseObjProperty(event.source, "#DryDocking");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DryDockBoat(event)
+
+  var ltext := lower(event.text);
+  if(!ltext["do portu"])
+    return 0;
+  endif
+
+  var me := event.source;
+  var items := boat.items;
+  if(len(items) > 0)
+    PrintTextAbovePrivate(boat.tillerman, "Nie mozesz przybic do portu kiedy na statku sa przedmioty.", me);
+    return 0;
+  endif
+  items := EnumerateItemsInContainer(boat.hold);
+  if(len(items) > 0)
+    PrintTextAbovePrivate(boat.tillerman, "Nie mozesz przybic do portu kiedy w schowku sa przedmioty.", me);
+    return 0;
+  endif
+  if(boat.has_offline_mobiles)
+    PrintTextAbovePrivate(boat.tillerman, "Nie mozesz przybic do portu kiedy ktos spi na statku.", me);
+    return 0;
+  endif
+  if(len(boat.mobiles) > 0)
+    PrintTextAbovePrivate(boat.tillerman, "Nie mozesz przybic do portu kiedy ktos stoi na pokladzie.", me);
+    return 0;
+  endif
+
+  var key := FindKey(me, boat.tillerman);
+  if(!key)
+    SendSysMessage(me,"Nie masz klucza.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(!ReserveItem(key))
+    SendSysMessage(me, "Klucz jest uzywany.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(!YesNo(me,"Przybic?"))
+    ReleaseItem(key);
+    return 0;
+  endif
+
+  var Port := IsNearShipPort(boat);
+  var PortName := "brzegu";
+  if(Port)
+    PortName := "portu";
+  endif
+
+  PrintTextAbove(boat.tillerman, "Przybijamy do "+PortName+"!");
+
+  if(Port)
+    if(!MakeNoise(me, SFX_NATURE_WAVE2, 1000))
+      ReleaseItem(key);
+      return 0;
+    endif
+  else
+    if(!MakeNoise(me, SFX_NATURE_WAVE2, 3000))
+      ReleaseItem(key);
+      return 0;
+    endif
+  endif
+
+  var shiptype;
+  case(boat.objtype)
+    0x6370: shiptype := 0x6350;
+    0x6371: shiptype := 0x6351;
+    0x6372: shiptype := 0x6352;
+    0x6373: shiptype := 0x6353;
+    0x6374: shiptype := 0x6354;
+    0x6375: shiptype := 0x6355;
+    0x6376: shiptype := 0x6356;
+  endcase
+  
+  if(!shiptype)
+    SendSysMessage(me, "Hmm, cos dziwnego sie dzieje z ta lodzia.",FONT_NORMAL,COLOR_RED);
+    ReleaseItem(key);
+    return 0;
+  endif
+  
+  var newboat := CreateItemInCont(me.backpack, shiptype, 1);
+  if(!newboat)
+    SendSysMessage(me,"Masz za malo miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+    ReleaseItem(key);
+    return 0;
+  endif
+  if(ReserveItem(newboat))
+    newboat.graphic := 0x14f3;
+    if(!boat.tillerman.name or lower(boat.tillerman.name) == "sternik")
+      newboat.name := "Statek";
+    else
+      newboat.name := boat.tillerman.name;
+    endif
+    if(!DestroyBoat())
+      DestroyItem(newboat);
+      ReleaseItem(key);
+      return 0;
+    endif
+  else
+    DestroyItem(newboat);
+    ReleaseItem(key);
+    return 0;
+  endif
+
+  if(key)
+    DestroyItem(key);
+  endif
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeKey(who)
+
+  if(who.serial != CInt(GetObjProperty(boat.tillerman,"owner")))
+    return;
+  endif
+  PrintTextAbove(boat.tillerman,"Wybierz nowy klucz Kapitanie!");
+  var NewKey := ObjTarget(who);
+
+  if(!NewKey)
+    PrintTextAbove(boat.tillerman,"Musisz wskazac klucz, Kapitanie!");
+    return;
+  endif
+
+  if(NewKey.objtype < UOBJ_KEYSTART or NewKey.objtype > UOBJ_KEYEND)
+    PrintTextAbove(boat.tillerman,"To nie klucz Kapitanie!");
+    return;
+  endif
+
+  if(GetItemLockID(NewKey))
+    PrintTextAbove(boat.tillerman,"Ten klucz zostal juz wyrobiony Kapitanie!");
+    return;
+  endif
+
+  var NewLockId := AllocLockId();
+  SetObjProperty(boat.hold,           "lockid",NewLockId);
+  SetObjProperty(boat.portplank,      "lockid",NewLockId);
+  SetObjProperty(boat.starboardplank, "lockid",NewLockId);
+  SetObjProperty(boat.tillerman,      "lockid",NewLockId);
+  SetObjProperty(boat.hold,           "lockid",NewLockId);
+  SetObjProperty(NewKey,              "lockid",NewLockId);
+  SetObjProperty(NewKey,              "shipserial",boat.serial);
+  
+  PrintTextAbove(boat.tillerman,"Zmieniono zamki Kapitanie!");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearDeck(who)
+
+  if(who.serial != CInt(GetObjProperty(tillerman, "owner")))
+    return;
+  endif
+
+  PrintTextAbovePrivate(tillerman, "Jestes pewien Kapitanie?", who);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+
+  var ev;
+  Sleepms(500);
+
+  foreach item in (boat.items)
+    ev := wait_for_event(0);
+    if(ev and ev.type == EVID_SPEECH and ev.source == who)
+      g_Text := lower(ev.text);
+      if(g_Text["przerwij"] or g_Text["przestan"] or g_Text["stop"])
+        PrintTextAbove(tillerman, "Aye Aye Kapitanie!");
+        return;
+      endif
+    endif
+
+    if(item)
+      DestroyItem(item);
+      Sleepms(100);
+    else
+      Sleepms(2);
+    endif
+  endforeach
+
+  Sleepms(200);
+  PrintTextAbove(tillerman, "Poklad wymyty Kapitanie!");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyBoat()
+  var res := DestroyMulti(boat);
+  if(!res)
+    return 0;
+  endif
+  return 1;
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SmackEveryone()
+
+  foreach mob in(boat.mobiles)
+    DealDamage(mob, RandomInt(10));
+    PlayHitAnim(mob);
+    PlaySoundEffect(mob, 0x110);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayBoatSounds()
+  var mobs := (boat.mobiles);
+  var who  := RandomInt(len(mobs))+1;
+  if(RandomInt(2) == 1)
+    PlaySoundEffect(mobs[who],0x13);
+  else
+    PlaySoundEffect(mobs[who],0x14);
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsWraping(x,y)
+
+  case(boat.realm)
+    BRITB_REALM:
+    BRITA_REALM:     if(x <= MaxDim+1 or (x >= 5106-MaxDim and x <= 5119) or y <= MaxDim+1 or (y >= 4094-MaxDim and (x < 2528 or x > 2561) and (x < 2360 or x > 2408) and (x < 2030 or x > 2042)))
+                       return 1;
+                     endif
+
+    TOKUNO_REALM:    if(x <= MaxDim+1 or (x >= 1446-MaxDim or (x >= 1406-MaxDim and y >= 1344)) or y <= MaxDim+1 or (y >= 1406-MaxDim or (y >= 1342-MaxDim and x >= 1408)))
+                       return 1;
+                     endif
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WorldWrap()
+  var newx := boat.x;
+  var newy := boat.y;
+  
+  case(boat.realm)
+    BRITB_REALM:
+    BRITA_REALM:     if(boat.y <= MaxDim+1)
+                       newy := 4093-MaxDim;
+                     elseif(boat.y >= 4094-MaxDim)
+                       newy := MaxDim+2;
+                     endif
+                     if(boat.x <= MaxDim+1)
+                       newx := 5105-MaxDim;
+                     elseif(boat.x >= 5106-MaxDim and boat.x <= 5119)
+                       newx := MaxDim+2;
+                     endif
+
+    TOKUNO_REALM:    if(boat.x <= MaxDim+1)
+                       if(boat.y >= 1342-MaxDim)
+                         newx := 1405-MaxDim;
+                       else
+                         newx := 1445-MaxDim;
+                       endif
+                     elseif(boat.x >= 1446-MaxDim or (boat.x >= 1406-MaxDim and boat.y >= 1344))
+                       newx := MaxDim+2;
+                     endif
+                     if(boat.y <= MaxDim+1)
+                       if(boat.x >= 1406-MaxDim)
+                         newy := 1341-MaxDim;
+                       else
+                         newy := 1405-MaxDim;
+                       endif
+                     elseif(boat.y >= 1406-MaxDim or (boat.y >= 1342-MaxDim and boat.x >= 1408))
+                       newy := MaxDim+2;
+                     endif
+
+                     if(newx >= 1408 and newy >= 1344)
+                       newx := 1405-MaxDim;
+                       newy := 1405-MaxDim;
+                     endif
+  endcase
+
+  MoveBoatXY(boat,newx,newy);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WirMove()
+
+  var Loc := WCfg[boat.x+"_"+boat.y].Loc;
+  
+  if(Loc == "Random")
+    var Locs := GetConfigStringKeys(WCfg),i := 0;
+    Loc := 0;
+    while(!Loc and i < 100)
+      Loc := Locs[RandomInt(Locs.size())+1];
+      if(Loc == (boat.x+"_"+boat.y))
+        Loc := 0;
+      endif
+      i := i + 1;
+    endwhile
+  endif
+  
+  Loc := WCfg[Loc];
+  
+  if(Loc)
+    for i := 1 to 10
+      TurnBoat(boat,1);
+      sleepms(500);
+    endfor
+
+    if(!MoveBoatXY(boat,CInt(Loc.x)+6,CInt(Loc.y)))
+      MoveBoatXY(boat,boat.x+6,boat.y);
+    endif
+  else
+    MoveBoatXY(boat,boat.x+6,boat.y);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetMaxDimension()
+
+  MaxDim := 0;
+  var Dims   := GetMultiDimensions(boat.graphic);
+  
+  if(Dims)
+    MaxDim := Max(Max(Abs(Dims.xmax), Abs(Dims.xmin)), Max(Abs(Dims.ymax), Abs(Dims.ymin)));
+  endif
+
+  if(!MaxDim)
+    MaxDim := 10;
+  endif
+
+  MaxDim := CInt(MaxDim);
+
+endfunction
+
+//-----------------------------------------------------------------------------

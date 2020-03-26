@@ -1,0 +1,92 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+
+//-----------------------------------------------------------------------------
+
+const MAX_FLOUR_AMT := 20;
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program WheatInsert(who, Item)
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz mlyn.",FONT_NORMAL,COLOR_GREEN);
+  
+  var Mill := ObjTarget(who);
+  
+  if(!StandardItemCheck(who,Mill,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+  
+  if(Mill.objtype != UOBJ_FLOURMILL_UP_E and Mill.objtype != UOBJ_FLOURMILL_UP_N)
+	if(who.cmdlevel)
+		SendSysMessage(who, "Comparing " + Mill.objtype + " to " + UOBJ_FLOURMILL_UP_E);
+	endif
+    SendSysMessage(who,"To nie mlyn.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var InAmount, PropName, Msg;
+  
+  if(Item.objtype == UOBJ_WHEAT or Item.objtype == UOBJ_WHEAT2)
+
+    if(GetObjProperty(Mill,"CornAmount"))
+      SendSysMessage(who, "W tym mlynie jest kukurydza.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    InAmount := CInt(GetObjProperty(Mill,"WheatAmount"));
+    PropName := "WheatAmount";
+    Msg      := "pszenice";
+
+  elseif(Item.objtype == UOBJ_CORN)
+
+    if(GetObjProperty(Mill,"WheatAmount"))
+      SendSysMessage(who, "W tym mlynie jest pszenica.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    InAmount := CInt(GetObjProperty(Mill,"CornAmount"));
+    PropName := "CornAmount";
+    Msg      := "kukurydze";
+
+  else
+
+    return;
+
+  endif
+
+  if(InAmount >= MAX_FLOUR_AMT)
+    SendSysMessage(who,"Mlyn jest pelny.",FONT_NORMAL,COLOR_BLUE);
+    return;
+  endif
+
+  var Amt := Item.amount;
+
+  if(InAmount + Amt > MAX_FLOUR_AMT)
+    Amt := MAX_FLOUR_AMT - InAmount;
+  endif
+
+  if(SubtractAmount(Item, Amt))
+    InAmount := InAmount + Amt;
+
+    if(InAmount == MAX_FLOUR_AMT)
+      Mill.graphic := CInt(ItemCfg[Mill.objtype].GraphicFull);
+    elseif(InAmount > 1)
+      Mill.graphic := CInt(ItemCfg[Mill.objtype].GraphicHalf);
+    endif
+
+    SendSysMessage(who,"Wlozyl"+ggm(who,3)+" "+Msg+" do mlyna.",FONT_NORMAL,COLOR_GREEN);
+    SetObjProperty(Mill, PropName, InAmount);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

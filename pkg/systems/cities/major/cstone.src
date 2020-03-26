@@ -1,0 +1,26 @@
+use uo;
+include "major";
+
+program CreateVoteStone(Stone)
+
+  var City := GetCity(Stone);
+
+  if(City == "no city")
+    return 0;
+  endif
+
+  var ExStones := GetAllVStones();
+
+  if(FindItemBySerial(ExStones[City]))
+    AlertAdmins("Istnial stary kamien nadpisuje serial");
+  endif
+
+  ExStones[City] := Stone.serial;
+
+  SetAllVStones(ExStones);
+
+  SetName(Stone,"Kamien Kandydatury Miasta "+City);
+
+  return 1;
+
+endprogram

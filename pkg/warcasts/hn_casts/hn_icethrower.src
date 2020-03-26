@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+include "include/packets";
+include "include/gumps";
+include "include/calc";
+include "include/dirs";
+include "include/objects/location";
+
+include ":wearwolf:wearwolf";
+include ":tracking:tracking";
+include ":detecthidden:common";
+
+//-----------------------------------------------------------------------------
+
+const HN_WCID                := 162;
+
+//-----------------------------------------------------------------------------
+
+program HnIceThrower(Parms)
+
+  WarCast(Parms, HN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(IsMagicItem(Caster.weapon) or IsArtifact(Caster.weapon))
+    WcFizzleId(Caster, "Tej broni nie pokryjesz lodem.", HN_WCID);
+    return;
+  endif
+
+  var VpSkill  := CalcSkillExponential(Caster, SKILLID_HUNTER, 10);
+  var SpSkill  := CalcSkillExponential(Caster, SKILLID_INSIGHT, 10);
+  var Duration := Max(120, CInt(VpSkill + (SpSkill / 2)) * 20) + RandomInt(20);
+  var bDmg     := CInt((VpSkill / 2) + (SpSkill / 2) + RandomInt(3));
+
+  PlaySoundEffect(Caster,SFX_SPELL_PARA_FIELD);
+  PlayPcStEffect( Caster.x, Caster.y, Caster.z, Caster.realm, FX_CURSE_EFFECT, 1151, 0xF, 0xF);
+
+  if(CanMod(Caster, MOD_COLD_DMG))
+    GainWarcastPoints(Caster, Caster, HN_WCID, WCGAIN_NORMAL);
+  endif
+
+  UndoMod(Caster, MOD_FIRE_DMG);
+  UndoMod(Caster, MOD_MANA_DMG);
+  UndoMod(Caster, MOD_FIRE_BLOOD);
+  UndoMod(Caster, MOD_EXPLO_DMG);
+  UndoMod(Caster, MOD_MULTI_SHOT);
+
+  DoMod( Caster, MOD_COLD_DMG, bDmg, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

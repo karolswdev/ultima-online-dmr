@@ -1,0 +1,93 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/coords";
+include "include/player/young";
+include "include/checks/stdchecks";
+include "include/mobile/finding";
+include "include/gumps";
+
+//-----------------------------------------------------------------------------
+
+program DeathControl(who)
+
+  if(IsYoung(who))
+    var Count := CInt(GetObjProperty(who, "DeathCount"));
+    if(Count < 6)
+      SendInfoGump(who);
+    endif
+  endif
+
+  var Healer;
+  var lastTime := 0;
+
+  while(IsLoggedIn(who) and who.dead)
+    
+    if(!Healer)
+      if(lastTime < ReadGameClock())
+        Healer := FindNearestHealer(who);
+
+        if(!Healer)
+          SendSysMessage(who, "Niestety nie znaleziono zadnego uzdrowiciela w poblizu.", FONT_NORMAL, COLOR_RED);
+          SendSysMessage(who, "Sprobuj przemiescic sie w inny rejon, moze tam uzdrowiciel odnajdzie sie!", FONT_NORMAL, COLOR_ORANGE); 
+          lastTime := ReadGameClock() + 600;
+        endif
+      endif
+
+    endif
+
+    if(Healer and Distance(who, Healer) < 3 and !who.warmode)
+      SendSysMessage(who, "Nikt Cie nie widzi, dopoki nie przejdziesz w tryb walki.", FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, "Uzdrowiciel tez Cie nie widzi. Wlacz tryb walki przytrzymujac TAB i podejdz pod uzdrowiciela.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+    SendQuestArrow(who, Healer.x, Healer.y);
+    sleep(5);
+    
+  endwhile
+  
+  if(IsLoggedIn(who))
+    SendQuestArrow(who);
+  endif
+
+endprogram
+
+//----------------------------------------------------------------------------
+
+function FindNearestHealer(who)
+
+  return FindNearestNpc(who.x, who.y, who.realm, 500, array("elfhealer", "elfwanderinghealer", "healer", "wanderingHealer", "tokunohealer", "tokunowanderinghealer"));
+
+endfunction
+
+//----------------------------------------------------------------------------
+
+function SendInfoGump(who)
+
+  GInit(190, 20);
+  GNoClose();
+  GNoDispose();
+  GResPic(0, 20, 0xA28, 400, 200);
+  GGumpPic(350, 10, 0x589);
+  GGumpPic(358, 25, 0x264c);
+  GTilePic(50, 110, 0x09AB);
+
+
+  GTextLine(100, 60, 1420, "Umarl"+ggm(who, 3)+"! Jestes teraz duchem.");
+  GTextLine(50, 80, 999, "Wskrzesic moze Cie uzdrowiciel, podazaj za strzalka!");
+  GTextLine(100, 110, 1153, "Wszystkie Twoje posiadane rzeczy zostaly w");
+  GTextLine(100, 130, 1153, "zwlokach! Musisz sie pospieszyc.");
+
+  GButton(280, 160, 0x867, 0x869, 1);
+  GTextLine(313, 163, 999, "Zamknij");
+
+  GPacketSend(who);
+
+endfunction
+
+//----------------------------------------------------------------------------

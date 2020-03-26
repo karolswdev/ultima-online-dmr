@@ -1,0 +1,73 @@
+//-----------------------------------------------------------------------------
+// Modified: 2012-12-02
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/clock";
+
+include "bulks";
+
+//-----------------------------------------------------------------------------
+
+program BulkdGump(Data)
+
+  var who := Data[1];
+  var Npc := Data[2];
+
+  while(IsLoggedIn(who))
+
+    GInit(80, 100);
+    GResPic(20,20,3600,630,400);
+    GCheckerTrans(35,35,600,370);
+    GTextLine(50, 40, 600, "Specjalne zamowienia u "+Npc.name);
+    GAddPageData(616,40,2650,2651,615,383,2648,2647);
+    GPage();
+
+    var Bulks := GetObjProperty(Npc, PROP_BULK_DATA);
+    var Player, i;
+
+    if(!Bulks)
+      GTextLine(50, 70, 1209, "Brak");
+    else
+      var Add;
+      i := 1;
+
+      foreach Entry in (Bulks)
+        Player := FindPlayerBySerial(_Entry_iter);
+        GCheckNextPage(5);
+        Add := GNPCount()*40;
+        GTextLine(50, 70+Add, 999,  i);
+        GTextLine(70, 70+Add, 550,  GetRealName(Player));
+        GTextLine(230,70+Add, 1320, GetFullDate(Entry[1]));
+        GTextLine(50,90+Add, 999, "Licznik:");
+        GTextLine(100,90+Add, 1153, CInt(Entry[2])+" ("+CInt(CDbl(Entry[2]) / CDbl(BULK_MIN_COUNT)*100.0)+"%) "+CInt(Entry[3]));
+        GTextLine(270,90+Add, 670,  DescRealTime(ReadGameClock() - CInt(Entry[1])) + " temu");
+        
+        GTextLine(490,70+Add, 999, "Sprzedane:");
+        GTextLine(555,70+Add, 1402, CInt(Entry[5]) + " gp");
+
+        GTextLine(480,90+Add, 999, "Wykonanych:");
+        GTextLine(555,90+Add, 1402, CInt(Entry[6])+"/"+CInt(Entry[4]));
+        i := i + 1;
+      endforeach
+    endif
+
+    GButton(50, 83+15*20, 2117, 2118, 1);
+    GTextLine(70, 80+15*20, 1424, "Odswiez");
+
+    var Res := GSend(who);
+
+    if(!Res)
+      break;
+    endif
+  endwhile
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

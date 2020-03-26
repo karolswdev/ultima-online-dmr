@@ -1,0 +1,117 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/question";
+
+include "include/loots";
+include "include/gumpboxes";
+include "include/move";
+include ":banking:common";
+include "include/equipment";
+
+include "miracles";
+
+//-----------------------------------------------------------------------------
+
+program HandlerMiracleRitual(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  if(Data.npc.script != ":miracleworker:ai_miracleworker")
+    return;
+  endif
+
+  var Cfg  := ReadConfigFile(":miracleworker:miracleconfig");
+  var Item := Data.param;
+
+  if(!Item)
+    PrintTextAbove(Data.npc, "A gdzie zgubil"+ggm(Data.source,3)+" moje zamowienie?!");
+    PrintTextAbove(Data.npc, "Bez niego nie mozemy Cie uleczyc");
+    return 0;
+  endif
+
+  var Order := GetObjProperty(Item, PROP_ORDER_DATA);
+
+  if(Order.owner != Data.source.serial)
+
+    PrintTextAbove(Data.npc, "Chwila chwila! To nie Twoj bilet!");
+    PrintTextAbove(Data.npc, "Chcesz mnie oszukac?!");
+    return 0;
+
+  elseif(Order.Used)
+    
+    PrintTextAbove(Data.npc, "Juz wykorzystal"+ggm(Data.source,3)+" to zamowienie do uleczenia sie!");
+    return 0;
+
+  endif
+  
+  var Mount := GetEquipmentByLayer(Data.source,LAYER_MOUNT);    
+  if(Mount)
+    PrintTextAbove(Data.npc, "Nie mozesz przystapic do rytualu z tym czyms pod tylkiem!");
+    return 0;
+  endif
+
+  PrintTextAbove(Data.npc, "Doskonale! Mozemy zaczynac! Jestes tego pewien?");
+
+  if(!NpcAskYesNo(Data.npc, Data.source, "Wiec po co mi glowe zawracasz?! He?"))
+    case(RandomInt(3))
+      1:       PrintTextAbove(Data.npc, "W takim razie po co zawracasz mi zad, idz stad!");
+      2:       PrintTextAbove(Data.npc, "Przyniosl"+ggm(Data.source,3)+" mi przedmioty z zamowienia a nie chcesz dokonczyc rytualu? Dziwne.");
+      default: PrintTextAbove(Data.npc, "Decyduj sie szybciej bo nie mam calego dnia!");
+    endcase
+    return 0;
+  endif
+
+  var chamb := FindEmptyChamber(Cfg);
+
+  if(chamb == error)
+    PrintTextAbove(Data.npc, "Niestety nie mam dla ciebie teraz czasu, wroc pozniej.");
+    return 0;
+  endif
+  
+  PrintTextAbove(Data.npc, "Skoro tego pragniesz...");
+  Sleep(3);
+  PrintTextAbove(Data.npc, "PRZYGOTUJCIE RYTUAL!");
+  Sleep(2);
+  PrintTextAbove(Data.npc, "*smieje sie*");
+  
+  var servants;
+  GetServantList(Data.npc,servants);
+  
+  if(servants.size()==0)
+    PrintTextAbove(Data.npc, "A gdzie te oszolomy? Ktos musi Cie przygotowac");
+    return 0;
+  endif
+
+  var nearest := FindNearestServant(Data.npc,servants);
+  PrintTextAbove(Data.npc, "Zaczynajmy wiec");
+  
+  Data.source.frozen := 1;
+  
+  BuzzPlayer(Data.source,nearest);
+  Unequip(Data.source);
+  Sleep(2);
+  PrintTextAbove(nearest, "Szefie Szefie juz!");
+  
+  sleep(2);
+  
+  PrintTextAbove(Data.npc, "Dobrze. Wyglada na to ze jestes gotow"+ggm(Data.source,6)+". Do komory z ni"+ggm(Data.source,24)+"!");
+  
+  Sleep(3);
+  
+  MoveToChamber(Data.source,chamb,Cfg);
+  Order.Used := 1;
+  SetObjProperty(Item, PROP_ORDER_DATA, Order);
+
+  return 1;
+
+endprogram
+
+//------------------------------------------------------------------------

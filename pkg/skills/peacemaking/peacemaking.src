@@ -1,0 +1,111 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/attributes/npcs_cag";
+include "include/events";
+include "include/attack";
+
+include ":musicianship:music";
+
+//-----------------------------------------------------------------------------
+
+program Peacemaking(who)
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var Points  := GetDefaultPointsValue(SKILLID_PEACEMAKING);
+
+  if(!can_sing(who))
+    return;
+  endif
+
+  var instrument := findinstrument(who);
+
+  if(!instrument)
+    SendSysmessage(who, "Nie masz instrumentu by grac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who,instrument,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_PEACEMAKING));
+
+  var Range     := 2 + Cint(GetEffectiveSkill(who,SKILLID_PEACEMAKING) / 10);
+  var Objects   := 0;
+  var Succ      := play(who, -1, instrument);
+  var Diff      := 0;
+  var Count    := 0;
+
+  if(Succ)
+
+    Objects := ListObjectsInBox(who.x-Range, who.y-Range, ToMin(who.z-20, -127), who.x+Range, who.y+Range, ToMax(who.z+20, 127), who.realm);
+    foreach TheTarg in Objects
+
+      if(TheTarg == who or !TheTarg.isa(POLCLASS_MOBILE))
+        continue;
+      endif
+
+      Sleepms(1);
+
+      if(TheTarg.warmode and CheckSpecialLos(who, TheTarg))
+
+        Diff := GetNpcConfig(TheTarg).PeaceDiff;
+      
+        if(!CanDamage(who, TheTarg, NO_DIST_CHECK))
+          continue;
+        endif
+     
+
+        if(Diff == error)
+          if(IsHuman(TheTarg) or IsPlayer(who))
+            Diff := -1;
+          else
+            Diff := 100;
+          endif
+        else
+          Diff := CInt(Diff);
+          if(Diff > 20)
+            Diff := Diff; //bylo -15
+          endif
+        endif
+
+        if(IsMobGainable(TheTarg) and Count < 3)
+          Count := Count + 1;
+          AwardDefaultPoints(who, SKILLID_PEACEMAKING, Diff);
+          CagNpcDamaged(TheTarg, Max(CInt(Points/4), 2), who);
+        endif
+
+        if(CheckSkill(who, SKILLID_PEACEMAKING, Diff, 0) )
+
+          if(IsPlayer(TheTarg))
+            TheTarg.setwarmode(0);
+            PrintTextAbove(thetarg, thetarg.name + " jest zachwycon"+ggm(TheTarg,6)+" wspaniala muzyka!");
+          elseif(GetNpcConfig(TheTarg).alignment == CITYAL_EVIL)
+            SendChEvent(TheTarg,who,EVID_PEACEMADE);
+            PrintTextAbove(thetarg, "Stworzenie " + thetarg.name + " przeszly dreszcze pod wplywem muzyki!");
+          else
+            SendChEvent(TheTarg,who,EVID_PEACEMADE);
+            PrintTextAbove(thetarg, "Stworzenie " + thetarg.name + " jest zachwycone wspaniala muzyka!");
+          endif
+        endif
+      endif
+  
+    endforeach
+  endif
+
+  if(!Succ)
+    PrintTextAbove(who, "*"+ who.name +" gra... slabo na instrumencie*");
+    play(who, 150, instrument);
+  else
+    PrintTextAbove(who, "*"+ who.name + " ladnie gra na instrumencie*");
+  endif
+
+  sleep(1);
+
+endprogram 
+
+//-----------------------------------------------------------------------------

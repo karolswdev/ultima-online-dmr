@@ -1,0 +1,244 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/items/groups";
+include "include/client/sounds";
+include "include/dirs";
+
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":harvesting:harvest";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+const DEFAULT_CUT_SOUND  := 0x143;
+
+//-----------------------------------------------------------------------------
+
+program CutItemHarvest(Params)
+
+  var who := Params[1];
+  var Blade := Params[2];
+  var MatItem := Params[3];
+  var ObjType := Params[4];
+
+  if(!StandardItemCheck(who, MatItem))
+    return;
+  endif
+
+  var ItemElem := GetCutElem(ObjType);
+
+  if(!ItemElem.NoReqBlade)
+    if(!StandardItemCheck(who, Blade, __IfElse(ItemElem.ToolUnmovable, NO_MOVABLE_CHECK, 0)))
+      return;
+    endif
+  endif  
+
+  if(!ItemElem)
+    SendSysMessage(who, "Cos jest nie tak z tym materialem...", FONT_NORMAL, COLOR_RED);
+    LogError("Nie znaleziono elementu: ["+ObjType+"] w cfg :blades:cut!");
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareHarvest(who, Blade, MatItem, ItemElem, Materials))
+    return;
+  endif
+
+  var SkillId := GetSkillIdByAttributeId(ItemElem.Attribute);
+  SendSysMessage(who, "Rozpoczal"+ggm(who,3)+" obrabianie "+GetDescForItem(MatItem)+"...", FONT_NORMAL, COLOR_GREEN);
+  var IterData := DefineCraftIterations(who, SkillId, Params[5], Materials);
+
+  var ItemCfg      := ReadConfigFile(ITEMS_CFG); 
+  var AnimGraphic  := CInt(ItemCfg[Blade.objtype].AnimGraphic);
+
+  if(!Blade.movable and AnimGraphic)
+    Blade.graphic := AnimGraphic;
+  endif
+
+  while(CraftIteration(who, IterData))
+
+    if(!CutItem(who, Blade, MatItem, ItemElem, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+  if(!Blade.movable and AnimGraphic)
+    Blade.graphic := Blade.objtype;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareHarvest(who, Blade, Item, ItemElem, byref Materials)
+
+  if(ItemElem.ReqTool)
+    if(Blade.objtype != ItemElem.ReqTool)
+      SendSysMessage(who, "Aby to obrobic potrzebujesz narzedzia "+GetDescForItem(ItemElem.ReqTool)+".", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  var reqNear := GetConfigStringArray(ItemElem, "ReqNear");
+
+  if(reqNear.size())
+    foreach ItemObj in reqNear
+      ItemObj := GetItemObjType(ItemObj);      
+    endforeach
+
+    var bNear := 0;
+
+    foreach item in ListItemsNearLocation(who.x, who.y, who.z, 1, who.realm)
+      if(item.objtype in reqNear)
+        bNear := 1;
+        break;
+      endif
+    endforeach
+
+    if(!bNear)
+      SendSysMessage(who, "Aby to obrobic musisz byc niedaleko: "+GetDescForItem(reqNear[1])+".", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+  endif
+  
+  Materials := DefineCraftMaterials();
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+
+  var MatAmount := Max(CInt(ItemElem.Material), 1);
+  AddCraftMaterialItem(Materials, Item, MatAmount);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCutElem(ObjType)
+
+  var Cfg := ReadConfigFile(":blades:cut");
+
+  if(Cfg[ObjType])
+    return Cfg[ObjType];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CutItem(who, Blade, Item, ItemElem, byref IterData, byref Materials)
+
+  if(!ItemElem)
+    SendSysMessage(who, "Nie wiesz jak to obrobic.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var ProdObj;
+
+  if(IsItemGroupName(ItemElem.Product))
+    ProdObj := GetRandomItemFromGroup(ItemElem.Product);
+  else
+    ProdObj := GetItemObjType(ItemElem.Product);
+  endif
+
+  if(!ProdObj)
+    SendSysMessage(who, "Hm..dziwne rzeczy dzieja sie, nagle nie wiadomo jak to obrobic!", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var SkillId      := GetSkillIdByAttributeId(ItemElem.Attribute);
+  var MySkill      := GetEffectiveSkill(who, SkillId);
+  var Diff         := CInt(ItemElem.Diff);
+  var harvData     := GetHarvested(Item);
+  var MatAmount    := Max(CInt(ItemElem.Material), 1);
+  var ProdAmount   := GetHarvestAmount(who, SkillId);
+  var Points       := GetHarvestProcessPoints(SkillId, Diff);
+  var MultAmount   := CInt(ItemElem.ProdAmount);
+  var MatObj       := Item.objtype;
+  var Cont         := GetContForTool(who, Item);
+  var iSound       := CInt(ItemElem.Sound);
+
+  if(MySkill < Diff-15)
+    SendSysMessage(who, "Twa wiedza na temat umiejetnosci "+GetSkillConfigElem(SkillId).Name+" jest zbyt mala, aby to obrobic.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(!iSound)
+    iSound := DEFAULT_CUT_SOUND;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, iSound))
+    return 0;
+  endif
+
+  if(Blade.movable)
+    if(!CheckToolWear(who, Blade, SkillId))
+      return 0;
+    endif
+  endif
+  
+  if(!CheckSkill(who, SkillId, Diff, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Zniszczyl"+ggm(who,3)+" troche "+GetDescForItem(MatObj)+"!",FONT_NORMAL,COLOR_RED);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, iSound))
+    return 0;
+  endif
+
+  if(ItemElem.FinalSound != 0)
+    if(ItemElem.FinalSound)
+      PlaySoundEffect(who, SFX_CUT_HARD);
+    else
+      PlaySoundEffect(who, ItemElem.FinalSound);
+    endif
+  endif
+  SendQuestEvent(who, EVQID_HARVEST, SkillId, Item);
+  
+  var itmDesc; 
+  
+  if(harvData)
+    itmDesc := GetHarvestDescriptorForData(ProdObj, harvData);
+  elseif(ItemElem.AllowHarvest)
+    itmDesc := GetHarvestDescriptor(ProdObj, who);
+  else
+    itmDesc := ProdObj;
+  endif
+
+  var Prods := CreateItemInCont(cont, itmDesc, ProdAmount*MultAmount, who);
+
+  if(Prods)
+    AwardPoints(who, SkillId, Points, NO_STAT_AWARD | GAIN_RESTRICT, Diff);
+    SendSysmessage(who, GetCraftIterDesc(IterData) + " Obrobil"+ggm(who,3)+" "+(ProdAmount*MatAmount)+" "+GetDescForItem(MatObj)+" na "+(ProdAmount*MultAmount)+" "+GetDescForItem(ProdObj)+".", FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w pojemniku!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,118 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+include "../pkg/systems/tourney/tourney";
+include "include/mount";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 98;
+
+//-----------------------------------------------------------------------------
+
+program CastCrowEyes( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_CBALL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var CrowSer := GetObjProperty(CastOn, "CrowSer");
+
+  if(!CrowSer)
+    Fizzle(Caster, "Ta kula nie wydaje sie byc zaznaczona.");
+    return;
+  endif
+
+  var Crow     := FindNpcBySerial(CrowSer);
+
+  if(!Crow)
+    Fizzle(Caster, "Zwierze zaznaczone na tej kuli juz nie zyje.");
+    return;
+  endif
+
+  if(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+    Dismount(Caster);
+  endif
+
+  if(!CanMod(Caster, MOD_GRAPHIC))
+    UndoMod(Caster, MOD_GRAPHIC, UMDF_WAIT);
+  endif
+
+  if(!CanMod(Caster, MOD_GRAPHIC))
+    Fizzle(Caster, "Jestes juz pod wplywem czaru.");
+  endif
+
+  if(IsBusy(Caster))
+    return;
+  endif
+
+  var lx       := Caster.x;
+  var ly       := Caster.y;
+  var lz       := Caster.z;
+  var lRealm   := Caster.realm;
+  var Duration := CInt((GetMagicSkillValue(Caster, SpellGlob.Type) + GetMindSkillValue(Caster, SpellGlob.Type)) / 8) + RandomInt(10);
+  var ModFlags := __IfElse(IsDungeonSpellCasted(SPELL_ID), MODF_CHECK_VAMPIRE, 0);
+
+  PlaySoundEffect(Caster, SFX_ARCANECIRCLE);
+  PlaySoundEffect(Caster, SFX_MIRROR_IMAGE);
+  PlayPcStEffect(Caster.x, Caster.y, Caster.z, Caster.realm, FX_FLAMESTRIKE, 1024, 0x10, 0x1F, 3);
+
+  sleep(1);
+  
+  DoMod(Caster, MOD_GRAPHIC, INVIS_MOB_GRAP, Duration + 5, 0, ModFlags);
+
+  sleepms(100);
+
+  Caster.hidden       := 1;
+  Caster.stealthsteps := 5;
+
+  sleepms(500);
+
+  if(!MoveObject(Caster, Crow.x, Crow.y, Crow.z, Crow.realm, MOVEOBJECT_FORCELOCATION))
+    Fizzle(Caster, "Cos blokuje to miejsce.");
+  else
+
+    Caster.squelch(Duration + 5);
+    Duration := ReadGameClock() + Duration;
+ 
+    var x := Caster.x;
+    var y := Caster.y;
+
+    while(Duration > ReadGameClock() and x == Caster.x and y == Caster.y and Crow)
+      if(Caster.warmode)
+        Caster.SetWarMode(0);
+      endif
+
+      if(!Caster.hidden)
+        HidePlayer(Caster);
+      endif
+
+      if(Caster.x != Crow.x or Caster.y != Crow.y)
+        MoveObject(Caster, Crow.x, Crow.y, Crow.z, Crow.realm, MOVECHAR_FORCELOCATION);
+        x := Caster.x;
+        y := Caster.y;
+      endif
+      sleepms(300);
+    endwhile
+
+  endif
+  
+  MoveObject(Caster, lx, ly, lz, lRealm, MOVEOBJECT_FORCELOCATION);
+  UndoMod(Caster, MOD_GRAPHIC);
+  Caster.stealthsteps := 0;
+  Caster.hidden       := 0;
+  Caster.squelch(0);
+
+endfunction
+
+//-----------------------------------------------------------------------------

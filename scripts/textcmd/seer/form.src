@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/cids";
+include "include/client/fonts";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+program FormCmd(who, text)
+
+  case(text)
+    "female":  who.graphic := CID_HUMAN_FEMALE;
+    "male":    who.graphic := CID_HUMAN_MALE;
+    "efemale": who.graphic := CID_ELF_FEMALE;
+    "emale":   who.graphic := CID_ELF_MALE;
+    "gm":      who.graphic := CID_GM;
+    "ghost":   who.graphic := CID_GHOST;
+    "fghost":  who.graphic := CID_FEMALE_GHOST;
+    "invis":   who.graphic := INVIS_MOB_GRAP;
+
+    default:  if(CInt(text))
+                who.graphic := CInt(text);
+              else
+                SendSysMessage(who, ".form [female/male/emale/efemale/gm/ghost/fghost/invis] .form graphic", FONT_NORMAL, COLOR_GREEN);
+              endif
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

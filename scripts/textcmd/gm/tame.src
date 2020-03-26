@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/tamed";
+include "include/const/cfgs";
+include "include/client/fonts";
+include "include/misc";
+include "include/findcity";
+include "include/npcs";
+
+//-----------------------------------------------------------------------------
+
+program TameCmd(who, text)
+
+  var Tamer := who;
+
+  SendSysMessage( who, "Co stamowac?", FONT_NORMAL, COLOR_GREEN);
+  var npc := ObjTarget(who);
+  if(!npc or !npc.isa(POLCLASS_NPC))
+    SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(text == "to")
+    SendSysMessage(who,"Wskaz tamera.", FONT_NORMAL, COLOR_GREEN);
+    Tamer := ObjTarget(who);
+    if(!Tamer)
+      SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  elseif(text == "un")
+    UnTame(Npc);
+    SendSysMessage(who,"Uwolnil"+ggm(who,3)+" npeca "+npc.name+".", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Tame(Npc, Tamer);
+  SendSysMessage(who, "Stamowal"+ggm(who,3)+" npeca "+Npc.name+" dla osoby "+Tamer.name+".", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,22 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-26
+//-----------------------------------------------------------------------------
+
+include "include/items/containers";
+include "include/checks/stdchecks";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program QuestTicketDestroy(Ticket)
+  
+  var Cont := GetTopCont(Ticket);
+
+  if(IsPlayer(Cont.container))
+    RemoveQuestTicketFromPack(Cont.container, Ticket);
+    SendQuestTicketEvent(Ticket, 0, EVQID_STOP, 0, Cont.container);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

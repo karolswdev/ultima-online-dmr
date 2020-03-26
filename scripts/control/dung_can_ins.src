@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-26
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/bits";
+include "include/objtypes/misc";
+include "include/client/fonts";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program DungeonChestCanInsert(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(inserttype);
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(item.objtype == UOBJ_GAMEPIECE or Item.item_count > 25 or Item.isa(POLCLASS_CONTAINER))
+    return 0;
+  endif
+
+  if(backpack.locked)
+    SendSysMessage(who,"Ten pojemnik jest zamkniety!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(IsPlayer(who))
+    if(who.dead)
+      return 0;
+    endif
+
+    if(IsSetFlag(backpack, ITEMF_NO_INSERT) and !who.cmdlevel)
+      SendSysMessage(who, "Nie mozesz tego tutaj wlozyc.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+    
+    if(GetObjProperty(Item, PROP_TRITEM_TEMP))
+      if(backpack != who.backpack and backpack.objtype != UOBJ_TR_BAG)
+        SendSysMessage(who, "Nie mozesz tego tutaj wlozyc.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif    
+    endif
+  endif
+
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

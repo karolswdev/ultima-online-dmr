@@ -1,0 +1,435 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include ":magic:magicatt";
+include "include/gumps";
+include "include/gump_utils";
+include "include/regs";
+include "include/findcity";
+include "include/buildings";
+include "include/tools";
+include "include/tempmods";
+
+include "common";
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":necromancy:necrobook";
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:exceptional";
+
+//-----------------------------------------------------------------------------
+
+var gStartId := 1;
+var gType := INSCTYPE_SPELLS;
+
+//-----------------------------------------------------------------------------
+
+program PenAndInk(who,pen)
+
+  if(!StandardItemCheck(who,pen,NO_MOVABLE_CHECK))
+    return;
+  endif
+    
+  if(pen.objtype == UOBJ_WRITING_DESK)
+  
+    if(!GetObjProperty(who,"CanScribe"))
+      SendSysMessage(who,"Nie wiesz co z tym zrobic.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(GetBaseSkill(who, SKILLID_INSCRIPTION) < 100) 
+      SendSysMessage(who, "Twa wiedza o inskrypcji jest za mala by wiedziec jak to uzyc.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_INSCRIPTION);
+  var CraftData := InscribeScrollGump(who, pen);
+  
+  if(CraftData)
+    start_script(":inscription:craft_scroll", array(who, pen, CraftData));
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function InscribeScrollGump(who, pen)
+
+  var Res := 0;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_INSCRIPTION);
+  var ScrollsIn := dictionary;
+
+  if(!LastCraft.InscType)
+    LastCraft.+InscType := INSCTYPE_SPELLS;
+  else
+    gType := LastCraft.InscType;
+  endif
+
+  while(!Res and IsLoggedIn(who))
+    BuildInscriptionGump(who, ScrollsIn, LastCraft.iters);
+
+    var GumpRes := GSend(who);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+    GumpRes := CInt(GumpRes[0]);
+	
+	if(who.cmdlevel)
+		SendSysMessage(who, "GumpRes: " + GumpRes);
+	endif
+
+    if(GumpRes >= 901 and GumpRes <= 908)
+      gStartId := 1 + ((GumpRes - 901) * 8);
+	  if(who.cmdlevel)
+		SendSysMessage(who, "gStartId: " + gStartId);
+	  endif
+      gType := INSCTYPE_SPELLS;
+    elseif(GumpRes == 20)
+      gType := INSCTYPE_SCROLLS;
+    else
+      case(GumpRes)
+        1:  
+          if(!LastCraft.InscType or !LastCraft.objtype)
+            SendSysMessage(who,"Nie pisal"+ggm(who,3)+" jeszcze zwoi.",FONT_NORMAL,COLOR_RED);
+          elseif(!ScrollsIn[LastCraft.objtype])
+            if(LastCraft.InscType == INSCTYPE_SPELLS)
+              SendSysMessage(who,"Nie mozesz ponownie przepisac zwoja, bo nie masz ksiegi magicznej!",FONT_NORMAL,COLOR_RED);
+            else
+              SendSysMessage(who,"Nie pisal"+ggm(who,3)+" jeszcze zwoi.",FONT_NORMAL,COLOR_RED);
+            endif
+          else
+            Res := 1;
+          endif
+
+        3:
+          InscribeNecroSpell(who, pen);
+          Res := -1;
+
+        4: 
+          CreateRunebook(who, pen);
+          Res := -1;
+
+        0:
+        99:
+          SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+          Res := -1;
+
+        default:
+          LastCraft.objtype := GumpRes[0];
+          LastCraft.InscType := gType;
+
+          Res := 1;
+
+      endcase
+    endif
+
+    SetCraftLastCreation(who, SKILLID_INSCRIPTION, LastCraft);
+
+    if(Res > 0 and LastCraft.objtype and ScrollsIn[LastCraft.objtype])
+      return LastCraft;
+    endif
+  endwhile
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildInscriptionGump(who, byref ScrollsIn, ProdIters)
+
+  GInit( 50, 50 );
+  GNoClose();
+  GNoDispose();
+  GPage();
+  GResPic(0, 0, 2520, 500, 350);
+  GTextLine(100, 10, 655, "Menu Inskrypcji");
+  GButton( 400, 13, 2117, 2118, 99);
+  GTextLine(420,10, 655, "Anuluj");
+    
+  GButton( 30, 323, 2117, 2118, 3);
+  GTextLine(50,320, 655, "Wpisz czar nekromancji");
+
+  if(GetBaseSkill(who, SKILLID_INSCRIPTION) > INSC_RUNEBOOK_DIFF - 15) 
+    GButton( 220, 323, 2117, 2118, 4);
+    GTextLine(240,320, 655, "Tworz runebooka");
+  endif
+
+  var WhoInsc   := GetEffectiveSkill(who, SKILLID_INSCRIPTION);
+
+  for i := 1 to 8
+    if(GetCircleValue(i,"InscDiff") - 10 <= WhoInsc)
+      GButton(10+(i*30), 40,2224+i,2224+i, 900+i);
+    endif
+  endfor
+
+  GButton(350, 45, 0x8B0, 0x8B0, 20);
+  GTextLine(375, 42, 655, "Inne zwoje");
+
+  GButton( 350, 323, 2117, 2118, 1);
+  GTextLine(370,320, 655, "To co ostatnio");
+  
+  GTextLine(315, 285, 655, "Powtorz:");
+  BQGAddTextBox(380, 285, 60, 20, 1410, ProdIters, BQG_EDITABLE | BQG_BACK_PAPER, 1, 1);
+
+  if(gType == INSCTYPE_SPELLS)
+  
+    var spellbook := FindItemInContainer(who.backpack,UOBJ_SPELLBOOK);
+
+    if(spellbook)
+      BuildSpells(Spellbook, ScrollsIn, who);
+    else
+      GTextLine(50, 65, 1209, "Musisz miec przy sobie magiczna ksiege,");
+      GTextLine(50, 85, 1209, "aby moc pisac zwoje czarow.");
+    endif
+  else
+    BuildScrolls(ScrollsIn, who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildSpells(Spellbook, byref ScrollsIn, who)
+
+  var WhoInsc   := GetEffectiveSkill(who, SKILLID_INSCRIPTION);
+
+  if(spellbook)
+    if(!StandardItemCheck(who, spellbook))
+      spellbook := 0;
+    endif
+  endif
+
+  var SpellsCfg := ReadConfigFile(SPELLS_CFG);
+
+  var h := 0,w := 0,n := 9,p := 0,scroll,graphic,SpellName;
+  
+  
+  var spells := spellbook.Spells();
+  
+  foreach sp in spells
+	ScrollsIn[sp] := 1;
+  endforeach
+
+  for i := gStartId to gStartId+8
+
+    if(n >= 8)
+      h := 0; w := 0; n := 0; p := p + 1;
+      if(GetCircleValue(p,"InscDiff") - 10 > WhoInsc and p > 1)
+        break;
+      endif
+      GPage();
+    endif
+    
+    if(w >= 2)
+      h += 50; 
+      w := 0;
+    endif
+    
+    scroll  := SpellsCfg[i].SpellId;
+    SpellName := SpellsCfg[i].Name;
+
+    if(ScrollsIn[scroll])
+      graphic := SpellsCfg[i].graphic;
+      GButton((50+(w*200)), (75+h), graphic, graphic, scroll);
+      GTextLine((100+(w*200)), (85+h), 1410, SpellName);
+      w := w + 1;
+    endif
+    n := n + 1;
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildScrolls(byref ScrollsIn, who)
+
+  var WhoInsc   := GetEffectiveSkill(who, SKILLID_INSCRIPTION);
+
+  var ScrollsCfg := ReadConfigFile(INSCRIPTION_CFG);
+  var h := 0,w := 0,n := 9,p := 0;
+
+  foreach ObjType in GetConfigStringKeys(ScrollsCfg)
+
+    if(n >= 8)
+      h := 0; w := 0; n := 0; p := p + 1;
+      if(GetCircleValue(p,"InscDiff") - 10 > WhoInsc and p > 1)
+        break;
+      endif
+      GPage();
+    endif
+    
+    if(w >= 2)
+      h += 50; 
+      w := 0;
+    endif
+
+    ObjType := CInt(ObjType);
+
+    if(WhoInsc + 15 >= ScrollsCfg[ObjType].skill)
+      ScrollsIn[ObjType] := 1;
+    endif
+    
+    var SpellName := GetDescForItem(ObjType);
+
+    GTIlePicHue((60+(w*200)), (85+h), GetGraphicForItem(ObjType), __IfElse(ScrollsIn[ObjType], GetColorForItem(ObjType), 999));
+
+    if(ScrollsIn[ObjType])
+      GButton((45+(w*200)), (90+h), 0x8AF, 0x8AF, ObjType);
+    endif
+    GTextLine((100+(w*200)), (85+h), 1410, SpellName);
+    w := w + 1;
+    n := n + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateRunebook(who, tool)
+
+  if(GetBaseSkill(who, SKILLID_INSCRIPTION) <= INSC_RUNEBOOK_DIFF - 15) 
+    SendSysMessage(who, "Twa wiedza o inskrypcji jest za mala by wiedziec jak stworzyc ksiege runow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Materials := DefineCraftMaterials();
+
+  AddCraftMaterial(Materials, who.backpack, UOBJ_RUNE, 1);
+  AddCraftMaterial(Materials, who.backpack, UOBJ_TWINE, 2);
+  AddCraftMaterial(Materials, who.backpack, UOBJ_NORMALLEATHER, 3);
+  AddCraftMaterial(Materials, who.backpack, UOBJ_BLANK_SCROLL, 8);
+  AddCraftMaterial(Materials, who.backpack, UOBJ_RECALL_SCROLL, 1);
+  AddCraftMaterial(Materials, who.backpack, UOBJ_GATE_SCROLL, 1);
+   
+  var Res := CheckCraftMaterials(Materials, 1);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  if(!CraftNormalDelay(who, Materials, 12, SOUND_EFFECT_SCRIBE))
+    return 0;
+  endif
+
+  PlaySoundEffect(who, SOUND_EFFECT_INSCRIPTION);
+  sleepms(200);
+  
+  var Diff := (INSC_RUNEBOOK_DIFF - CInt(CheckItemQuality(tool) * 1.8));
+  
+  if(CheckSkill(who, SKILLID_INSCRIPTION, Diff, 0))
+    var book := CreateItemInPack(who, 0x6300);
+    if(!book)
+      SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    var myskill := GetEffectiveSkill(who, SKILLID_CARPENTRY);
+    var myint   := GetIntelligence(who);
+    var mydex   := GetDexterity(who);
+    var ExpMod  := 10.0 + CDbl(myskill)/4.0 + CDbl(myint)/2.6 + CDbl(mydex)/2.9;
+    ExpMod      := CInt(ExpMod + CDbl(CheckItemQuality(tool)) * 2.7);
+
+    var ExpData := CraftExceptional(who, SKILLID_INSCRIPTION, ExpMod, 4);
+ 
+    if(ExpData.makeExp)
+      SendSysMessage(who, "Stworzyl"+ggm(who,3)+" wyjatkowej jakosci runebooka i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+      SetObjProperty(book,"charges", 10);
+      SetObjProperty(book,"maxcharges", 10);
+      SetObjProperty(book,"MaxUses",3000);
+
+      if(ExpData.makeNamed)
+        SetObjProperty(book,"Exp","[Napisal"+ggm(who,4)+" "+GetRealName(who)+"]");
+        SetName(book,"Runebook [Napisal"+ggm(who,4)+" "+GetRealName(who)+"]");
+      else
+        SetObjProperty(book,"Exp",EXP_ITEM_NAME);
+        SetName(book,"Runebook "+EXP_ITEM_NAME);
+      endif
+    else
+      SendSysMessage(who,"Stworzyl"+ggm(who,3)+" runebooka i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
+      SetObjProperty(book, "charges", 5);
+      SetObjProperty(book, "maxcharges", 5);
+    endif
+    AwardPoints(who, SKILLID_INSCRIPTION, INSC_RUNEBOOK_SKPOINTS);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_INSCRIPTION, array(book, 0));
+  else
+    SendSysMessage(who, "Nie udalo Ci sie i zniszczyl"+ggm(who,3)+" troche materialow.",FONT_NORMAL,COLOR_RED);
+  endif
+
+  CheckToolWear(who,tool,SKILLID_INSCRIPTION, GetMaterialsTimesForTool(Materials));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InscribeNecroSpell(who, tool)
+
+  SendSysMessage(who, "Wybierz zwoj, jaki chcial"+ggm(who, 1)+" przepisac.",FONT_NORMAL,COLOR_GREEN);
+  var Scroll := ObjTarget(who);
+  
+  if(!StandardItemCheck(who, Scroll))
+    return 0;
+  endif
+  
+  if((Scroll.objtype < UOBJ_NECROSCROLL_START) or (Scroll.objtype > UOBJ_NECROSCROLL_END))
+    SendSysMessage(who, "To nie zwoj czaru nekromancji.", FONT_NORMAL, COLOR_BAD);
+    return;
+  endif
+
+  SendSysmessage( who, "Wybierz Codex do ktorego chcesz wpisac czar.",FONT_NORMAL,COLOR_GREEN );
+  var necrobook := ObjTarget(who);
+        
+  if(!StandardItemCheck(who,necrobook))
+    return;
+  endif
+
+  if (necrobook.objtype != UOBJ_NECROBOOK)
+    SendSysmessage (who, "Musisz wybrac Codex Damnorum.", FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  var SpellID := itemcfg[scroll.objtype].SpellID;
+  var Circle  := GetSpellValue(SpellID,"Circle");
+  var Diff    := GetCircleValue(Circle,"InscDiff");
+  var Points  := GetCraftPoints(SKILLID_INSCRIPTION, Diff);
+  var MySkill := GetEffectiveSkill(who, SKILLID_INSCRIPTION);
+  Diff        := Abs(Diff - CInt(CheckItemQuality(tool) / 2));
+
+  if (CheckNecroSpellInBook(necrobook,SpellID))
+    SendSysMessage(who, "Ten czar jest juz wpisany.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(MySkill < Diff - 15)
+    SendSysMessage(who, "Twa wiedza na temat inskrypcji jest zbyt mala, aby wiedziec jak przepisac ten zwoj.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!MakeNoise(who, SOUND_EFFECT_SCRIBE, 1000, 0, 8))
+    return;
+  endif
+
+  if (CheckSkill(who, SKILLID_INSCRIPTION, Diff, 0) and SubtractAmount(scroll,1))
+    PlaySoundEffect(who, SOUND_EFFECT_INSCRIPTION);
+
+    PlaySoundEffect(who, SOUND_EFFECT_INSCRIPTION);
+    PlayObjectCenteredEffect( necrobook, EFFECT_SPARKLE, 10,10);
+    if(AddSpellToNecroBook(necrobook,SpellID))
+      SendSysmessage (who, "Wpisal"+ggm(who,3)+" czar do Codexu.",FONT_NORMAL,COLOR_GREEN);
+      AwardPoints(who,SKILLID_INSCRIPTION,points,GAIN_RESTRICT,Diff);
+    else
+      SendSysmessage (who, "Nie udalo Ci sie i zniszczyl"+ggm(who,3)+" zwoj.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysmessage (who, "Nie udalo Ci sie i zniszczyl"+ggm(who,3)+" zwoj.",FONT_NORMAL,COLOR_RED);
+  endif
+  CheckToolWear(who,tool,SKILLID_INSCRIPTION);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,103 @@
+//-----------------------------------------------------------------------------
+
+include "champions";
+include "include/move";
+include "include/portals";
+include "include/mobile/misc";
+include "include/effects";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program WalkOnChampionGate(who,Gate)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  
+  if(IsPlayer(who) and !who.dead and !who.hidden)
+  
+    var Loc     := GetObjProperty(Gate,PROP_DESTLOC);
+    var BookSer := GetObjProperty(Gate,PROP_BOOKSER);
+
+    if(Loc and (BookSer or ItemCfg[Gate.objtype].GateType != CH_GTYPE_IN))
+      if(BookSer and ItemCfg[Gate.objtype].GateType == CH_GTYPE_IN)
+      
+        if(IsYoung(who))
+          SendSysMessage(who, "Ten portal jest zbyt slaby dla Ciebie...", FONT_NORMAL, COLOR_RED);
+          return 0;
+        elseif(IsHeDelayed(who, BookSer))
+          SendSysMessage(who, "Nie jestes jeszcze gotowy na kolejna walke z mistrzem.", FONT_NORMAL, COLOR_RED_LIGHT);
+          return 0;
+        endif
+      endif
+      
+      if(!CheckEnterDelay(who))
+        return 0;
+      endif
+      
+      if(PortalTele(who,Loc[1],Loc[2],Loc[3],Loc[4]) and !who.cmdlevel)
+        case(CInt(ItemCfg[Gate.objtype].GateType))
+          CH_GTYPE_IN:   SendChampAddFighter(who,FindItemBySerial(BookSer));
+          CH_GTYPE_OUT:  SendChampDelFighter(who);
+        endcase
+      endif
+    elseif(Gate.graphic == ItemCfg[Gate.objtype].graphic)
+      SendSysMessage(who,"Portal wydaje sie byc slaby...",FONT_NORMAL,COLOR_RED);
+      LogError("WalkOnChampionGate: Portal mistrzow "+Gate.serial+" nie posiada lokacji docelowej lub seriala ksiegi.", LOGF_SCRIPTS);
+    endif
+    
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckEnterDelay(who)
+
+  if(IsEngaged(who, 8))
+    SendGood(who, "Probujesz przejsc przez portal...");
+    
+    if(!MakeNoise(who, SFX_ATTUNE, 1000, 0, 8, FX_HEAL_EFFECT))
+      return 0;
+    endif
+  endif
+  
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsHeDelayed(who, Book)
+
+  Book := FindItemBySerial(Book);
+
+  var ChampNr := GetObjProperty(Book, PROP_CHAMPNR);
+
+  if(!ChampNr or ChampNr > 5)
+    return 0;
+  endif
+
+  var History  := GetGlobalProperty(PROP_CHHISTORY);
+  var LastTime := History[History.size()][2];
+  var wasFight, i;
+
+  for(i:=History.size();i>History.size()-CH_MAX_HIST_DELAY;i:=i-1)
+    foreach Player in (History[i][5])
+      if(Player[1] == who.serial)
+        wasFight := i;
+        break;
+      endif
+    endforeach
+  endfor
+
+  if(wasFight)
+    if(LastTime + CInt(GetChampWaitTime(ChampNr) * CH_DELAY_TIME_MOD) > ReadGameClock())
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

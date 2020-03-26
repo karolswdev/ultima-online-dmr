@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include "include/mount";
+
+//-----------------------------------------------------------------------------
+
+program DoubleClickSelf(who)
+
+  if(who.frozen or who.paralyzed)
+    return;
+  endif
+
+  var mount := GetEquipmentByLayer(who, LAYER_MOUNT);
+  if(!mount or who.warmode)
+    OpenPaperdoll( who, who );
+    return;
+  endif
+
+  Dismount(who, mount);
+
+endprogram
+
+//-----------------------------------------------------------------------------

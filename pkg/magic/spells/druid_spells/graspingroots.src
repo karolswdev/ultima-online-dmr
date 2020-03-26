@@ -1,0 +1,109 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":magiceffects:summon";
+
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 81;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonGraspingRoots( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var CasterDruid := GetEffectiveSkill(Caster,SKILLID_DRUID);
+  var Duration    := GetDruidSpellDur(caster);
+  var oparms      := {};
+  oparms.+name    := "chwytajacy korzen";
+  oparms.+nosleep := 1;
+
+  var graspingroots := SummonCreature(caster,"corpser",CastLoc,duration,oparms);
+
+  if(!graspingroots)
+    return;
+  endif
+
+  graspingroots.frozen := 1;
+
+  var pTime   := CInt(1 + CalcSkillExponential(Caster, SKILLID_DRUID, 4));
+  var slowTime := CInt(1 + CalcSkillExponential(Caster, SKILLID_DRUID, 4));
+  var MaxTime := CInt(CasterDruid * 2);
+  var aTime, i;
+  var x       := graspingroots.x;
+  var y       := graspingroots.y;
+  var z       := graspingroots.z;
+  var Realm   := graspingroots.realm;
+  var GraspedList := dictionary;
+  
+  GainSpellPoints(Caster, graspingroots, MAGICGAIN_SUMMON); 
+
+  for(i:=1;i<=MaxTime;i:=i+1)
+    foreach critter in ListMobilesNearLocation (x, y, z, 1, Realm)
+      if(!Caster or !graspingroots)
+        break;
+      endif
+
+      if(critter != graspingroots and critter.npctemplate != "corpser" and critter != caster and !critter.paralyzed)
+        if(CInt(GetObjProperty(critter, "#LastGraspTime")) < ReadGameClock())
+          if(CanDamage(Caster, critter))
+            PlayAction(graspingroots, 0x5+RandomInt(2));
+            DealDamage(Critter, Caster, RandomInt (Cint(CasterDruid / 10)));
+
+            if(CanMod(critter, MOD_PARA))
+              aTime := Resisted(critter, Caster, pTime, SpellGlob.Circle, SpellGlob.Type, NO_RESIST_GAIN);
+
+              PrintTextAbove(graspingroots, "*dzikie pnacza oplatuja ofiare*");
+              DoMod(critter, MOD_PARA, 1, aTime);
+              UndoMod(critter, MOD_RUN_SPEED, UMDF_WAIT);
+              DoMod(critter, MOD_RUN_SPEED, RUNSPEED_SLOW, aTime + slowTime);
+              GraspedList[critter.serial] := array(ReadGameClock() + aTime - 1, critter);
+
+              PlayStationaryEff(Critter.x, Critter.y, Critter.z, FX_CURSE_EFFECT, 10, 0xa, 0, Critter.realm);
+              PlayHitAnim(Critter);
+              SetObjProperty(Critter, "#LastGraspTime", ReadGameClock() + CInt(aTime * 1.5));
+            endif
+          endif
+        endif
+      endif
+    endforeach
+
+    sleepms(500);
+
+    if(!graspingroots)
+      return;
+    endif
+
+    if(GraspedList.size())
+
+      var List := GraspedList;
+
+      foreach Grasped in List //kopia poniewaz bedziemy usuwac seriale z glownego dicta
+        
+        if(Grasped[1] <= ReadGameClock() or !Grasped[2].paralyzed)
+          GraspedList.erase(_Grasped_iter);
+          PrintTextAbove(graspingroots, "*pnacza zaczynaja pekac*");
+        endif
+
+      endforeach
+
+    endif
+
+  endfor
+
+  if (graspingroots)
+    KillSummonedCreature(graspingroots,Caster);
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,40 @@
+//--------------------------------------------------------------------------------
+
+include "arena";
+
+//--------------------------------------------------------------------------------
+
+program CreateArena(stone)
+
+  foreach item in ListItemsNearLocationOfType(stone.x,stone.y,stone.z,0,UOBJ_ARENASTONE,stone.realm)
+    if(stone.serial != item.serial)
+      DestroyItem(stone);
+      return;
+    endif
+  endforeach
+  
+  var ArenaSers := GetGlobalProperty(ARENASER_FLAG);
+  if(!ArenaSers)
+    ArenaSers := {};
+  endif
+  var i,Nr := 0;
+  
+  for(i:=1;i<=len(ArenaSers);i:=i+1)
+    if(ArenaSers[i] == "Empty")
+      Nr := i;
+      break;
+    endif
+  endfor
+  
+  if(Nr)
+    ArenaSers[Nr] := stone.serial;
+  else
+    ArenaSers.append(stone.serial);
+    Nr := len(ArenaSers);
+  endif
+  SetObjProperty(stone,"ArenaNr",Nr);
+  SetGlobalProperty(ARENASER_FLAG,ArenaSers);
+  
+endprogram
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,142 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/objtypes/misc";
+include "include/checks/objchecks";
+include "include/items";
+include "include/mobile/age";
+
+include "guild";
+include ":character:name_check";
+include ":housing:common";
+include ":housing:payments";
+
+//-----------------------------------------------------------------------------
+
+program GuildDeed(who, deed)
+
+  if(!StandardItemCheck(who,deed))
+    return;
+  endif
+
+  if(GetAge(who) < ADULT_AGE)
+    SendSysMessage(who, "Jestes za mlody na zalozenie Gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(GetGuildId(who))
+    SendSysMessage(who, "Jestes juz czlonkiem gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!IsHouseOwner(who,who.multi) and !IsHouseCoOwner(who,who.multi))
+    SendSysMessage(who, "Musisz byc w swoim domu by to postawic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  foreach item in ListItemsNearLocation(who.x,who.y,who.z,2)
+    if((item.objtype>=UOBJ_DOORS_START)&&(item.objtype<=UOBJ_DOORS_END))
+      if((((item.x == who.x +1) or (item.x == who.x -1)) and (item.y == who.y)) or (((item.y == who.y +1) or (item.y == who.y -1)) and (item.x == who.x)))
+        SendSysMessage(who, "Za blisko drzwi.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endif
+  endforeach
+  
+  foreach item in (who.multi.items)
+    if(item.objtype == UOBJ_GUILD_STONE and (item.multi == who.multi))
+      SendSysMessage(who,"Tylko jeden kamien gildii moze zostac postawiony w domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endforeach
+  
+  SendSysMessage(who, "Mistrz Gildii moze przenosic kamien raz na 3 dni.",FONT_NORMAL,COLOR_GREEN);
+
+  var Loc   := GetStandingHeight(who.x,who.y,who.z,who.realm);
+
+  if(SetupGuild(who,Loc))
+    DestroyItem(deed);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SetupGuild(who, Loc)
+
+  var Name := SendTextEntryGump(who, "Jaka jest nazwa gildii?",TE_CANCEL_ENABLE,TE_STYLE_NORMAL,MAX_GUILD_NAME_SIZE);
+  if(!Name)
+    return 0;
+  else
+    Name := FixName(Name);
+  endif
+  
+  if(len(Name) > MAX_GUILD_NAME_SIZE)
+    SendSysMessage(who, "Nazwa Gildii nie moze miec wiecej niz " + MAX_GUILD_NAME_SIZE + " znakow.", FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var Abv := SendTextEntryGump(who, "Jaki jest skrot gildii?",TE_CANCEL_ENABLE,TE_STYLE_NORMAL,MAX_GUILD_ABREV_SIZE);
+  if(!Abv)
+    Abv := "";
+    foreach Word in SplitWords(Name)
+      Abv := Abv + upper(Word[1]);
+    endforeach
+  endif
+
+  if(len(Abv) > MAX_GUILD_ABREV_SIZE)
+    SendSysMessage(who, "Skrot Gildii nie moze miec wiecej niz " + MAX_GUILD_ABREV_SIZE + " znakow.", FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  sleepms(500);
+
+  if(!who or !IsLoggedIn(who))
+    return 0;
+  endif
+
+  foreach OGuild in ListGuilds()
+    if(GetGuildName(OGuild) == Name)
+      SendSysMessage(who,"Taka nazwa Gildii juz istnieje.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+    if(GetGuildAbv(OGuild) == Abv)
+      SendSysMessage(who,"Taki skrot Gildii juz istnieje.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endforeach
+
+  var Guild := CreateGuild();
+
+  if(Guild and who)
+    var Stone := CreateItemAtLoc(who.x, who.y, Loc.z, UOBJ_GUILD_STONE, 1, who.realm);
+    if(!Stone)
+      DestroyGuild(Guild);
+      return 0;
+    endif
+    SetHouseItem(who.multi,Stone);
+    
+    if(who.multi)
+      ResetHousePayment(who.multi);
+    endif
+
+    SetGuildName(Guild,Name);
+    SetGuildAbv(Guild,Abv);
+    SetGuildGm(Guild,who);
+    SetGuildId(Stone,Guild.guildid);
+    Guild.SetProp("CreateTime",ReadGameClock());
+    Guild.SetProp("movetime",ReadGameClock() + GUILD_MOVE_TIME);
+    stone.name := "Kamien Gildii na " + Name;
+    Guild.addmember(who);
+    SetGuildId(who,Guild.guildid);
+    SetMemberTitle(who,"Mistrz Gildii");
+    RefreshGuildTitle(who);
+    return 1;
+  elseif(Guild)
+    DestroyGuild(Guild);
+  endif
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------

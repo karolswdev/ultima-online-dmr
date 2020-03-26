@@ -1,0 +1,225 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include "include/gumps";
+include "include/objects/location";
+include "include/coords";
+include "gold";
+include "common";
+include "operations";
+include "include/gumpboxes";
+include "include/gump_utils";
+
+//-----------------------------------------------------------------------------
+
+program BankStatistics(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  var BankBox := FindBankBox(Data.source);
+
+  if(!BankBox)
+    NpcSpeechJustSay(Data.npc, Data.source, "Nie moge zlokalizowac Twojej skrzyni bankowej.");
+    return;
+  endif
+
+  var Loc := GetLocStruct(Data.source);
+  var Res := -2;
+
+  while(IsLoggedIn(Data.source))
+
+    var Stats := GetBankStats(BankBox);
+
+    BuildStatsGump(Data.source, Stats);
+    Res := -1;
+
+    while(IsLoggedIn(Data.source) and Data.npc and GetLocDist(Loc, Data.source) == 0)
+      if(GWaitForResponse(Data.source))
+        Res := GGetResult();
+        break;
+      endif
+    endwhile
+
+    if(Res == -1)
+      CloseGumpEx(Data.source, GetPid());
+      break;
+    elseif(!Res.butid)
+      break;
+    endif
+
+    case(Res.butid)
+      100: WriteCheque(Data.npc, Data.source, CInt(Res.text[20]));
+      101: WithdrawGold(Data.npc, Data.source, CInt(Res.text[21]));
+      102: PutInGold(Data.npc, Data.source);
+    endcase
+    
+  endwhile
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function WriteCheque(Npc, Source, Amount)
+
+  var AmtGold := GetBankAccountAmount(Source);
+
+  if(Amount > AmtGold)
+    NpcSpeechJustSay(Npc, Source,"Chcesz wyplacic wiecej niz masz na koncie? To nie u mnie!");
+    return;
+  endif
+
+  if(!Amount)
+    NpcSpeechJustSay(Npc, Source,"Innym razem wiec");
+    return;
+  endif
+
+  if(Amount < CHEQUE_MIN_CASHOUT)
+    NpcSpeechJustSay(Npc, Source,"Kwota jest za mala!");
+    return;
+  endif
+
+  if(Amount > CHEQUE_MAX_CASHOUT)
+    NpcSpeechJustSay(Npc, Source,"Kwota jest za duza!");
+    return;
+  endif
+
+  if(Amount + CHEQUE_SIGN_COST > AmtGold)
+    NpcSpeechJustSay(Npc, Source,"Masz za malo zlota na koncie, potrzebujesz "+(amount + CHEQUE_SIGN_COST)+" gp.");
+    return;
+  endif
+
+  var Res := WithdrawFromBankAccount(Source, Amount, UOBJ_CHEQUE, CHEQUE_SIGN_COST);
+
+  if(!Res)
+    NpcSpeechJustSay(Npc, Source, Res.errortext);
+  else
+    NpcSpeechJustSay(Npc, Source,"Wypisal"+ggm(Npc,8)+" Ci czek na "+FormatSize(amount, ".")+" zlota. Moja czesc to "+CHEQUE_SIGN_COST+" gp.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WithdrawGold(Npc, Source, Amount)
+
+  var AmtGold := GetBankAccountAmount(Source);
+
+  if(Amount > AmtGold)
+    NpcSpeechJustSay(Npc, Source,"Chcesz wyplacic wiecej niz masz na koncie? To nie u mnie!");
+    return;
+  endif
+
+  if(!Amount)
+    NpcSpeechJustSay(Npc, Source,"Innym razem wiec");
+    return;
+  endif
+
+  if(Amount > GOLD_MAX_CASHOUT)
+    NpcSpeechJustSay(Npc, Source,"Kwota jest za duza!");
+    return;
+  endif
+
+  var Res := WithdrawFromBankAccount(Source, Amount, UOBJ_GOLDCOIN, 0);
+
+  if(!Res)
+    NpcSpeechJustSay(Npc, Source, Res.errortext);
+  elseif(amount <= 60000)
+    NpcSpeechJustSay(Npc, Source,"Prosze, o to Twoje "+FormatSize(amount, ".")+" z³ota.");
+  else
+    NpcSpeechJustSay(Npc, Source,"Zdeponowa³"+ggm(Npc,8)+" "+FormatSize(amount, ".")+" z³ota w Twojej skrzyni bankowej.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PutInGold(Npc, Source)
+
+  NpcSpeechJustSay(Npc, Source, "Chcesz wplacic zloto lub czek na konto? Po prostu mi je daj.");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStatsGump(who, byref Stats)
+
+  GInit(200,200);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0, 0, BKGND_BLACKSLAB, 300, 200);
+
+  GPage();
+  GTextLine(30,25,1421,"Twój bilans w banku:");
+  
+  GButton(205, 28, 2117,2118, 999);
+  GTextLine(225, 25, 560, "Odœwie¿");
+
+  GTextLine(55, 50, 999, "Z³oto:");
+  GTextLine(110, 50, __IfElse(Stats.GoldAmount, 1321, 560), FormatSize(Stats.GoldAmount, ".")+" gp");
+  GTextLine(55, 70, 999, "Czeki:");
+  GTextLine(110, 70, __IfElse(Stats.ChequeAmount, 1321, 560), FormatSize(Stats.ChequeAmount, ".")+" gp");
+
+  GTextLine(55, 90, 999, "Konto:");
+
+  if(Stats.AccountAmount != error)
+    GTextLine(110, 90, __IfElse(Stats.AccountAmount, 1321, 560), FormatSize(Stats.AccountAmount, ".")+" gp");
+  else
+    GTextLine(110, 90, 1209, "Nie za³o¿one.");
+  endif
+
+  GTextLine(55, 110, 999, "Razem:");
+  GTextLine(110, 110, __IfElse(Stats.SumAmount, 1321, 560), FormatSize(Stats.SumAmount, ".")+" gp");
+
+  GButtonPage(35, 143, 2117,2118, 2);
+  GTextLine(55, 140, 560, "Wypisz czek");
+  
+  if(Stats.AccountAmount != error)
+    GButtonPage(155, 143, 2117,2118, 3);
+    GTextLine(175, 140, 560, "Wyp³aæ z³oto");
+    GButton(155, 163, 2117,2118, 102);
+    GTextLine(175, 160, 560, "Wp³aæ z³oto");
+  endif
+
+  GPage();
+  GPage();
+
+  GResPic(0, 200, BKGND_BLACKSLAB, 420, 120);
+  GTextLine(25, 220, 560, "Na jak¹ kwotê chcesz wypisaæ czek?");
+  GTextLine(25, 240, 560, "Minimalnie mozesz na "+FormatSize(CHEQUE_MIN_CASHOUT, ".")+"gp, a maksymalnie na "+FormatSize(max(Stats.AccountAmount, CHEQUE_MAX_CASHOUT), ".")+"gp");
+  GTextLine(25, 275, 999, "Kwota:");
+  BQGAddTextBox(90, 275, 100, 20, FCLR_TEBOX, "0", BQG_EDITABLE | BQG_SHOWTITLES, 1, 20);
+  GButton(  210,278,2117,2118,100);
+  GTextLine(230, 275, 560, "Wypisz");
+
+  if(Stats.AccountAmount != error)
+    GPage();
+
+    GResPic(0, 200, BKGND_BLACKSLAB, 420, 120);
+    GTextLine(25, 220, 560, "Jak¹ kwotê z³ota chcesz wyp³aciæ?");
+    GTextLine(25, 240, 560, "Maksymalnie mozesz wyp³aciæ "+GOLD_MAX_CASHOUT+" gp w z³ocie.");
+    GTextLine(25, 275, 999, "Kwota:");
+    BQGAddTextBox(90, 275, 100, 20, FCLR_TEBOX, "0", BQG_EDITABLE | BQG_SHOWTITLES, 1, 21);
+    GButton(  210,278,2117,2118,101);
+    GTextLine(230, 275, 560, "Wypisz");
+  endif
+
+  GPacketSend(who);
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+

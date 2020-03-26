@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program change(who, item )
+
+  var Elem   := FindConfigElem(ItemCfg, item.objtype);
+  var NoMove := 0;
+  if(Elem.NoMoveCheck)
+    NoMove := NO_MOVABLE_CHECK;
+  endif
+
+  if(!StandardItemCheck(who,item,NoMove))
+    return;
+  endif
+
+  if(Elem.staff > who.cmdlevel)
+    return;
+  endif
+  
+  if(Item.graphic == Item.objtype)
+    if(Elem.changesnd)
+      PlaySoundEffect(who, CInt(elem.changesnd));
+    endif
+    item.graphic := elem.change;
+  else
+    if(elem.originsnd)
+      PlaySoundEffect(who, CInt(elem.originsnd));
+    endif
+    item.graphic := item.objtype;
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

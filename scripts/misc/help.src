@@ -1,0 +1,107 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/client/fonts";
+include "include/staff";
+
+//-----------------------------------------------------------------------------
+
+var GmPages := GetGlobalProperty("gmpages");
+
+if(!GmPages)
+  GmPages := {};
+  SetGlobalProperty("gmpages",GmPages);
+endif
+
+//-----------------------------------------------------------------------------
+
+program Help(who)
+
+  var Res := SendHelpGump(who);
+
+  case(Res)
+    1: SendStuckPage(who);
+    2: SendGmPage(who);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendHelpGump(who)
+
+  GInit(50,50);
+  GResPic(0,0,3600,560,350);
+  GResPic(340,65,2620,175,225);
+  GPage();
+  GGumpPic(340,35,12);
+  GGumpPic(340,35,50987);
+  
+  GTextLine(200,25,570,"Dream Masters: Revolution");
+  
+  GButton(30,65,2714,2715,1);
+  GTextLine(50,65,550,"Moja postac sie zablokowala.");
+  
+  GButton(30,100,2714,2715,2);
+  GTextLine(50,100,550,"Inne problemy, o ktorych chcesz");
+  GTextLine(50,120,550,"powiadomic Valarow.");
+
+  GTextLine(50,300,550,"http://ultima-dm.pl");
+
+  return GSend(who)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendStuckPage(who)
+
+  AlertGMs(who.name + " uzywa zablokowanej opcji!");
+
+  //SendSysMessage( who, "Ekipa dostala Twoja wiadomosc.",FONT_NORMAL,COLOR_GREEN);
+  //GmPage(who,"Moja postac zablokowala sie.");
+  
+  start_script(":character:stuck_teleport", {who});
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendGmPage(who)
+
+  SendSysMessage(who,"Napisz o swoim problemie:",FONT_NORMAL,COLOR_GREEN);
+  var Page := RequestInput( who, who.backpack, "" );
+  if(!Page)
+    SendSysMessage(who, "Anulowano",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  SendSysMessage( who, "Ekipa dostala Twoja wiadomosc.",FONT_NORMAL,COLOR_GREEN);
+  GmPage(who,Page);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GmPage(who,Page)
+  
+  var wLoc    := struct;
+  wLoc.+x     := who.x;
+  wLoc.+y     := who.y;
+  wLoc.+z     := who.z;
+  wLoc.+realm := who.realm;
+
+  var PageArr := {};
+  PageArr[1]  := who.name;
+  PageArr[2]  := Page;
+  PageArr[3]  := who.serial;
+  PageArr[4]  := wLoc;
+  PageArr[5]  := PolCore().systime;
+  
+  GmPages[GmPages.size() + 1] := PageArr;
+  SetGlobalProperty("gmpages",GmPages);
+  
+  AlertSeers("Wiadomosc od "+who.name+": "+Page,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,444 @@
+//-----------------------------------------------------------------------------
+// Modified: 2012-11-28
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/clock";
+include "include/tempmods";
+include "include/items";
+include "include/finding";
+include "include/items/groups";
+include "include/dirs";
+include "include/client/fonts";
+include "include/player/misc";
+include "include/checks/objchecks";
+include "include/gumpboxes";
+include ":banking:gold";
+include ":banking:common";
+
+include ":referals:referals";
+include ":referals:common";
+include "include/player/target";
+include "include/cmds/cmds";
+
+include ":donations:common";
+
+//-----------------------------------------------------------------------------
+
+program ReferalsCmd(who, text)
+
+  if(!IsStaff(who) and IsBusy(who))
+    return;
+  endif
+
+  var Targ := who;
+
+  if(IsStaff(who) or IsOnDMRTest())
+    var SpText := SplitWords(text);
+
+    case(spText[1])
+      "sr":
+        if(IsStaff(who))
+          var AllChars := array;
+          var Vals     := struct;
+
+          if(!spText[2])
+           SendSysMessage(who, ".zaproszenia sr [nm/st/sk/age/ontimer/lastlog/extime/murd/murdtime] Liczbowe: [= < >] Czasowe: [s/m/h/d], np. info sr age > 10, info sr murdtime > 10 d", FONT_NORMAL, COLOR_RED);
+           return 0;
+          endif
+
+          SearchAllChars(who, spText, Vals, AllChars);
+          SendSysMessage(who,"Znaleziono "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+          SendSysMessage(who,"Kryteria: "+Vals.sname+" gdzie: "+ClStr(Vals.value), FONT_NORMAL, COLOR_BLUE);
+          
+          if(AllChars.size())
+            Targ := ShowCharsSelection(who, AllChars, Vals.sname+": "+ClStr(Vals.value));
+          endif
+
+          if(!Targ)
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+          endif
+        endif
+
+      "trg":
+        if(IsStaff(who))
+          Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+          if(!Targ)
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+            return;
+          endif
+        endif
+
+      "choose":
+        StartChooseReferer(who);
+        return;
+
+      "?":
+        SendSysMessage(who, ".zaproszenia [trg/choose/sr]", FONT_NORMAL, COLOR_RED);
+        return;
+
+    endcase
+  endif
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(who == Targ and IsReferalInviteTime(Targ))
+    if(HaveBeenInvited(who))
+      SendSysMessage(who, "Juz wybral"+ggm(who,3)+" osobe, ktora Cie zaprosila.", FONT_NORMAL, COLOR_ORANGE);
+    else
+      StartChooseReferer(who);
+    endif
+    return;
+  endif
+
+  ShowReferals(who, Targ);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ShowReferals(who, Targ)
+
+  var Refs := GetReferalsData(Targ);
+  var Res;
+  var Invites := array;
+
+  foreach Inv in (Refs.invited)
+    Invites.append(Inv);
+  endforeach
+
+  while(IsLoggedIn(who))
+    BuildReferals(who, Targ, Refs, Invites);
+    Res := GSend(who);
+
+    if(Res.butid > 20 and Res.butid <= 20+Invites.size() and who == Targ)
+      var State := GetReferalState(Invites[Res.butid-20]);
+      ProcessRewards(who, Invites[Res.butid-20].acctname, State.degree);
+      Refs := GetReferalsData(Targ);
+      Invites := array;
+      
+      foreach Inv in (Refs.invited)
+        Invites.append(Inv);
+      endforeach
+
+    else
+
+      case(Res.butid)
+        11:
+          if(IsAdmin(who))
+            EraseInvited(who, Targ);
+          endif
+        12:
+          if(who == Targ)
+            ProcessGetCoin(who, Refs);
+          endif
+
+        default: 
+          return;
+      endcase
+    endif
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessRewards(who, invAccName, Degree)
+
+  var Rewards := GetRewardsForDegree(Degree);
+  var Res;
+
+  while(IsLoggedIn(who))
+    BuildRewards(Degree, Rewards);
+    Res := GSend(who);
+
+    if(!Res.butid)
+      return;
+    elseif(Res.butid <= Rewards.size())
+      var Reward := GetReferalRewardData(Rewards[Res.butid]);
+
+      if(Reward)
+        if(YesNoEx(who, "Czy na pewno chcesz wzi¹æ nagrodê '"+Reward.amount+" "+GetDescForItem(Reward.objtype)+"' za to zaproszenie?"))
+          CreateReward(who, invAccName, Degree, Rewards[Res.butid]);
+          return;
+        endif
+      endif
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRewards(Degree, byref Rewards)
+
+  GInit(100,50);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,3600,500,360);
+  GButton(465,15,0xA94,0xA95,0);
+  GTextLine(210,18,560, ToUnicode("Nagrody za "+Degree+" stopieñ"));
+  GGumpPic(15, 42, 0xBB9);
+  GGumpPic(245, 42, 0xBB9);
+  GAddPageData(467,45,2650,2651,467,274,2646,2647);
+  
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var i := 1;
+
+  foreach RewName in Rewards
+    GCheckNextPage(5);
+    var Data := GetReferalRewardData(RewName);
+    var Add := GNpCount()*50;
+    var Graphic := GetGraphicForItem(Data.objtype);
+
+    if(Graphic == UOBJ_GOLDCOIN)
+      Graphic += 2; // dla duzej kupki a nie kropki
+    endif
+    
+    GResPic(40, 50+Add, 0xBB8, 70, 46);
+    GTilePicHue(53, 58+Add, Graphic, CInt(ItemCfg[Data.objtype].Color));
+    GTextLine(130,50+Add,1321, GetDescForItem(Data.objtype));
+    GTextLine(130,70+Add,999, ToUnicode("Iloœæ:"));
+    GTextLine(165,70+Add,650, Data.amount);
+    GButton(110,65+Add,2117,2118, i);
+
+    i += 1;
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseInvited(who, Targ)
+
+  var Data := GetReferalInviteData(Targ);
+
+  if(!Data)
+    return;
+  endif
+
+  var Referer := FindPlayerBySerial(Data.serial);
+
+  if(EraseReferal(Referer, Targ))
+    SendSysMessage(who, "Referal usuniety.", FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Nie udalo sie usunac referala.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildReferals(who, Targ, byref Refs, byref Invites)
+
+  GInit(100,50);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,3600,500,360);
+  GButton(465,15,0xA94,0xA95,0);
+  GTextLine(210,18,560,"Zaproszenia");
+  GGumpPic(15, 42, 0xBB9);
+  GGumpPic(245, 42, 0xBB9);
+  GAddPageData(467,45,2650,2651,467,274,2646,2647);
+
+  var InviteData := GetReferalInviteData(Targ);
+
+  GTextLine(30, 280, 999, ToUnicode("Iloœæ aktywnych zaproszonych:"));
+  GTextLine(210, 280, 1421, Refs.numActive);
+  
+  GTextLine(30, 300, 999, ToUnicode("Iloœæ pozosta³a do wykorzystania:"));
+  GTextLine(230, 300, 1421, Refs.numLeft);
+
+  if(Refs.numLeft >= REF_NUM_FOR_COIN and who == Targ)
+    GButton(280, 293,2117,2118, 12);
+    GTextLine(300, 280, 1153, ToUnicode("Odbierz królewsk¹ monetê za"));
+    GTextLine(300, 300, 1153, ToUnicode(REF_NUM_FOR_COIN+" aktywnych zaproszeñ!"));
+  endif
+
+  if(InviteData)
+    var Msg;
+
+    if(who == Targ)
+      Msg := "Zosta³"+ggm(who,3)+" zaproszon"+ggm(who,6)+" przez osobe: ";
+    else
+      Msg := GetRealName(Targ) + " zosta³ zaproszon"+ggm(who,6)+" przez osobe: ";
+    endif
+
+    GTextLine(30, 320, 999, ToUnicode(Msg));
+    GTextLine(240 + __IfElse(who == Targ, 0, 30), 320, 1421, InviteData.name);
+
+    if(IsAdmin(who))
+      GButton(400, 323,2117,2118, 11);
+    endif
+  endif
+
+  GPage();
+
+  if(!Invites.size())
+    var Msg;
+    if(who == Targ)
+      Msg := "Jeszcze nie zaprosi³"+ggm(Targ,3)+" ¿adnej osoby.";
+    else
+      Msg := GetName(Targ) + " jeszcze nie zaprosi³ ¿adnej osoby.";
+    endif
+    GTextLine(30, 50, 1211, ToUnicode(Msg));
+    return;
+  endif
+
+  var i := 1;
+
+  foreach Invite in Invites
+    var State := GetReferalState(Invite);
+
+    GCheckNextPage(5);
+    var Add := GNpCount()*45;
+    var Person := FindPlayerBySerial(Invite.serial);
+
+    GTextLine(30, 50+Add, 999, i+".");
+    GTextLine(55, 50+Add, 1321, GetRealName(Person));
+    
+    GTextLine(200, 50+Add, __IfElse(State.active, 1421, 999), ToUnicode(State.name));
+    
+    GTextLine(55, 70+Add, 999, "Czas:");
+
+    if(IsStaff(who))
+      GTextLine(90, 70+Add, 550, CUnixTime(Invite.systime));
+    else
+      GTextLine(90, 70+Add, 550, GetDescDate(Invite.gametime));
+    endif
+
+    if(who == Targ)
+      if(State.active)
+        GButton(350, 73+Add,2117,2118, 20+_Invite_iter);
+        GTextLine(370, 70+Add, 1153, "Odbierz nagrode!");
+      elseif(State.degree)
+        GTextLine(350, 70+Add, 999, "Nagroda odebrana");
+      endif
+    else
+      if(State.active)
+        GTextLine(350, 70+Add, 665, "Nagroda NIE odebrana");
+      elseif(State.degree)
+        GTextLine(350, 70+Add, 999, "Nagroda odebrana");
+      endif
+    endif
+
+    GGumpPic(15, 90+Add, 0x248D);
+    GGumpPic(245, 90+Add, 0x248D);
+
+    i += 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetInviteDataPlayer(byref InvData)
+
+  var Char := FindPlayerBySerial(InvData.serial);
+
+  if(!Char)
+
+    var i, AccChar;
+    var Acc := FindAccount(InvData.acctname);
+
+    if(!Acc)
+      return error;
+    endif
+
+    var MinTime := -1;
+
+    for(i:=1;i<=5;i:=i+1)
+      AccChar := Acc.GetCharacter(i);
+      
+      if(MinTime == -1 or GetOnlineTimer(AccChar) < MinTime)
+        Char := AccChar;
+        MinTime := GetOnlineTimer(AccChar);
+      endif
+    endfor
+
+  endif
+
+  return Char;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetSumAccountOnlineTime(Char)
+
+  var i, AccChar;
+  var Acc := Char.acct;
+
+  if(!Acc)
+    return 0;
+  endif
+
+  var SumTime := 0;
+
+  for(i:=1;i<=5;i:=i+1)
+    AccChar := Acc.GetCharacter(i);
+    
+    if(AccChar)
+      SumTime := SumTime + GetOnlineTimer(AccChar);
+    endif
+  endfor
+
+  return SumTime;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetReferalState(byref InviteData)
+
+  var Char := GetInviteDataPlayer(InviteData);
+  var RetData := struct{"active" := 0, "degree" := 0, "char" := Char, "name" := ""};
+
+  if(!Char)
+    RetData.name := "Nie istnieje";
+    return RetData;
+  endif
+
+  var Time := GetSumAccountOnlineTime(Char);
+
+  if(Time > REF_SECSTEP_MIN_TIME and InviteData.reward >= 1)
+    RetData.name := "Drugi stopieñ";
+    RetData.degree := 2;
+    RetData.active := InviteData.reward < 2;
+  elseif(Time > REF_FIRSTSTEP_MIN_TIME)
+    RetData.name := "Pierwszy stopieñ";
+    RetData.degree := 1;
+    RetData.active := InviteData.reward < 1;
+  else
+    RetData.name := "Nie gotowy";
+    RetData.degree := 0;
+    RetData.active := 0;
+  endif
+
+  return RetData;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessGetCoin(who, byref Refs)
+
+  SendSysMessage(who, "Odebral"+ggm(who,3)+" 1 krolewska monete za "+REF_NUM_FOR_COIN+" zaproszen!", FONT_NORMAL, COLOR_WHITE);
+  Refs.numLeft -= REF_NUM_FOR_COIN;
+  SetReferals(who, Refs);
+
+  AddDonationCoinsFromReferal(who, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------

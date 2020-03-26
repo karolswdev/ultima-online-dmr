@@ -1,0 +1,581 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use boat;
+
+//-----------------------------------------------------------------------------
+
+include "include/cmds/propgump";
+include "include/cmds/misc";
+include "include/cmds/cmds";
+include "include/log";
+include "include/std";
+include "include/skills/skillwin";
+include "include/gumpboxes";
+
+include ":baseitems:common";
+include ":magicitems:magicitems";
+include ":housing:housing";
+
+include "../../testing"; // nie uzywamy :testing:
+
+//-----------------------------------------------------------------------------
+
+program TextCmdItemInfo(who, text)
+
+  __ParamUnused(text);
+
+  SetLogRunCycles(LST_CMD);
+
+  var loc,item;
+
+  SendSysMessage(who,"Wybierz przedmiot.",FONT_NORMAL,COLOR_GREEN);
+  loc := LocTarget(who);
+
+  if(!loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  item := loc.item;
+
+  if(!item)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CanInteract(who, item))
+    SendSysMessage(who,"Nie mozesz tego uzyc.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  BuildMainItemInfoWindow(item);
+
+  var keeprun := 1;
+  var Res;
+
+  while(keeprun)
+
+    if(!item or !who)
+      SendSysMessage(who,"Cel nie itnieje.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    res := GSend(who)[0];
+
+    case(res)
+      9996:        ChangeItemValue(item,"Name",who);
+      9995:        ChangeItemValue(item,"Hp",who);
+      9994:        ChangeItemValue(item,"MaxHpMod",who);
+      9991:        ChangeItemValue(item,"Color",who);
+      9990:        ChangeItemValue(item,"Graphic",who);
+      9988:        MovableItem(item,who);
+      9986:        MoveToHimLocation(item,who);
+      9985:        MoveToWrittenLocation(item,who);
+      9984:        MoveToSelectedLocation(item,who);
+      9983:        ChangeItemValue(item,"Quality",who);
+      9982:        MoveItToPack(item,who);
+      9981:        MoveItToLoc(item,who);
+      9979:        MoveCharToItemInContainer(who,item);
+      9978:        ChangeItemValue(item,"Facing",who);
+      9977:        if(Item.container.isa(POLCLASS_ITEM))
+                     Item := Item.container;
+                   endif
+
+      9000:        CheckHouseCreation(who, Item);
+    endcase
+
+    if(!res)
+      keeprun := 0;
+    endif
+
+    if(who and item)
+      BuildMainItemInfoWindow(item);
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainItemInfoWindow(item)
+
+  StandSkLayout(10,25);
+  GPage();
+  GTextLine(130,30, 510,"Info : "+item.desc);
+  GButton(  640,24, 1227,1227,9996);
+  GButton(  30, 34, 2117,2118,9998);
+  GTextLine(50, 30, 610,"Odswiez");
+  
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(!ItemCfg[item.objtype])
+    GTextLine(210,290,1204, "Brak wpisu w ItemDesc");
+  else
+    GTextLine(210,290,610,"Name: "+ItemCfg[item.objtype].Name);
+  endif
+
+  GResPic(500,75,2620,150,190);
+  GTilePicHue(550,100,item.graphic,item.color);
+
+  if(item.hp)
+    GTextLine(50, 70, 550,"Hp");
+    GTextLine(90, 70, 560,item.hp + "/" + item.maxhp);
+    GButton(  160,73,2117,2118,9995);
+
+    GTextLine(190,70, 550,"Mod");
+    GTextLine(230,70, 560,GetItemMaxHpMod(item));
+    GButton(  270,70, 2117,2118,9994);
+  elseif(ItemCfg[Item.objtype].HouseObjType)
+
+    GTextLine(50, 70, 550,"Sprawdz lokacje budowy domu");
+    GButton(  270,73,2117,2118,9000);
+
+    GTextLine(50, 90, 560,ItemCfg[Item.objtype].NumLockDowns+"/"+ItemCfg[Item.objtype].NumSecure);
+    GTextLine(120,90, 560,ItemCfg[Item.objtype].Terrain);
+
+  endif
+  
+ 
+    
+  if(item.isa(POLCLASS_WEAPON))
+  
+    if(ItemCfg[item.objtype].TwoHanded)
+      GTextLine(160, 90, 1320,"2H");
+    else
+      GTextLine(160, 90, 1320,"1H");
+    endif
+  
+  endif
+
+  GTextLine(50,200,550,"Facing");
+  GTextLine(110,200,580,item.facing);
+  GButton(  140,203,2117,2118,9978);
+
+  if(item.quality != error)
+    GTextLine(190, 200,550,"Jakosc");
+    GTextLine(240,200,580,Cdbl(item.quality));
+    GButton(  270,203,2117,2118,9983);
+  endif
+
+  GTextLine(300,70, 550,"Newbie");
+  case(item.newbie)
+    1: GTextLine(380,70,1419,"Tak");
+    0: GTextLine(380,70,1204,"Nie");
+  endcase
+
+  case(item.movable)
+    1: GTextLine(300,90,1419,"Unieruchom");
+    0: GTextLine(300,90,1204,"Odblokuj");
+  endcase
+
+  if(item.isa(POLCLASS_LOCKABLE))
+    case(item.locked)
+      1: GTextLine(410,90,1204,"Zamkniete");
+      0: GTextLine(410,90,1419,"Otwarte");
+    endcase
+    GButton(  380,93, 2117,2118,9988);
+  else
+    GButton(  480,93, 2117,2118,9988);
+  endif
+  
+  GTextLine(300,140,550,"Wrzuc do plecaka");
+  GButton(  480,143,2117,2118,9982);
+
+  GTextLine(300,160,550,"Przyciagnij");
+  GButton(  480,163,2117,2118,9981);
+
+  GTextLine(410,230,550,"Ilosc");
+  
+  if(Item.isa(POLCLASS_CONTAINER))
+    GTextLine(450,230,560,CInt(item.item_count-1));
+  else
+    GTextLine(450,230,560,GetAmount(item));
+  endif
+
+  GTextLine(410,250,550,"Waga");
+  GTextLine(450,250,560,item.weight);
+
+  MakeInfoPageGump(Item, 0);
+  MakeInfoPageGump(Item, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeInfoPageGump(Item, IsHex)
+  
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+  var ItemClr  := item.color;
+  var ItemObj  := item.objtype;
+  var ItemGrap := item.graphic;
+  var ItemSer  := item.serial;
+  var ContSer  := item.container.serial;
+  var ContObj  := item.container.objtype;
+  var MultiID  := CInt(ItemCfg[Item.objtype].MultiID);
+  var Color    := 560;
+
+  GPage();
+
+  if(IsHex)
+    GButtonPage(50, 226, 2103, 2104, 1);
+    GTextLine(70, 220, 1000, "Int");
+
+    ItemClr  := hex(item.color);
+    ItemObj  := hex(item.objtype);
+    ItemGrap := hex(item.graphic);
+    ItemSer  := hex(item.serial);
+    ContSer  := hex(item.container.serial);
+    ContObj  := hex(item.container.objtype);
+    Color    := 999;
+    MultiID  := hex(ItemCfg[Item.objtype].MultiID);
+  else
+    GButtonPage(50, 226, 2103, 2104, 2);
+    GTextLine(70, 220, 1000, "Hex");
+  endif
+
+  GTextLine(50, 120,550,"Color");
+  GTextLine(110,120,Color, ItemClr);
+  GButton(  270,123,2117,2118,9991);
+  
+  GTextLine(50, 140,550,"ObjType");
+  GTextLine(110,140,Color, ItemObj);
+
+  GTextLine(50, 160,550,"Grafika");
+  GTextLine(110,160,Color, ItemGrap);
+  GButton(  270,163,2117,2118,9990);
+
+  GTextLine(50, 180,550,"Serial");
+  GTextLine(110,180,Color, ItemSer);
+
+  if(Item.isa(POLCLASS_MULTI))
+    GTextLine(50, 70, 550,"MultiID");
+    GTextLine(110, 70, Color,MultiID);
+  endif
+
+  if(item.container)
+    GTextLine(50, 240,550,"Kontener");
+    if(Item.container.isa(POLCLASS_ITEM))
+      GButton(110,244,2117,2118,9977);
+    endif
+
+    GTextLine(130,240,Color, ContSer+" O: "+ContObj);
+    GButton(  300,244,2117,2118,9979);
+    GButton(  320,244,2117,2118,9984);
+  else
+    GTextLine(50, 240,550,"Pozycja");
+    GTextLine(110,240,560,item.x+" "+item.y+" "+item.z+" "+item.realm);
+    GButton(  280,244,2117,2118,9986);
+    GButton(  300,244,2117,2118,9985);
+    GButton(  320,244,2117,2118,9984);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeItemValue(item, Type, bywho)
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue and NewValue != "")
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var OldValue := "";
+  var SetValue := 0;
+
+  case(Type)
+    "Name":      OldValue              := GetName(Item);
+                 Setname(item,Cstr(NewValue));
+                 SetValue              := GetName(Item);
+
+    "Hp":        OldValue              := item.hp;
+                 item.hp               := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.hp;
+
+    "MaxHpMod":  OldValue              := GetItemMaxHpMod(item);
+                 SetItemMaxHpMod(item, Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetItemMaxHpMod(item);
+
+    "ArMod":     OldValue              := item.ar_mod;
+                 item.ar_mod           := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.ar_mod;
+
+    "DmgMod":    OldValue              := item.dmg_mod;
+                 item.dmg_mod          := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.dmg_mod;
+
+    "Color":     OldValue              := item.color;
+                 item.color            := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.color;
+
+    "Graphic":   OldValue              := item.graphic;
+
+                 if(item.container.isa(POLCLASS_MOBILE))
+                   SendSysMessage(bywho, "Nie mozna zmienic grafiki przedmiotu poki jest on zalozony!", FONT_NORMAL, COLOR_RED);
+                   return;
+                 endif
+
+                 item.graphic          := Cint(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.graphic;
+
+    "Quality":   OldValue              := item.quality;
+                 item.quality          := CDbl(NewValue);
+                 NewValue              := CDbl(NewValue);
+                 SetValue              := item.quality;
+
+    "Facing":    OldValue              := item.facing;
+                 item.facing           := CInt(NewValue);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := item.facing;
+
+    "PrefixCh":  OldValue              := GetMagicItemPrefixCharges(item);
+                 SetMagicItemPrefixCharges(item,Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemPrefixCharges(item);
+
+    "SuffixCh":  OldValue              := GetMagicItemSuffixCharges(item);
+                 SetMagicItemSuffixCharges(item,Cint(NewValue));
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemSuffixCharges(item);
+
+    "MagicLvl":  OldValue              := GetMagicItemLevel(item);
+                 var MagicMods := GetMagicMods(item);
+                 MagicMods[3] := Cint(NewValue);
+                 SetMagicMods(item,MagicMods);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemLevel(item);
+
+    "PreMod":    OldValue              := GetMagicItemPrefixMod(item);
+                 var MagicMods := GetMagicMods(item);
+                 MagicMods[1] := Cint(NewValue);
+                 SetMagicMods(item,MagicMods);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemPrefixMod(item);
+
+    "SufMod":    OldValue              := GetMagicItemSuffixMod(item);
+                 var MagicMods := GetMagicMods(item);
+                 MagicMods[2] := Cint(NewValue);
+                 SetMagicMods(item,MagicMods);
+                 NewValue              := CInt(NewValue);
+                 SetValue              := GetMagicItemSuffixMod(item);
+
+    "UseScript": OldValue              := item.usescript;
+                 item.usescript        := CStr(NewValue);
+                 SetValue              := Item.usescript;
+  endcase
+
+  if(SetValue == NewValue)
+    LogMsg(INFO_LOG,bywho,{Item, Type, OldValue, NewValue});
+    SendSysMessage(bywho,Type+": "+GetName(Item)+" ["+OldValue+" > "+NewValue+"]",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(bywho,"Blad: "+Type+": "+GetName(Item)+" ["+OldValue+" > "+NewValue+"]",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MovableItem(item, who)
+
+  if(IsLockedDown(Item))
+    var House := GetHouse(Item);
+    EraseItemLockDown(Item, House);
+    SendSysMessage(who, "Odblokowal"+ggm(who,3)+" przedmiot w domu.", FONT_NORMAL, COLOR_GREEN);
+  elseif(IsSecured(Item))
+    if(Item.objtype == UOBJ_SECURED_CONT)
+      SendSysMessage(who, "Nie mozesz odblokowac zabezpieczonego pojemnika!", FONT_NORMAL, COLOR_RED);
+    else
+      var House := GetHouse(Item);
+      EraseSecured(Item, House);
+      SendSysMessage(who, "Odblokowal"+ggm(who,3)+" zabezpieczony przedmiot w domu.", FONT_NORMAL, COLOR_GREEN);
+    endif
+  elseif(Item.objtype == UOBJ_TRASHBARREL and Item.multi)
+    if(HaveBarrel(Item.multi) == Item)
+      SendSysMessage(who, "Nie mozesz odblokowal"+ggm(who,3)+" smietnika domu.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    case(item.movable)
+      1:  item.movable := 0;
+          SendSysMessage(who,"Unieruchomil"+ggm(who,3)+" przedmiot.",FONT_NORMAL,COLOR_GREEN);
+      0:  item.movable := 1;
+          SendSysMessage(who,"Odblokowal"+ggm(who,3)+" przedmiot.",FONT_NORMAL,COLOR_GREEN);
+    endcase
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItToPack(item,who)
+
+  item.movable := 1;
+  MoveItemToContainer(item,who.backpack);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItToLoc(item,who)
+
+  if(item.isa(POLCLASS_BOAT))
+    MoveBoatXY(Item, who.x, who.y);
+  else
+    MoveObject(item, who.x, who.y, who.z, who.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE, MOVETYPE_CMD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowItemsInContainer(who, Cont, All)
+ 
+  var Items;
+  if(All)
+    Items := EnumerateItemsInContainer(Cont);
+  else
+    Items := ListRootItemsInContainer(Cont);
+  endif
+
+  StandMultiSkLayout(20,20);
+  GTextLine(130, 30, 610,"Ilosc: "+Items.size());
+  GButton(  60, 494,2117,2118,200000);
+  GTextLine(80, 490,610,"Przenies wszystko");
+  GButton(  525,490,2453,2454,9997);
+  GAddPageData(565,55,2650,2651,565,463,2648,2647);
+  GMultiPage();
+
+  var i := 1;
+
+  foreach itm in Items
+    GCheckNextPage(PAGE_COUNT);
+    GButton(  60, (74+(GNPCount()*20)),2117,2118, i);
+    if(itm.isa(POLCLASS_CONTAINER))
+      GTextCrop(80, (69+(GNPCount()*20)),210, 20, 570,itm.desc);
+    else
+      GTextCrop(80, (69+(GNPCount()*20)),210, 20, 550,itm.desc);
+    endif
+    GTextLine(300,  (69+(GNPCount()*20)),999,hex(itm.serial));
+    GTextLine(420,  (69+(GNPCount()*20)),670,itm.objtype);
+    GTextLine(480,  (69+(GNPCount()*20)),670,hex(itm.objtype));
+    i := i + 1;
+  endforeach
+
+  var iRes := GSend(who);
+
+  if(CInt(iRes[0]))
+    if(CInt(iRes[0]) == 200000)
+      MoveAllItemsFromContToCont(who,Cont);
+      return 0;
+    else
+      return Items[iRes[0]];
+    endif
+  else
+    SendSysMessage(who, "Blad! : ["+iRes.errortext+"]", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+    
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveAllItemsFromContToCont(who,item)
+
+  SendSysMessage(who,"Wybierz kontener.",FONT_NORMAL,COLOR_GREEN);
+  var Loc  := LocTarget(who);
+  var Cont := Loc.item;
+  var Rlm  := who.realm;
+
+  if(!Loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Cont)
+    if(!Cont.isa(POLCLASS_CONTAINER) and !Cont.isa(POLCLASS_SPELLBOOK))
+      SendSysMessage(who,"To nie pojemnik.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  else
+    SendSysMessage(who,"Przenies wszystko na ziemie?", FONT_NORMAL, COLOR_RED);
+    if(!YesNo(who, "Tak?"))
+      return;
+    endif
+  endif
+
+  var resmove,n := 0;
+  foreach itm in ListRootItemsInContainer(item)
+    if(Cont)
+      resmove := MoveItemToContainer(itm,Cont);
+    else
+      resmove := MoveObject(itm, Loc.x, Loc.y, Loc.z, Rlm, MOVEITEM_FORCELOCATION, MOVETYPE_CMD);
+    endif
+
+    if(!resmove)
+      SendSysMessage(who,"Nie udalo sie przeniesc przedmiotu "+itm.desc+" do "+Cont.desc+" - "+resmove+"!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    n := n + 1;
+  endforeach
+  SendSysMessage(who,"Przeniesiono "+n+" przedmiotow z "+item.desc+" do "+cont.desc+".",FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveChItemFromContToCont(who,FCont,item)
+
+  SendSysMessage(who,"Wybierz kontener.",FONT_NORMAL,COLOR_GREEN);
+  var Cont := LocTarget(who);
+  Cont := Cont.item;
+  if(!Cont.isa(POLCLASS_ITEM))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  var resmove,moved;
+  foreach itm in EnumerateItemsInContainer(FCont)
+    if(CInt(itm.serial) == CInt(item))
+      resmove := MoveItemToContainer(itm,Cont);
+      if(!resmove)
+        SendSysMessage(who,"Nie udalo sie przeniesc przedmiotu "+itm.desc+" do "+Cont.desc+" - "+resmove+"!",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      moved := itm;
+      break;
+    endif
+  endforeach
+  if(!moved)
+    SendSysMessage(who,"Nie znaleziono przedmiotu "+item+"!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  SendSysMessage(who,"Przeniesiono przedmiot "+moved.desc+" z "+FCont.desc+" do "+cont.desc+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckHouseCreation(who, Deed)
+
+  SendSysMessage(who, "Wskaz lokacje budowy domu.", FONT_NORMAL, COLOR_GREEN);
+  var Loc := LocTarget(who);
+
+  if(Loc)
+    var Res := CanBuildHouseAt(Deed.objtype, Loc, who.realm);
+    if(Res)
+      SendSysMessage(who, "Dom moze zostac zbudowany w tym miejscu.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

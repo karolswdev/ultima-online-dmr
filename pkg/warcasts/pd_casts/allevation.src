@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 36;
+
+//-----------------------------------------------------------------------------
+
+program PdAllevation(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Lvl := CInt(GetEffectiveSkill(Caster, SKILLID_PALADINISM) / 35);
+
+  PlaySoundEffect(Caster, SFX_SPELL_CURE);
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 45, 0xF, 0x10, 4);
+
+  if(DecreasePoison(Caster, GetPoisonLevel(Caster) - Lvl))
+    GainWarcastPoints(Caster, Caster, PD_WCID, WCGAIN_DEFENSIVE);
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

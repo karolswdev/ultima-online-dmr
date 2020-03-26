@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseProtPoisonPotion(who,potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+  if(ExpMod)
+    Strength := Strength + 1;
+  endif
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  DoMod(who,MOD_POISON_PROT,Cint(Strength),STANDARD_POTION_MOD_DUR * QualMod + (ExpMod * 30));
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,15 @@
+use uo;
+use os;
+
+include "include/getobj";
+include "include/skills/std";
+include "include/skills/gumps";
+
+include ":crafting:receptures";
+include ":crafting:exceptional";
+
+program ItemHealth(who)
+  
+  SkillItemHealth(who,SKILLID_CARPENTRY,":carpentry:carpentry");
+ 
+endprogram

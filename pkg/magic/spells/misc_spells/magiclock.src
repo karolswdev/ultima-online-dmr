@@ -1,0 +1,53 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/key";
+include "include/findcity";
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 19;
+
+//-----------------------------------------------------------------------------
+
+program CastMagicLock( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_ITEM, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(CheckIsHouseItem(CastOn) or !CastOn.movable)
+    Fizzle(caster, "Nie mozesz zamknac tego za pomoca magii!");
+    return;
+  endif
+  
+  if(CastOn.locked)
+    Fizzle(caster,"To jest juz zamkniete!");
+    return;
+  endif
+  
+  if(FindCity(CastOn) or FindCity(Caster))
+    Fizzle(caster, "Nie mozesz zamknac tego za pomoca magii!");
+    return;
+  endif
+  
+  if(CastOn.graphic in GetLockAbleItems() or CastOn.graphic in GetDoorsObjTypes())
+    PlaySoundEffect(caster, SFX_SPELL_MAGIC_LOCK);
+    PrintTextAbovePrivate(CastOn, "*Zamkniete!*", caster,FONT_NORMAL,COLOR_RED);
+    var CasterMagery := GetMagicSkillValue(Caster, SpellGlob.Type, SpellGlob.Circle);
+    SetLock(CastOn, CInt(CasterMagery/4));
+    SetObjProperty(CastOn,"MLockerSer",Caster.serial);
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_NORMAL);
+  else
+    Fizzle(caster, "Nie mozesz zamknac tego za pomoca magii!");
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

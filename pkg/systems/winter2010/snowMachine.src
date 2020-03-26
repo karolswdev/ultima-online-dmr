@@ -1,0 +1,88 @@
+use uo;
+use os;
+
+include "include/msgs";
+include "include/npcs";
+include "include/objtypes/misc";
+include "include/gumpboxes";
+include "include/effects";
+include "include/gumps";
+
+program use_snowMachine(who, theMachine)
+
+    GInit(0, 0);
+    GResPic(77, 29, 9250, 300, 200);
+    GCheckerTrans( 63, 21, 323, 217); 
+    GTextLine(168, 44, 0, "S N I E G O M A T");
+    GTilePic(111, 78, 3981); 
+    GTilePic(109, 83, 3981); 
+    GTilePic(116, 83, 3981); 
+    GTextLine(149, 80, 0, "10 sniezek - 900 gp");
+    GTilePic(103, 119, 3981); 
+    GTilePic(102, 127, 3981); 
+    GTilePic(103, 119, 3981); 
+    GTilePic(102, 127, 3981); 
+    GTilePic(113, 130, 3981); 
+    GTilePic(110, 110, 3981); 
+    GTilePic(123, 127, 3981); 
+    GTilePic(121, 116, 3981); 
+    GTilePic(111, 120, 3981); 
+    GTextLine(149, 120, 0, "40 sniezek - 3100 gp");
+    GTilePic(102, 154, 3981); 
+    GTilePic(122, 172, 3981); 
+    GTilePic(115, 181, 3981); 
+    GTilePic(103, 174, 3981); 
+    GTilePic(102, 163, 3981); 
+    GTilePic(114, 155, 3981); 
+    GTilePic(105, 145, 3981); 
+    GTilePic(115, 144, 3981); 
+    GTilePic(122, 150, 3981); 
+    GTilePic(124, 161, 3981); 
+    GTilePic(111, 150, 3981); 
+    GTilePic(112, 173, 3981); 
+    GTilePic(113, 168, 3981); 
+    GTilePic(114, 159, 3981); 
+    GTextLine(149, 160, 0, "100 sniezek - 8000 gp");
+    GButton(308, 83, 1209, 1209, 1);
+    GButton(308, 123, 1209, 1209, 2);
+    GButton(308, 163, 1209, 1209, 3);
+	
+	var res := GSend(who);
+	
+	if(!res)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	if(res[0] == 1)
+		BuySnowballs(who, 10);
+	elseif(res[0] == 2)
+		BuySnowballs(who, 40);
+	elseif(res[0] == 3)
+		BuySnowballs(who, 100);
+	endif
+	
+endprogram
+
+function BuySnowBalls(who, theNumber)
+
+	var price;
+
+	if(theNumber == 10)
+		price := 900;
+	elseif(theNumber == 40)
+		price := 3100;
+	elseif(theNumber == 100)
+		price := 7000;
+	endif
+	
+	if(who.spendgold(price))
+		CreateItemInContainer(who.backpack, 0x705a, theNumber);
+		SendSysMessage(who, "Dziekujemy za zakup!", FONT_NORMAL, COLOR_BLUE);
+	else	
+		SendsysMessage(who, "Nie masz odpowiedniej kwoty.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+endfunction
+		

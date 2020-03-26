@@ -1,0 +1,76 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "include/npcs";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 22;
+
+//-----------------------------------------------------------------------------
+
+program VwGargoyleMorph(Parms)
+
+  VampireRuneCast(Parms, VW_WCID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Duration := GetVampireWarSpDur(Caster);
+  var name     := "Gargulec Zabojca";
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+  var ModFlags := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  /*
+  foreach item in ListEquippedItems(Caster)
+    if(ItemCfg[Item.objtype].Plate)
+      SendSysMessage(Caster, "Nie mozesz uzyc tego runa, majac tak ciezka zbroje na sobie.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endforeach
+  */
+
+  if(!CanMod(Caster, MOD_GRAPHIC))
+    if(Caster.graphic == VP_GARGOYLE_GRAPHIC)
+      UndoMod(Caster,MOD_GRAPHIC);
+      UndoMod(Caster,MOD_INCO);
+      UndoMod(Caster,MOD_TPREFIX);
+      UndoMod(Caster,MOD_TSUFFIX);
+      UndoMod(Caster,MOD_TGUILD);
+      UndoMod(Caster,MOD_TRACE);
+      UndoMod(Caster,MOD_STATUS);
+      UndoMod(Caster,MOD_STATUS);
+      UndoMod(Caster,MOD_RUN_SPEED);
+      UndoMod(caster,MOD_DEX);
+    elseif(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+      WcFizzleId(Caster, "Na wierzchowcu ciezko Ci bedzie zmienic ksztalt!", VW_WCID);
+      return 0;
+    else
+      WcFizzleId(Caster, "Jestes juz pod wplywem czaru!", VW_WCID);
+      return 0;
+    endif
+  else
+    var Mod := CInt(GetEffectiveSkill(Caster,SKILLID_VAMPIRE) * 0.3);
+    GainWarcastPoints(Caster, Caster, VW_WCID, WCGAIN_NORMAL);
+
+    DoMod(Caster,MOD_GRAPHIC,VP_GARGOYLE_GRAPHIC  ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_INCO         ,name           ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TPREFIX      ,""             ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TSUFFIX      ,""             ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TGUILD       ,""             ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TRACE        ,""             ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_STATUS       ,3              ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_RUN_SPEED  , RUNSPEED_FAST   ,Duration, 0, ModFlags);
+    DOMod(Caster,MOD_DEX          ,MOD            ,Duration, 0, ModFlags);
+  endif
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

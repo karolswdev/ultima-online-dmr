@@ -1,0 +1,21 @@
+#
+#  Created by Version: POL098.2-2009-10-13 Beer and Waffles
+#  Mobiles:		 25
+#  Top-level Items: 499
+#
+
+System
+{
+	CoreVersion	98
+	CoreVersionString	POL098.2-2009-10-13 Beer and Waffles
+	CompileDate	Oct 13 2009
+	CompileTime	21:04:50
+	LastItemSerialNumber	1075951889
+	LastCharSerialNumber	979
+}
+
+GlobalProperties
+{
+
+}
+

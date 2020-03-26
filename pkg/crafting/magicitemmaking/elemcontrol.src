@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/const/cfgs";
+
+//-----------------------------------------------------------------------------
+
+program AltarElementControl(Element)
+
+  var ItemCfg    := ReadConfigFile(ITEMS_CFG);
+  Element.color  := Cint(ItemCfg[Element.objtype].color);
+  var Graph      := Cint(ItemCfg[Element.objtype].graphic);
+  if(!Graph)
+    Graph := Element.objtype;
+  endif
+  Element.graphic := Graph;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

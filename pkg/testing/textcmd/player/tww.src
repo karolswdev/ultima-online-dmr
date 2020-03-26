@@ -1,0 +1,142 @@
+//-----------------------------------------------------------------------------
+
+include ":wearwolf:common";
+include ":wearwolf:wearwolf";
+include "include/client/fonts";
+include "include/finding";
+include "include/player/target";
+include "include/player/misc";
+include "include/gumpboxes";
+include "include/attributes/main";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program WearWolfCmd(who, text)
+
+  if(text["?"] or !text)
+    SendSysMessage(who, ".ww [[serial] set/era/status/debug]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  text := SplitWords(text);
+  
+  var targ := 0;
+
+  if(CInt(text[1]))
+    targ := FindPlayerBySerial(text[1]);
+    if(!targ)
+      SendSysMessage(who, "Nie znaleziono seriala "+CInt(text[1])+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    text.erase(1);
+  else
+    SendSysMessage(who, "Wskaz osobe.", FONT_NORMAL, COLOR_GREEN);
+    targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!IsPlayer(targ))
+    SendSysMessage(who, "To nie osoba.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  case(text[1])
+    "set":      SetWW(targ, who);
+    "era":      EraWW(targ, who);
+    "status":   WWStatus(targ, who);
+    "debug":    WWDebug(targ, who); 
+    default:    SendSysMessage(who, ".ww ?", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SetWW(who, bywho)
+
+  SendSysMessage(bywho, "Chcesz zrobic z "+who.name+" wilkolaka?", FONT_NORMAL, COLOR_GREEN);
+  if(!YesNo(bywho, "Na pewno?"))
+    SendSysMessage(bywho, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var ww:= SetWearWolf(who);
+
+  if(ww==0)
+    SendSysMessage(bywho, who.name+" jest juz wilkolakiem.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(bywho, "Zrobiles wilkolaka z "+who.name+".", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraWW(who, bywho)
+  
+
+   var Skill := GetBaseSkillBaseValue(who, SKILLID_WEARWOLF);
+   if((Skill/10) >= WWSK_MINCURE)
+    SendSysMessage(bywho, "Chcesz usunac wilkolaka osobie "+who.name+"?", FONT_NORMAL, COLOR_GREEN);
+    if(!YesNo(bywho, "Na pewno?"))
+      SendSysMessage(bywho, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+    SendSysMessage(bywho, who.name+" ma ponizej "+WWSK_MINCURE+" likantropii i moze ja zapomniec sam"+ggm(who, 4)+". Chcesz usunac mimo to?", FONT_NORMAL, COLOR_GREEN_LIGHT);
+    if(!YesNo(bywho, "Na pewno?"))
+      SendSysMessage(bywho, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  var ww:= EraseWearWolf(who);
+
+  if(ww == 0)
+    SendSysMessage(bywho, who.name+" nie jest wilkolakiem.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(bywho, "Usunales wilkolaka osobie "+who.name+".", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WWStatus(who, bywho)
+
+  if(IsWearWolf(who))
+    SendSysMessage(bywho, who.name+" jest wilkolakiem.", FONT_NORMAL, COLOR_GREEN);
+    if(GetObjProperty(who, "WolfName"))
+      SendSysMessage(bywho, "WolfName: "+GetObjProperty(who, "WolfName"), FONT_NORMAL, COLOR_GREEN);
+    endif
+    SendSysMessage(bywho, "InitiateMorph: "+CInt(GetObjProperty(who, "#WWInitiateComplete")), FONT_NORMAL, COLOR_GREEN);
+    SendSysMessage(bywho, "IsWearWolfMorphed: "+IsWearWolfMorphed(who), FONT_NORMAL, COLOR_GREEN);
+    SendSysMessage(bywho, "EndedMorph: "+CInt(GetObjProperty(who, "#EndedMorph")), FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(bywho, who.name+" nie jest wilkolakiem.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WWDebug(who, bywho)
+
+  var ww := GetObjProperty(who, "WWDebug");
+
+  if(!ww)
+    SetObjProperty(who, "WWDebug", 1);
+    SendSysMessage(bywho, "Wlaczyles debug dla Wilka.", FONT_NORMAL, COLOR_GREEN);
+  else
+    EraseObjProperty(who, "WWDebug");
+    SendSysMessage(bywho, "Wylaczyles debug dla Wilka.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

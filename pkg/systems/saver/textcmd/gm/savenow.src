@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/cmds/cancmd";
+include "include/logerror";
+include "include/gumps";
+
+include ":saver:saver";
+
+//-----------------------------------------------------------------------------
+
+program SaveNowCmd(who, text)
+
+  if(text != "q") 
+    Broadcast( "Zapisywanie Stanu Swiata.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  LogNotice("[CmdSaveNow] "+who.name+"/"+who.acctname, LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO | LOGF_FORCE_SYSLOG);
+
+  SendWaitGump();
+  sleepms(500);
+
+  set_critical(1);
+  var rgc := PolCore().systime;
+  var res := SaveWorldState();
+  set_critical(0);
+
+  CloseWaitGump();
+
+  if(res)
+    rgc := RealTime(PolCore().systime - rgc);
+    SetGlobalProperty( "#:saver:cmdsave", ReadGameClock() );
+    SetGlobalProperty( "#:saver:globalsave", ReadGameClock() );
+    LogNotice("[CmdSaveNow] Czas zapisywania: "+rgc+".", LOGF_NO_NEED | LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO | LOGF_FORCE_SYSLOG);
+    if(text != "q")
+      Broadcast("Koniec zapisywania.",FONT_NORMAL,COLOR_STONE);
+    endif
+  else
+    LogError("[CmdSaveNow] Nie udalo sie zapisac stanu swiata!: " + res, LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_FORCE_SYSLOG | LOGF_SCRIPTS);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

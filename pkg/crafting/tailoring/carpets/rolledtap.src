@@ -1,0 +1,153 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumps";
+include "include/items";
+
+include ":housing:common";
+include "rolls";
+
+//-----------------------------------------------------------------------------
+
+var MainCfg := ReadConfigFile(":tailoring:tailoring");
+var RTObj,Created := {},Create;
+
+//-----------------------------------------------------------------------------
+
+program UseRolledTapestry(who,RolledTap)
+
+  RTObj := RolledTap.objtype;
+  
+  if(!who.cmdlevel)
+    if(!who.multi)
+      SendSysMessage(who,"Gobeline mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    elseif(!IsHouseOwner(who,who.multi) and !IsHouseCoOwner(who,who.multi))
+      SendSysMessage(who,"Gobeline mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  SendSysMessage(who,"Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var Place := LocTarget(who);
+  if(!StandardLocCheck(who,Place))
+    return;
+  endif
+
+  var Orient := SendOrientGump(who);
+  if(!Orient)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!who.cmdlevel)
+    var House := CheckPlaceForMulti(Place,who.realm);
+    if(!House)
+      SendSysMessage(who,"Gobeline mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    elseif(!IsHouseOwner(who,House) and !IsHouseCoOwner(who,House))
+      SendSysMessage(who,"Gobeline mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!CheckPlace(who,Place,Orient))
+    SendSysMessage(who,"Tu jest za malo miejsca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Obj1 := GetConfigInt(MainCfg[RTObj],"Obj1_"+Orient);
+  var Obj2 := GetConfigInt(MainCfg[RTObj],"Obj2_"+Orient);
+
+  if(!Obj1 or !Obj2)
+    return;
+  endif
+  
+  case(Orient)
+    "N":  CreateNewElem(who,Place.x,Place.y,Place.z,Obj1);
+          CreateNewElem(who,Place.x,Place.y+1,Place.z,Obj2);
+    "W":  CreateNewElem(who,Place.x,Place.y,Place.z,Obj1);
+          CreateNewElem(who,Place.x+1,Place.y,Place.z,Obj2);
+  endcase
+
+  var Serials := {};
+  Serials[1] := Created[1].serial;
+  Serials[2] := Created[2].serial;
+  foreach Cr in Created
+    Cr.movable := 0;
+    Cr.usescript := ":carpets:tapestry";
+    SetObjProperty(Cr,"CreatedArray",Serials);
+    SetObjProperty(Cr,PROP_ROLLED_TAPESTRY,RTObj);
+    SetitemOwner(Cr,who);
+  endforeach
+  
+  DestroyItem(RolledTap);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateNewElem(who,x,y,z,Obj)
+
+  Create := CreateItemAtLoc(x,y,z,Obj,1,who.realm);
+  if(!Create)
+    SendSysMessage(who,"Tu nie ma miejsca.",FONT_NORMAL,COLOR_RED);
+    DestroyElems();
+    exit;
+  endif
+  Created.append(Create);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyElems()
+
+  foreach Cr in Created
+    DestroyItem(Cr);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPlace(who,Place,Orient)
+
+  case(Orient)
+    "W":
+         if(GetStandingHeight(Place.x,Place.y,Place.z,who.realm).z != Place.z or GetStandingHeight(Place.x+1,Place.y,Place.z,who.realm).z != Place.z)
+           return 0;
+         endif
+    "N":
+         if(GetStandingHeight(Place.x,Place.y,Place.z,who.realm).z != Place.z or GetStandingHeight(Place.x,Place.y+1,Place.z,who.realm).z != Place.z)
+           return 0;
+         endif
+    default: return 0;
+  endcase
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendOrientGump(who)
+
+  GInit();
+  GResPic(0, 0, 3600, 220, 130);
+  GButton( 80, 90, 2121, 2120, 2 );
+  GTextLine(30,30,540,"Polnoc");
+  GTextLine(130,30,540,"Wschod");
+  GButton(50, 60, 2714, 2715, 3);
+  GButton(150,60, 2714, 2715, 4);
+  
+  var res := GSend(who)[0];
+  case(res)
+    3:  return "N";
+    4:  return "W";
+  endcase
+  
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------

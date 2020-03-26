@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/player/nutrition";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program UsePlate(who, Item)
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz przedmiot.", FONT_NORMAL, COLOR_GREEN);
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var tItem   := ObjTarget(who);
+
+  if(!StandardItemCheck(who, tItem))
+    return;
+  endif
+
+  var PlateObj := CInt(ItemCfg[tItem.objtype].PlateObjType);
+
+  if(!PlateObj)
+    SendSysMessage(who, "Na tym przedmiocie nie ma nic, co by mozna bylo zrzucic na talerz.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(GetObjMaxUses(PlateObj) < GetItemUses(tItem))
+    SendSysMessage(who, "Nie pomiescisz wszystkiego z "+tItem.desc+" na tym talerzu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(DestroyItem(Item))
+    var pItem := CreateItemInPack(who, PlateObj);
+    if(pItem)
+      SetObjProperty(pItem, PROP_FOODQUALITY, GetFoodQual(tItem));
+      SetName(pItem, GetName(tItem));
+      SetItemUses(pItem, GetItemUses(tItem));
+      SubItemUses(tItem, GetItemUses(tItem));
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

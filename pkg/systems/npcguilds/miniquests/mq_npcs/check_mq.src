@@ -1,0 +1,144 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+use datafile;
+
+//-----------------------------------------------------------------------------
+
+include "include/finding";
+include "include/msgs";
+include "include/move";
+include "include/std";
+include "include/findcity";
+include "include/coords";
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_movement:utils/movement";
+
+include ":ngd_npcs:common";
+include ":mq_npcs:common";
+include ":mq_npcs:quests";
+include ":npcguilds:guilds";
+
+//-----------------------------------------------------------------------------
+
+program NpcMiniQuestHello(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!CanNpcHaveMiniQuest(Data.npc))
+    return -1;
+  endif
+  
+  SetLogRunCycles(LST_HOOK);
+
+  var MQNpcData := GetNpcMiniQuestData(Data.npc);
+
+  if(MQNpcData.Delay < ReadGameClock())
+
+    var MiniQuest := GetMiniQuestByNpc(Data.npc);
+    
+    if(!(MQNpcData.Flags & MQNF_QUEST_CREATED))
+      MiniQuest := CreateNpcMiniQuest(Data.npc);
+
+      if(!MiniQuest)
+        return;
+      endif
+
+      // trzeba odswiezyc dane
+      MQNpcData := GetNpcMiniQuestData(Data.npc);
+    endif
+
+    var MQCfg := ReadConfigFile(MQUESTS_CFG);
+
+    if(MQNpcData.Flags & MQNF_QUEST_GIVEN)
+
+      if(MQNpcData.QuestData.StartTime + MQCfg[MQCFG_GLOBAL].QuestTime < ReadGameClock())
+        var Player := FindPlayerBySerial(MQNpcData.Player);
+        if(Player)
+          SendSysMessage(Player, "Nie udalo Ci sie wykonac prosby osoby "+Data.npc.name+".", FONT_NORMAL, COLOR_RED_LIGHT);
+          FailMQuest(Data.npc, Player);
+        endif
+        ResetMQuestData(Data.npc);
+      endif
+
+    else
+
+      var LastLooked := MQNpcData.LastLooked;
+
+      if(MQNpcData.NextLookTime < ReadGameClock())
+
+        var Player := FindMQNpcTalkPlayer(Data.npc, MQNpcData);
+
+        if(Player)
+          if(SendMovement(AI_MOVETYPE_WALK, Data.npc, Player, NPCMOVE_WAIT))
+          
+            SayMQNpcText(Data.npc, Player, MQNpcData.QuestData, MiniQuest, MQPROP_ENCRTEXT);
+            LastLooked.append(Player.serial);
+
+            SetObjProperty(Player, MQPROP_TEMP_WDELAY, ReadGameClock() + MQCfg[MQCFG_GLOBAL].TempLookDelay + RandomInt(MQCfg[MQCFG_GLOBAL].TempLookDelay/2));
+
+          endif
+        endif
+
+        // trzeba odswiezyc dane, bo moga byc juz nieaktualne!
+        MQNpcData := GetNpcMiniQuestData(Data.npc);
+        MQNpcData.LastLooked := LastLooked;
+        MQNpcData.NextLookTime := ReadGameClock() + MQCfg[MQCFG_GLOBAL].LookDelay + RandomInt(MQCfg[MQCFG_GLOBAL].LookDelay / 2);
+        SetObjProperty(Data.npc, MQPROP_DATA, MQNpcData);
+      endif
+    endif
+
+  endif
+
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindMQNpcTalkPlayer(Npc, byref NpcData)
+
+  // no to szukamy jakiegos ³oœka, ktory moglby pomoc npecowi
+
+  var Players    := array;
+  var LastLooked := array;
+
+  foreach Mob in ListMobilesNearLocation(Npc.x, Npc.y, Npc.z, MQN_LOOK_RANGE, Npc.realm)
+    if(IsPlayer(Mob))
+      if(CheckSpecialLos(Npc, Mob))
+        if(Mob.serial in NpcData.LastLooked)
+          LastLooked.append(Mob.serial);
+        else
+          if(CInt(GetObjProperty(Mob, MQPROP_TEMP_WDELAY)) < ReadGameClock())
+            if(!GetObjProperty(Mob, MQPROP_DATA))
+              Players.append(Mob);
+            endif
+          endif
+        endif
+      elseif(Mob.serial in NpcData.LastLooked)
+        LastLooked.append(Mob.serial);
+      endif
+    endif
+  endforeach
+
+  if(!NpcData.LastLooked)
+    NpcData.+LastLooked;
+  endif
+
+  NpcData.LastLooked := LastLooked;
+
+  if(!Players.size())
+    return 0;
+  elseif(Players.size() == 1)
+    return Players[1];
+  else
+    return Players[RandomInt(Players.size())+1];
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/mobile/npcs/specs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 76;
+
+//-----------------------------------------------------------------------------
+
+program CastLowerResist( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  var CasterSkill := GetMagicSkillValue(Caster, SpellGlob.Type) + GetMindSkillValue(Caster, SpellGlob.Type);
+  var Mod         := CInt(CasterSkill / 20) + MinMax(CasterSkill - 195, 0, 5) + RandomInt(2);
+  var Duration    := CInt(GetNecroSpellDur(Caster) / 2);
+
+  if(CanSkillMod(CastOn, SKILLID_MAGICRESISTANCE))
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+  
+  CagNpcDamaged(CastOn, Mod, Caster);
+  DoSkillMod(CastOn, SKILLID_MAGICRESISTANCE, 0 - Mod, Duration);
+  PlaySoundEffect(CastOn, SFX_SPELL_DISPEL);
+  PlaySoundEffect(CastOn, SFX_SPELL_CURSE);
+  PlayPcEffect(CastOn, FX_CURSE_EFFECT, 22, 0xF, 0xF, 5);
+
+  if(CastOn.isa(POLCLASS_NPC))
+    var Res := BreakNpcSpecial(CastOn, NSPEC_STONEFALL);
+    if(Res > 0)
+      SendSysMessage(Caster, "Przelamal"+ggm(Caster,3)+" koncetracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_WHITE);
+    elseif(Res < 0)
+      SendSysMessage(Caster, "Prawie przelamal"+ggm(Caster,3)+" koncentracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_ORANGE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

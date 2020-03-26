@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+include ":qmtools:possess";
+
+//-----------------------------------------------------------------------------
+
+program PossessCmd( who )
+
+  var npc := ObjTarget( who , TGTOPT_NOCHECK_LOS );
+  if(!npc.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie NPC!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  Possess(Npc,who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,14 @@
+use uo;
+include "include/attack";
+
+program togglecombat(who)
+
+  if(GetObjProperty(who, PROP_NO_FIGHT))
+    EraseObjProperty(who, PROP_NO_FIGHT);
+    SendSysmessage(who, "[Walka]: Od teraz bedziesz walczyl.", FONT_NORMAL, COLOR_BLUE);
+  else
+    SetObjProperty(who, PROP_NO_FIGHT, 1);
+    SendSysMessage(who, "[Walka]: Od teraz tylko sie bronisz.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endprogram

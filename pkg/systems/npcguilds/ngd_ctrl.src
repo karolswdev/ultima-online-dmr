@@ -1,0 +1,68 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-02
+//-----------------------------------------------------------------------------
+
+include "ngd_ctrl";
+include "include/finding";
+include "include/gump_utils";
+
+//-----------------------------------------------------------------------------
+
+program NpcGuildsControl(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  var GuildData := GetNGdData();
+  var Guild, GuildIDs;
+
+  while(1)
+    GuildIDs  := GetDataKeys(GuildData, NGUILD_TITLE);
+
+    foreach GuildID in GuildIDs
+      Guild := GuildData.FindElement(NGUILD_TITLE+GuildId);
+      if(Guild)
+        CheckGuild(Guild, CInt(GuildID));
+        sleep(20);
+      endif
+    endforeach
+
+    sleep(120);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckGuild(Guild, GuildId)
+
+  var Members := Guild.GetProp(GDPROP_MEMBERS);
+  var Resign  := array;
+  var Member;
+
+  if(Members and Members.size())
+    var n;
+    for(n:=1;n<=Members.size();n:=n+1)
+      Member := FindPlayerBySerial(Members[n]);
+      if(!Member)
+        Members.erase(n);
+        n := n - 1;
+      elseif(!CheckNpcGuildMember(Member, GuildId, Guild))
+        Resign.append(Member);
+      endif
+      Sleepms(1);
+    endfor
+  endif
+
+  Guild.SetProp(GDPROP_MEMBERS, Members);
+
+  if(Resign.size())
+    foreach Player in Resign
+      ResignPlayerFromGuild(Player, GuildId);
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

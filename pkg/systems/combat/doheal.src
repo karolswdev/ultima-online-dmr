@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+include "include/reputation/pvparea";
+include "include/attributes/main";
+include "include/mount";
+include "include/coords";
+include "include/client/effects";
+include "include/packets";
+include "include/player/friends";
+include "include/player/young";
+include "include/tempmods";
+include "include/mobile/npcs/specs";
+include "include/attributes/npcs_cag";
+
+//-----------------------------------------------------------------------------
+
+program DoHealVital(Params)
+
+  Set_Script_Option(SCRIPTOPT_NO_RUNAWAY, 1);
+
+  var Mob      := Params[1];
+  var VitalID  := Params[2];
+  var Amt      := CInt(Params[3]);
+  var healer   := Params[4];
+  var BlockCAG := Params[5];
+
+  if(!Mob.isa(POLCLASS_MOBILE) or Amt <= 0)
+    return error;
+  endif
+
+  SetFightHelper(Healer, Mob);
+
+  var Diff := GetMaxVitalById(Mob, VitalID) - GetVitalById(Mob, VitalID);
+
+  if(Mob.isa(POLCLASS_NPC) and !BlockCAG)
+    if(Diff > 0)
+      CagNpcHealed(Mob, Min(Diff, Amt));
+    endif
+  endif
+
+  if(Diff)
+    return HealVitalById(Mob, VitalID, Amt);
+  endif
+
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------

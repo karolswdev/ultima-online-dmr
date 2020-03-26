@@ -1,0 +1,93 @@
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+
+//-----------------------------------------------------------------------------
+
+program ShopHook()
+  print("[0x3B]: Bought");
+  print("[0x9F]: Sold");
+  return 1;
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function HandleBoughtPacket(who,byref Packet)
+
+  var NpcSer := Packet.GetInt32(3);
+  var Npc    := FindNpcBySerial(NpcSer);
+
+  var BuyPc  := CreatePacket(0x3b,MSGLEN_VARIABLE);
+  BuyPc.SetInt32(3,NpcSer);
+  BuyPc.SetInt8(7,0x0);
+  BuyPc.SendPacket(who);
+
+  var Cnt   := (Packet.GetSize()-8) / 7;
+  var Pos   := 8;
+  var Items := array;
+  var i;
+
+  if(!Npc)
+    LogError("[HandleBoughtPacket] Osoba "+who.acctname+"/"+who.serial+" przyslala bledny pakiet ["+Packet+"] Brak Npc: "+CInt(Npc.serial)+" lub Cnt: "+Cnt, LOGF_SCRIPTS);
+    return 1;
+  elseif(!Cnt)
+    return 1;
+  endif
+
+  for(i:=1;i<=Cnt;i:=i+1)
+    Items.append({Packet.GetInt32(Pos+1),Packet.GetInt16(Pos+5)});
+    Pos := Pos + 7;
+  endfor
+
+  var ev := struct;
+
+  ev.+type   := EVID_CMERC_BOUGHT;
+  ev.+source := who;
+  ev.+items  := Items;
+
+  SendEvent(Npc,ev);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function HandleSoldPacket(who, byref Packet)
+
+  var NpcSer := Packet.GetInt32(3);
+  var Npc    := FindNpcBySerial(NpcSer);
+
+  var BuyPc  := CreatePacket(0x3b,MSGLEN_VARIABLE);
+  BuyPc.SetInt32(3,NpcSer);
+  BuyPc.SetInt8(7,0x0);
+  BuyPc.SendPacket(who);
+
+  var Cnt   := (Packet.GetSize()-9) / 6;
+  var Pos   := 9;
+  var Items := array;
+  var i;
+
+  if(!Npc)
+    LogError("[HandleSoldPacket] Osoba "+who.acctname+"/"+who.serial+" przyslala bledny pakiet ["+Packet+"] Brak Npc: "+CInt(Npc.serial)+" lub Cnt: "+Cnt, LOGF_SCRIPTS);
+    return 1;
+  elseif(!Cnt)
+    return 1;
+  endif
+
+  for(i:=1;i<=Cnt;i:=i+1)
+    Items.append({Packet.GetInt32(Pos),Packet.GetInt16(Pos+4)});
+    Pos := Pos + 6;
+  endfor
+
+  var ev := struct;
+
+  ev.+type   := EVID_CMERC_SOLD;
+  ev.+source := who;
+  ev.+items  := Items;
+
+  SendEvent(Npc,ev);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

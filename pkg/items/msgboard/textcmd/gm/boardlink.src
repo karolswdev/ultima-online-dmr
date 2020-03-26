@@ -1,0 +1,61 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/client/fonts";
+include "include/player/target";
+include "include/gumpboxes";
+include "include/move";
+
+include ":msgboard:msgboard";
+
+//-----------------------------------------------------------------------------
+
+program BoardLinkCmd(who)
+ 
+  var Board := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+  if(Board.objtype != UOBJ_MSGBOARD and Board.objtype != UOBJ_MSGBOARD2)
+    SendSysMessage(who, "To nie tablica.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Crier := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  
+  if(Crier.script != "crier")
+    SendSysMessage(who, "To nie obwolywacz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Linked := FindItemBySerial(GetObjProperty(Crier, "MsgBoard"));
+  
+  if(Linked)
+    if(Linked == Board)
+      SendBad(who, "Ta tablica jest juz przypisana!");
+      return;
+    endif
+    
+    SendBad(who, "Obwolywacz ["+Crier.name+"] ma juz przypisana tablice ["+hex(Linked.serial)+"]", COLOR_ORANGE);
+    
+    if(!YesNoEx(who, "Przeniesc Cie do niej w celu sprawdzenia i ew. zmiany?"))
+      return;
+    endif
+    
+    MoveObject(who, Linked.x, Linked.y, Linked.z, Linked.realm, MOVEOBJECT_FORCELOCATION, MOVETYPE_CMD);
+    
+    if(!YesNoEx(who, "Czy chcesz przypisac inna tablice?"))
+      return;
+    endif
+  endif
+  
+  SendGood(who, "Przypisano tablice ["+hex(Board.serial)+"] do "+Crier.name);
+  SetObjProperty(Crier, "MsgBoard", Board.serial);
+  RestartScript(Crier);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+

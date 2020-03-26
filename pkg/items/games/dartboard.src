@@ -1,0 +1,228 @@
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/dirs";
+include "include/attack";
+include "include/checks/objchecks";
+include "include/reputation/criminal";
+include "include/move";
+
+include ":magicitems:magicitems";
+
+//--------------------------------------------------------------------------------
+
+const UOBJ_DARTBOARDW        := 0x1E2F;
+const UOBJ_DARTBOARDN        := 0x1E2E;
+
+const UOBJ_THROWAXE          := 0x0F49;
+const UOBJ_THROWKNIFE        := 0x0F51;
+const UOBJ_THROWHATCHET      := 0x0F43;
+
+const DB_MAX_AXES            := 1;
+const DB_MAX_HATCHETS        := 1;
+const DB_MAX_KNIVES          := 3;
+
+const DB_PROP_AXES           := "Axes";
+const DB_PROP_HATCHETS       := "Hatchets";
+const DB_PROP_KNIVES         := "Knives";
+
+//--------------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//--------------------------------------------------------------------------------
+
+program UseDartBoard(who, Board)
+
+  if(!StandardItemCheck(who, Board, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(Distance(who, Board) <= 1)
+    GrabDart(who, Board);
+    sleep(1);
+    return;
+  endif
+
+  var Weapon := who.weapon;
+  var Dir    := GetDirFromObjToObj(who, Board);
+
+  if(Weapon.objtype != UOBJ_THROWAXE and Weapon.objtype != UOBJ_THROWKNIFE and Weapon.objtype != UOBJ_THROWHATCHET)
+    SendSysMessage(who, "Mozesz rzucic do tarczy tylko siekiera, toporem lub sztyletem.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Weapon.quality > 1.00 or GetItemMakeMod(Weapon) or IsMagicItem(Weapon))
+    SendSysMessage(who, "Mozesz rzucic do tarczy tylko zwykla siekiera, toporem lub sztyletem z zelaza.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!IsBoardFree(Board, Weapon.objtype))
+    SendSysMessage(who, "Tarcza nie jest wolna.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!StandardItemCheck(who, Weapon))
+    SendSysMessage(who, "Nie mozesz uzyc teraz tej broni.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  case(Board.objtype)
+    UOBJ_DARTBOARDW:  if(Dir != DIR_W and Dir != DIR_NW and Dir != DIR_SW)
+                        SendSysMessage(who, "Z tej pozycji nie uda Ci sie rzucic do tarczy.", FONT_NORMAL, COLOR_RED);
+                        return;
+                      endif
+
+    UOBJ_DARTBOARDN:  if(Dir != DIR_NE and Dir != DIR_N and Dir != DIR_NW)
+                        SendSysMessage(who, "Z tej pozycji nie uda Ci sie rzucic do tarczy.", FONT_NORMAL, COLOR_RED);
+                        return;
+                      endif
+  endcase
+
+  TurnCharToward(who, Board);  
+
+  var WeapObj := Weapon.objtype;
+  var Mob     := GetMobOnPath(who, Board);
+  var Done    := 0;
+  var Targ    := Board;
+
+  if(!Mob)
+    if(DestroyItem(Weapon))
+      Done := 1;
+    endif
+  else
+    Targ := Mob;
+    Done := 1;
+  endif
+
+  var Dist    := Distance(who, Targ);
+  SetScriptController(0);
+
+  if(Done)
+    PerformAction(who, ANIM_ATTACK_1HAND_WIDE);
+    
+    case(WeapObj)
+      UOBJ_THROWHATCHET:
+      UOBJ_THROWAXE:    PlayMovEffXYZ(who.x, who.y, who.z+15, Targ.x, Targ.y, Targ.z+15, WeapObj+1, 0x2, 0, 0, who.realm);
+                        PlaySoundEffect(who, 0x233);
+                        sleepms(Dist*107);
+                        if(Mob)
+                          DealDamage(Mob, 2+RandomInt(4));
+                          PerformAction(Mob, ANIM_HIT);
+                          MoveObject(Weapon, Mob.x, Mob.y, Mob.z, Mob.realm, MOVEITEM_FORCELOCATION);
+                        else
+                          var Axes;
+                          case(WeapObj)
+                            UOBJ_THROWAXE:         Axes := CInt(GetObjProperty(Board, DB_PROP_AXES))+1;
+                                                   SetObjProperty(Board, DB_PROP_AXES, Axes);
+                                                   if(Axes >= DB_MAX_AXES)
+                                                     Board.graphic := ItemCfg[Board.graphic].AxeGraphic;
+                                                   endif
+
+                            UOBJ_THROWHATCHET:     Axes := CInt(GetObjProperty(Board, DB_PROP_HATCHETS))+1;
+                                                   SetObjProperty(Board, DB_PROP_HATCHETS, Axes);
+                                                   if(Axes >= DB_MAX_HATCHETS)
+                                                     Board.graphic := ItemCfg[Board.graphic].AxeGraphic;
+                                                   endif
+                          endcase
+                        endif
+                        PlaySoundEffect(who, 0x143);
+
+      UOBJ_THROWKNIFE:  PlayMovEffXYZ(who.x, who.y, who.z+15, Targ.x, Targ.y, Targ.z+15, WeapObj, 0x6, 0, 0, who.realm);
+                        PlaySoundEffect(who, 0x23A);
+                        sleepms(Dist*82);
+                        if(Mob)
+                          DealDamage(Mob, 2+RandomInt(4));
+                          PerformAction(Mob, ANIM_HIT);
+                          MoveObject(Weapon, Mob.x, Mob.y, Mob.z, Mob.realm, MOVEITEM_FORCELOCATION);
+                        else
+                          var Knives := CInt(GetObjProperty(Board, DB_PROP_KNIVES))+1;
+                          SetObjProperty(Board, DB_PROP_KNIVES, Knives);
+                          if(Knives >= DB_MAX_KNIVES)
+                            Board.graphic := ItemCfg[Board.graphic].KnivesGraphic;
+                          endif
+                        endif
+                        PlaySoundEffect(who, 0x13F);
+    endcase
+
+    if(!Mob)
+      var Roll := 3;
+      if(Dist >= 8)
+        Roll := 1;
+      elseif(Dist >= 3)
+        Roll := 2;
+      endif
+
+      PrintTextAbove(Board, "*"+RandomDiceRoll(Roll+"d4")+"*", FONT_NORMAL, COLOR_GREEN_LIGHT);
+    endif
+  endif
+
+  sleep(2);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function IsBoardFree(Board, Obj)
+
+  var Axes     := CInt(GetObjProperty(Board, DB_PROP_AXES));
+  var Hatchets := CInt(GetObjProperty(Board, DB_PROP_HATCHETS));
+  var Knives   := CInt(GetObjProperty(Board, DB_PROP_KNIVES));
+
+  case(Obj)
+    UOBJ_THROWHATCHET:
+    UOBJ_THROWAXE:    if(Hatchets >= DB_MAX_HATCHETS or Axes >= DB_MAX_AXES or Knives >= 1)
+                        return 0;
+                      endif
+
+    UOBJ_THROWKNIFE:  if(Hatchets >= DB_MAX_HATCHETS or Axes >= DB_MAX_AXES or Knives >= DB_MAX_KNIVES)
+                        return 0;
+                      endif
+  endcase
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GrabDart(who, Board)
+
+  var Hatchets := CInt(GetObjProperty(Board, DB_PROP_HATCHETS));
+  if(Hatchets)
+    PlaySoundEffect(who, 0x224);
+    var Hatchet := CreateItemInPack(who, UOBJ_THROWHATCHET);
+    EquipItem(who, Hatchet);
+    SetObjProperty(Board, DB_PROP_HATCHETS, Hatchets - 1);
+    SendSysMessage(who, "Wyciagnal"+ggm(who,3)+" topor z tarczy.", FONT_NORMAL, COLOR_GREEN);
+    if(Hatchets-1 == 0)
+      Board.graphic := Board.objtype;
+    endif
+    return;
+  endif
+
+  var Axes := CInt(GetObjProperty(Board, DB_PROP_AXES));
+  if(Axes)
+    PlaySoundEffect(who, 0x224);
+    var Axe := CreateItemInPack(who, UOBJ_THROWAXE);
+    EquipItem(who, Axe);
+    SetObjProperty(Board, DB_PROP_AXES, Axes - 1);
+    SendSysMessage(who, "Wyciagnal"+ggm(who,3)+" siekiere z tarczy.", FONT_NORMAL, COLOR_GREEN);
+    if(Axes-1 == 0)
+      Board.graphic := Board.objtype;
+    endif
+    return;
+  endif
+
+  var Knives := CInt(GetObjProperty(Board, DB_PROP_KNIVES));
+  if(Knives)
+    PlaySoundEffect(who, 0x224);
+    var Knive := CreateItemInPack(who, UOBJ_THROWKNIFE);
+    EquipItem(who, Knive);
+    SetObjProperty(Board, DB_PROP_KNIVES, Knives - 1);
+    SendSysMessage(who, "Wyciagnal"+ggm(who,3)+" sztylet z tarczy.", FONT_NORMAL, COLOR_GREEN);
+    if(Knives-1 == 0)
+      Board.graphic := Board.objtype;
+    endif
+    return;
+  endif
+
+  SendSysMessage(who, "Tarcza jest wolna.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------

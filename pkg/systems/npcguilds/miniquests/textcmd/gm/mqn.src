@@ -1,0 +1,218 @@
+//--------------------------------------------------------------------------
+// Modified: 2005-05-31
+//--------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/finding";
+include "include/move";
+
+include ":quests:bq_gump";
+include ":miniquests:miniquests";
+include ":miniquests:mq_gump";
+
+//--------------------------------------------------------------------------
+
+var MQuestData := GetMQuestData();
+var MQCfg      := ReadConfigFile(MQUESTS_CFG);
+var Npc, who, MQNpcData;
+
+//--------------------------------------------------------------------------
+
+program ShowNpcMQuestInfo(_who, text)
+
+  who    := _who;
+
+  if(CInt(text))
+    Npc := FindNpcBySerial(text);
+  endif
+
+  if(!Npc)
+    Npc := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!Npc.isa(POLCLASS_NPC))
+    SendSysMessage(who,"To nie Npc.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  MQNpcData := GetObjProperty(Npc, MQPROP_DATA);
+  BuildMainMQnGump();
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res        := GSend(who);
+    MQNpcData  := GetObjProperty(Npc, MQPROP_DATA);
+
+    case(Res.butid)
+      10:        MQNpcData.Delay := ReadGameClock();
+                 SetObjProperty(Npc, MQPROP_DATA, MQNpcData);
+                 SendSysMessage(who, "Zresetowal"+ggm(who,3)+" czas opoznienia.", FONT_NORMAL, COLOR_GREEN);
+      11:        MQNpcData.NextLookTime := ReadGameClock();
+                 SetObjProperty(Npc, MQPROP_DATA, MQNpcData);
+                 SendSysMessage(who, "Zresetowal"+ggm(who,3)+" czas nastepnego rozgladania.", FONT_NORMAL, COLOR_GREEN);
+      12:        MQNpcData.LastLooked := array;
+                 SetObjProperty(Npc, MQPROP_DATA, MQNpcData);
+                 SendSysMessage(who, "Zresetowal"+ggm(who,3)+" pamiec rozgladania.", FONT_NORMAL, COLOR_GREEN);
+      13:        var Player := FindNpcBySerial(MQNpcData.Player);
+                 if(Player)
+                   MoveObject(who, Player.x, Player.y, Player.z, Player.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+                   SendSysMessage(who, "Przenoszenie do "+GetRealName(Player)+".", FONT_NORMAL, COLOR_GREEN);
+                 endif
+
+      14:        if(IsAdmin(who))
+                   if(YesNo(who, "Zresetowac?"))
+                     ResetMQuestNpcData();
+                     SendSysMessage(who, "Zresetowal"+ggm(who,3)+" dane Npeca.", FONT_NORMAL, COLOR_GREEN);
+                   endif
+                 endif
+
+      default:   return;
+    endcase
+    BuildMainMQnGump();
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------
+
+function BuildMainMQnGump()
+
+  BQGInit("MiniQuest Npeca "+Npc.name, 600, 410);
+  GResPic(30, 50, 0xa3c, 340, 300);
+
+  if(!MQNpcData)
+    GTextLine(40,  60, 670, "Npc nie posiada danych.");
+    return;
+  endif
+
+  GTextLine(40,  60, 670, "Quest ID:");
+  GTextLine(130, 60, 550, CInt(MQNpcData.QuestID));
+
+  var MQuest;
+
+  if(MQNpcData.QuestID)
+    MQuest := MQuestData.FindElement(MQUEST_TITLE+MQNpcData.QuestID);
+  endif
+
+  if(MQuest)
+    GTextLine(40,  80, 670, "Tytul:");
+    GTextLine(130, 80, 550, MQuest.GetProp(MQPROP_TITLE));
+  endif
+
+  GTextLine(40,  100, 670, "Opoznienie:");
+  if(MQNpcData.Delay - ReadGameClock() >= 0)
+    GTextLine(130, 100, 550, RealTime(MQNpcData.Delay - ReadGameClock()));
+  else
+    GTextLine(130, 100, 1419, RealTime(Abs(MQNpcData.Delay - ReadGameClock())));
+  endif
+  GButton(24, 103, 2117, 2118, 10);
+
+  if(MQNpcData.NextLookTime)
+    GTextLine(40,  120, 670, "NextLook:");
+    if(MQNpcData.NextLookTime - ReadGameClock() >= 0)
+      GTextLine(130, 120, 550, RealTime(MQNpcData.NextLookTime - ReadGameClock()));
+    else
+      GTextLine(130, 120, 1206, RealTime(ReadGameClock() - MQNpcData.NextLookTime));
+    endif
+    GButton(24, 123, 2117, 2118, 11);
+  endif
+
+  if(MQNpcData.Flags & MQNF_QUEST_CREATED)
+    if(MQNpcData.Flags & MQNF_QUEST_GIVEN)
+      GTextLine(40,  180, 670, "Wykonywany:");
+      GTextLine(130, 180, 550, RealTime(ReadGameClock() - MQNpcData.QuestData.StartTime));
+      GTextLine(280, 180, 999, RealTime(MQCfg[MQCFG_GLOBAL].QuestTime));
+
+      var Player     := FindPlayerBySerial(MQNpcData.Player);
+      var PlayerName := "None";
+      if(Player)
+        PlayerName := GetRealName(Player);
+      endif
+
+      GTextLine(40,  200, 670, "Gracz:");
+      GTextLine(130, 200, 550, PlayerName);
+      GButton(24, 203, 2117, 2118, 13);
+    else
+      GTextLine(40,  180, 670, "Stworzony:");
+      GTextLine(130, 180, 550, RealTime(ReadGameClock() - MQNpcData.QuestData.StartTime));
+    endif
+
+    GTextLine(40,  220, 670, "Typ:");
+    GTextLine(130, 220, 550, GetMQuestTypeName(MQNpcData.QuestData.Type));
+
+    var DstNpc := FindNpcBySerial(MQNpcData.QuestData.Targ.NpcSer);
+
+    GTextLine(40,  240, 670, "Docelowy Npc:");
+    if(DstNpc)
+      GTextLine(130, 240, 550, DstNpc.name);
+      GTextLine(280, 240, 580, DstNpc.serial);
+    else
+      GTextLine(130, 240, 1206, "None");
+    endif
+
+    GTextLine(40,  260, 670, "Lokacja:");
+    GTextLine(130, 260, 550, MQNpcData.QuestData.Loc.x+" "+MQNpcData.QuestData.Loc.y+" "+MQNpcData.QuestData.Loc.z+" "+MQNpcData.QuestData.Loc.realm);
+
+    var Item := FindItemBySerial(MQNpcData.QuestData.Targ.ItemSer);
+    if(Item)
+      GTextLine(40,  280, 670, "Przedmiot:");
+      GTextLine(130, 280, 550, Item.desc);
+      GTextLine(280, 280, 580, Item.serial);
+    endif
+  endif
+
+  if(IsAdmin(who))
+    GTextLine(40,  320, 670, "Zresetuj dane Npeca");
+    GButton(24, 323, 2117, 2118, 14);
+  endif
+
+  GTextLine(400, 20, 670, "Flagi:");
+  BQGAddTextBox(410, 50, 125, 20, FCLR_TEBOX, "Zajety", 0);
+  BQGCheckBox(535, 47, 0, MQNpcData.Flags & MQNF_QUEST_GIVEN, 20);
+
+  BQGAddTextBox(410, 80, 125, 20, FCLR_TEBOX, "Stworzony", 0);
+  BQGCheckBox(535, 77, 0, MQNpcData.Flags & MQNF_QUEST_CREATED, 21);
+
+  BQGAddTextBox(410, 110, 125, 20, FCLR_TEBOX, "Cel Stworzony", 0);
+  BQGCheckBox(535, 107, 0, MQNpcData.Flags & MQNF_QTARG_CREATED, 22);
+
+  GTextLine(400, 140, 999, "Pamiec rozgladania");
+  GResPic(400, 160, 0xA3C, 160, 210);
+  GButton(394, 157, 2117, 2118, 12);
+
+  var Player, n := 1;
+
+  foreach Ser in (MQNpcData.LastLooked)
+    Player := FindPlayerBySerial(Ser);
+    if(Player)
+      GTextLine(410, 150+n*20, 999, n+".");
+      GTextLine(430, 150+n*20, 550, GetRealName(Player));
+    endif
+    n := n + 1;
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ResetMQuestNpcData()
+
+  var Player := FindPlayerBySerial(MQNpcData.Player);
+
+  MQNpcData.Delay      := ReadGameClock() + MQCfg[MQCFG_GLOBAL].NormDelay + RandomInt(MQCfg[MQCFG_GLOBAL].RandDelay);
+  MQNpcData.QuestData  := 0;
+  MQNpcData.Player     := 0;
+  MQNpcData.LastLooked := 0;
+  MQNpcData.Flags      := 0;
+
+  SetObjProperty(Npc, MQPROP_DATA, MQNpcData);
+
+  if(Player)
+    EraseObjProperty(Player, MQPROP_DATA);
+    SendSysMessage(Player, "Czujesz ze "+Npc.name+" nie potrzebuje juz pomocy...", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------

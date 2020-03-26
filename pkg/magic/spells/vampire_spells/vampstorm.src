@@ -1,0 +1,142 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+
+include ":magic:mass_spells";
+
+//-----------------------------------------------------------------------------
+
+var PcSend := dictionary;
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 112;
+
+//-----------------------------------------------------------------------------
+
+program CastVampireStorm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var CasterSk    := GetEffectiveSkill(Caster,SKILLID_VAMPIRE);
+  var CasterSp    := GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK);
+  var Range       := Cint(CasterSk/20 + CasterSp/20);
+  var Duration    := Cint(CasterSk/25 + CasterSp/25);
+  var Dmg         := 0;
+  var Hitted      := {};
+  var x           := CastOn.x;
+  var y           := CastOn.y;
+  var z           := CastOn.z;
+  var Num;
+  var Gained := 0;
+
+  var Factor := GetMassSpellRangeFactor(CastOn, Range);
+  AddMassSpellGlobalArea(CastOn, Range, CInt(Duration*1.2));
+
+  PlaySoundEffect(Caster, SFX_SPELL_MASS_CURSE);
+  PlaySoundEffect(Caster, SFX_SPELL_MANA_DRAIN);
+
+  for i := 1 to Duration
+
+    if(!Caster)
+      break;
+    endif
+
+    Num := 0;
+
+    foreach mobile in ListMobilesNearLocationEx(x, y, z, range, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, Caster.realm)
+
+      mobile.hidden := 0;
+      PlaySoundEffect(mobile, SFX_SPELL_MASS_CURSE);
+      PlaySoundEffect(mobile, SFX_SPELL_MANA_DRAIN);
+
+      if(CanDamage(Caster,mobile,CAN_DAMAGE_HIDDEN,CastOn))
+        Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, Mobile, SpellGlob.Type) / 2);
+        Dmg := Max(CInt(Dmg*Factor), 1);
+
+        if(Mobile in Hitted)
+          Dmg := CInt(Dmg / 3);
+        else
+          DealStaminaDamage(Mobile, CInt(Dmg / 2));
+          start_script(":combat:dechealth",{Mobile,CInt(Dmg / 2)});
+        endif
+
+        var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type, NO_RESIST_GAIN);
+        AddMurdReport(mobile, Caster);
+        PlayStormEffect(mobile);
+        Hitted.append(Mobile);
+
+        Num := Num + 1;
+        
+        if(DmgRes > 0 and Gained < 6 and !IsNpcElemental(mobile, array(NPCELEM_ELEMENTAL, NPCELEM_UNDEAD)))
+          Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+        endif
+
+        if(Num >= 10)
+          break;
+        endif
+      endif
+      Sleepms(1);
+    endforeach
+
+    var Trg := struct;
+    Trg.+x;
+    Trg.+y;
+    Trg.+z;
+    Trg.+realm := Caster.realm;
+
+    for j := 1 to CInt(range/2)
+      Trg.x := CastOn.x - range + RandomInt (2*range+2);
+      if (Trg.x < CastOn.x-range)
+        Trg.x := CastOn.x-range;
+      elseif (Trg.x > CastOn.x+range)
+        Trg.x := CastOn.x+range;
+      endif
+
+      Trg.y := CastOn.y - range + RandomInt (2*range+2);
+      if (Trg.y < CastOn.y-range)
+        Trg.y := CastOn.y-range;
+      elseif (Trg.y > CastOn.y+range)
+        Trg.y := CastOn.y+range;
+      endif
+
+      Trg.z := CastOn.z + 4;
+
+      PlayStormEffect(Trg);
+    endfor
+
+    sleep(1);
+  endfor
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayStormEffect(Trg)
+
+  if(!PcSend[Trg.x+" "+Trg.y])
+    PcSend[Trg.x+" "+Trg.y] := 1;
+    PlayPcStEffect(Trg.x, Trg.y, Trg.z, Trg.realm, FX_HEAL_EFFECT, 31, 0x10, 0x80);
+    PlayPcStEffect(Trg.x, Trg.y, Trg.z, Trg.realm, FX_SPARK_EFFECT, 31, 0x10, 0x80, 0x4);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+

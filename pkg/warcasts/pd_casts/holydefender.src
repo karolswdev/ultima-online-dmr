@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/faith";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 37;
+
+//-----------------------------------------------------------------------------
+
+program PdHolyDefender(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Shield   := GetPaladinShield(Caster);
+
+  if(!Shield)
+    WcFizzleId(Caster, "Musisz miec zalozona swieta tarcze by moc rzucic to zaklecie.", PD_WCID);
+    return 0;
+  endif
+
+  var Mod      := CInt(GetEffectiveSkill(Caster, SKILLID_PALADINISM) / 3) + CInt(GetEffectiveSkill(Caster, SKILLID_ZEAL) / 3);
+  var Duration := GetWarCastDuration(Caster, WCT_PALADIN);
+
+  if(CanMod(Caster, MOD_DEFENSE))
+    GainWarcastPoints(Caster, Caster, PD_WCID, WCGAIN_DEFENSIVE);
+  endif
+
+  PlaySoundEffect(Caster, SFX_ARCANE_POWER_UP);
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 110, 0x10, 0x10, 3);
+  DoMod(Caster, MOD_DEFENSE, Mod, Duration, Shield);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

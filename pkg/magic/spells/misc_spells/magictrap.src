@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/traps";
+include "include/findcity";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 13;
+
+//-----------------------------------------------------------------------------
+
+program CastMagicTrap( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_ITEM, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if((CastOn.isa(POLCLASS_DOOR)) or (CastOn.objtype in GetLockAbleItems()))
+  
+    var CasterMagery := GetMagicSkillValue(Caster, SpellGlob.Type, SpellGlob.Circle);
+    var TrapStr := CInt(CasterMagery / 10);
+
+    var City := FindCity(CastOn);
+    if(City)
+      SetCriminal(Caster, 1, "SpellAction", "Zastawil"+ggm(Caster,4)+" magiczna pulapke na przedmiot "+CastOn.desc+" ["+CastOn.serial+"] znajdujacy sie w "+City+".");
+    endif
+
+    City := FindCity(Caster);
+    if(City)
+      SetCriminal(Caster, 1, "SpellAction", "Zastawil"+ggm(Caster,4)+" magiczna pulapke na przedmiot "+CastOn.desc+" ["+CastOn.serial+"] bedac w "+City+".");
+    endif
+    
+    if(TrapStr < 1)
+      TrapStr := 1;
+    endif
+    
+    PlaySoundEffect(caster, SFX_SPELL_MAGIC_TRAP);
+    if(!CastOn.container)
+      PlayStationaryEff(CastOn.x, CastOn.y, CastOn.z, FX_HEAL_EFFECT, 30, 30,0,CastOn.realm);
+    endif
+    SetTrap(Caster,CastOn,1,TrapStr);
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_NORMAL);
+  else
+    Fizzle(caster, "Nie mozesz zastawic na tym magicznej pulapki!");
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

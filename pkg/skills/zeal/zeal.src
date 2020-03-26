@@ -1,0 +1,88 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const PROP_ZEALDELAY         := "#ZealDelay";
+
+//-----------------------------------------------------------------------------
+
+program Zeal( who )
+
+  if(IsBusy(who, NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var Points := GetDefaultPointsValue(SKILLID_ZEAL) * 3;
+  var SkVal;
+  var ZealVal;
+    
+  SendSysMessage(who, "Wybierz stworzenie.", FONT_NORMAL, COLOR_GREEN);
+  var Subject := ObjTarget(who);
+
+  if(!StandardMobCheck(who, Subject, NO_CHECK_SPECLOS | NEW_DIST_CHECK | NO_COMBAT_CHECK | NO_USE_CHECK, 4))
+    return;
+  elseif(!Subject.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie jest stworzenie.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetBaseSkill(who, SKILLID_PALADINISM) > 10)
+    SkVal := GetEffectiveSkill(who, SKILLID_PALADINISM);
+    if(!IsNpcElemental(Subject, NPCELEM_UNDEAD))
+      SendSysMessage(who, "To stworzenie nie jest nieumarle.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  elseif(GetBaseSkill(who, SKILLID_FANATICISM) > 10)
+    SkVal := GetEffectiveSkill(who, SKILLID_FANATICISM);
+    if(!IsGoodNpc(Subject))
+      SendSysMessage(who, "To stworzenie nie jest z natury dobre!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+    SendSysMessage(who, "Nie wiesz jak poslugiwac sie ta umiejetnoscia.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!CanMod(Subject, MOD_PENETRATE))
+    SendSysMessage(who, "To stworzenie zaznalo juz smaku gorliwosci!", FONT_NORMAL, COLOR_GREEN);
+    return;
+  elseif(CInt(GetObjProperty(Subject, PROP_ZEALDELAY)) > ReadGameClock())
+    SendSysMessage(who, "Musisz odczekac chwile by moc spenetrowac obrone tego stworzenia.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  ZealVal      := GetEffectiveSkill(who, SKILLID_ZEAL);
+  var cfgElem  := GetNpcConfig(Subject);
+  var Diff     := ToMin(CInt(cfgElem.provoke) - 10, 0);
+  var ModAmt   := CInt(SkVal / 4) + CInt(ZealVal / 4);
+  var Duration := CInt(SkVal / 2) + CInt(ZealVal / 2);
+
+  SetBusyTime(who, GetSkillDelay(SKILLID_ZEAL));
+ 
+  if(CheckMoreSkill(who, SKILLID_ZEAL, Diff, Points))
+ 
+    PlaySoundEffect(Subject, SFX_SPELL_HARM);
+    PlayPcEffect(Subject, FX_SPARK_EFFECT, 100, 0xF, 0xF, 6);
+    DoMod(Subject, MOD_PENETRATE, ModAmt, Duration * 2);
+    SendSysMessage(who, "Stworzenie "+Subject.name+" zaznalo smaku gorliwosci!", FONT_NORMAL, COLOR_STONE);
+    SetObjProperty(who, PROP_ZEALDELAY, ReadGameClock() + Duration * 5);
+
+  elseif(ZealVal < RandomInt(Diff+20))
+    
+    PlaySoundEffect(Subject, SFX_SPELL_CURE);
+    PlayPcEffect(Subject, FX_SPARK_EFFECT, 100, 0xF, 0xF, 4);
+    SendSysmessage (who, "Stworzenie poznalo twe intencje i umocnilo swa obrone!",FONT_NORMAL,COLOR_RED_LIGHT);
+    DoMod(Subject, MOD_PENETRATE, 0 - ModAmt, Duration);
+
+  else
+
+    SendSysmessage (who, "Nie udalo Ci sie spenetrowac obrony tego stworzenia.",FONT_NORMAL,COLOR_RED);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

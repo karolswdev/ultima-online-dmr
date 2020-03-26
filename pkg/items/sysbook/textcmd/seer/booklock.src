@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/player/target";
+include "include/msgs";
+include "include/names";
+
+//-----------------------------------------------------------------------------
+
+program BookLockCmd(who, text)
+ 
+  SendSysMessage(who, "Wybierz ksiazke.", FONT_NORMAL, COLOR_GREEN);
+  var Book := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  if(!Book)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(text == "era")
+    SendSysMessage(who, "Odbezpieczyl"+ggm(who,3)+" ksiazke "+GetName(Book), FONT_NORMAL, COLOR_BLUE);
+    EraseObjProperty(Book, "NoWrite");
+  else
+    SendSysMessage(who, "Zabezpieczyl"+ggm(who,3)+" ksiazke "+GetName(Book), FONT_NORMAL, COLOR_BLUE);
+    SetObjProperty(Book, "NoWrite", 1);
+  endif
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

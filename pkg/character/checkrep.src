@@ -1,0 +1,21 @@
+//-----------------------------------------------------------------------------
+
+include "include/findcity";
+include "include/gumps";
+include "include/attack";
+include "include/reputation/report";
+include "include/reputation/penalty";
+include "include/reputation/pvparea";
+
+include ":guildstone:guild";
+include ":character:race_validation";
+
+//-----------------------------------------------------------------------------
+
+program CheckReportables(who)
+
+  SendReportGump(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

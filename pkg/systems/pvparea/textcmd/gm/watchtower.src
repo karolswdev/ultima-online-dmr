@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+// 2013-05-23
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program WatchTowerCmd(who, textcmd)
+
+  case(textcmd)
+    "reset":
+       var Stone := Target(who);
+
+       if(Stone.objtype == 0xA38F)
+         SendSysMessage(who, "Zresetowano.", FONT_NORMAL, COLOR_GREEN);
+         start_script(":pvparea:watchtower", Stone);
+       else
+         SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+       endif
+
+    "npc":
+       if(IsAdmin(who) or IsOnDMRTest())
+         var Stone := Target(who);
+
+         if(Stone.objtype == 0xA38F)
+           SendSysMessage(who, "Przestawiono straznice na npece.", FONT_NORMAL, COLOR_GREEN);
+           SetObjProperty(Stone, "Method", "npc");
+           start_script(":pvparea:watchtower", Stone);
+         endif
+       endif
+       
+    "player":
+       if(IsAdmin(who) or IsOnDMRTest())
+         var Stone := Target(who);
+
+         if(Stone.objtype == 0xA38F)
+           SendSysMessage(who, "Przestawiono straznice na graczy.", FONT_NORMAL, COLOR_GREEN);
+           EraseObjProperty(Stone, "Method");
+           start_script(":pvparea:watchtower", Stone);
+         endif
+       endif
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

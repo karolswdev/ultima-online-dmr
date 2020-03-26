@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program OpenArmoire(who,Arm)
+
+  SendViewContainer(who,Arm);
+
+  if(!ExPid(GetObjProperty(Arm,"#OpenPid")))
+    SetObjProperty(Arm,"#OpenPid",GetPid());
+    case(Arm.graphic)
+      2637: Arm.graphic := 2636;
+      2639: Arm.graphic := 2638;
+      2641: Arm.graphic := 2640;
+      2643: Arm.graphic := 2642;
+    endcase
+    
+    Detach();
+    NoLongerBusy(who);
+    sleep(60);
+    
+    case(Arm.graphic)
+      2636: Arm.graphic := 2637;
+      2638: Arm.graphic := 2639;
+      2640: Arm.graphic := 2641;
+      2642: Arm.graphic := 2643;
+    endcase
+    
+    EraseObjProperty(Arm,"#OpenPid");
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

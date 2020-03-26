@@ -1,0 +1,893 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/cmds/itemsgump";
+include "include/log";
+include "include/bits";
+include "include/move";
+include "include/std";
+include "include/coords";
+include "include/player/target";
+include "include/cmds/cancmd";
+
+include ":baseitems:creation";
+include ":spawnnet:spawnnet";
+include ":spawnnet:spawnchest";
+include ":arena:arena";
+include ":housing:common";
+include ":wmtools:common";
+
+//-----------------------------------------------------------------------------
+
+program BaseItemManager(who,text)
+
+  if(!CanUseCmd(who, "bim"))
+    return;
+  endif
+
+  SetLogRunCycles(LST_CMD);
+ 
+  text := SplitWords(text);
+  case(text[1])
+      "add":            SetAddBaseItem(who,text);
+      "addex":          AddExistingItemToBICmd(who);
+      "addexne":        AddNearItemsToBI(who,CInt(text[2]));
+      "addbox":         if(IsAdmin(who))
+                          AddItemsInBox(who,text);
+                        endif
+      "afcfg":          if(IsAdmin(who))
+                          AddFromConfig(who, text);
+                        endif
+      "cr":             if(CInt(text[2]))
+                          var Res := CreateBaseItem(CInt(text[2]));
+                          if(Res == 1)
+                            SendSysMessage(who, "BI jest juz stworzony, Nr ["+CInt(text[2])+"]", FONT_NORMAL, COLOR_GREEN);
+                          elseif(Res.isa(POLCLASS_ITEM))
+                            SendSysMessage(who, "Stworzono BI, Nr ["+CInt(text[2])+"]", FONT_NORMAL, COLOR_BLUE);
+                          else
+                            SendSysMessage(who, "Blad podczas tworzenia BI, Nr: ["+CInt(text[2])+"] ["+Res.errortext+"]", FONT_NORMAL, COLOR_RED);
+                          endif
+                        else
+                          SendSysMessage(who,".bim cr [Nr]",FONT_NORMAL,COLOR_RED);
+                        endif
+      "crall":          if(IsAdmin(who))
+                          if(YesNo(who,"Napewno?"))
+                            CreateAllBaseItems(who,text[2]);
+                          else
+                            SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                          endif
+                        endif
+      "del":            if(IsAdmin(who))
+                          if(CInt(text[2]))
+                            var Res := DestroyBaseItem(CInt(text[2]));
+                            if(Res)
+                              SendSysMessage(who, "Zniszczono BI, Nr ["+CInt(text[2])+"]", FONT_NORMAL, COLOR_GREEN);
+                            else
+                              SendSysMessage(who, "Blad podczas niszczenia BI, Nr: ["+CInt(text[2])+"] ["+Res.errortext+"]", FONT_NORMAL, COLOR_RED);
+                            endif
+                          else
+                            SendSysMessage(who,".bim del [Nr]",FONT_NORMAL,COLOR_RED);
+                          endif
+                        endif
+      "delall":         if(IsAdmin(who))
+                          if(YesNo(who,"Napewno?"))
+                            DeleteAllBaseItems(who);
+                          else
+                            SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                          endif
+                        endif
+      "destroyall":     if(IsAdmin(who))
+                          SendSysMessage("Usunac wszystkie przedmioty ?",FONT_NORMAL,COLOR_GREEN);
+                          if(YesNo(who,"Napewno?"))
+                            DestroyAllBaseItems(who);
+                          else
+                            SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                          endif
+                        endif
+      "upitem":         var uFlags := 0;
+                        if(CInt(text[2]))
+                          SetBitOn(uFlags, BIUF_HARD);
+                        endif
+                        UpdateItemFromData(who, uFlags);
+                        
+      "updata":         UpdateDataFromItem(who);
+      "upallitem":      if(IsAdmin(who))
+                          var uFlags := 0;
+                          if(CInt(text[2]))
+                            SetBitOn(uFlags, BIUF_HARD);
+                          endif
+                          UpdateAllItemsFromData(who, uFlags);
+                        endif
+      "upalldata":      if(IsAdmin(who))
+                          UpdateDataFromAllItems(who);
+                        endif
+      "sh":             ShowAllBI(who, text[2], text[3]);
+      "go":             if(CInt(text[2]))
+                          GoToBaseItem(who,CInt(text[2]));
+                        else
+                          SendSysMessage(who,".bim go [Nr]",FONT_NORMAL,COLOR_RED);
+                        endif
+
+      "inf":            SendBIInfo(who,CInt(text[2]));
+      "dels":           DeleteSelectedBI(who);
+      "delnear":        DeleteNearBI(who,text);
+      "era":            EraseBI(who);
+      "eranear":        EraseNearBI(who,text);
+      "shs":            ShowBIOfType(who,text);
+      "deltype":        
+      "destype":        
+      "reptype":        if(IsAdmin(who))
+                          MakeCommandOfType(who,text);
+                        endif
+
+      "near":           ListNearBI(who, text);
+
+      "?":              SendSysMessage(who,".bim [add/addex/cr/sh/set/inf/go/shs/near]",FONT_NORMAL,COLOR_RED);
+                        SendSysMessage(who,".bim add [ObjType] [col 'Color'] [nam] [grap 'Graphic'] [fac 'Facing'] [lock] [trg]",FONT_NORMAL,COLOR_RED);
+                        if(IsAdmin(who))
+                          SendSysMessage(who,".bim [addexne/addbox/crall/del/delall/destroyall/upitem/updata/upallitem/upalldata/dels/delnear/era/eranear/reptype/destype/deltype]",FONT_NORMAL,COLOR_RED);
+                        endif
+
+      "cx":             CreateComplexItems(who, text, CRI_TO_BIM);
+      "set":            MakeItemsFromSet(who, text, CRI_TO_BIM);
+
+      default:          SendSysMessage(who,"Zla opcja.", FONT_NORMAL, COLOR_RED);
+  endcase
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DeleteSelectedBI(who)
+
+  var BItem := LocTarget(who).item;
+  if(BItem.isa(POLCLASS_ITEM) and GetItemBINr(BItem))
+    LogMsg(DESTROY_LOG,who,BItem);
+    var Nr   := GetItemBINr(BItem);
+    var dRes := DestroyBaseItem(Nr);
+    if(dRes)
+      SendSysMessage(who, "Zniszczono BI, Nr ["+Nr+"]", FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who, "Nr ["+Nr+"] ["+dRes.errortext+"]", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteNearBI(who,text)
+
+  var Range := CInt(text[2]);
+
+  if(Range > 25)
+    if(!IsAdmin(who))
+      SendSysMessage(who, "Zasieg za duzy.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+  endif
+
+  var Num := 0;
+  var Err := 0;
+  var Nr;
+
+  foreach item in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    Nr := GetItemBINr(item);
+    if(Nr)
+      if(DestroyBaseItem(Nr))
+        num := num + 1;
+      else
+        Err := Err + 1;
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,"Zniszczono ["+num+"] BI, Bledow ["+Err+"].",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseBI(who)
+
+  var Item := LocTarget(who).item;
+  if(!Item.isa(POLCLASS_ITEM))
+    SendSysMessage(who,"To nie przedmiot.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Nr := GetItemBINr(item);
+  if(Nr)
+    var dRes := DeleteBaseItem(Nr);
+    if(!dRes)
+      SendSysMessage(who,"Blad podczas kasowania BI ["+Nr+"] ["+dRes.errortext+"].",FONT_NORMAL,COLOR_RED);
+    else
+      SendSysMessage(who,"Skasowano BI ["+Nr+"].",FONT_NORMAL,COLOR_GREEN);
+    endif
+  else
+    SendSysMessage(who,"To nie BI.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseNearBI(who,text)
+
+  var Range := CInt(text[2]);
+
+  if(Range > 10)
+    if(!IsAdmin(who))
+      SendSysMessage(who, "Zasieg za duzy.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+  endif
+
+  var Num := 0;
+  var Err := 0;
+  var Nr;
+
+  foreach item in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    Nr := GetItemBINr(item);
+    if(Nr)
+      if(DeleteBaseItem(Nr))
+        num := num + 1;
+      else
+        Err := Err + 1;
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,"Skasowano ["+num+"] BI, Bledow ["+Err+"].",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetAddBaseItem(who,text)
+
+  var ObjType := 0;
+  var Name    := 0;
+  var Color   := 0;
+  var Flags   := 0;
+  var x       := who.x;
+  var y       := who.y;
+  var z       := who.z;
+  var Rlm     := who.realm;
+  var i       := 1;
+
+  foreach word in text
+    case(word)
+      "add":    ObjType := Text[i+1];
+      "nam":    Name    := SendTextEntryGump(who,"Wpisz nazwe",TE_CANCEL_ENABLE);
+                if(!Name)
+                  SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+
+      "col":    Color   := CInt(Text[i+1]);
+      "lock":   SetBitOn(Flags, BIF_LOCKED);
+
+      "trg":    var Targ := LocTarget(who);
+                if(!Targ)
+                  SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+
+                x := Targ.x;
+                y := Targ.y; 
+                z := Targ.z;
+
+      "coords": var Coords := RequestInput(who,who.backpack,"Wpisz coordy.");
+                Coords := SplitWords(Coords);
+                if(!Coords or !CInt(Coords[1]) or !Cint(Coords[2]))
+                  SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+
+                x := CInt(Coords[1]);
+                y := Cint(Coords[2]);
+                if(Coords[3] != error)
+                  z := Cint(Coords[3]);
+                else
+                  z := GetStandZ(x,y,Rlm);
+                endif
+
+      "inv":    SetBitOn(Flags, BIF_INVIS);
+      "z":      z := z + CInt(Text[i+1]);
+    endcase
+    i := i + 1;
+  endforeach
+  
+  if(!Name)
+    Name := 0;
+  endif
+
+  if(!CInt(ObjType) and ObjType)
+    ObjType := GetObjTypeByName(ObjType);
+  else
+    ObjType := CInt(ObjType);
+  endif
+  
+  if(ObjType)
+    var Nr := AddBaseItem(ObjType, x, y, z, Rlm, Color, Name, Flags);
+    if(Nr)
+      SendSysMessage(who,"Dodano Bi, Nr ["+Nr+"] O: ["+ObjType+"]  N: ["+Name+"] C: ["+Color+"] L: ["+IsBitOn(Flags, BIF_LOCKED)+"] I: ["+IsBitOn(Flags, BIF_INVIS)+"]. ["+x+","+y+","+z+" "+Rlm+"]",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie udalo sie dodac BI, ["+Nr.errortext+"].",FONT_NORMAL,COLOR_RED);
+    endif
+    var nItem := CreateBaseItem(Nr);
+    if(!nItem)
+      SendSysMessage(who, "Blad podczas tworzenia BI, ["+nItem.errortext+"]", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Bledny ObjType, ["+ObjType+"]",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddNearItemsToBI(who,Near := 2)
+
+  if(Near < 0)
+    Near := 0;
+  elseif(Near > 20 and !IsAdmin(who))
+    SendSysMessage(who,"Za duzy zasieg!",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Near > 10)
+    SendSysMessage(who,"Na pewno chcesz dodac przedmioty w zasiegu "+Near+" ?",FONT_NORMAL,COLOR_GREEN);
+    if(!YesNo(who,"Tak?"))
+      return;
+    endif
+  endif
+
+  var Errors := dictionary;
+  var Num    := 0;
+  var Err    := 0;
+  var All    := 0;
+  var Res;
+
+  foreach item in ListObjectsInBox(who.x-Near,who.y-Near,-127,who.x+Near,who.y+Near,127,who.realm)
+    if(Item.isa(POLCLASS_ITEM))
+      Res := AddExistingItemToBI(item, who);
+      if(!Res)
+        if(Res.errortext)
+          Errors[Res.errortext] := CInt(Errors[Res.errortext])+1;
+        endif
+        Err := Err + 1;
+      else
+        Num := Num + 1;
+      endif
+      All := All + 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Dodano ["+Num+"] przedmiotow. Wszystkich: "+All+", Niedodawalne: "+Err,FONT_NORMAL,COLOR_BLUE);
+
+  foreach Err in Errors
+    SendSysMessage(who,"["+Err+"]: "+_Err_iter, FONT_NORMAL, COLOR_RED);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddItemsInBox(who, text)
+  
+  var sX := CInt(text[2]);
+  var sY := CInt(text[3]);
+  var eX := CInt(text[4]);
+  var eY := CInt(text[5]);
+  var sZ := CInt(text[6]);
+  var eZ := CInt(text[7]);
+
+  if(!sX or !sY or !sZ or !eZ)
+    SendSysMessage(who,".bim addbox [x_set y_set x_end y_end z_set=-127] z_end=127]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(eX - sX > 32 or eY - sY > 32)
+    SendSysMessage(who, "Za duzy zasieg.", FONT_NORMAL, COLOR_RED);
+  endif
+
+  if(sZ < -127 or sZ > 127)
+    sZ := -127;
+  endif
+  if(eZ < -127 or eZ > 127)
+    eZ := 127;
+  endif
+
+  var Errors := dictionary;
+  var Num    := 0;
+  var Err    := 0;
+  var All    := 0;
+  var Res;
+
+  foreach item in ListObjectsInBox(sX, sY, sZ, eX, eY, eZ, who.realm)
+    if(Item.isa(POLCLASS_ITEM))
+      Res := AddExistingItemToBI(item, who);
+      if(!Res)
+        if(Res.errortext)
+          Errors[Res.errortext] := CInt(Errors[Res.errortext])+1;
+        endif
+        Err := Err + 1;
+      else
+        Num := Num + 1;
+      endif
+      All := All + 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Dodano ["+Num+"] przedmiotow. Wszystkich: "+All+", Niedodawalne: "+Err,FONT_NORMAL,COLOR_BLUE);
+
+  foreach Err in Errors
+    SendSysMessage(who,"["+Err+"]: "+_Err_iter, FONT_NORMAL, COLOR_RED);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAllBI(who, sNr := 0, eNr := 0)
+
+  var Data     := GetBaseItemData();
+  var AllElems := dictionary;
+  var Elem ,Loc, Name, ObjType, Color;
+
+  sNr := CInt(sNr);
+  eNr := CInt(eNr);
+
+  var setNr := -1, EndNr := -1;
+
+  foreach Nr in (Data.Keys())
+    if(!CInt(Nr))
+      continue;
+    endif
+
+    if(eNr)
+      if(CInt(Nr) < sNr or CInt(Nr) > eNr)
+        continue;
+      endif
+    endif
+
+    if(setNr == -1 or CInt(Nr) < setNr)
+      setNr := CInt(Nr);
+    endif
+
+    if(endNr == -1 or CInt(Nr) > endNr)
+      endNr := CInt(Nr);
+    endif
+
+    Elem    := Data.FindElement(CStr(Nr));
+    Loc     := Elem.GetProp(BIPROP_LOC);
+    Name    := Elem.GetProp(BIPROP_NAME);
+    ObjType := Elem.GetProp(BIPROP_OBJTYPE);
+    Color   := Elem.GetProp(BIPROP_COLOR);
+
+    if(!Name)
+      Name := ClStr(GetDescForItem(ObjType));
+    endif
+
+    AllElems[CInt(Nr)] := array(ObjType, Name, Color, Loc);
+  endforeach
+
+  GInit();
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 700, 440);
+  GAddPageData(665,20,2650,2651,665,408,2648,2647);
+  GMultiPage();
+
+  var n;
+
+  if(setNr == -1)
+    SendSYsMessage(who, "Nie znaieziono przedmiotow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  for(n:=setNr;n<=endNr;n:=n+1)
+    Elem := AllElems[n];
+    GCheckNextPage(20);
+    GTextLine(20, GNPCount()*20+20, 550, EnlNr(CStr(n)));
+    GTextLine(60, GNPCount()*20+20, 550, "O: "+Elem[1]);
+    GTextLine(140, GNPCount()*20+20, 550, "C: "+Elem[3]);
+    GTextLine(240, GNPCount()*20+20, 550, "N: "+Elem[2]);
+    GTextLine(500, GNPCount()*20+20, 550, "L: "+Elem[4][1]+","+Elem[4][2]+","+Elem[4][3]+" "+ClStr(Elem[4][4]));
+  endfor
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnlNr(Nr)
+
+  case(len(Nr))
+    1: Nr := "000"+Nr;
+    2: Nr := "00"+Nr;
+    3: Nr := "0"+Nr;
+  endcase
+  return Nr;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendBIInfo(who,Nr := 0)
+
+  if(!Nr)
+    var Item := LocTarget(who).item;
+    if(!Item.isa(POLCLASS_ITEM))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    Nr := GetItemBINr(item);
+  endif
+
+  if(!Nr)
+    SendSysMessage(who,"Zly numer.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Elem  := FindBaseItemElem(Nr);
+  var Props := {BIPROP_OBJTYPE, BIPROP_COLOR, BIPROP_NAME, BIPROP_LOC, BIPROP_SERIAL, BIPROP_FLAGS};
+  
+  if(!Elem)
+    SendSysMessage(who,"BI Nr ["+Nr+"] nie istnieje.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  while(IsLoggedIn(who))
+    BuildBaseItemInfoGump(Elem, Props, Nr);
+
+    var Res := GSend(who)[0];
+    if(Res)
+      var ChangeProp := Props[Res];
+      if(ChangeProp == BIPROP_LOC)
+        var Loc := FindBaseItemLoc(Nr);
+        MoveObject(who,Loc[1],Loc[2],Loc[3],Loc[4],MOVECHAR_FORCELOCATION);
+      elseif(ChangeProp)
+        var NewValue := SendTextEntryGump(who,"Wprowadz nowa wartosc",TE_CANCEL_ENABLE);
+        if(NewValue)
+          if(CInt(NewValue) or CStr(NewValue) == "0")
+            Elem.SetProp(ChangeProp,CInt(NewValue));
+          else
+            Elem.SetProp(ChangeProp,CStr(NewValue));
+          endif
+          UpdateBaseItemFromData(Nr, who);
+        endif
+      endif
+    else
+      break;
+    endif
+  endwhile
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildBaseItemInfoGump(byref Elem, byref Props, Nr)
+
+  GInit(30,30);
+  GResPic(0,0,3600,400,(120+(len(Props)*20)));
+  GTextLine(150,20,550,"Info BI "+Nr);
+  
+  var i     := 0;
+  var Txt   := "";
+  var Flags := Elem.GetProp(BIPROP_FLAGS);
+
+  foreach Prop in Props
+    GTextLine(30,(50+(20*i)),999,Prop);
+    if(CInt(Elem.GetProp(Prop)));
+      Txt := Hex(Elem.GetProp(Prop)) + "/" + CInt(Elem.GetProp(Prop));
+    elseif(Prop == BIPROP_LOC)
+      Txt := Elem.GetProp(Prop);
+      Txt := Txt[1]+", "+Txt[2]+", "+Txt[3]+" "+Txt[4];
+    elseif(Elem.GetProp(Prop))
+      Txt := CStr(Elem.GetProp(Prop));
+    else
+      Txt := "None";
+    endif
+    GTextLine(120,(50+(20*i)),565,Txt);
+    GButton(350,(50+(20*i)),2117,2118,i+1);
+    i := i + 1;
+  endforeach
+
+  GTextLine(30,(50+(20*i)),999,"Locked");
+  GTextLine(120,(50+(20*i)),565,IsBitOn(Flags, BIF_LOCKED));
+  i := i + 1;
+  GTextLine(30,(50+(20*i)),999,"Invis");
+  GTextLine(120,(50+(20*i)),565,IsBitOn(Flags, BIF_INVIS));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowBIOfType(who,text)
+
+  var PropType := IdentifyProp(who,text);
+  
+  var Value := text[3];
+  if(!Value)
+    Value := SendTextEntryGump(who,"Jaka wartosc ?",TE_CANCEL_ENABLE);
+  endif
+  if(!Value or !PropType)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Data   := GetBaseItemData(),Elem,BIVal,Loc;
+  var i      := 1;
+  var Keys   := Data.Keys();
+  var Add;
+  
+  SendSysMessage(who,"Szukanie BI z "+PropType+" - ["+Value+"]",FONT_NORMAL,COLOR_GREEN);
+  
+  GInit(30, 30);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 750, 460);
+  GAddPageData(718,16,2650,2651,718,428,2648,2647);
+  GMultiPage();
+  
+  foreach BI in Keys
+    if(CInt(BI))
+      Elem  := Data.FindElement(CStr(BI));
+      BIVal := Elem.GetProp(PropType);
+      Add   := 0;
+
+      if(PropType == BIPROP_NAME)
+        if(BIVal[CStr(Value)])
+          Add := 1;
+        endif
+      elseif(CInt(BIVal) == CInt(Value))
+        Add := 1;
+      endif
+
+      Loc := Elem.GetProp(BIPROP_LOC);
+
+      if(Add)
+        GCheckNextPage(20);
+        GTextLine(20, 30+GNPCount()*20, 550, i);
+        GTextLine(80, 30+GNPCount()*20, 999, BI);
+        GTextLine(140, 30+GNPCount()*20, 550, hex(BIVal));
+        GTextLine(200, 30+GNPCount()*20, 670, CInt(BIVal));
+        GTextLine(260, 30+GNPCount()*20, 670, Loc[1]+","+Loc[2]+","+Loc[3]+" "+ClStr(Loc[4]));
+        i := i + 1;
+      endif
+
+    endif
+  endforeach
+
+  SendSysMessage(who, "Znaleziono ["+(i-1)+"] z ["+Keys.size()+"]", FONT_NORMAL, COLOR_GREEN);
+  GSend(who);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeCommandOfType(who,text)
+
+  var PropType := IdentifyProp(who,text);
+  var Value := text[3];
+  if(!Value)
+    Value := SendTextEntryGump(who,"Jaka wartosc ?",TE_CANCEL_ENABLE);
+  endif
+  if(!Value or !PropType)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Data := GetBaseItemData();
+  var num  := 0;
+  var Elem, BIVal;
+
+  SendSysMessage(who,text[1] + " BI z "+PropType+" - ["+Value+"]",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(who,"Na pewno?"))
+    return;
+  endif
+
+  foreach BI in (Data.Keys())
+    if(CInt(BI))
+      Elem := Data.FindElement(CStr(BI));
+      BIVal := Elem.GetProp(PropType);
+      if(PropType == BIPROP_NAME)
+        if(BIVal[CStr(Value)])
+          num := num + 1;
+          MakeTypedCmd(who,text,BI);
+        endif
+      elseif(CInt(BIVal) == CInt(Value))
+        num := num + 1;
+        MakeTypedCmd(who,text,BI);
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,text[1] + " "+num+" BI z "+PropType+" - ["+Value+"]",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeTypedCmd(who,text,BI)
+
+  case(text[1])
+    "deltype": DeleteBaseItem(BI);
+               SendSysMessage(who,"Skasowany BI ["+BI+"]",FONT_NORMAL,COLOR_RED);
+    "destype": DestroyBaseItem(BI);
+               SendSysMessage(who,"Zniszczony BI ["+BI+"]",FONT_NORMAL,COLOR_RED);
+    "reptype": DestroyBaseCreatedItem(BI);
+               CreateBaseItem(BI);
+               SendSysMessage(who,"Odtworzony BI ["+BI+"]",FONT_NORMAL,COLOR_BLUE);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IdentifyProp(who,text)
+
+  case(text[2])
+    "ot":      return "ObjType";
+    "nam":     return "Name";
+    "color":   return "Color";
+    default:   SendSysMessage(who,".bim "+text[1]+" [ot/color/nam]",FONT_NORMAL,COLOR_RED);
+               exit;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddFromConfig(who, text)
+
+  UnloadConfigFile(":baseitems:bi_"+CInt(text[2]));
+  var Realm := GetRealmById(CInt(text[2]));
+  var Cfg   := ReadConfigFile(":baseitems:bi_"+CInt(text[2]));
+  if(!Cfg)
+    SendSysMessage(who, "Konfig :baseitems:bi_"+CInt(text[2])+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Inform := 1;
+  var Num    := 0;
+  var Added  := 0;
+  var Bad    := 0;
+  var Ex     := 0;
+  var BiNr;
+  var GoOn;
+
+  if("ni" in text)
+    Inform := 0;
+  endif
+
+  foreach Item in GetConfigStringArray(Cfg["Items"], "Item")
+    Item    := SplitWords(Item);
+    Num     := Num + 1;
+    GoOn    := 1;
+
+    if(Item[4] == error or Item.size() != 4)
+      SendSysMessage(who, "Bledny Item "+Item, FONT_NORMAL, COLOR_RED);
+      Bad := Bad + 1;
+    else
+      Item[1] := CInt(Item[1]);
+      Item[2] := CInt(Item[2]);
+      Item[3] := CInt(Item[3]);
+      Item[4] := CInt(Item[4]);
+
+      if(!Item[1] or !Item[2] or !Item[3])
+        SendSysMessage(who, "Bledny Item "+Item, FONT_NORMAL, COLOR_RED);
+        Bad := Bad + 1;
+      else
+        foreach bItem in ListItemsAtLocation(Item[2], Item[3], Item[4], Realm)
+          if(bItem.objtype == Item[1] and bItem.z == Item[4])
+            if(GetItemBiNr(bItem))
+              SendSysMessage(who, "Istniejacy przedmiot "+Item+", pomijanie.", FONT_NORMAL, COLOR_RED);
+              Ex := Ex + 1;
+              GoOn := 0;
+            else
+              SendSysMessage(who, "Istniejacy przedmiot "+Item+" nie BI! Kasowanie.", FONT_NORMAL, COLOR_RED);
+              DestroyItem(bItem);
+              GoOn := 0;
+            endif
+          endif
+        endforeach
+
+        if(!GoOn)
+          continue;
+        endif
+
+        if(Inform)
+          SendSysMessage(who, "N:["+Num+"] A:["+Added+"] B:["+Bad+"] E:["+Ex+"]",FONT_NORMAL, COLOR_BLUE);
+          SendSysMessage(who, "ObjType: "+Item[1]+" ["+Item[2]+","+Item[3]+","+Item[4]+"] Pid: "+GetPid(), FONT_NORMAL, COLOR_GREEN);
+          MoveObject(who, Item[2], Item[3], Item[4], Realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+          if(!YesNo(who, "Postawic?"))
+            continue;
+          endif
+        endif
+
+        BiNr := AddBaseItem(Item[1], Item[2], Item[3], Item[4], Realm);
+        if(BiNr)
+          var Res := CreateBaseItem(BiNr);
+          if(Res)
+            Added := Added + 1;
+            if(Inform)
+              SendSysMessage(who, "Dodano BI ["+BiNr+"]", FONT_NORMAL, COLOR_GREEN);
+            endif
+          elseif(Inform)
+            SendSysMessage(who, "Blad podczas tworzenia BI, Nr ["+BiNr+"]: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+          endif
+        else
+          SendSysMessage(who, "Nie udalo sie dodac BI Nr ["+BiNr+"]: "+Item, FONT_NORMAL, COLOR_RED);
+          return;
+        endif
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who, "All: "+Num+" Added: "+Added+" Bad: "+Bad+" Ex: "+Ex, FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListNearBI(who, text)
+
+  var Box := GetBoxCoordsFromText(who, text, "bim");
+
+  if(!Box)
+    return 0;
+  endif
+
+  var List := array;
+
+  foreach Item in ListObjectsInBox(Box.sX, Box.sY, -128, Box.eX, Box.eY, 128, Box.Realm)
+    if(Item.isa(POLCLASS_ITEM))
+      if(GetItemBINr(Item))
+        List.append(Item);
+      endif
+    endif
+    Sleepms(1);
+  endforeach
+
+  if(!List.size())
+    SendSysMessage(who, "Nie znaleziono BI.", FONT_NORMAL, COLOR_RED);
+    return 1;
+  endif
+
+  SendSysMessage(who, "Znaleziono ["+List.size()+"] BI.", FONT_NORMAL, COLOR_GREEN);
+
+  var TempList, Nr;
+
+  while(IsLoggedIn(who))
+    TempList := array;
+
+    Nr := ShowItemsInGump(who, List, "BI");
+    if(Nr)
+      MoveObject(who, List[Nr].x, List[Nr].y, List[Nr].z, Box.Realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    else
+      break;
+    endif
+
+    foreach Item in List
+      if(GetItemBINr(Item))
+        TempList.append(Item);
+      endif
+    endforeach
+
+    List := TempList;
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

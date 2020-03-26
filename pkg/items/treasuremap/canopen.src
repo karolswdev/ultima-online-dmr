@@ -1,0 +1,33 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//--------------------------------------------------------------------------------
+
+program CanOpenTreasureChest(who,chest)
+
+  var Sers := GetObjProperty(Chest, "OppSers");
+
+  if(Sers)
+  
+    foreach Ser in Sers
+      if(SystemFindObjectBySerial(CInt(Ser)))
+        SendSysMessage(who,"Straznicy nadal pilnuja skarbu!",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endforeach
+
+    EraseObjProperty(Chest, "OppSers");
+  endif
+  
+  chest.locked := 0;
+  SendViewContainer(who,chest);
+
+endprogram
+
+//--------------------------------------------------------------------------------

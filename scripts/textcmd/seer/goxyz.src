@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/client/fonts";
+include "include/log";
+
+//-----------------------------------------------------------------------------
+
+program GoXYZCmd( who, text )
+
+  var params := SplitWords( text );
+  var Realm  := who.realm;
+
+  if(params[4])
+    Realm := GetRealmById(params[4]);
+    if(!Realm)
+      SendSysMessage(who, "Bledny realm: "+params[4]+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(params[1] == error or params[2] == error)
+    SendSysMessage(who, "Nie podano X lub Y.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(params.size() < 3 or params[3] == "m")
+    params[3] := GetMapInfo( CInt(params[1]), CInt(params[2]), Realm ).z;
+  elseif(params[3] == "w")
+    params[3] := GetWorldHeight(CInt(params[1]), CInt(params[2]), Realm);
+  endif
+
+  if(params[3] == error)
+    SendSysMessage(who, "Blad coorda Z: "+params[3], FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  LogMsg(GOTO_LOG,who,{0,CInt(params[1]), CInt(params[2]), CInt(params[3]), Realm});
+  var res   := MoveObject(who, CInt(params[1]), CInt(params[2]), CInt(params[3]),  Realm, MOVEOBJECT_FORCELOCATION, MOVETYPE_CMD);
+
+  if (!res)
+    SendSysMessage( who, "Blad: " + res.errortext,FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage( who, "Przenoszenie do lokacji X: "+params[1]+" Y: "+params[2]+" Z: "+params[3]+" RM: "+Realm+".",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

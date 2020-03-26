@@ -1,0 +1,75 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magicatt";
+include "include/poison";
+include "include/finding";
+include "include/attack";
+include "include/const/props";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 39;
+
+//-----------------------------------------------------------------------------
+
+program PoisonFieldControl( field )
+  
+  var Circle    := GetSpellValue(SPELL_ID,"Circle");
+  var SpellType := GetSpellValue(SPELL_ID,"SpellType");
+
+  if(!Circle)
+    Circle := 3;
+  endif
+
+  var CasterSer        := CInt(GetObjProperty(field, PROP_SUMMONED_FIELD));
+  var Caster           := FindPlayerBySerial(CasterSer);
+  var CasterPoisoning  := GetEffectiveSkill(Caster,SKILLID_POISONING);
+  var CasterMagery     := GetEffectiveSkill(Caster,SKILLID_MAGERY);
+  var CasterEi         := GetEffectiveSkill(Caster,SKILLID_EVALINT);
+  var plvl             := CInt(CasterMagery / 33) + CInt(CasterPoisoning / 33) + CInt(CasterEi / 100);
+  var fx               := field.x;
+  var fy               := field.y;
+  var fz               := field.z;
+  var fRealm           := field.realm;
+  var Dmg := 0,i;
+
+  SetScriptController(Caster);
+  
+  while(field and Caster)
+  
+    foreach CastOn in ListMobilesNearLocation(fx, fy, fz, 0, fRealm)
+      
+      if(GetNpcConfig(CastOn).WallsImmune or !CanDamageWall(Caster,CastOn))
+        continue;
+      endif
+
+      PlaySoundEffect (field, SFX_SPELL_POISON_FIELD);
+      Dmg := CalcSpellDamage(Circle, Caster, CastOn, SpellType, NO_FIELD_REDUCE)/10;
+      if(CastOn.isA(POLCLASS_NPC))
+        if(IsNpcElemental(CastOn, NPCELEM_POISON))
+          Dmg := CalcSpellDamage(Circle, Caster, CastOn, SpellType, NO_FIELD_REDUCE);
+          HealMobile(CastOn,Dmg,Caster);
+        else
+          SetPoison(CastOn,plvl,Caster);
+        endif
+
+      elseif(!CastOn.dead)
+        SetPoison(CastOn,plvl,Caster);
+      endif
+
+      DoMagicDamage(CastOn, Caster, Dmg, Circle, DMGTYPE_MISC, SpellType, NO_RESIST_GAIN);
+    endforeach
+    
+    for(i:=1;i<=15;i:=i+1)
+      sleepms(100);
+      if(GetObjProperty(Field,"WalkOn"))
+        EraseObjProperty(Field,"WalkOn");
+        break;
+      endif
+    endfor
+
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------

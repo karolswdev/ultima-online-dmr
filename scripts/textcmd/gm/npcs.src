@@ -1,0 +1,1298 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/log";
+include "include/std";
+include "include/npcs";
+include "include/findcity";
+include "include/command_func";
+include "include/cmds/cancmd";
+include "include/portals";
+
+include ":magic:magicatt";
+include ":quests:quests";
+include ":magicitems:magicitems";
+
+//-----------------------------------------------------------------------------
+
+var LootCfg   := ReadConfigFile(LOOTS_CFG);
+var ClothsCfg := ReadConfigFile(CLOTHS_CFG);
+var ColorsCfg := ReadConfigFile(COLORS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program ShowAllNpcs(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var Split := SplitWords(text);
+  var Template;
+  
+  case(Split[1])
+    "c":       Template := Split[2];
+               CreateSelectedNpc(Template, who, text);
+               return;
+
+    "p":       Template := Split[2];
+               CreateSelectedNpcOnPortal(Template, who, text);
+               return;
+
+    "d":       Template := SelectTemplate(who,Split[2],1);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+
+    "n":       Template := SelectTemplate(who,Split[2],2);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+
+    "exp":     Template := ShowExpansionTemplates(who, Split[2]);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+
+    "elem":    Template := ShowElementalTemplates(who, Split[2]);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+
+    "prop":    Template := ShowTemplatesWithProp(who, Split[2], Split[3]);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+
+    "align":   Template := ShowTemplatesWithAlign(who, Split[2]);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+               
+    "strong":
+    "super":   Template := ShowTemplatesForGroup(who, Split[1]);
+               if(Template)
+                 CreateSelectedNpc(Template, who, text);
+               endif
+               return;
+  endcase
+
+  if(text)
+    if(GetNpcConfig(text))
+      Template := text;
+    endif
+  else
+    Template := SelectNpcsGump(who, GetAllNpcTemplates());
+    if(!Template)
+      return;
+    endif
+  endif
+
+  if(!Template)
+    SendSysMessage(who,"Nie znaleziono Template ["+text+"].",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  ShowTemplateDetails(Template, who);
+
+endprogram
+
+
+//-----------------------------------------------------------------------------
+
+function ShowElementalTemplates(who, Elem)
+
+  var AllTemps := GetAllNpcTemplates();
+  var Temps    := array;
+
+  foreach Temp in AllTemps
+    if(IsNpcElemental(Temp, Elem))
+      Temps.append(Temp);
+    endif
+  endforeach
+
+  return SelectNpcsGump(who, Temps);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTemplatesWithProp(who, Prop, Value)
+
+  var AllTemps := GetAllNpcTemplates();
+  var Temps    := array;
+  var Props, cfgElem;
+  Prop         := lower(Prop);
+
+  foreach Temp in AllTemps
+    cfgElem := GetNpcConfig(Temp);
+    Props := ListConfigElemProps(cfgElem);
+    foreach eProp in Props
+      if(lower(eProp)[Prop])
+        if(Value != error)
+          if(GetConfigString(cfgElem, Prop) == Value)
+            Temps.append(Temp);
+            break;
+          endif
+        else
+          Temps.append(Temp);
+          break;
+        endif
+      endif
+    endforeach
+  endforeach
+
+  return SelectNpcsGump(who, Temps);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTemplatesWithAlign(who, Align)
+
+  var AllTemps := GetAllNpcTemplates();
+  var Temps    := array;
+  Align        := lower(Align);
+  var cfgElem;
+
+  foreach Temp in AllTemps
+    cfgElem := GetNpcConfig(Temp);
+
+    if(Align == "city")
+      if(cfgElem.CityNpc)
+        Temps.append(Temp);
+      endif
+    elseif(!cfgElem.CityNpc)
+      if(cfgElem.alignment == Align)
+        Temps.append(Temp);
+      endif
+    endif
+  endforeach
+
+  return SelectNpcsGump(who, Temps);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsSuperNpcByCfgElem(cfgElem)
+
+  var MagicItem := SplitWords(cfgElem.MagicItem);
+  
+  if(CInt(MagicItem[2]) >= 14)
+    return 1;
+  endif
+  
+  if(!cfgElem.CityNpc and (cfgElem.Wrestling >= 105 or cfgElem.Swordsmanship >= 105 or cfgElem.Macefighting >= 105 or cfgElem.Axesmanship >= 105 or cfgElem.Fencing >= 105))
+    if(cfgElem.HITS >= 2000)
+      return 1;
+    endif
+  endif
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsStrongNpcByCfgElem(cfgElem)
+
+  var MagicItem := SplitWords(cfgElem.MagicItem);
+  
+  if(CInt(MagicItem[2]) >= 11)
+    return 1;
+  endif
+  
+  if(!cfgElem.CityNpc and (cfgElem.Wrestling >= 100 or cfgElem.Swordsmanship >= 100 or cfgElem.Macefighting >= 100 or cfgElem.Axesmanship >= 100 or cfgElem.Fencing >= 100))
+    if(cfgElem.HITS >= 1000)
+      return 1;
+    endif
+  endif
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTemplatesForGroup(who, GroupName)
+
+  var AllTemps := GetAllNpcTemplates();
+  var Temps    := array;
+  GroupName    := lower(GroupName);
+  var cfgElem;
+
+  foreach Temp in AllTemps
+    cfgElem := GetNpcConfig(Temp);
+
+    if(GroupName == "super")
+      if(IsSuperNpcByCfgElem(cfgElem))
+        Temps.append(Temp);
+      endif
+    elseif(GroupName == "strong")
+      if(IsStrongNpcByCfgElem(cfgElem) and !IsSuperNpcByCfgElem(cfgElem))
+        Temps.append(Temp);
+      endif
+    endif
+  endforeach
+
+  return SelectNpcsGump(who, Temps);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowExpansionTemplates(who, Expansion)
+
+  var AllTemps := GetAllNpcTemplates();
+  var Temps    := array;
+  var cfgElem;
+
+  foreach Temp in AllTemps
+    cfgElem := GetNpcConfig(Temp);
+
+    if(!Expansion)
+      if(!cfgElem.Expansion)
+        Temps.append(Temp);
+      endif
+    elseif(cfgElem.Expansion == Expansion)
+      Temps.append(Temp);
+    endif
+  endforeach
+
+  return SelectNpcsGump(who, Temps);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTemplateDetails(Template, who)
+
+  var Elem := GetNpcConfig(Template);
+
+  if(!Elem)
+    return;
+  endif
+
+  var CItm := SplitWords(Elem.corpseitm);
+  var CAmt := SplitWords(Elem.corpseamt);
+  var MI   := SplitWords(Elem.MagicItem);
+  var Spells := GetConfigStringArray(Elem,"spell");
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,650,550);
+  
+  GTextLine(40,20,999,"NpcTemplate:");
+  GTextLine(120,20,1318,Template);
+
+  if(Elem.Expansion)
+    GTextLine(240,20,999,"Expansion: ");
+    GTextLine(300,20,1420,upper(Elem.Expansion));
+  endif
+
+  GResPic(30, 45, BKGND_GOLDTRIM, 300, 350);
+  GTextLine(130, 38,1000,"Podstawowe:");
+
+  GTextLine(40, 60,550,"Imie");
+  GTextLine(120,60,560,Elem.Name);
+
+  GTextLine(40, 80,550,"Skrypt");
+  GTextLine(120,80,560,Elem.script);
+
+  GTextLine(40, 100,550,"ObjType");
+  GTextLine(120,100,560,Elem.ObjType);
+
+  var Align := Elem.alignment;
+  if(!Align)
+    Align := CITYAL_NEUTRAL;
+  endif
+  GTextLine(200,100,550,"Alignment");
+  GTextLine(270,100,560,Align);
+
+  GTextLine(40, 120,550,"Gender");
+  case(CInt(Elem.Gender))
+    0: GTextLine(120,120,560,"Random");
+    1: GTextLine(120,120,560,"Male");
+    2: GTextLine(120,120,560,"Female");
+  endcase
+
+  GTextLine(200, 120,550,"RunSpeed");
+  if(CInt(Elem.RunSpeed))
+    GTextLine(270,120,560,CInt(Elem.RunSpeed));
+  else
+    GTextLine(270,120,560,Elem.DEX);
+  endif
+
+  var HitAnimArr := {0x5,0x6,0xc};
+  if(Elem.HitAnim)
+    HitAnimArr := SplitWords(Elem.HitAnim);
+  endif
+
+  var DmgAnimArr := {0xf};
+  if(Elem.DmgAnim)
+    DmgAnimArr := SplitWords(Elem.DmgAnim);
+  endif
+
+  foreach Anim in HitAnimArr
+    Anim := hex(Anim);
+  endforeach
+
+  foreach Anim in DmgAnimArr
+    Anim := hex(Anim);
+  endforeach
+
+  GTextLine(40, 140,550,"HitAnims");
+  GTextLine(120,140,998, CombineWords(HitAnimArr));
+
+  GTextLine(40, 160,550,"DmgAnims");
+  GTextLine(120,160,998, CombineWords(DmgAnimArr));
+
+  GTextLine(40, 180,550,"Color");
+  if(Elem.colors)
+    var Colors := SplitWords(Elem.colors);
+    var cText  := "";
+    var h      := 0;
+
+    foreach Color in Colors
+      if(!cText)
+        cText := Color;
+      else
+        cText := cText + " "+Color;
+      endif
+
+      if(len(cText) > 20)
+        GTextLine(120,180+h,560, cText);
+        cText := "";
+        h := h + 20;
+      endif
+    endforeach
+
+    if(cText)
+      GTextLine(120,180+h,560, cText);
+    endif
+  else
+    GTextLine(120,180,560,CInt(Elem.TrueColor)+"/"+CInt(Elem.Color));
+  endif
+
+  GTextLine(40,230,550,"Str");
+  GTextLine(90,230,560,Elem.STR);
+
+  GTextLine(40, 250,550,"Dex");
+  GTextLine(90,250,560,Elem.DEX);
+
+  GTextLine(40, 270,550,"Int");
+  GTextLine(90,270,560,Elem.INT);
+
+  GTextLine(150,230,550,"Hits");
+  GTextLine(200,230,560,Elem.HITS);
+
+  GTextLine(150,250,550,"Stam");
+  GTextLine(200,250,560,Elem.STAM);
+
+  GTextLine(150,270,550,"Mana");
+  GTextLine(200,270,560,Elem.MANA);
+
+  GTextLine(40, 300,550,"AttackSk");
+  GTextLine(120,300,560,GetSkillConfigElem(GetSkillIdByAttributeId(Elem.AttackAttribute)).Name);
+
+  GTextLine(40, 320,550,"Dmg");
+  GTextLine(120,320,560,Elem.AttackDamage);
+
+  GTextLine(40,340,550,"Speed");
+  GTextLine(120,340,560,Elem.AttackSpeed);
+
+  GTextLine(40,360,550,"Ar");
+  GTextLine(120,360,560,CInt(Elem.AR));
+
+  GResPic(30, 400, BKGND_GOLDTRIM, 300, 105);
+  GTextLine(140, 393,1000,"Zwloki:");
+
+  if(Elem.MagicItem)
+    GTextLine(180,410,550,"MagicItem:");
+    GTextLine(180,430,560,"CH: "+CInt(MI[1])+" Lvl: "+CInt(MI[2]));
+  endif
+
+  if(Elem.corpseitm)
+    var i := 1;
+    foreach Itm in CItm
+      GTextLine(40, 390+(20*i),550,Itm);
+      GTextLine(120,390+(20*i),560,CInt(CAmt[i]));
+      i := i + 1;
+    endforeach
+  endif
+
+  var h  := 40;
+  
+  var Attrs := GetNpcAttributes(Elem);
+  var sSize := Attrs.size()*20;
+  if(sSize < 100)
+    sSize := 100;
+  endif
+
+  GResPic(345, 25, BKGND_GOLDTRIM, 280, 30+sSize);
+  GTextLine(435, 17,1000,"Umiejetnosci:");
+
+  var SkVal, SkId;
+  
+  foreach Attr in Attrs
+    SkVal := GetConfigInt(Elem, Attr);
+    if(SkVal)
+      SkId := GetSkillIdByAttributeId(Attr);
+      GTextLine(355, h, 550, GetSkillConfigElem(SkId).Name);
+      GTextLine(520, h, 560, SkVal);
+      h := h + 20;
+    endif
+  endforeach
+
+  h := 40 + sSize;
+
+  GButton(40,510,2714,2715,1);
+  GTextLine(60, 510,550,"Create");
+
+  GButton(170,510,2714,2715,5);
+  GTextLine(190, 510,550,"Portal");
+
+  if(Elem.Equipt)
+    GButton(300,510,2714,2715,3);
+    GTextLine(320, 510,550,"Equip");
+  endif
+
+  if(Spells.size())
+    GButton(430,510,2714,2715,4);
+    GTextLine(450, 510,550,"Spells");
+  endif
+
+  if(Elem.lootgroup)
+    GButton(530,510,2714,2715,2);
+    GTextLine(550, 510,550,"Loot");
+  endif
+
+  
+  GResPic(345, 415, BKGND_GOLDTRIM, 280, 90);
+  GTextLine(425, 408,1000,"Elementals:");
+
+  var i := 0;
+
+  foreach Elemental in GetNpcElementals(Template)
+    GTextLine(355, 425+i*20, 999, (i+1)+".");
+    GTextLine(375, 425+i*20, 550, Elemental);
+    i := i + 1;
+  endforeach
+
+  i := 0;
+
+  var Resists := array("EResist", "FResist", "CResist", "NResist", "DResist", "MResist");
+  var Val;
+
+  foreach Resist in Resists
+    Val := GetConfigInt(Elem, Resist);
+    if(Val)
+      GTextLine(460, 425+i*20, 999, (i+1)+".");
+      GTextLine(480, 425+i*20, 550, Resist);
+      GTextLine(550, 425+i*20, 550, Val+"%");
+      i := i + 1;
+    endif
+  endforeach
+
+  sSize := GetPropWinSize(Elem);
+  if(sSize < 100)
+    sSize := 100;
+  endif
+  GResPic(345, 20+h, BKGND_GOLDTRIM, 280, 30+sSize);
+
+  GPage();
+  GTextLine(375, 12+h,1000,"Wlasciwosci:");
+  GButtonPage(485, 15+h,2117, 2118, 2);
+  GTextLine(505, 12+h, 1000,"Flagi");
+
+  var ph := h;
+
+  h := h + 30;
+  
+  if(Elem.CityNpc)
+    GTextLine(355,h,550,"AnchorRange");
+    GTextLine(440,h,560,CInt(Elem.dstart));
+
+    h := h + 20;
+    
+    GTextLine(355,h,550,"Wealth");
+    if(Elem.wealth != error)
+      GTextLine(440,h,560,Elem.wealth);
+    else
+      GTextLine(440,h,560,"None");
+    endif
+
+    h := h + 20;
+    
+    GTextLine(355,h,550,"MercType");
+    if(Elem.MercType != error)
+      GTextLine(440,h,560,Elem.MercType);
+    else
+      GTextLine(440,h,560,"None");
+    endif
+
+    h := h + 20;
+
+    if(Elem.QuestType)
+      var Types := GetConfigStringArray(Elem, "QuestType");
+      foreach Type in Types
+        Type := SplitWords(Type);
+        Type[1] := CInt(Type[1]);
+        Type[2] := CInt(Type[2]);
+        GTextLine(355, h, 550, "QuestType");
+        GTextLine(440, h, 550, GetQuestTypeName(Type[1]));
+        GTextLine(520, h, 550, GetQuestSubTypeName(Type[2]));
+        h := h + 20;
+      endforeach
+    endif
+
+
+  else
+
+
+    GTextLine(355,h,550,"TameSkill");
+    if(Elem.tameskill != error)
+      GTextLine(440,h,1419,Elem.tameskill);
+    else
+      GTextLine(440,h,1204,"None");
+    endif
+    GTextLine(485,h,550,"Provoke");
+    if(Elem.Provoke != error)
+      GTextLine(570,h,1419,Elem.Provoke);
+    else
+      GTextLine(570,h,1204,"None");
+    endif
+
+    h := h + 20;
+    
+    if(Elem.MaxTamedCount)
+      GTextLine(355,h,550,"MaxTamed");
+      GTextLine(440,h,1419,Elem.MaxTamedCount);
+      h := h + 20;
+    endif
+    
+    if(Elem.ReqSkill)
+      var ReqSkill := SplitWords(Elem.ReqSkill);
+      GTextLine(355,h,550,"ReqSkill");
+      GTextLine(440,h,560, GetSkillConfigElem(CInt(ReqSkill[1])).name);
+      GTextLine(570,h,1419, ReqSkill[2]);
+      h := h + 20;
+    endif
+
+    var FleePoint := CInt(Elem.FleePoint);
+    if(Elem.FleePoint == error)
+      FleePoint := DEF_FLEEPOINT;
+    endif
+
+    GTextLine(355,h,550,"FleePoint");
+    GTextLine(440,h,560,FleePoint+"%");
+    
+    if(Spells.size())
+      var SpellTime := DEF_SPELLTIME;
+      if(Elem.SpellTime)
+        SpellTime := CInt(Elem.SpellTime);
+      endif
+      GTextLine(485,h,550,"SpellTime");
+      GTextLine(570,h,560,SpellTime+"s");
+    endif
+
+    h := h + 20;
+
+    if(CInt(Elem.ProvokeTamedChance))
+      GTextLine(355,h,550,"ProvTamed");
+      GTextLine(440,h,560,Elem.ProvokeTamedChance+"%");
+      GTextLine(485,h,560,Elem.ProvokeTamedTime+"s");
+      GTextLine(355,h+20,550,"ProvTemps");
+      GTextLine(440,h+20,560,Elem.ProvokeTamed);
+      h := h + 40;
+    endif
+
+    if(CInt(Elem.AutoDispel))
+      GTextLine(355,h,550,"AutoDispel");
+      GTextLine(440,h,560,Elem.AutoDispel+"%");
+      GTextLine(485,h,560,Elem.AutoDispelTime+"s");
+      h := h + 20;
+    endif
+
+    if(Elem.AutoSummonTemp)
+      GTextLine(355,h,550,"AutoSummon");
+      GTextLine(440,h,560,Elem.AutoSummonTemp);
+      GTextLine(440,h+20,560,CInt(Elem.AutoSummonTime)+"s");
+      GTextLine(485,h+20,560,"Amt: "+CInt(Elem.AutoSummonAmt));
+      h := h + 40;
+    endif
+
+    if(Elem.WhirlwindAttack)
+      GTextLine(355,h,550,"Whirlwind");
+      GTextLine(440,h,560,CInt(Elem.WhirlwindAttack)+"%");
+      h := h + 20;
+    endif
+
+    if(Elem.CrushingBlow)
+      GTextLine(355,h,550,"CrushingBlow");
+      GTextLine(440,h,560,CInt(Elem.CrushingBlow)+"%");
+      h := h + 20;
+    endif
+
+    if(Elem.ConcussionBlow)
+      GTextLine(355,h,550,"Concussion");
+      GTextLine(440,h,560,CInt(Elem.ConcussionBlow)+"%");
+      h := h + 20;
+    endif
+
+    if(Elem.HpDrainSkillTime)
+      GTextLine(355,h,550,"HpDrain");
+      GTextLine(440,h,560,CInt(Elem.HpDrainSkillTime)+"s");
+      GTextLine(485,h,560,"Amt: "+CInt(Elem.HpDrainSkillAmt));
+      GTextLine(550,h,560,"Rng: "+CInt(Elem.HpDrainSkillRange));
+      h := h + 20;
+    endif
+
+    if(Elem.PlagueSkillTime)
+      GTextLine(355,h,550,"Plague");
+      GTextLine(440,h,560,CInt(Elem.PlagueSkillTime)+"s");
+      GTextLine(485,h,560,"Lvl: "+CInt(Elem.PlagueSkillLvl));
+      GTextLine(550,h,560,"Rng: "+CInt(Elem.PlagueSkillRange));
+      h := h + 20;
+    endif
+
+    if(Elem.CProp)
+      var Props := GetConfigStringArray(Elem, "CProp");
+      foreach Prop in Props
+        Prop := SplitWords(Prop);
+        if(Prop[1] == "ForceField")
+          GTextLine(355,h,550,"ForceField");
+          GTextLine(440,h,560,CInt(Prop[2][2,len(Prop[2])-1]) );
+          h := h + 20;
+          break;
+        elseif(Prop[1] == "poison_strength")
+          GTextLine(355,h,550,"Trucie");
+          GTextLine(440,h,560,CInt(Prop[2][2,len(Prop[2])-1]) );
+          h := h + 20;
+          break;
+        endif
+      endforeach
+    endif
+
+    if(Elem.AutoSpell)
+      GTextLine(355,h,550,"AutoSpell");
+      GTextLine(440,h,560,GetSpellValue(CInt(Elem.AutoSpell),"Name",STRING_ID));
+      GTextLine(440,h+20,560,CInt(Elem.AutoSpellTime)+"s");
+      GTextLine(485,h+20,560,"Charges: "+CInt(Elem.AutoSpellCharges));
+      h := h + 40;
+    endif
+    
+    if(Elem.AcidPool)
+      GTextLine(355,h,550,"AcidPool");
+      GTextLine(440,h,560,"Dmg: "+CInt(Elem.AcidPool));
+      h := h + 20;
+    endif
+   
+    if(Elem.food)
+      GTextLine(355,h,550,"Food");
+      GTextLine(440,h,560,Elem.food);
+      h := h + 20;
+    endif
+   
+    if(Elem.ReGrowGrap)
+      GTextLine(355,h,550,"ReGrowGrap");
+      GTextLine(440,h,560,hex(Elem.ReGrowGrap));
+      GTextLine(355,h+20,550,"ShearingItem");
+      GTextLine(440,h+20,560,hex(Elem.ShearingItem));
+      h := h + 40;
+    endif
+   
+    if(Elem.LayItem)
+      GTextLine(355,h,550,"LayItem");
+      GTextLine(440,h,560,Elem.LayItem);
+      h := h + 20;
+    endif
+   
+    if(Elem.HateList)
+      GTextLine(355,h,550,"HateList");
+      GTextLine(440,h,560,Elem.HateList);
+      h := h + 20;
+    endif
+    
+    if(Elem.MagicHitMod)
+      var Name := GetPrefixName(0, Elem.MagicHitMod);
+      Name[len(Name)] := "y";
+      GTextLine(355,h,550,"MagicHit");
+      GTextLine(440,h,560, Name);
+      GTextLine(520,h,550,"Level:");
+      GTextLine(570,h,1419, Elem.MagicHitLvl);
+      h := h + 20;
+    endif
+    
+    if(Elem.HitHealBreak)
+      GTextLine(355,h,550,"HitHealBreak");
+      var HitHealBreak := SplitWords(Elem.HitHealBreak);
+      GTextLine(440,h,560,CInt(HitHealBreak[1])+"%");
+      GTextLine(485,h,560,CInt(HitHealBreak[2])+"s");
+      h := h + 20;
+    endif
+    
+    if(Elem.HitDisMount)
+      GTextLine(355,h,550,"HitDisMount");
+      GTextLine(440,h,560,CInt(Elem.HitDisMount)+"%");
+      h := h + 20;
+    endif
+    
+    if(Elem.DecreaseHealth)
+      GTextLine(355,h,550,"DecHealth");
+      GTextLine(440,h,560,CInt(Elem.DecreaseHealth)+"%");
+      h := h + 20;
+    endif
+    
+    if(Elem.IdlePlayGood)
+      GTextLine(355,h,550,"IdlePlay");
+      GTextLine(440,h,560,"G:"+hex(Elem.IdlePlayGood));
+      GTextLine(505,h,560,"B:"+hex(Elem.IdlePlayGood));
+      GTextLine(570,h,560,"A:"+hex(Elem.IdlePlayAnim));
+      h := h + 20;
+    endif
+    
+    if(Elem.TreeForm)
+      GTextLine(355,h,550,"TreeForms");
+      GTextLine(440,h,560,Elem.TreeForm);
+      GTextLine(355,h+20,550,"TreeLeaves");
+      if(Elem.TreeFormLeaves != error)
+        GTextLine(440,h+20,560,Elem.TreeFormLeaves);
+      else
+        GTextLine(440,h+20,1204, "None");
+      endif
+
+      GTextLine(355,h+40,550,"TreeLand");
+      GTextLine(440,h+40,560,Elem.TreeFormLand);
+
+      GTextLine(355,h+60,550,"TreeColor");
+      GTextLine(440,h+60,560,CInt(Elem.TreeFormColor));
+      GTextLine(520,h+60,560,"Rng: "+Elem.TreeFormRange);
+      h := h + 80;
+    endif
+    
+    if(Elem.FlameStrength)
+      GTextLine(355,h,550,"FlameBreath");
+      GTextLine(440,h,560,"Dmg: "+Elem.FlameStrength);
+      GTextLine(520,h,550,"Anim:");
+      GTextLine(570,h,1419, CInt(Elem.FlameAnim));
+      h := h + 20;
+    endif
+    
+    if(Elem.AutoHealing)
+      GTextLine(355,h,550,"AutoHealing");
+      GTextLine(440,h,560,Elem.AutoHealing+"%hp");
+      GTextLine(480,h,560,CInt(Elem.AutoHealingTime)+"s");
+      GTextLine(520,h,560,CInt(Elem.AutoHealingChance)+"%");
+      h := h + 20;
+    endif
+    
+    if(Elem.GenderRestrict)
+      GTextLine(355,h,550,"OnlyGender");
+      var Gender := "-";
+      case(Elem.GenderRestrict)
+        1: Gender := "Male";
+        2: Gender := "Female";
+      endcase
+      GTextLine(440,h,560, Gender);
+      h := h + 20;
+    endif
+
+    if(Elem.KamikazeExplode)
+      GTextLine(355,h,550,"KamikazeExplo");
+      GTextLine(440,h,560,Elem.KamikazeExplode);
+      h := h + 20;
+    endif
+  endif
+
+  h := ph;
+
+  GPage();
+  GTextLine(375, 12+h,1000,"Flagi:");
+  GButtonPage(485, 15+h,2117, 2118, 1);
+  GTextLine(505, 12+h, 1000,"Wlasciwosci");
+
+  h := h + 30;
+
+  var NpcProps := array("CanLieDown", 
+                        "AnimalAnims", 
+                        "WearWolfBite", 
+                        "VampireBite", 
+                        "NoArRed", 
+                        "CityNpc", 
+                        "guardignore", 
+                        "CanGiveCraftQuest", 
+                        "OpensDoors", 
+                        "WallsImmune", 
+                        "PoisonImmune",
+                        "NoLooting", 
+                        "DispelAllNear", 
+                        "NoParalyze", 
+                        "SpecialSight", 
+                        "GuardEveryWhere",
+                        "NoBoatFear",
+                        "GuardNotFromNpc",
+                        "GrabLoot",
+                        "OnlyOneTamed",
+                        "FireBloodImmune");
+
+  foreach NpcProp in NpcProps
+    if(GetConfigInt(Elem, NpcProp))
+      GTextLine(355, h, 550, NpcProp);
+      h := h + 20;
+    endif
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  case(Res)
+    1: CreateSelectedNpc(Template, who);
+    2: ShowLoot(Template, who);
+    3: ShowEquip(Template, who);
+    4: ShowSpells(Template, who);
+    5: CreateSelectedNpcOnPortal(Template, who);
+  endcase
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetNpcAttributes(Elem)
+  
+  var AttrCfg := ReadConfigFile(ATTRIBUTES_CFG);
+  var Attrs   := array;
+  var SkId, SkVal;
+
+  foreach Attr in GetConfigStringKeys(AttrCfg)
+    SkVal := GetConfigInt(Elem, Attr);
+    if(!SkVal and AttrCfg[Attr].Alias)
+      Attr  := AttrCfg[Attr].Alias;
+      SkVal := GetConfigInt(Elem, Attr);
+    endif
+
+    if(SkVal)
+      SkId := GetSkillIdByAttributeId(Attr);
+      if(SkId != error)
+        Attrs.append(Attr);
+      endif
+    endif
+  endforeach
+
+  return Attrs;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetPropWinSize(Elem)
+
+  if(Elem.CityNpc)
+    return 150;
+  else
+    var h := 40; 
+
+    if(CInt(Elem.ProvokeTamedChance))
+      h := h + 40;
+    endif
+
+    if(CInt(Elem.AutoDispel))
+      h := h + 20;
+    endif
+
+    if(Elem.AutoSummonTemp)
+      h := h + 40;
+    endif
+
+    if(Elem.WhirlwindAttack)
+      h := h + 20;
+    endif
+
+    if(Elem.CrushingBlow)
+      h := h + 20;
+    endif
+
+    if(Elem.ConcussionBlow)
+      h := h + 20;
+    endif
+
+    if(Elem.HpDrainSkillTime)
+      h := h + 20;
+    endif
+
+    if(Elem.PlagueSkillTime)
+      h := h + 20;
+    endif
+
+    if(Elem.ReqSkill)
+      h := h + 20;
+    endif
+    
+    if(Elem.MaxTamedCount)
+      h := h + 20;
+    endif
+
+    if(Elem.CProp)
+      var Props := GetConfigStringArray(Elem, "CProp");
+      foreach Prop in Props
+        Prop := SplitWords(Prop);
+        if(Prop[1] == "ForceField" or Prop[1] == "poison_strength")
+          h := h + 20;
+          break;
+        endif
+      endforeach
+    endif
+
+    if(Elem.AutoSpell)
+      h := h + 40;
+    endif
+    
+    if(Elem.AcidPool)
+      h := h + 20;
+    endif
+   
+    if(Elem.food)
+      h := h + 20;
+    endif
+    
+    if(Elem.MagicHitMod)
+      h := h + 20;
+    endif
+    
+    if(Elem.HitHealBreak)
+      h := h + 20;
+    endif
+    
+    if(Elem.HitDisMount)
+      h := h + 20;
+    endif
+    
+    if(Elem.DecreaseHealth)
+      h := h + 20;
+    endif
+    
+    if(Elem.TreeForm)
+      h := h + 80;
+    endif
+    
+    if(Elem.FlameStrength)
+      h := h + 20;
+    endif
+    
+    if(Elem.AutoHealing)
+      h := h + 20;
+    endif
+    
+    if(Elem.GenderRestrict)
+      h := h + 20;
+    endif
+   
+    if(Elem.ReGrowGrap)
+      h := h + 40;
+    endif
+   
+    if(Elem.LayItem)
+      h := h + 20;
+    endif
+
+    if(Elem.HateList)
+      h := h + 20;
+    endif
+
+    if(Elem.IdlePlayGood)
+      h := h + 20;
+    endif
+
+    return h;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateSelectedNpcOnPortal(Template, who,text := 0)
+
+  var cfgElem := GetNpcConfig(Template);
+
+  if(!cfgElem)
+    SendSysMessage(who,"Template ["+Template+"] nie istnieje.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Split := array;
+  
+  if(text)
+
+    Split := SplitWords(text);
+  
+    if("q" in Split)
+      if(!CanUseCmd(who, "npcs qq"))
+        SendSysMessage(who, "Nie mozesz tworzyc npecow questowych!", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+
+  endif
+
+  Detach();
+
+  var Loc := LocTarget(who);
+  if(Loc)
+    PlaySoundEffect( who, SFX_SPELL_GATE_TRAVEL );
+    var gate := CreatePortal( UOBJ_BLUEGATE, loc.x,loc.y,loc.z, who.realm);
+
+    text[Template] := "";
+
+    var Flags := 0;
+    
+    if("nl" in Split)
+      Flags := NPCF_NO_LOOT;
+    endif
+    
+    var Npc := CreateNpc(Template,Loc.x,Loc.y,Loc.z,who.realm,DEF_PARMS,Flags);
+    if(!Npc)
+      SendSysMessage(who,"Blad: "+Npc,FONT_NORMAL,COLOR_RED);
+    else
+
+      if("pe" in Split)
+        SendChEvent(Npc,Npc,EVID_ENGAGED);
+      endif
+      
+      if("q" in Split)
+        LogMsg(QSITEMS_LOG, who, Npc);
+      else
+        SetPropCreated(who, Npc);
+        LogMsg(CREATE_LOG, who, Npc);
+      endif
+
+    endif
+    sleep(40);
+    HidePortal(Gate);
+    DestroyItem(gate);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowSpells(Template, who)
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,300,400);
+  GAddPageData(266,16,2650,2651,266,366,2648,2647);
+  GTextLine(70,20,570,"Czary : ["+Template+"]");
+  
+  var i := 1;
+  var Spells := GetConfigStringArray(GetNpcConfig(Template),"spell");
+
+  foreach Spell in Spells
+    GCheckNextPage(16);
+    GTextLine(30,50+(GNPCount()*20),550,i+". "+GetSpellValue(Spell,"Name",STRING_ID));
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowLoot(Template, who)
+
+  var cfgElem := GetNpcConfig(template);
+  var LElem := LootCfg[CInt(cfgElem.lootgroup)];
+  var Loots := {};
+
+  if(!LElem)
+    SendSysMessage(who, "Template "+template+" nie posiada LootGrupy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  foreach Loot in GetConfigStringArray(LElem,"Stack")
+    Loots.append(SplitWords("Stack "+Loot));
+  endforeach
+    
+  foreach Loot in GetConfigStringArray(LElem,"Item")
+    Loots.append(SplitWords("Item "+Loot));
+  endforeach
+
+  foreach Loot in GetConfigStringArray(LElem,"Random")
+    Loots.append(SplitWords("Random "+Loot));
+  endforeach
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,600,400);
+  GAddPageData(566,16,2650,2651,566,366,2648,2647);
+  GTextLine(40,20,570,"Loot : ["+Template+"]");
+
+  var i := 1;
+
+  foreach Loot in Loots
+    GCheckNextPage(16);
+    GTextLine(30,50+(GNPCount()*20),550,i+". "+Loot[1]);
+    GTextLine(160,50+(GNPCount()*20),560,"A: "+Loot[2]);
+    GTextLine(310,50+(GNPCount()*20),560,Loot[3]);
+    if(LootCfg[Loot[3]])
+      GButton(290,50+(GNPCount()*20),2714,2715,i);
+    endif
+    if(!CInt(Loot[4]))
+      Loot[4] := 100;
+    endif
+    GTextLine(500,50+(GNPCount()*20),560,"CH: "+Loot[4]);
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+  
+  if(Res)
+    ShowLootGroup(who,Loots[Res][3]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowLootGroup(who,Group)
+
+  var LootGroup := GetConfigStringArray(LootCfg[Group],"Item");
+  
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,300,400);
+  GAddPageData(266,16,2650,2651,266,366,2648,2647);
+  GTextLine(40,20,570,"LootGrupa : ["+Group+"]");
+
+  var i := 1;
+
+  foreach Loot in LootGroup
+    GCheckNextPage(16);
+    GTextLine(30,50+(GNPCount()*20),550,i+". "+Loot);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEquip(Template, who)
+
+  var cfgElem := GetNpcConfig(template);
+
+  LootCfg    := ReadConfigFile(EQUIP_CFG);
+  var LElem  := LootCfg[cfgElem.Equipt+"M"];
+  if(!LElem)
+    LElem  := LootCfg[cfgElem.Equipt+"F"];
+  endif
+  var Equips := {};
+
+  foreach Equipt in GetConfigStringArray(LElem,"Weapon")
+    Equips.append(SplitWords("Weapon "+Equipt));
+  endforeach
+
+  foreach Equipt in GetConfigStringArray(LElem,"Armor")
+    Equips.append(SplitWords("Armor "+Equipt));
+  endforeach
+
+  foreach Equipt in GetConfigStringArray(LElem,"Equip")
+    Equips.append(SplitWords("Equip "+Equipt));
+  endforeach
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,600,400);
+  GAddPageData(566,16,2650,2651,566,366,2648,2647);
+  GTextLine(40,20,570,"Equipment : ["+Template+"]");
+
+  var i := 1;
+
+  foreach Equipt in Equips
+    GCheckNextPage(16);
+    GTextLine(30,50+(GNPCount()*20),550,i+". "+Equipt[1]);
+    GTextLine(160,50+(GNPCount()*20),560,Equipt[2]);
+    GTextLine(360,50+(GNPCount()*20),560,"C: "+Equipt[3]);
+    if(ClothsCfg[Equipt[2]])
+      GButton(140,50+(GNPCount()*20),2714,2715,i);
+    endif
+    if(ColorsCfg[Equipt[3]])
+      GButton(340,50+(GNPCount()*20),2714,2715,1000+i);
+    endif
+    if(!CInt(Equipt[4]))
+      Equipt[4] := 100;
+    endif
+    GTextLine(500,50+(GNPCount()*20),560,"CH: "+Equipt[4]);
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  if(Res > 1000)
+    ShowColorGroup(who,Equips[Res-1000][3]);
+  elseif(Res)
+    ShowEquipGroup(who,Equips[Res][2]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEquipGroup(who,Group)
+
+  var EquipGroup := GetConfigStringArray(ClothsCfg[Group],"Item");
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,300,400);
+  GAddPageData(266,16,2650,2651,266,366,2648,2647);
+  GTextLine(40,20,570,"EquipGrupa : ["+Group+"]");
+
+  var i := 1;
+  var ItemCfg   := ReadConfigFile(ITEMS_CFG);
+
+  foreach Equipt in EquipGroup
+    GCheckNextPage(16);
+    if(!CInt(Equipt))
+      Equipt := GetObjTypeByName(Equipt);
+    endif
+    GTextLine(30,50+(GNPCount()*20),999,i+".");
+    GTextLine(55,50+(GNPCount()*20),1000,hex(CInt(Equipt)));
+    GTextLine(130,50+(GNPCount()*20),550,ItemCfg[CInt(Equipt)].Name);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowColorGroup(who,Group)
+
+  var ColorGroup := GetConfigStringArray(ColorsCfg[Group],"color");
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,3600,300,400);
+  GAddPageData(266,16,2650,2651,266,366,2648,2647);
+  GTextLine(40,20,570,"ColorGrupa : ["+Group+"]");
+
+  var i := 1;
+
+  foreach Color in ColorGroup
+    GCheckNextPage(16);
+    GTextLine(30,50+(GNPCount()*20),550,i+". "+hex(CInt(Color)));
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

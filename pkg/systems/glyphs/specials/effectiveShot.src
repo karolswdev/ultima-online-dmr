@@ -1,0 +1,35 @@
+use uo;
+use os;
+use util;
+
+include "include/client/effects";
+include "include/client/sounds";
+
+program effect(parms)
+
+	var attacker := parms[0];
+	var defender := parms[1];
+	
+	RandomEffect(attacker, defender);
+	
+endprogram
+
+function RandomEffect(attacker, defender)
+
+	var random := RandomInt(3) + 1;
+	
+	if(random == 1)
+		PlayObjectCenteredEffect(defender , FX_EXPLODE_3, 7, 0x10 );
+		PlaySoundEffect(defender, SFX_SPELL_EXPLOSION );
+		PlaySoundEffect(defender, SFX_SPELL_LIGHTNING);
+		PlayLightningBoltEffect(defender);
+	elseif (random == 2)
+		PlayObjectCenteredEffect(defender, FX_FLAMESTRIKE, 0x0a, 0x1e );
+		PlayObjectCenteredEffect(defender, FX_SPARK_EFFECT, 7, 0x10 );
+		PlaySoundEffect(defender,0xf8);
+	elseif (random == 3)
+		//MakeWaterSplash(attacker, defender);
+		PrintTextAbove(defender, "*yyy*");
+	endif
+		
+endfunction

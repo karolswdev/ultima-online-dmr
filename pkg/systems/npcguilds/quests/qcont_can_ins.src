@@ -1,0 +1,30 @@
+//---------------------------------------------------------------------
+// Modified: 2005-06-22
+//---------------------------------------------------------------------
+
+use uo;
+
+//---------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+include "include/checks/stdchecks";
+
+//---------------------------------------------------------------------
+
+program QuestContInsert(who, backpack, movetype)
+
+  __ParamUnused(backpack);
+
+  if(movetype != MOVETYPE_COREMOVE)
+    if(IsPlayer(who))
+      SendSysMessage(who,"Nie mozesz tego tutaj wlozyc.", FONT_NORMAL, COLOR_RED);
+    endif
+    return 0;
+  endif
+
+  return 1;
+
+endprogram
+
+//---------------------------------------------------------------------

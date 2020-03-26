@@ -1,0 +1,160 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+include "ai/main/sleepmode";
+include "include/buildings";
+include "ai/include/npch";
+include "ai/include/mspeech";
+include "include/loots";
+include "ai/include/def_merc";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include "include/clock";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+EnableEvents( EVID_ITEM_GIVEN );
+EnableEvents( EVID_SPEECH , SPEECH_RANGE );
+
+//-----------------------------------------------------------------------------
+
+var BkCfg   := ReadConfigFile(MCFG_PKG+"barkeeper");
+var BkItems := GetConfigStringKeys(BkCfg);
+
+//-----------------------------------------------------------------------------
+
+program BarKeeper_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  MerchantInit();
+
+  while (me)
+
+    if(!ev)
+      ev := wait_for_event( waittime );
+    endif
+
+    StdHandleEvent(ev);
+    StdMercEventLoop();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_SPEECH:             if(CheckNpcSpeech(ev.source, ev.text) == 0)
+                               if(CheckBarKeeperSpeech(ev.source, ev.text))
+                                 if(IsWalking())
+                                   SetWalkPause(SHORT_WALK_PAUSE);
+                                 endif
+                                 ev := 0;
+                                 return 1;
+                               endif
+                             endif
+
+    default:                 return StdMercHandleEvent(ev);
+  endcase
+
+  ev := 0;
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckBarKeeperSpeech(who, text)
+
+  text := lower(text);
+
+  foreach Item in BkItems
+    if(text[BkCfg[Item].ReactWord])
+      CheckBkItem(who, BkCfg[Item]);
+      return 1;
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckBkItem(who, iElem)
+
+  var rItem    := SplitWords(iElem.ReqItem);
+  var rObjType := CInt(rItem[1]);
+  var rAmt     := CInt(rItem[2]);
+  var Amt      := 0;
+  var Items    := array;
+
+  foreach Item in EnumerateItemsInContainer(who.backpack)
+    if(Item.objtype == rObjType)
+      Amt += Item.amount;
+      Items.append(Item);
+    endif
+  endforeach
+
+  if(Amt < rAmt)
+    Say(ClStr(iElem.NenText));
+    return 0;
+  endif
+
+  var lAmt := rAmt;
+  var sAmt := 0;
+
+  foreach Item in Items
+    if(lAmt == 0)
+      break;
+    endif
+
+    if(lAmt - Item.amount >= 0)
+      sAmt := Item.amount;
+    else
+      sAmt := lAmt;
+    endif
+
+    if(!SubtractAmount(Item, sAmt))
+      Say("Hm.. czemu nagle nie chcesz oddac przedmiotu?!");
+      return 0;
+    endif
+
+    lAmt -= sAmt;
+  endforeach
+
+  if(lAmt)
+    Say("Coz to sie stalo z tymi przedmiotami?!");
+    return 0;
+  endif
+
+  var sTexts := GetConfigStringArray(iElem, "SayText");
+
+  if(sTexts and sTexts.size())
+    var sText := sTexts[RandomInt(sTexts.size())+1];
+    if(!sText) 
+      sText := sTexts[1];
+    endif
+    Say(sText);
+  endif
+
+  CreateLoot(who.backpack, iElem.Price, MCFG_PKG+"barkeeper");
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

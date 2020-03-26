@@ -1,0 +1,130 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/items";
+include "include/items/temp_storage";
+include "include/mobile/npcs/specs";
+include ":wearwolf:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 83;
+
+//-----------------------------------------------------------------------------
+
+program CastTidalWave( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_OBJECT, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsWearWolfMorphed(Caster))
+    Fizzle(Caster, "Nie mozesz w tej formie rzucic tego czaru.");
+    return;
+  endif
+
+  if(CastOn.isa(POLCLASS_ITEM))
+    ReleaseItem(CastOn);
+  endif
+
+  SetScriptController ( caster );
+  detach ();
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  SetScriptController (Caster);
+  PlaySoundEffect (Caster, SFX_SPELL_SUMMON_ELEMENTAL);
+
+  var targettedx := CastOn.x;
+  var targettedy := CastOn.y;
+  var targettedz := CastOn.z;
+
+  var wavetop1       := PullTempItemAtLoc (targettedx, targettedy, targettedz+110, 0x350b, Caster.realm);
+  var wavetop2       := PullTempItemAtLoc (targettedx, targettedy, targettedz+110, 0x34ed, Caster.realm);
+
+  var i;
+  var waterfall_array := {};
+  var waterfall_tile;
+
+  if(CastOn.isa(POLCLASS_MOBILE))
+    DoMod(CastOn, MOD_PARA, 1, 1);
+  endif
+
+  for(i := 10; i >= 0; i := i - 1)
+    waterfall_tile := PullTempItemAtLoc (targettedx, targettedy, targettedz+i*10, 0x3517, Caster.realm);
+    waterfall_array.append (waterfall_tile);
+    waterfall_tile := PullTempItemAtLoc (targettedx, targettedy, targettedz+i*10, 0x34f9, Caster.realm);
+    waterfall_array.append (waterfall_tile);
+    sleepms (50);
+  endfor
+
+  var waterfall_base1 := PullTempItemAtLoc (targettedx,   targettedy+1, targettedz, 0x17a1, Caster.realm);
+  SetName(waterfall_base1,"woda");
+  var waterfall_base2 := PullTempItemAtLoc (targettedx+1, targettedy,   targettedz, 0x179d, Caster.realm);
+  SetName(waterfall_base2,"woda");
+  var waterfall_base3 := PullTempItemAtLoc (targettedx,   targettedy-1, targettedz, 0x179f, Caster.realm);
+  SetName(waterfall_base3,"woda");
+  var waterfall_base4 := PullTempItemAtLoc (targettedx-1, targettedy,   targettedz, 0x17a3, Caster.realm);
+  SetName(waterfall_base4,"woda");
+  var waterfall_base5 := PullTempItemAtLoc (targettedx+1, targettedy+1, targettedz, 0x17a7, Caster.realm);
+  SetName(waterfall_base5,"woda");
+  var waterfall_base6 := PullTempItemAtLoc (targettedx-1, targettedy+1, targettedz, 0x17a8, Caster.realm);
+  SetName(waterfall_base6,"woda");
+  var waterfall_base7 := PullTempItemAtLoc (targettedx+1, targettedy-1, targettedz, 0x17a5, Caster.realm);
+  SetName(waterfall_base7,"woda");
+  var waterfall_base8 := PullTempItemAtLoc (targettedx-1, targettedy-1, targettedz, 0x17a6, Caster.realm);
+  SetName(waterfall_base8,"woda");
+  var waterfall_base9 := PullTempItemAtLoc (targettedx,   targettedy,   targettedz, 0x1797, Caster.realm);
+  SetName(waterfall_base9,"woda");
+
+  if (isPlayer(CastOn))
+    DealManaDamage(CastOn, CInt(6+ RandomInt(4)), Caster);
+  else
+    DealManaDamage(CastOn, CInt((6+ RandomInt(4))*0.5), Caster);
+  endif
+
+  var DmgRes := DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+
+  if(DmgRes > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE); 
+  endif
+
+  SendChEvent(CastOn,Caster,EVID_ENGAGED);
+  PlaySoundEffect(CastOn, 0x11);
+  sleep (5);
+
+  ReturnTempItem(wavetop1);
+  ReturnTempItem(wavetop2);
+
+  foreach waterfall_tile in waterfall_array
+    ReturnTempItem(waterfall_tile);
+    sleepms(25);
+  endforeach
+
+  sleep(45);
+  ReturnTempItem(waterfall_base1);
+  ReturnTempItem(waterfall_base2);
+  ReturnTempItem(waterfall_base3);
+  ReturnTempItem(waterfall_base4);
+  ReturnTempItem(waterfall_base5);
+  ReturnTempItem(waterfall_base6);
+  ReturnTempItem(waterfall_base7);
+  ReturnTempItem(waterfall_base8);
+  ReturnTempItem(waterfall_base9);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

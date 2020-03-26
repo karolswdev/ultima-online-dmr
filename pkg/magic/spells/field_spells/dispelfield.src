@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 34;
+
+//-----------------------------------------------------------------------------
+
+program CastDispelField( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var CasterMagery := GetEffectiveSkill(Caster, SKILLID_MAGERY);
+  var range        := CasterMagery / 15;
+
+  var Count := 0;
+
+  foreach item in ListItemsNearLocation(CastLoc.x, CastLoc.y, CastLoc.z, range, Caster.realm)
+    if(GetObjProperty(item, PROP_SUMMONED_FIELD) and !CInt(GetObjProperty(item,"FireMoon")))
+      PlayStationaryEff(item.x, item.y, item.z, FX_SMOKE, 0xa, 0xa, 0, item.realm);
+      DestroyItem(item);
+      Count += 1;
+    endif
+  endforeach
+
+  if(Count > 0)
+    PlaySoundEffect(caster, SFX_SPELL_DISPEL);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

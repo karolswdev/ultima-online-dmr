@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/const/cfgs";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+var WordsCfg := ReadConfigFile(CENWORDS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program CenWords(who,text)
+
+  text := SplitWords(text);
+  
+  case(text[1])
+    "u":     SendSysMessage(who,"Unload cfg - "+UnloadConfigFile(CENWORDS_CFG)+".",FONT_NORMAL,COLOR_GREEN);
+    "add":   if(text[2])
+               UnloadConfigFile(CENWORDS_CFG);
+               WordsCfg := ReadConfigFile(CENWORDS_CFG);
+               var pElem := array;
+               pElem.+pname  := "Word";
+               pElem.+pvalue := text[2];
+               var Nr        := GetConfigMaxIntKey(WordsCfg);
+               var i;
+               for(i:=1;i<=Nr;i:=i+1)
+                 if(WordsCfg[i].Word == text[2])
+                   SendSysMessage(who,"Slowo "+text[2]+" jest juz dodane.",FONT_NORMAL,COLOR_RED);
+                   return;
+                 endif
+               endfor
+               SendSysMessage(who,"Dodano slowo: "+text[2]+".",FONT_NORMAL,COLOR_GREEN);
+
+               AppendConfigFileElem(CENWORDS_CFG,"CWord",Nr+1,{pElem});
+               UnloadConfigFile(CENWORDS_CFG);
+             else
+               SendSysMessage(who,"Nie podano slowa.",FONT_NORMAL,COLOR_RED);
+               return;
+             endif
+
+    "gbon":  if(IsAdmin(who))
+               EraseGlobalProperty("CenCheckLog");
+               SendSysMessage(who, "Glob CenCheckLog On", FONT_NORMAL, COLOR_GREEN);
+             endif
+
+    "gboff": if(IsAdmin(who))
+               SetGlobalProperty("CenCheckLog", "Off");
+               SendSysMessage(who, "Glob CenCheckLog Off", FONT_NORMAL, COLOR_GREEN);
+             endif
+
+    default: var Words := array;
+             foreach Nr in GetConfigStringKeys(WordsCfg)
+               Words.append(WordsCfg[Nr].Word);
+             endforeach
+
+             BuildWordsGump(who, Words);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildWordsGump(who, byref Words)
+
+  GInit(50, 20);
+  GPage();
+  GResPic(0, 0, 3600, 300,550);
+  GAddPageData(265,20,2650,2651,265,513,2648,2647);
+
+  var i := 1;
+
+  foreach Word in Words
+    GCheckNextPage(25);
+    GTextLine(38, GNPCount()*20+20, 1212, i);
+    GTextLine(65, GNPCount()*20+20, 670, Word);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 101;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonGhul( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  SetScriptController (caster);
+  Detach();
+
+  var Duration        := GetVampireSpellDur( Caster );
+  var oparms          := {};
+  oparms.+controlable := 1;
+  oparms.+onlyone     := 1;
+  oparms.+nosleep     := 1;
+  oparms.+spellparms  := SpellGlob.Parms;
+
+  var Summon := SummonCreature (caster, "summonedghul", CastLoc, Duration, oparms);
+  
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,15 @@
+//--------------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/checks/objchecks";
+include "include/equipment";
+
+//--------------------------------------------------------------------------------
+
+program DoubleClickItem(who,item)
+
+  ForceEquipItem(who,item);
+
+endprogram
+
+//--------------------------------------------------------------------------------

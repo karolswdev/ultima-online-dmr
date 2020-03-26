@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-26
+//-----------------------------------------------------------------------------
+
+include "guilds";
+include "gd_gump";
+include "include/move";
+include "include/logerror";
+
+//-----------------------------------------------------------------------------
+
+program NpcGuildBoard(who, Board)
+ 
+  var Guild, GuildData, GdId;
+
+  GdId := GetObjProperty(Board, GDBPROP_GDID);
+
+  if(!GdId)
+    LogError("NpcGuildBoard: GdTablica "+Board.serial+" nie posiada GdID", LOGF_SCRIPTS);
+    SendSysMessage(who, "Tablica wyglada na pusta.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  GuildData := GetNGdData();
+  Guild     := GuildData.FindElement(NGUILD_TITLE+GdId);
+
+  if(!Guild)
+    LogError("NpcGuildBoard: GdTablica "+Board.serial+" posiada nie istniejacy GdID", LOGF_SCRIPTS);
+    SendSysMessage(who, "Tablica wyglada na pusta.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  BuildGuildMembersGump(who, GdId, Guild);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,32 @@
+include "../potion";
+
+program yellowpottioneffect(params)
+
+  var who       := params[1];
+  var Strength  := params[2];
+  var Delay     := params[3];
+  var Pid       := GetPid();
+  var EffectPid := GetObjProperty(who, YELLOW_POTION_EFFECT_PID);
+
+  //mutex ;) 
+  if(ExPid(EffectPid) and Pid != EffectPid)
+    return;
+  endif
+  SetObjProperty(who, YELLOW_POTION_EFFECT_PID, Pid);
+
+  var i;
+  for(i:=1;i<=Strength;i:=i+1)
+    
+    if(who.dead or !who)
+      break;
+    endif
+    HealMobile(who, 1, who);
+    sleepms(Delay);
+  endfor
+  
+  //zdjecie mutexu.
+  if(who)
+    EraseObjProperty(who, YELLOW_POTION_EFFECT_PID);
+  endif
+
+endprogram

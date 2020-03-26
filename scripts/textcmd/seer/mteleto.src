@@ -1,0 +1,53 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/log";
+include "include/client/fonts";
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program MultiTeleToCmd(who)
+
+  SendSysMessage(who, "Kogo?", FONT_NORMAL, COLOR_GREEN);
+  var what := ObjTarget(who);
+  if(!what)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Gdzie?", FONT_NORMAL, COLOR_BLUE);
+  var where := LocTarget(who);
+  if(!where)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  while(IsLoggedIn(who))
+    var Res := CanCmdMoveTo(who, what, where);
+    if(!Res)
+      SendSysMessage(who, "Blad: "+Res.errortext);
+      return;
+    endif
+    LogMsg(MOVE_LOG,who,{what,where.x,where.y,where.z,who.realm});
+    MoveObject(what, where.x, where.y, where.z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+
+    SendSysMessage(who, "Kogo?", FONT_NORMAL, COLOR_GREEN);
+    what := ObjTarget(who);
+    if(!what)
+      break;
+    endif
+
+    SendSysMessage(who, "Gdzie?", FONT_NORMAL, COLOR_BLUE);
+    where := LocTarget(who);
+    if(!where)
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

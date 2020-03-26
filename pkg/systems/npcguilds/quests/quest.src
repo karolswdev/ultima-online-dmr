@@ -1,0 +1,770 @@
+//-----------------------------------------------------------------------------
+
+include "include/finding";
+include "include/bits";
+include "include/coords";
+include "include/items";
+include "include/npcs";
+include "include/gumps";
+include "include/clock";
+include "include/player/misc";
+include "include/findcity";
+
+include ":quests:quests";
+include ":quests:quest_ctrl";
+include ":quests:bq_gump";
+
+//-----------------------------------------------------------------------------
+
+var Res;
+var QuestData;
+var Quest, QStage, QCrData, Ticket, who, gSource := 0;
+
+//-----------------------------------------------------------------------------
+
+program ShowQuest(_who, _Ticket)
+
+  Ticket := _Ticket;
+  who    := _who;
+  Detach();
+
+  if(ExPid(GetObjProperty(who, "#ShowQtPid")))
+    SendSysMessage(who,"Ogladasz juz wskazowki zadania.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetObjProperty(who, "#ShowQtPid", GetPid());
+
+  QCrData := GetObjProperty(Ticket, QGPROP_QCRINFO);
+
+  if(!QCrData)
+    SendSysMessage(who, "Ten papier wydaje sie byc bezuzyteczny...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif 
+
+  QuestData := GetQuestData(QCrData.QuestGroup);
+  Quest := QuestData.FindElement(QUEST_TITLE+QCrData.Id);
+  if(!Quest)
+    LogError("ShowQuest: Brak Questa ID: "+QCrData.Id+" na bilecie "+Ticket.serial, LOGF_SCRIPTS);
+    SendSysMessage(who, "Ten papier wydaje sie byc bezuzyteczny...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(QCrData.Source)
+    gSource := FindPlayerBySerial(QCrData.Source);
+  endif
+
+  if(!GetObjProperty(Ticket, "Seen"))
+    BuildQuestGump();
+    SetObjProperty(Ticket, "Seen", who.serial);
+  else
+    if(!QCrData.CurStage)
+      BuildQuestGump();
+    else
+      BuildQuestStageGump(QCrData.CurStage);
+    endif
+  endif
+
+  while(IsLoggedIn(who) and Ticket)
+    Res := GSend(who).butid;
+    
+    QCrData := GetObjProperty(Ticket, QGPROP_QCRINFO);
+
+    if(!QCrData)
+      SendSysMessage(who, "Ten papier wydaje sie byc bezuzyteczny...", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(Res == 5)
+      BuildQuestInfoGump();
+    elseif(Res == 6)
+      ToggleQuestArrow();
+      BuildQuestGump();
+    elseif(Res == 7)
+      RetreiveReward();
+      // Wychodzimy z gumpa, bo ticket przetworzy nam dane od nowa.
+      // gracz raczej nie obrazi sie, jak mu zniknie gump
+      break;
+    elseif(Res > 100)
+      BuildQuestStageInfoGump(Res - 100);
+    elseif(Res > 10)
+      BuildQuestStageGump(Res - 10);
+    elseif(Res)
+      BuildQuestGump();
+    else
+      break;
+    endif
+  endwhile
+
+  EraseObjProperty(who, "#ShowQtPid");
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildGumpBack()
+
+  GInit(150, 150);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0, 0, 0x24A4, 500, 410);
+  GPage();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestGump()
+
+  BuildGumpBack();
+
+  var GumpId  := 0x2454;
+  var TextClr := 650;
+
+  if(QCrData.Flags & QF_COMPLETED)
+    GumpId  := 0x2486;
+    TextClr := 1419;
+    SQAddTextBox(92, 40, 320, 20, TextClr, Quest.GetProp(QSTPROP_TITLE), 1, GumpId);
+  elseif(QCrData.Flags & QF_FAILED)
+    GumpId  := 0x2486;
+    TextClr := 1210;
+    SQAddTextBox(92, 40, 320, 20, TextClr, Quest.GetProp(QSTPROP_TITLE), 1, GumpId);
+  else
+    SQAddTextBox(92, 40, 320, 20, 990, Quest.GetProp(QSTPROP_TITLE), 1, GumpId);
+  endif
+
+  GResPic(87, 297, GumpId, 330, 50);
+
+  GTextLine(92, 300, TextClr, "Czas na wykonanie:");
+  GTextLine(232,300, 670, DescGameTime(QCrData.MaxTime));
+
+  if(who.cmdlevel)
+    GButton(22, 110, 0xFA8, 0xFAA, 5);
+    GTextLine(54, 110, 999, "Info");
+  endif
+  
+  if(GetObjProperty(Ticket, QTPROP_QUEST_ARROW))
+    GButton(22, 80, 0xFB4, 0xFB5, 6);
+    GTextLine(54, 80, 999, "Wylacz");
+  else
+    GButton(22, 80, 0xFA8, 0xFA9, 6);
+    GTextLine(54, 80, 999, "Sledz");
+  endif
+
+  var SourceName := 0;
+
+  if(gSource)
+    // jesli zadanie jest od npeca to pokaz
+    // jesli zas od GMa - to nie pokazuj
+    if(!gSource.cmdlevel or gSource.isa(POLCLASS_NPC))
+      SourceName := GetRealName(gSource);
+    endif
+  endif
+
+  if(SourceName)
+    GTextLine(92, 320, TextClr, "Zadanie od:");
+    GTextLine(232,320, 670, SourceName);
+  endif
+  
+  // jak nie ma zrodla, albo zrodlem jest GM, to dajemy mozliwosc natychmiastowego odebrania nagrody
+  if(QCrData.Flags & QF_COMPLETED)
+    if(!SourceName and !(QCrData.Flags & QF_FINISHED))
+      GButton(172, 352, 0xFA8, 0xFAA, 7);
+      GTextLine(204, 352, 999, "Odbierz nagrode");
+    endif
+  endif
+
+  GButton(455, 360, 0xFA5, 0xFA7, 11);
+  SQAddTextBox(102, 80, 300, 20, 670, Quest.GetProp(QPROP_TIP), 10);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RetreiveReward()
+
+  if(gSource)
+    // jesli zadanie jest od npeca to pokaz
+    // jesli zas od GMa - to nie pokazuj
+    if(!who.cmdlevel and gSource.cmdlevel and !gSource.isa(POLCLASS_NPC))
+      LogNotice("RetrieveReward: Proba naduzycia GUMPa nagrody! Gosc nie ma prawa dostac, ale wyslal pakiet. Osoba: "+GetRealName(who)+"/"+who.acctname+" Ticket: "+Ticket.serial, LOGF_SCRIPTS);
+      return;
+    endif
+  endif
+
+  SendQuestTicketEvent(Ticket, gSource, EVQID_FINISH, 0, who);
+  // Wychodzimy z gumpa, bo ticket przetworzy nam dane od nowa.
+  // gracz raczej nie obrazi sie, jak mu zniknie gump
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestInfoGump()
+
+  BuildGumpBack();
+
+  if(!IsStaff(who))
+    return;
+  endif
+
+  Quest := QuestData.FindElement(QUEST_TITLE+QCrData.Id);
+
+  SQAddTextBox(62, 40, 320, 20, 990, Quest.GetProp(QSTPROP_TITLE));
+  SQAddTextBox(402, 40, 60, 20, 990, QCrData.QuestGroup+":"+QCrData.Id);
+
+  BQGAddTextBox(120, 85, 125, 20, FCLR_TEBOX, "Ukonczony", BQG_SHOWTITLES, 1, 0, "Flagi:");
+  BQGCheckBox(245, 82, 0, QCrData.Flags & QF_COMPLETED, 300);
+  BQGAddTextBox(120, 115, 125, 20, FCLR_TEBOX, "Porazka", 0);
+  BQGCheckBox(245, 112, 0, QCrData.Flags & QF_FAILED, 301);
+  BQGAddTextBox(120, 145, 125, 20, FCLR_TEBOX, "Zakonczony", 0);
+  BQGCheckBox(245, 142, 0, QCrData.Flags & QF_FINISHED, 302);
+
+  BQGAddTextBox(120, 185, 125, 20, FCLR_TEBOX, CUnixTime(QCrData.CrTime), BQG_SHOWTITLES, 1, 0, "Stworzony:");
+  BQGAddTextBox(120, 215, 125, 20, FCLR_TEBOX, RealTime((QCrData.CrGTime + QCrData.MaxTime) - ReadGameClock()), BQG_SHOWTITLES, 1, 0, "Poz. Czas:");
+
+  BQGAddTextBox(120, 245, 125, 20, FCLR_TEBOX, QCrData.Source, BQG_SHOWTITLES, 1, 0, "Zrodlo:");
+
+  if(gSource)
+    BQGAddTextBox(280, 245, 165, 20, FCLR_TEBOX, GetRealName(gSource), BQG_SHOWTITLES, 1, 0);
+  endif
+
+  BQGAddTextBox(120, 275, 125, 20, FCLR_TEBOX, QCrData.Player, BQG_SHOWTITLES, 1, 0, "Gracz:");
+  if(QCrData.Player)
+    var Player := FindPlayerBySerial(QCrData.Player);
+    BQGAddTextBox(280, 275, 165, 20, FCLR_TEBOX, GetRealName(Player), BQG_SHOWTITLES, 1, 0);
+  endif
+
+  GButton(18, 360, 0xFAE, 0xFB0, 10);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStageGump(QsNr)
+
+  BuildGumpBack();
+
+  QStage := QuestData.FindElement(QSTAGE_TITLE+QCrData.Stages[QsNr].Id);
+  if(!QStage)
+    LogError("BuildQuestStageGump: Brak Etapu Questa ID: "+QCrData.Stages[QsNr].Id+" na bilecie "+Ticket.serial+" !", LOGF_SCRIPTS);
+    return;
+  endif
+
+  if(QsNr < QCrData.Stages.size() and (QsNr - QUEST_MAXST_FWPAGES < QCrData.CurStage or who.cmdlevel or IsBitOn(QCrData.Flags, QF_COMPLETED)))
+    GButton(455, 360, 0xFA5, 0xFA7, 10 + QsNr + 1);
+  endif
+
+  GButton(18, 360, 0xFAE, 0xFB0, 10 + QsNr - 1);
+
+  if(who.cmdlevel)
+    GButton(22, 110, 0xFA8, 0xFAA, 100 + QsNr);
+    GTextLine(54, 110, 999, "Info");
+  endif
+
+  if(GetObjProperty(Ticket, QTPROP_QUEST_ARROW))
+    GButton(22, 80, 0xFB4, 0xFB5, 6);
+    GTextLine(54, 80, 999, "Wylacz");
+  else
+    GButton(22, 80, 0xFA8, 0xFA9, 6);
+    GTextLine(54, 80, 999, "Sledz");
+  endif
+
+  var GumpId  := 0x2454;
+  var TextClr := 650;
+
+  if(QCrData.Stages[QsNr].Flags & QSTF_COMPLETED)
+    GumpId  := 0x2486;
+    TextClr := 1419;
+    SQAddTextBox(92, 40, 320, 20, TextClr, QStage.GetProp(QSTPROP_TITLE), 1, GumpId);
+  elseif(QCrData.Stages[QsNr].Flags & QSTF_FAILED)
+    GumpId  := 0x2486;
+    TextClr := 1210;
+    SQAddTextBox(92, 40, 320, 20, TextClr, QStage.GetProp(QSTPROP_TITLE), 1, GumpId);
+  else
+    SQAddTextBox(92, 40, 320, 20, 990, QStage.GetProp(QSTPROP_TITLE), 1, GumpId);
+  endif
+
+  GResPic(87, 297, GumpId, 330, 70);
+
+  var Objective := GetQuestObjective(QCrData.Stages[QsNr].Type, QCrData.Stages[QsNr].SubType);
+
+  if(QCrData.Stages[QsNr].Targ.Exp)
+    Objective := Objective + " Wyjatkowej jakosci";
+  endif
+
+  GTextLine(92, 300, TextClr, "Zadanie:");
+  GTextLine(152,300, 670, Objective);
+
+  if((!(QCrData.Stages[QsNr].Flags & QSTF_HIDDEN_TARG) or who.cmdlevel) and QCrData.Stages[QsNr].Targ)
+    GTextLine(92, 320, TextClr, "Cel:");
+    GTextLine(152,320, 670, DescQuestTarget(QCrData.Stages[QsNr]));
+  endif
+
+  if((!(QCrData.Stages[QsNr].Flags & QSTF_HIDDEN_LOC) or who.cmdlevel) and QCrData.Stages[QsNr].Loc)
+    BuildDescQuestLoc(TextClr, QCrData.Stages[QsNr]);
+  endif
+  SQAddTextBox(102, 80, 300, 20, 670, QStage.GetProp(QSTPROP_TIP), 10);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildDescQuestLoc(TextClr, byref Stage)
+
+  var Desc := "Miejsce";
+  var dPlace;
+
+  if(Stage.Loc)
+    if(who.cmdlevel)
+      dPlace := Stage.Loc.x+" "+Stage.Loc.y+" "+Stage.Loc.z+" "+Stage.Loc.realm;
+    else
+      var City := FindCityCoords(Stage.Loc.x, Stage.Loc.y, Stage.Loc.realm);
+      if(City and (Stage.SubType == QSTYPE_EXNPC or Stage.SubType == QSTYPE_FROMNPC))
+        Desc   := "Miasto:";
+        dPlace := City;
+      else
+        dPlace := ToSextant(Stage.Loc.x, Stage.Loc.y, Stage.Loc.realm, TSF_LONG_REALM);
+      endif
+    endif
+  endif
+
+  GTextLine(92, 340, TextClr, Desc);
+  GTextLine(152,340, 670, dPlace);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStageInfoGump(QsNr)
+
+  BuildGumpBack();
+
+  QStage := QuestData.FindElement(QSTAGE_TITLE+QCrData.Stages[QsNr].Id);
+  if(!QStage)
+    LogError("BuildQuestStageInfoGump: Brak Etapu Questa ID: "+QCrData.Stages[QsNr].Id+" na bilecie "+Ticket.serial+" !", LOGF_SCRIPTS);
+    return;
+  endif
+
+  SQAddTextBox(62, 40, 320, 20, 990, QStage.GetProp(QSTPROP_TITLE));
+  SQAddTextBox(402, 40, 40, 20, 990, QCrData.Stages[QsNr].Id);
+
+  BQGAddTextBox(62, 85, 125, 20, FCLR_TEBOX, "Ukonczony", 0);
+  BQGCheckBox(185, 82, 0, QCrData.Stages[QsNr].Flags & QSTF_COMPLETED, 200);
+  BQGAddTextBox(62, 115, 125, 20, FCLR_TEBOX, "Porazka", 0);
+  BQGCheckBox(185, 112, 0, QCrData.Stages[QsNr].Flags & QSTF_FAILED, 201);
+  BQGAddTextBox(62, 145, 125, 20, FCLR_TEBOX, "Straznicy", 0);
+  BQGCheckBox(185, 142, 0, QCrData.Stages[QsNr].Flags & QSTF_GUARDS, 202);
+  BQGAddTextBox(62, 175, 125, 20, FCLR_TEBOX, "Straznicy stworzeni", 0);
+  BQGCheckBox(185, 172, 0, QCrData.Stages[QsNr].Flags & QSTF_GUARDS_CREATED, 203);
+  BQGAddTextBox(62, 205, 125, 20, FCLR_TEBOX, "Straznicy zabici", 0);
+  BQGCheckBox(185, 202, 0, QCrData.Stages[QsNr].Flags & QSTF_GUARDS_KILLED, 204);
+  BQGAddTextBox(62, 235, 125, 20, FCLR_TEBOX, "Cel stworzony", 0);
+  BQGCheckBox(185, 232, 0, QCrData.Stages[QsNr].Flags & QSTF_TARG_CREATED, 205);
+  BQGAddTextBox(62, 265, 125, 20, FCLR_TEBOX, "Cel ukonczony", 0);
+  BQGCheckBox(185, 262, 0, QCrData.Stages[QsNr].Flags & QSTF_TARG_COMPLETED, 206);
+
+  DescQuestStageInfoTarget(QCrData.Stages[QsNr]);
+  GButton(18, 360, 0xFAE, 0xFB0, 10 + QsNr);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestStageInfoTarget(byref Stage)
+
+  GTextLine(230, 65, 670, "Cel: "+GetQuestSubTypeName(Stage.SubType));
+  GResPic(225, 85, 0xBB8, 230, 100);
+
+  var fTarg;
+
+  case(Stage.SubType)
+    QSTYPE_EXNPC:
+    QSTYPE_NPC:              fTarg := FindNpcBySerial(Stage.Targ.Serial); 
+                             GTextLine(235, 90, 670, "Serial:");
+                             GTextLine(290, 90, FCLR_TEBOX, Stage.Targ.Serial);
+                             if(fTarg)
+                               GTextLine(235, 110, 670, "Npc:");
+                               GTextLine(290, 110, FCLR_TEBOX, fTarg.name);
+                             endif
+
+    QSTYPE_LOOTNPC:
+    QSTYPE_FROMNPC:          fTarg := FindNpcBySerial(Stage.Targ.NpcSerial);
+                             GTextLine(235, 90, 670, "NpcSer:");
+                             GTextLine(290, 90, FCLR_TEBOX, Stage.Targ.NpcSerial);
+                             if(fTarg)
+                               GTextLine(235, 110, 670, "Npc:");
+                               GTextLine(290, 110, FCLR_TEBOX, fTarg.name);
+                             endif
+
+                             fTarg := FindItemBySerial(Stage.Targ.ItemSerial);
+                             GTextLine(235, 130, 670, "ItmSer:");
+                             GTextLine(290, 130, FCLR_TEBOX, Stage.Targ.ItemSerial);
+                             if(fTarg)
+                               GTextLine(235, 150, 670, "Item:");
+                               GTextLine(290, 150, FCLR_TEBOX, fTarg.name);
+                             endif
+
+    QSTYPE_PLAYER:           fTarg := FindPlayerBySerial(Stage.Targ.Serial); 
+                             GTextLine(235, 90, 670, "Serial:");
+                             GTextLine(290, 90, FCLR_TEBOX, Stage.Targ.Serial);
+                             if(fTarg)
+                               GTextLine(235, 110, 670, "Gracz:");
+                               GTextLine(290, 110, FCLR_TEBOX, GetRealName(fTarg));
+                             endif
+
+    QSTYPE_ITEM:
+    QSTYPE_ALCHEMY:
+    QSTYPE_BLACKSMITH:
+    QSTYPE_BOWCRAFTING:
+    QSTYPE_CARPENTING:
+    QSTYPE_TINKERING:
+    QSTYPE_TAILORING:
+    QSTYPE_COOKING:
+    QSTYPE_INSCRIPTION:
+    QSTYPE_MAGICITEMMAKING:
+    QSTYPE_MINE:
+    QSTYPE_CHOP:
+    QSTYPE_FISH:
+    QSTYPE_HERB:
+    QSTYPE_FARMING:
+    QSTYPE_HOUSE:
+    QSTYPE_CARTOGRAPHY:      fTarg := FindPlayerBySerial(Stage.Targ.Serial); 
+                             GTextLine(235, 90, 670, "Serial:");
+                             GTextLine(290, 90, FCLR_TEBOX, Stage.Targ.Serial);
+                             GTextLine(235, 110, 670, "ObjType:");
+                             GTextLine(290, 110, FCLR_TEBOX, Stage.Targ.ObjType);
+                             if(fTarg)
+                               GTextLine(235, 130, 670, "Item:");
+                               GTextLine(290, 130, FCLR_TEBOX, GetRealName(fTarg));
+                             endif
+
+    QSTYPE_PLAYER:           fTarg := FindPlayerBySerial(Stage.Targ.Serial); 
+                             GTextLine(235, 90, 670, "Serial:");
+                             GTextLine(290, 90, FCLR_TEBOX, Stage.Targ.Serial);
+                             if(fTarg)
+                               GTextLine(235, 110, 670, "Gracz:");
+                               GTextLine(290, 110, FCLR_TEBOX, GetRealName(fTarg));
+                             endif
+
+    QSTYPE_LOCKTAKE:         fTarg := FindPlayerBySerial(Stage.Targ.ItemSerial); 
+                             GTextLine(235, 90, 670, "ItemSer:");
+                             GTextLine(290, 90, FCLR_TEBOX, Stage.Targ.ItemSerial);
+                             GTextLine(380, 90, 670, "O:");
+                             GTextLine(400, 90, FCLR_TEBOX, Stage.Targ.ObjType);
+                             if(fTarg)
+                               GTextLine(235, 130, 670, "Item:");
+                               GTextLine(290, 130, FCLR_TEBOX, GetName(fTarg));
+                             endif
+
+                             fTarg := FindPlayerBySerial(Stage.Targ.Serial); 
+                             GTextLine(235, 110, 670, "ContSer:");
+                             GTextLine(290, 110, FCLR_TEBOX, Stage.Targ.Serial);
+                             GTextLine(380, 110, 670, "O:");
+                             GTextLine(400, 110, FCLR_TEBOX, Stage.Targ.ContObjType);
+                             if(fTarg)
+                               GTextLine(235, 150, 670, "Cont:");
+                               GTextLine(290, 150, FCLR_TEBOX, GetName(fTarg));
+                             endif
+  endcase
+
+  if(Stage.Flags & QSTF_GUARDS)
+    GTextLine(230, 185, 670, "Straznicy, Seriale:");
+    GResPic(225, 205, 0xBB8, 230, 160);
+    var w := 0, h := 0;
+    foreach Guard in (Stage.Guards)
+      GTextLine(235+w, 210+h, FCLR_TEBOX, Guard.Serial);
+      h := h + 20;
+      if(h > 120)
+        h := 0;
+        w := 105;
+      endif
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTarget(byref Stage)
+
+  case(Stage.SubType)
+    QSTYPE_NPC:              return DescQuestTargNpc(Stage);
+    QSTYPE_EXNPC:            return DescQuestTargExNpc(Stage);
+    QSTYPE_ITEM:             return DescQuestTargItem(Stage);
+    QSTYPE_PLAYER:           return DescQuestTargPlayer(Stage);
+    QSTYPE_LOC:              return DescQuestTargLoc(Stage);
+    QSTYPE_LOOTNPC:          return DescQuestTargLootNpc(Stage);
+    QSTYPE_FROMNPC:          return DescQuestTargFromNpc(Stage);
+    QSTYPE_ALCHEMY:          
+    QSTYPE_BLACKSMITH:
+    QSTYPE_BOWCRAFTING:
+    QSTYPE_CARPENTING:
+    QSTYPE_TINKERING:
+    QSTYPE_TAILORING:
+    QSTYPE_COOKING:
+    QSTYPE_INSCRIPTION:
+    QSTYPE_CARTOGRAPHY:
+    QSTYPE_MAGICITEMMAKING:  return DescQuestTargSkill(Stage);
+    QSTYPE_MINE:
+    QSTYPE_CHOP:
+    QSTYPE_FISH:
+    QSTYPE_HERB:
+    QSTYPE_FARMING:          return DescQuestTargMine(Stage);
+    QSTYPE_HOUSE:            return DescQuestTargHouse();
+    QSTYPE_LOCKTAKE:         return DescQuestTargLockTake(Stage);
+  endcase
+
+  return "";
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargNpc(byref Stage)
+
+  if(Stage.Targ.Name)
+    return Stage.Targ.Name;
+  endif
+
+  var Name := DescGenNpcName(Stage.Targ.Template);
+
+  if(Name)
+    Stage.Targ.Name := Name;
+    SendQuestTicketEvent(Ticket, who, EVQID_SET_NPCNAME, Stage.Id, Name);
+    return Name;
+  else
+    return "";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescGenNpcName(byref Template)
+
+  var Name   := GetNpcConfig(Template).Name;
+
+  if(!Name)
+    LogError("DescGenNpcName: Brak imienia dla Template: "+Template+" w Quescie ID: "+QCrData.Id+", Bilet: "+Ticket.serial, LOGF_SCRIPTS);
+    return "";
+  endif
+
+  if(Name["<random>"])
+    Name := GetNpcNameFromTemplate(Template);
+    return Name;
+  else
+    return Name;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargExNpc(byref Stage)
+
+  var Npc := FindNpcBySerial(Stage.Targ.Serial);
+  if(Npc and Npc.name)
+    return Npc.name;
+  else
+    return "";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargItem(byref Stage)
+
+  if(Stage.Targ.Name)
+    return Stage.Targ.Name;
+  else
+    return GetDescForItem(Stage.Targ.ObjType);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargLockTake(byref Stage)
+
+  var Desc := GetDescForItem(Stage.Targ.ContObjType)+", ";
+
+  if(Stage.Targ.Name)
+    Desc := Desc + Stage.Targ.Name;
+  else
+    Desc := Desc + GetDescForItem(Stage.Targ.ObjType);
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargPlayer(byref Stage)
+
+  var Player := FindPlayerBySerial(Stage.Targ.Serial);
+  if(IsPlayer(Player))
+    return GetRealName(Player);
+  else
+    return "";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargLoc(byref Stage)
+
+  if(Stage.Targ)
+    if(who.cmdlevel)
+      return Stage.Targ.x+" "+Stage.Targ.y+" "+Stage.Targ.z+" "+Stage.Targ.realm;
+    else
+      return ToSextant(Stage.Targ.x, Stage.Targ.y, Stage.Targ.realm);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargFromNpc(byref Stage)
+
+  var Npc  := FindNpcBySerial(Stage.Targ.NpcSerial);
+  var Desc := "";
+
+  if(Npc and Npc.name)
+    Desc := Npc.name;
+  endif
+
+  if(Desc)
+    Desc := DescQuestTargItem(Stage)+", "+Desc;
+  else
+    Desc := DescQuestTargItem(Stage);
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargLootNpc(byref Stage)
+
+  var Desc := "";
+  var NpcName;
+
+  if(Stage.Targ.NpcName)
+    NpcName := Stage.Targ.NpcName;
+  else
+    NpcName := DescGenNpcName(Stage.Targ.Template);
+
+    if(NpcName)
+      Stage.Targ.NpcName := NpcName;
+      SendQuestTicketEvent(Ticket, who, EVQID_SET_NPCNAME, Stage.Id, NpcName);
+    endif
+  endif
+
+  if(NpcName)
+    Desc := NpcName+", "+DescQuestTargItem(Stage);
+  else
+    Desc := DescQuestTargItem(Stage);
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargSkill(byref Stage)
+
+  var Desc    := DescQuestTargItem(Stage);
+
+  if(Stage.SubType != QSTYPE_CARTOGRAPHY and Stage.Targ.MatObjType)
+    var ItemCfg := ReadConfigFile(ITEMS_CFG);
+    if(ItemCfg[Stage.Targ.MatObjType])
+      Desc := Desc + " z "+GetDescForItem(Stage.Targ.MatObjType);
+    endif
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargMine(byref Stage)
+
+  return DescQuestTargItem(Stage);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescQuestTargHouse()
+
+  return "Dom";
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SQAddTextBox(x, y, Width, Height, Color, Text, Lines := 1, GumpId := 0x2454)
+
+  if(!Text or !Lines)
+    return;
+  endif
+
+  var lMax := Lines;
+
+  if(Text.size() > Lines)
+    GAddPageData(388,62,0x262A,0x262C,388,282,0x262B,0x262D);
+    lMax := Text.size();
+  endif
+
+  GResPic(x-5, y-3, GumpId, Width+10, Height*Lines+6);
+  if(Lines > 1)
+    var n;
+    for(n:=0;n<lMax;n:=n+1)
+      if(lMax > Lines)
+        GCheckNextPage(Lines);
+        if(Text[n+1])
+          GTextLine(x, y+GNPCount()*20, Color, Text[n+1]);
+        endif
+      elseif(Text[n+1])
+        GTextLine(x, y+n*20, Color, Text[n+1]);
+      endif
+    endfor
+  elseif(Text)
+    GTextLine(x, y, Color, Text); 
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQuestTicketData()
+
+  SetObjProperty(Ticket, QGPROP_QCRINFO, QCrData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ToggleQuestArrow()
+
+  if(GetObjProperty(Ticket, QTPROP_QUEST_ARROW))
+    EraseObjProperty(Ticket, QTPROP_QUEST_ARROW);
+    SendSysMessage(who, "Wylaczyl"+ggm(who,3)+" sledzenie zadania: '"+ToAscii(Quest.GetProp(QSTPROP_TITLE))+"'.", FONT_NORMAL, COLOR_ORANGE);
+  else
+    SetObjProperty(Ticket, QTPROP_QUEST_ARROW, 1);
+    SendSysMessage(who, "Wlaczyl"+ggm(who,3)+" sledzenie zadania: '"+ToAscii(Quest.GetProp(QSTPROP_TITLE))+"'.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+  SendQuestTicketEvent(Ticket, who, EVQID_QUEST_ARROW, 0, 0);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,8 @@
+use uo;
+include "include/client/fonts";
+
+program logout(who)
+  SetObjProperty(who,"SafeLogoff",1);
+  SendSysmessage(who,"Logout: " + who.name, FONT_NORMAL, COLOR_BLUE);
+  DisconnectClient(who);
+endprogram

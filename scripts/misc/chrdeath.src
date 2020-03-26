@@ -1,0 +1,382 @@
+//-----------------------------------------------------------------------------
+
+include "include/noto";
+include "include/mount";
+include "include/poison";
+include "include/tempmods";
+include "include/clock";
+include ":banking:common";
+include "include/findcity";
+include "include/log";
+include "include/reputation/murderer";
+include "include/reputation/penalty";
+include "include/reputation/pvparea";
+include "include/resurrect";
+include "include/mobile/age";
+include "include/player/young";
+include "include/player/misc";
+include ":poczta:mailextensions";
+include "include/objects/location";
+
+include ":guildstone:common";
+include ":wearwolf:common";
+include ":vampire:common";
+include ":tourney:tourney";
+include ":quests:quest_ctrl";
+include ":eventcore:proc_events";
+include ":tips:tips";
+
+//-----------------------------------------------------------------------------
+
+const HITTER_STAT_MOD := 5;
+
+//-----------------------------------------------------------------------------
+
+program CharacterDeath(corpse, ghost)
+
+  StartDeathControl(ghost);
+  CurePoison(ghost);
+  SetHp(ghost,0);
+  SetStamina(ghost,0);
+  SetMana(ghost,0);
+  
+  var Count := CInt(GetObjProperty(ghost, "DeathCount"));
+  SetObjProperty(ghost, "DeathCount", Count+1);
+
+  if(CanMod(ghost, MOD_COLOR) == 0 and GetModAmount(ghost, MOD_COLOR) != 0)
+    corpse.color := GetModAmount(ghost, MOD_COLOR);
+  endif
+  
+  if(IsWearWolfMorphed(ghost))
+    EraseObjProperty(ghost,"#WearWolfMorph");
+  elseif(IsInVampireChange(ghost))
+    PlayStationaryEff(corpse.x,corpse.y,corpse.z, FX_FLAMESTRIKE, 0x0a, 0x1e );
+    EraseObjProperty(ghost,"#VampChangeComplete");
+  endif
+  
+  SetObjProperty(ghost,PROP_DEATH_TIME, ReadGameClock());
+  SetObjProperty(ghost,PROP_CORPSESER,corpse.serial);
+  SetObjProperty(corpse,PROP_CORPSE_OWNER,ghost.serial);
+
+  SetObjProperty(corpse, "DeathStatus", __IfElse(ghost.murderer, "Murderer", __IfElse(ghost.criminal, "Criminal", "Order")));
+
+  if(CheckForAutoRes(ghost,corpse))
+    FinallSteps(ghost);
+    return;
+  endif
+
+  DismountDeath(ghost, corpse);
+  
+  MoveNonNewbieItemsToCorpse(corpse,ghost);
+  CheckSecuredItems(ghost);
+
+  UndoAllMods(ghost);
+  if(ghost.graphic != CID_GM and ghost.dead)
+    case(ghost.gender)
+      0: if(ghost.graphic != CID_GHOST)
+           ghost.graphic := CID_GHOST;
+         endif
+
+      1: if(ghost.graphic != CID_FEMALE_GHOST)
+           ghost.graphic := CID_FEMALE_GHOST;
+         endif
+    endcase
+  endif
+
+  SendQuestKillEvent(ghost);
+  TriggerTipEvent(ghost, TEID_DEATH);
+  
+  var LastHitter := GetLastHitter(ghost);
+  var master     := GetMaster(LastHitter);
+  
+  if(LastHitter.isa(POLCLASS_NPC) and !GetNpcConfig(LastHitter).NoGain)
+    if(!IsPlayer(master))
+      var str := GetBaseStrength(LastHitter) + HITTER_STAT_MOD;
+      var dex := GetBaseDexterity(LastHitter) + HITTER_STAT_MOD;
+      var int := GetBaseIntelligence(LastHitter) + HITTER_STAT_MOD;
+    
+      SetBaseStrength(LastHitter,str);
+      SetBaseDexterity(LastHitter,dex);
+      SetBaseIntelligence(LastHitter,int);
+    endif
+  endif
+  
+  var onlineTimer := CInt(GetObjProperty(ghost, "onlinetimer"));
+  
+  if(onlineTimer < 10800)
+	MoveItemsToPlayersPost(ghost, corpse);
+	SendSysMessage(ghost, "Twoje przedmioty zostaly zdeponowane na poczcie!", FONT_NORMAL, COLOR_GREEN);
+  endif
+  
+    if(GetObjProperty(ghost, "#RodTimer"))
+	
+		PrintTextAbove(ghost, "Hmmmm!");
+	
+		foreach Rep in (ghost.reportables)
+			ghost.removereportable(Rep.serial, Rep.gameclock);
+		endforeach
+		
+		MoveItemsToPlayersPost(ghost, corpse);
+		FinallSteps(ghost);
+		SetObjProperty(ghost, "#RodTimer", 1);
+		return;
+  endif
+  
+  if(IsInTourneyIsland(corpse.x,corpse.y))
+    CheckTourneyDeath(ghost, LastHitter);
+    MoveFromIsland(ghost,corpse);
+    foreach Rep in (ghost.reportables)
+      ghost.removereportable(Rep.serial, Rep.gameclock);
+    endforeach
+
+    FinallSteps(ghost);
+    return;
+  endif
+
+  if(SendEventPlayerDeath(corpse, ghost))
+    return;
+  endif
+
+  var EventID := FindEventAreaByLoc(ghost);
+  
+  SendTamedEvent(ghost, corpse);
+
+  if(!EventID)
+    FameLost(ghost,0.5);
+  endif
+  
+  var Reports    := GetMurdReports(ghost);
+  var Killers    := GetMurdReportKillers(Reports);
+
+  if(LastHitter == ghost or !LastHitter or (LastHitter.isa(POLCLASS_NPC) and !IsPlayerTamed(LastHitter)))
+
+    RemoveMurdReports(ghost);
+
+  elseif(!EventID)
+
+    var bPass := 0;
+
+    foreach Killer in Killers
+      if(IsPlayer(killer) and killer.cmdlevel)
+        LogMsg(KILL_LOG, Killer, ghost);
+      endif
+
+      AdjustNoto(Killer, ghost);
+      AddToMurdPnCounter(Killer, ghost);
+
+      AdjustMurdList(Killer, ghost);
+    endforeach
+
+    var NewReports := dictionary;
+
+    foreach Report in Reports
+      var Killer := FindPlayerBySerial(_Report_iter);
+      if(CanReport(ghost, Killer))
+        NewReports[_Report_iter] := Report;
+        bPass := 1;
+      endif
+    endforeach
+
+    SetObjProperty(ghost, PROP_REPORT_MURDER, NewReports);
+
+    if(bPass)
+      start_script(":character:checkrep", ghost);
+    endif
+  endif
+
+  FinallSteps(ghost);
+  
+  CheckRestedBonus(ghost);
+  
+  start_script(":death:doDeath", {ghost, 180});
+
+  /*__NOPVP__  
+  //Oznaczenie wszystkich itemow w ciele - wlascicielem oraz statusem.
+    var PvPStatus :=  GetPvPStatus(corpse);
+    foreach item in EnumerateItemsInContainer(corpse)
+      SetItemPvPStatus(item, {ghost,PvPStatus});
+    endforeach*/
+
+endprogram
+
+function CheckRestedBonus(ghost)
+// TODO: Add stuff here!
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FinallSteps(ghost)
+  
+  CheckDeathForPvp(ghost);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckForAutoRes(who, corpse)
+
+  if(CInt(GetObjProperty(Corpse, "AutoRes")))
+    ResurrectPlayer(who);
+    SetHp(who, GetMaxHP(who));
+    SetMana(who, GetMaxMana(who));
+    SetStamina(who, GetMaxStamina(who));
+	EraseObjProperty(who, "AutoRes");
+
+    var dRobe := GetEquipmentByLayer(who, LAYER_ROBE);
+    if(dRobe)
+      DestroyItem(dRobe);
+    endif
+
+    foreach sItem in ListRootItemsInContainer(Corpse)
+      if(!EquipItem(who, sItem))
+        MoveToPack(sItem, who);
+      endif
+    endforeach
+    DestroyItem(Corpse);
+    return 1;
+  else
+    start_script("::deadctl",who);
+  endif
+
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DismountDeath(me, corpse)
+
+  var mount;
+  foreach item in EnumerateItemsInContainer(corpse)
+    if(item.objtype == UOBJ_MOUNT)
+      if(IsSetFlag(item, ITEMF_NO_LOOT))
+        DestroyItem(Item);
+      else
+        mount := item;
+        break;
+      endif
+    endif
+  endforeach
+  
+  if(!mount)
+    foreach item in ListEquippedItems(me)
+      if(Item.objtype == UOBJ_MOUNT)
+        if(IsSetFlag(item, ITEMF_NO_LOOT))
+          DestroyItem(Item);
+        else
+          mount := item;
+          break;
+        endif
+      endif
+    endforeach
+  endif
+  
+  if(!mount)
+    return;
+  endif
+  
+  if(!Dismount(me, mount))
+    LogError("Nie udalo sie wykonac Dismounta na "+GetRealName(me)+" w lokacji "+GetLocString(me)+" (Temp: "+GetObjProperty(mount, PROP_NPCTEMP)+" serial: "+CInt(GetObjProperty(mount, "AnimalSerial"))+").", LOGF_SCRIPTS);
+    DestroyItem(mount);
+  endif
+
+endfunction
+
+function MoveItemsToPlayersPost(ghost, corpse)
+
+	var bag := CreateItemAtLoc(ghost.x, ghost.y, ghost.z, 0xe76, 1, ghost.realm);
+	start_script(":character:young_death", {ghost});
+	SetName(bag, "Smierc " + ghost.name);
+
+	foreach item in ListRootItemsInContainer(corpse)
+		if(!item.newbie)
+			//PrintTextAbove(item, "*");
+			MoveItemToContainer(item, bag);
+		endif
+	endforeach
+	
+	SendPostItem(ghost, ghost.name, "Smierc", "Twoje przedmioty zostaly zachowane.", 0, bag);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveNonNewbieItemsToCorpse(corpse,ghost)
+
+  foreach item in ListRootItemsInContainer(ghost.backpack)
+    if(!item.newbie)
+      MoveItemToContainer(item, corpse);
+    endif
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSecuredItems(ghost)
+
+  var SecLvl;
+
+  foreach Item in EnumerateItemsInContainer(ghost.backpack)
+    SecLvl := CInt(GetObjProperty(Item, PROP_ISECURED));
+    if(SecLvl > 0)
+      SecLvl := SecLvl - 1;
+      if(SecLvl == 0)
+        EraseObjProperty(Item, PROP_ISECURED);
+        Item.newbie := 0;
+        SendSysMessage(ghost, GetName(Item)+" nie jest juz zabezpieczony!", FONT_NORMAL, COLOR_RED);
+        IncRevision(Item);
+      else
+        SetObjProperty(Item, PROP_ISECURED, SecLvl);
+        Item.newbie := 1;
+        IncRevision(Item);
+      endif
+    elseif(SecLvl)
+      EraseObjProperty(Item, PROP_ISECURED);
+      Item.newbie := 0;
+      IncRevision(Item);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendTamedEvent(ghost, corpse)
+
+  var ev     := struct;
+  ev.+type   := EVID_MASTER_DEAD;
+  ev.+corpse := corpse;
+  ev.+source := ghost;
+
+  foreach Npc in ListMobilesNearLocationEx(corpse.x, corpse.y, corpse.z, 15, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, corpse.realm)
+    if(IsTamed(Npc))
+      if(GetMasterSerial(Npc) == ghost.serial)
+        SendEvent(Npc, ev);
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendQuestKillEvent(ghost)
+
+  var Killer := GetLastHitter(ghost);
+
+  foreach Rep in (ghost.reportables)
+    if(Rep.killer == Killer)
+      Killer := 0;
+      SendQuestEvent(Rep.killer, EVQID_PLAYER_DEATH, 0, ghost);
+    endif
+  endforeach
+
+  if(IsPlayer(Killer))
+    SendQuestEvent(Killer, EVQID_PLAYER_DEATH, 0, ghost);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

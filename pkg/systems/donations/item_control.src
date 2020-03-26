@@ -1,0 +1,19 @@
+use uo;
+use cfgfile;
+
+include "include/const/cfgs";
+
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+program donateitemcontrol(item)
+  
+    if(item)
+      var available := GetObjProperty(item, "available");
+      if(available)
+        if(CInt(available) < ReadGameClock())
+          DestroyItem(item);
+        endif
+      endif
+    endif
+endprogram

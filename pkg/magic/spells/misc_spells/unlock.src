@@ -1,0 +1,62 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/key";
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 23;
+
+//-----------------------------------------------------------------------------
+
+program CastUnLock( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_ITEM, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if (!CastOn.locked)
+    Fizzle(caster,"To nie jest zamkniete!");
+    return;
+  endif
+
+  if (CheckIsHouseItem(CastOn))
+    Fizzle(caster, "Nie mozesz tego otworzyc za pomoca magii!");
+    PlayLightningBoltEffect(caster);
+    return;
+  endif
+
+  var LockOwner := FindPlayerBySerial(GetObjProperty(CastOn,"MLockerSer"));
+
+  if (LockOwner)
+    if (GetEffectiveSkill(Caster,SKILLID_MAGERY) < GetEffectiveSkill(LockOwner,SKILLID_MAGERY))
+      Fizzle(Caster,"Twoj czar zdaje sie nie dziala na ten zamek.");
+      return;
+    endif
+  endif
+  
+  var diff := GetLockDiff(CastOn);
+  if(diff)
+    PlaySoundEffect(caster, SFX_SPELL_UNLOCK);
+    if(diff <= 25 or LockOwner)
+      PrintTextAbovePrivate(CastOn, "*Otwarte!*", caster,FONT_NORMAL,COLOR_GREEN);
+      UnlockItem(CastOn);
+      return;
+    else
+      Fizzle(Caster, "Twoj czar zdaje sie nie dziala na ten zamek.");
+      return;
+    endif
+  else
+    Fizzle(Caster, "Twa magia zdaje sie byc za slaba.");
+    return;
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

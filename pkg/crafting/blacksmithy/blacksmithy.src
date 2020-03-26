@@ -1,0 +1,443 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/repair";
+include "include/dirs";
+include "include/checks/objchecks";
+include "include/skills/std";
+
+include ":crafting:creation";
+include ":crafting:exceptional";
+include ":crafting:mat_groups";
+include ":crafting:receptures";
+include ":bulks:common";
+
+//-----------------------------------------------------------------------------
+
+var gSkillId;
+
+//-----------------------------------------------------------------------------
+
+program Blacksmithy(who, hammer)
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT))
+    SendSysMessage(who ,"Musisz zejsc z wierzchowca by cos wykuc.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who,hammer))
+    return;
+  endif
+
+  if(!IsToolEquipped(who, hammer))
+    return;
+  endif
+
+  gSkillId := GetObjProperty(who, "LastBlacksmith");
+
+  if(!gSkillId)
+    gSkillId := SKILLID_BLACKSMITHY;
+  endif
+  
+  TriggerTipEvent(who, TEID_CRAFT_BLACKSMITHY);
+  var CraftData := BlackSmithGump(who);
+
+  if(!CraftData)
+    return;
+  endif
+
+  start_script(":blacksmithy:craft_item", array(who, hammer, CraftData, gSkillId));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BlackSmithGump(who)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, gSkillId);
+
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    if(gSkillId == SKILLID_BLACKSMITHY)
+      InitSkillGlob(who, ":blacksmithy:blacksmithy", gSkillId);
+      BuildMainBsGump(LastCraft.iters);
+
+      case(butRes)
+        10:  BuildShortSwordGump();
+        11:  BuildLongSwordGump();
+        12:  BuildAxeGump();
+        13:  BuildPolearmsGump();
+        14:  BuildBashingGump();
+      endcase
+    else
+      InitSkillGlob(who, ":blacksmithy:armorer", gSkillId);
+      BuildMainBsGump(LastCraft.iters);
+
+      case(butRes)
+        2:   BuildRingmailGump();
+        3:   BuildChainmailGump();
+        4:   BuildPlatemailGump();
+        5:   BuildHelmetsGump();
+        6:   BuildDragonGump();
+        7:   BuildShieldGump();
+        8:   BuildSamuraiGump();
+        9:   BuildElvenPlatemailGump(); // ML
+        10:  BuildNightmareGump();
+      endcase
+    endif
+    
+    BuildMainBsEndGump();
+    
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Nigdy jeszcze nie kul"+ggm(who, 3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        break;
+        
+      98: 
+        RepairThis(who);
+        doCraft := -1;
+
+      97:
+        if(gSkillId == SKILLID_BLACKSMITHY)
+          gSkillId := SKILLID_ARMORER;
+        else
+          gSkillId := SKILLID_BLACKSMITHY;
+        endif
+
+        SetObjProperty(who, "LastBlacksmith", gSkillId);
+        LastCraft := GetCraftLastCreation(who, gSkillId);
+
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, gSkillId, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainBsGump(ProdIters)
+
+  BuildMainGump();
+
+  GButton( 70, 384,   3, 4,   1);
+  GButton(410, 380, 243, 241, 99);
+  GTextLine( 90, 380, 900, "Kuj to co ostatnio");
+  
+  if(gSkillId == SKILLID_BLACKSMITHY)
+    GTextLine(200,  90, 1153, "Menu Kowalstwa");
+    GButton( 230, 384,   3, 4, 97);
+    GTextLine( 250, 380, 900, "Platnerstwo");
+  else
+    GTextLine(200,  90, 1153, "Menu Platnerstwa");
+    GButton( 230, 384,   3, 4, 97);
+    GTextLine( 250, 380, 900, "Kowalstwo");
+  endif
+
+  GButton( 70, 414,   3, 4,   98);
+  GTextLine( 90, 410, 900, "Napraw przedmiot");
+  
+  GTextLine(250, 408, 670, "Powtorz:");
+  BQGAddTextBox(320, 408, 60, 20, 1410, ProdIters, BQG_EDITABLE, 1, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainBsEndGump()
+
+  var Buttons   := struct;
+  Buttons.+Up   := dictionary;
+  Buttons.+Down := dictionary;
+
+  if(gSkillId == SKILLID_BLACKSMITHY)
+    Buttons.Up[10] := "Krotkie Miecze";
+    Buttons.Up[11] := "Dlugie Miecze";
+    Buttons.Down[12] := "Siekiery";
+    Buttons.Down[13] := "Wlocznie";
+    Buttons.Down[14] := "Mloty";
+
+  else
+    Buttons.Up[2]    := "Pierscieniowa";
+    Buttons.Up[3]    := "Kolczuga";
+    Buttons.Up[4]    := "Plyta";
+    Buttons.Up[5]    := "Helmy";
+    Buttons.Up[6]    := "Smocza zbroja";
+    Buttons.Down[7]  := "Tarcze";
+    Buttons.Down[8]  := "Zbroja Samuraja";
+    Buttons.Down[9]  := "Elfia Plyta"; // ML
+    Buttons.Down[10] := "Zbroja koszmara";
+    
+  endif
+
+  BuildSkillMenu(Buttons);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRingmailGump()
+
+          AddGumpElem( 5106, 40,  175, 100,  200, 150, 200 ,0 , 5099);
+          AddGumpElem( 5102, 260, 175, 250,  200, 300, 200 ,0 , 5103);
+          
+          AddGumpElem( 5104, 40,  270, 90,   295, 150, 295 ,0 , 5104);
+          AddGumpElem( 5100, 260, 270, 250,  295, 300, 295 ,0 , 5100);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildChainmailGump()
+
+          AddGumpElem( 5051, 90,  175, 100,  200, 150, 200 ,0 , 5051);
+          AddGumpElem( 5054, 240, 175, 250,  200, 300, 200 ,0 , 5054);
+          
+          AddGumpElem( 5055, 90,  270, 100,  295, 150, 295 ,0 , 5055);
+          
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPlatemailGump()
+
+          AddGumpElem( 5139, 60,  175, 70,   200, 120, 200);
+          AddGumpElem( 5140, 200, 175, 210,  200, 260, 200);
+          AddGumpElem( 5136, 340, 175, 350,  200, 400, 200);
+          
+          AddGumpElem( 5137, 60,  270, 70,   295, 120, 295);
+          AddGumpElem( 5141, 200, 270, 210,  295, 260, 295);
+          AddGumpElem( 7172, 320, 270, 350,  295, 400, 295);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildDragonGump()
+
+          AddGumpElem( 0x264C, 60,  175, 70,   200, 120, 200);
+          AddGumpElem( 0x2644, 200, 175, 210,  200, 260, 200);
+          AddGumpElem( 0x2658, 340, 175, 350,  200, 400, 200);
+          
+          AddGumpElem( 0x2648, 60,  270, 70,   295, 120, 295);
+          AddGumpElem( 0x2642, 200, 270, 210,  295, 260, 295);
+          AddGumpElem( 0x2645, 320, 270, 350,  295, 400, 295);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildElvenPlatemailGump() // ML
+
+          AddGumpElem( 0x2B69, 60,  165, 70,   190, 120, 190);
+          AddGumpElem( 0x2B6A, 200, 190, 210,  215, 260, 215);
+          AddGumpElem( 0x2B6C, 300, 165, 350,  190, 400, 190);
+          
+          AddGumpElem( 0x2B6B, 60,  260, 70,   285, 120, 285);
+          AddGumpElem( 0x2B67, 200, 285, 210,  310, 260, 310);
+          AddGumpElem( 0x2B6D, 300, 260, 350,  285, 400, 285);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildSamuraiGump()
+
+          AddGumpElem(0x2785, 60,  175, 70,   200, 120, 200);
+          AddGumpElem(0x2779, 200, 175, 210,  200, 260, 200);
+          AddGumpElem(0x2780, 340, 175, 350,  200, 400, 200);
+          
+          AddGumpElem(0x2788, 60,  270, 70,   295, 120, 295);
+          AddGumpElem(0x277d, 200, 270, 210,  295, 260, 295);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildHelmetsGump()
+
+          AddGumpElem( 5130, 65,  175, 60,   200, 110, 200);
+          AddGumpElem( 5132, 190, 175, 160,  200, 210, 200);
+          AddGumpElem( 5134, 260, 175, 260,  200, 310, 200);
+          AddGumpElem( 5128, 360, 175, 360,  200, 410, 200);
+
+          AddGumpElem( 5138, 65,  270, 60,   295, 110, 295);
+          AddGumpElem(0x2B71,170, 270, 160,  295, 210, 295); // ML
+          AddGumpElem(0x2B72,270, 270, 260,  295, 310, 295); // ML
+          AddGumpElem(0x2B73,360, 270, 360,  295, 410, 295); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShieldGump()
+
+          AddGumpElem( 7027, 65,  175, 60,   200, 110, 200 ,0 , 7027);
+          AddGumpElem( 7026, 150, 175, 160,  200, 210, 200 ,0 , 7026);
+          AddGumpElem( 7035, 260, 175, 260,  200, 310, 200 ,0 , 7035);
+          AddGumpElem( 7030, 400, 175, 360,  200, 410, 200 ,0 , 7030);
+          
+          AddGumpElem( 7028, 65,  270, 60,   295, 110, 295 ,0 , 7028);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShortSwordGump()
+
+          AddGumpElem( 3921,   65,  145, 60,   170, 110, 170);
+          AddGumpElem( 5184,   155, 165, 150,  190, 210, 190, 0, 5185);
+          AddGumpElem( 5118,   275, 145, 255,  170, 310, 170 ,0, 5119);
+          AddGumpElem( 5121,   400, 165, 360,  190, 410, 190);
+
+          AddGumpElem( 5045,   65,  205, 60,   230, 110, 230, 0, 5046);
+          AddGumpElem( 0x27FA, 190, 225, 160,  250, 210, 250);
+          AddGumpElem( 0x27EF, 260, 205, 255,  230, 310, 230);
+          AddGumpElem( 0x2D21, 375, 225, 340,  250, 410, 250); // ML
+          
+          AddGumpElem( 0x2D20, 45,  270, 40,   295, 110, 295); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLongSwordGump()
+
+          AddGumpElem( 9934,   75,  145, 40,   170, 110, 170, 0, 9935);
+          AddGumpElem( 3934,   170, 165, 150,  190, 210, 190);
+          AddGumpElem( 3936,   285, 145, 235,  170, 310, 170, 0, 3937);
+          AddGumpElem( 5049,   380, 165, 360,  190, 410, 190);
+
+          AddGumpElem( 0x27F4, 95,  205, 55,   230, 110, 230);
+          AddGumpElem( 0x2D29, 170, 225, 130,  250, 210, 250); // ML
+          AddGumpElem( 9921,   265, 205, 240,  230, 310, 230, 0, 9931);
+          AddGumpElem( 0x27ED, 385, 225, 320,  250, 410, 250);
+
+          AddGumpElem( 0x2D27, 35,  270, 20,   295, 110, 295); // ML
+          AddGumpElem( 0x2D23, 170, 290, 125,  305, 210, 315); // ML
+          AddGumpElem( 0x2D26, 260, 275, 225,  300, 310, 300); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAxeGump()
+
+          AddGumpElem( 3911, 65,  145, 60,   170, 110, 170);
+          AddGumpElem( 3909, 155, 165, 150,  190, 210, 190);
+          AddGumpElem( 5186, 275, 145, 255,  170, 310, 170 ,0 , 5187);
+          AddGumpElem(0x27f8,400, 165, 360,  190, 410, 190);
+
+          AddGumpElem( 3915, 45,  205, 60,   230, 110, 230);
+          AddGumpElem( 3913, 190, 225, 160,  250, 210, 250);
+          AddGumpElem( 5039, 260, 205, 255,  230, 310, 230 ,0 , 5040);
+          AddGumpElem( 5114, 360, 225, 360,  250, 410, 250 ,0 , 5115);
+          
+          AddGumpElem( 0x2D28, 55,  270, 20,   295, 110, 295); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPolearmsGump()
+
+          AddGumpElem( 5122, 45,  145, 35,   170, 90,  170 ,0 , 5123);
+          AddGumpElem( 3939, 180, 145, 95,   170, 200, 170 ,0 , 3938);
+          AddGumpElem( 5124, 270, 145, 260,  170, 310, 170 ,0 , 5125);
+          AddGumpElem( 3918, 390, 145, 335,  170, 415, 170 ,0 , 3917);
+
+          AddGumpElem( 5182, 45,  210, -10,  235, 90,  235 ,0 , 5183);
+          AddGumpElem( 9919, 160, 210, 95,   235, 200, 235 ,0 , 9929);
+          AddGumpElem( 9914, 290, 210, 240,  235, 310, 235 ,0 , 9924);
+          AddGumpElem( 9917, 370, 210, 315,  235, 415, 235 ,0 , 9927);
+
+          AddGumpElem( 9918, 45,  270, 15,   295, 90,  295 ,0 , 9928);
+          AddGumpElem( 9920, 180, 270, 105,  290, 200, 295 ,0 , 9930);
+          AddGumpElem(0x27F2,290, 270, 225,  295, 310, 295);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildBashingGump()
+
+          AddGumpElem( 3932, 75,  175, 60,   200, 110, 200 ,0 , 3932);
+          AddGumpElem( 5178, 160, 175, 160,  200, 210, 200 ,0 , 5179);
+          AddGumpElem( 5126, 260, 175, 260,  200, 310, 200 ,0 , 5127);
+          AddGumpElem( 5176, 380, 175, 360,  200, 410, 200 ,0 , 5176);
+
+          AddGumpElem( 5180, 65,  270, 60,   295, 110, 295 ,0 , 5181);
+          AddGumpElem( 9916, 190, 270, 160,  295, 210, 295 ,0 , 9926);
+          AddGumpElem(0x27f1,270, 270, 230,  295, 310, 295);
+          AddGumpElem( 0x2D24, 340, 270, 325,  295, 410, 295); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildNightmareGump()
+
+          AddGumpElem( 0x1376, 125,  175, 110, 200, 160, 200);
+
+          AddGumpElem( 0x1377, 275,  175, 260, 200, 310, 200);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RepairThis(who)
+
+  SendSysMessage(who, "Wybierz przedmiot do naprawy.", FONT_NORMAL, COLOR_GREEN);
+  var ItemToRepair := ObjTarget(who);
+  if(!StandardItemCheck(who, ItemToRepair))
+    return;
+  endif
+
+  var Anvil := IsNearAnvil(who);
+  if(Anvil)
+    var IngotObj := GetIngObjByColor(ItemToRepair.color);
+    if(ItemToRepair.objtype == UOBJ_PD_SHIELD or ItemToRepair.objtype == UOBJ_DK_SHIELD or IsArtifact(ItemToRepair) or GetBulkLevel(ItemToRepair))
+      IngotObj := UOBJ_MYSTIC_INGOT;
+    endif
+
+    TurnCharToward(who, Anvil);
+    RepairItem(who, ItemToRepair, gSkillId, IngotObj, SFX_ANVIL, 0x9);
+  else
+    SendSysMessage(who, "Musisz byc blisko kowadla by naprawic przedmiot!", FONT_NORMAL, COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

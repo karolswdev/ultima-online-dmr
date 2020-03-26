@@ -1,0 +1,154 @@
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/checks/objchecks";
+include "include/player/misc";
+include "include/dirs";
+include "include/effects";
+include "include/tempmods";
+include "include/tools";
+include "include/npcs";
+
+//-----------------------------------------------------------------------------
+
+program HorseArmor(who, Armor)
+
+  if(!StandardItemCheck(who, Armor))
+    return;
+  endif
+
+  var ModX, secObj, secArmor;
+
+  if(Armor.objtype == UOBJ_HORSE_ARMOR_1)
+    ModX   := 1;
+    secObj := UOBJ_HORSE_ARMOR_2;
+
+  elseif(Armor.objtype == UOBJ_HORSE_ARMOR_2)
+    ModX   := -1;
+    secObj := UOBJ_HORSE_ARMOR_1;
+
+  else
+    
+    SendSysMessage(who, "Nie wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  if(GetBaseSkill(who, SKILLID_ARMORER) < 100)
+    SendSysMessage(who, "Twa wiedza o platnerstwie jest za mala, by wiedziec jak okuc koszmara.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Hammer := who.weapon;
+
+  if(Hammer.objtype != UOBJ_SMITH_HAMMER)
+    SendSysMessage(who, "Nie trzymasz w rece mlotka.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!ReserveItem(Hammer))
+    SendSysMessage(who, "Nie trzymasz w rece mlotka.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT))
+    SendSysMessage(who, "Jak chcesz okuc koszmara siedziac na wierzchowcu?", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(coordist(Armor.x, Armor.y, who.x, who.y) > 1)
+    SendSysMessage(who, "Stoisz za daleko zbroi.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Armor.container)
+    SendSysMessage(who, "Musisz polozyc zbroje na ziemi, by moc zalozyc ja na koszmara.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  foreach Item in ListItemsAtLocation(Armor.x+ModX, Armor.y, Armor.z, Armor.realm)
+    if(Item.objtype == secObj)
+      secArmor := Item;
+      break;
+    endif
+  endforeach
+
+  if(!secArmor.isa(POLCLASS_ITEM))
+    SendSysMessage(who, "Brak drugiej czesci zbroi, musza stac obok siebie.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who, secArmor))
+    return;
+  endif
+
+  if(coordist(secArmor.x, secArmor.y, who.x, who.y) > 1)
+    SendSysMessage(who, "Stoisz za daleko drugiej czesci zbroi.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetItemMakeMod(secArmor) != GetItemMakeMod(Armor) or GetItemQuality(secArmor) != GetItemQuality(Armor))
+    SendSysMessage(who, "Dwie czesci nie sa takie same.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz koszmara, na ktorego chcesz to zalozyc.", FONT_NORMAL, COLOR_GREEN);
+
+  var Nightmare := ObjTarget(who);
+  
+  if(!StandardMobCheck(who, Nightmare))
+    return;
+  endif
+
+  if(Distance(Nightmare, who) > 1)
+    SendSysMessage(who, "To zwierze stoi za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Nightmare.npctemplate != "nightmare")
+    SendSysMessage(who, "To nie koszmar.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Nightmare.graphic == CID_ARMORED_NIGHTMARE)
+    SendSysMessage(who, "Ten koszmar zostal juz opancerzony.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsTamed(Nightmare))
+    SendSysMessage(who, "Ten koszmar nie jest oswojony!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Okuwasz koszmara...", FONT_NORMAL, COLOR_GREEN);
+
+  for i := 1 to 3
+
+    TurnCharToward(who, Nightmare);
+
+    if(!MakeNoise(who, SFX_ANVIL, 1700, ANIM_ATTACK_1HAND_WIDE))
+      return;
+    endif
+
+    if(Distance(Nightmare, who) > 1)
+      SendSysMessage(who, "Koszmar sie oddalil.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  
+  endfor
+
+  var Color  := Armor.color;
+  var mMod   := 15 + CInt(GetItemMakeMod(Armor)*GetItemQuality(Armor)*1.4);
+
+  if(!DestroyItem(Armor) or !DestroyItem(secArmor))
+    SendSysMessage(who, "Cos przeszkadza w wykorzystaniu zbroi.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetNpcGraphic(Nightmare, CID_ARMORED_NIGHTMARE);
+  SetNpcColor(Nightmare, Color);
+  SetStaticMod(Nightmare, MOD_AR, mMod);
+  
+  CheckToolWear (who, hammer, SKILLID_BLACKSMITHY);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

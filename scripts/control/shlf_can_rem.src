@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program CanShelfRemove(who,Shelf,Item)
+
+  if(IsOwner(who,Item))
+    return 1;
+  else
+    SendSysMessage(who,"Nie wolno Ci tego ruszac.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

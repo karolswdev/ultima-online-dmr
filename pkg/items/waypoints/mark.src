@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/const/cfgs";
+include "include/msgs";
+include "include/waypoints";
+include "include/unicode";
+
+//-----------------------------------------------------------------------------
+
+program UseWaypointStone(who, Stone)
+
+  var Name := GetObjProperty(Stone, PROP_WAYPOINT_NAME);
+
+  if(!Name)
+    SendBad(who, "Ten kamien do niczego nie jest przydatny...");
+    return;
+  endif
+
+  var Cfg := ReadConfigFile(CFG_WAYPOINTS);
+
+  if(!Cfg[Name])
+    SendBad(who, "Ten kamien do niczego nie jest przydatny...");
+    return;
+  endif
+
+  if(MarkWaypoint(who, Name))
+    UniSendGood(who, "Odkryl"+ggm(who,3)+" nowa lokalizacje '"+Cfg[Name].Desc+"'!", COLOR_WHITE);
+  else
+    UniSendGood(who, "Ta lokalizacja zostala juz odkryta przez Ciebie.");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

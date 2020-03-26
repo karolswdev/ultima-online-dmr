@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-26
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/objtypes/skills";
+include "include/client/fonts";
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program CanShelfInsert(who, Shelf, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(inserttype);
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if((Item.objtype >= UOBJ_BOOK_START and Item.objtype <= UOBJ_BOOK_END) or Item.objtype == UOBJ_BARDBOOK)
+    if(Shelf.item_count > 8)
+      SendSysMessage(who,"Wiecej ksiazek sie tu nie zmiesci.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+    return 1;
+  else
+    SendSysMessage(who,"Tego tu nie wlozysz.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

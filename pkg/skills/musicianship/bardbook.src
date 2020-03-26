@@ -1,0 +1,186 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumpboxes";
+
+//--------------------------------------------------------------------------------
+
+const PAGE_COUNT := 9;
+const PAGE_NUM   := 5;
+
+//--------------------------------------------------------------------------------
+
+program BardBook(who,Book)
+
+  if(!StandardItemCheck(who,Book))
+    return;
+  endif
+  
+  if(GetEffectiveSkill(who,SKILLID_MUSICIANSHIP) < 60)
+    SendSysMessage(who,"Twa wiedza jest za mala by moc korzystac z tej ksiegi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  Detach();
+  NoLongerBusy(who);
+  EraseObjProperty(who,"#BardBookSpeak");
+  if(CInt(GetObjProperty(Book,"#BookUsePid")))
+    if(GetProcess(CInt(GetObjProperty(Book,"#BookUsePid"))))
+      return 0;
+    endif
+  endif
+  
+  var Res := SendBardBookGump(who,Book);
+
+  if(Res[0] == 3)
+    if(YesNo(who,"Napewno?"))
+      SendSysMessage(who,"Wyczyscil"+ggm(who,3)+" zawartosc ksiazki.",FONT_NORMAL,COLOR_GREEN);
+      EraseObjProperty(Book,"CurrentData");
+    endif
+  else
+    SaveBookData(who,Book,Res);
+  endif
+  
+  if(Res[0] == 2)
+    Speak(who,Book);
+  endif
+  
+  if(Res[0] == 4)
+    SelectSpeakColor(who,Book);
+  endif
+  
+  if(Res[0] >= 100 and Res[0] < 200)
+    Speak(who,Book,(1 + (((Res[0] - 100) - 1) * PAGE_COUNT)),((Res[0] - 100) * PAGE_COUNT));
+  elseif(Res[0] >= 200 and Res[0] < 300)
+    ClearV(who,Book,(1 + (((Res[0] - 200) - 1) * PAGE_COUNT)),((Res[0] - 200) * PAGE_COUNT));
+  endif
+  
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function SendBardBookGump(who,Book)
+
+  var CurData := GetCurBardBookData(Book),W := 0,H := 0,i := 1;
+  var Color   := GetObjProperty(Book,"SpeakColor");
+  var Pcn     := 1;
+  if(!Color)
+    Color := 560;
+    SetObjProperty(Book,"SpeakColor",Color);
+  endif
+  
+  GInit(100,100);
+  GGumpPic(0,0,0x1FE);
+  GPage();
+  GButton(65,   10,0x263E,0x263F,2);
+  GButton(330,  10,0x263E,0x263F,3);
+  GButton(170,  10,0x263E,0x263F,4);
+  GTextLine(95, 10,550,"Recytuj");
+  GTextLine(174,13,Color,"O");
+  GTextLine(255,10,550,"Wyczysc");
+  GAddPageData(0,0,0x1FF,0x1FF,356,0,0x200,0x200);
+
+  W := 25; H := 0 - 27;
+  for(i:=1;i<=((2*PAGE_COUNT)*PAGE_NUM);i:=i+1)
+    GCheckNextPage(PAGE_COUNT * 2);
+    if(GNPCount() == PAGE_COUNT)
+      GButton(45, 200,2117,2118,100+Pcn);
+      GTextLine(63, 196,550,"Recyt.");
+      GButton(120,200,2117,2118,200+Pcn);
+      GTextLine(138, 196,550,"Wycz.");
+      W := 220; H := ((PAGE_COUNT) * 20) + H;
+      Pcn := Pcn + 1;
+    endif
+    if(GNPCount() == ((PAGE_COUNT * 2) - 1))
+      GButton(235,200,2117,2118,100+Pcn);
+      GTextLine(253, 196,550,"Recyt.");
+      GButton(310,200,2117,2118,200+Pcn);
+      GTextLine(328, 196,550,"Wycz.");
+      Pcn := Pcn + 1;
+      W := 25; H := 0 - 27;
+    endif
+    GTextEntry(10+W,(10+(GNPCount()*20))-H,160,20,Color,i,ClStr(CurData[i]));
+  endfor
+
+  return GSend(who);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetCurBardBookData(Book)
+
+  var Data := GetObjProperty(Book,"CurrentData"),n;
+  if(!Data or !Data.size())
+    Data := {};
+    for(n:=1;n<=((2*PAGE_COUNT)*PAGE_NUM);n:=n+1)
+      Data[n] := "";
+    endfor
+  endif
+  
+  foreach Dat in Data
+    if(Dat["error"] or Dat["<uninitialized"] or !Dat)
+      Dat := "";
+    endif
+  endforeach
+  
+  SetObjProperty(Book,"CurrentData",Data);
+  return Data;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SaveBookData(who,Book,Res)
+
+  var NewData := {},i;
+  for(i:=1;i<=((2*PAGE_COUNT)*PAGE_NUM);i:=i+1)
+    NewData[i] := CLStr(CroppedId(Res[i]));
+  endfor
+  
+  SetObjProperty(Book,"CurrentData",NewData);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function Speak(who,Book,FromV := 0,ToV := 0)
+
+  var Parms := {};
+  Parms[1]  := who;
+  Parms[2]  := Book;
+  Parms[3]  := GetCurBardBookData(Book);
+  Parms[4]  := CInt(GetObjProperty(Book,"SpeakColor"));
+  Parms[5]  := FromV;
+  Parms[6]  := ToV;
+  start_script(":musicianship:bardspeak",Parms);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SelectSpeakColor(who,Book)
+
+  var NewColor := SelectColor(who,Book);
+  if(NewColor > 1 and NewColor < 1002)
+    SetObjProperty(Book,"SpeakColor",NewColor);
+  endif
+  
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ClearV(who,Book,FromV,ToV)
+
+  var BData := GetCurBardBookData(Book);
+  var i;
+  
+  for(i:=FromV;i<=ToV;i:=i+1)
+    BData[i] := "";
+  endfor
+  
+  SetObjProperty(Book,"CurrentData",BData);
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,124 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 96;
+
+//-----------------------------------------------------------------------------
+
+program CastFear( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var CasterDruid := GetEffectiveSkill(Caster,SKILLID_DRUID);
+  var CasterALore := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var Range       := CInt(CasterDruid / 10) + CInt(CasterALore / 20);
+  var Gained := 0;
+
+  PlaySoundEffect(Caster, SFX_SPELL_HARM);
+
+  foreach Mob in ListMobilesNearLocation(Caster.x,Caster.y,Caster.z,Range, Caster.realm)
+    var cfgElem := GetNpcConfig(Mob);
+
+    if(cfgElem.tameskill)
+      if(CheckSkill(Caster,SKILLID_DRUID,CInt(cfgElem.tameskill),0))
+        SendChEvent(Mob,Caster,EVID_FLEE);
+
+        if(Gained < 3)
+          CagNpcDamaged(Mob, 10, Caster);
+          Gained += GainSpellPoints(Caster, Mob, MAGICGAIN_OFFENSIVE);
+        endif
+      
+      endif
+    endif
+  endforeach
+
+  MakeFearEffect(Caster,Range);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeFearEffect(Caster,Range)
+
+  var Items := array,i,c;
+  var Mods  := array;
+  var Sx := Caster.x,Sy := Caster.y;
+
+  Items.append(CreateInvisItem(Caster.x+1,Caster.y+1,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x-1,Caster.y-1,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x-1,Caster.y+1,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x+1,Caster.y-1,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x-1,Caster.y,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x+1,Caster.y,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x,Caster.y-1,Caster.z, 0, Caster.realm));
+  Items.append(CreateInvisItem(Caster.x,Caster.y+1,Caster.z, 0, Caster.realm));
+  Mods.append({ 1, 1});
+  Mods.append({-1,-1});
+  Mods.append({-1, 1});
+  Mods.append({ 1,-1});
+  Mods.append({-1, 0});
+  Mods.append({ 1, 0});
+  Mods.append({ 0,-1});
+  Mods.append({ 0, 1});
+
+  foreach Item in Items
+    Item.movable   := 0;
+    Item.graphic   := 3676;
+    Item.color     := 1153;
+    SetName(Item, "run");
+    Item.invisible := 0;
+  endforeach
+
+  Sleepms(300);
+
+  for(i:=1;i<=Range;i:=i+1)
+    for(c:=1;c<=len(Items);c:=c+1)
+      if(Items[c])
+        MoveItemAndChangeGraphic(Items[c],Mods[c],Sx,Sy,i);
+      endif
+    endfor
+    sleepms(300);
+  endfor
+  
+  foreach item in Items
+    if(Item)
+      DestroyItem(Item);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItemAndChangeGraphic(Item,Mod,Sx,Sy,i)
+
+  var Mx,My,Mz;
+
+  Mx := CInt(Sx+(i*Mod[1]));
+  My := CInt(Sy+(i*Mod[2]));
+  Mz := GetStandZ(Mx, My, Item.realm);
+
+  MoveObject(Item,Mx,My,Mz, Item.realm, MOVEITEM_IGNOREMOVABLE);
+
+  case (item.graphic)
+    3676:     item.graphic := 3679;
+    3679:     item.graphic := 3682;
+    3682:     item.graphic := 3685;
+    3685:     item.graphic := 3688;
+    default:  item.graphic := 3676;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

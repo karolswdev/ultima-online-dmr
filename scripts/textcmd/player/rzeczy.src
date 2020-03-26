@@ -1,0 +1,150 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/items";
+include "include/getobj";
+include "include/objtypes/misc";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+var MyItems := dictionary;
+
+//-----------------------------------------------------------------------------
+
+program ListItems( who )
+
+  GInit();
+  GNoDispose();
+  GPage();
+  GResPic(0,20,2620,350,446);
+  GAddPageData(325,30,2650,2651,325,437,2648,2647);
+
+  foreach item in EnumerateItemsInContainer(who.backpack)
+    if(MyItems.exists(item.objtype))
+      MyItems[item.objtype] := MyItems[item.objtype] + item.amount;
+    else
+      MyItems[item.objtype] := item.amount;
+    endif
+  endforeach
+
+  var i;
+  var Groups := GetItemsGroups();
+
+  foreach Group in Groups
+    GCheckNextPage(1);
+    GTextLine(120,32,1419,Group[1]);
+    Group.erase(1);
+    for(i:=1;i<=Group.size();i:=i+1)
+      if(Group[i])
+        GTextLine(40,(42+(i*20)),1102,CInt(MyItems[Group[i]]));
+        GTextLine(90,(42+(i*20)),1000,GetDescForItem(Group[i]));
+      endif
+    endfor
+  endforeach
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetItemsGroups()
+
+  var Groups := {};
+  var Group  := {};
+  var i;
+
+  Group[1]   := "Glowne skladniki";
+
+  foreach Reg in GetMainRegsObjTypes()
+    Group.append(Reg);
+  endforeach
+
+  Groups.append(Group);
+  Group      := {};
+  Group[1]   := "Rzadkie skladniki";
+
+  for(i:=UOBJ_START_RAREREGS;i<=UOBJ_END_RAREREGS;i:=i+1)
+    if(!(i in Groups[1]))
+      Group.append(i);
+    endif
+  endfor
+  
+  Groups.append(Group);
+  Group      := {};
+  Group[1]   := "Klejnoty";
+
+  foreach Gem in GetGemsObjTypes()
+    if(GetDescForItem(Gem))
+      Group.append(Gem);
+    endif
+  endforeach
+
+  Groups.append(Group);
+  Group      := {};
+  Group[1]   := "Mikstury";
+
+  Group.append(UOBJ_NIGHTSIGHT_POTION);
+  Group.append(UOBJ_BLIND_POTION);
+  Group.append("");
+  Group.append(UOBJ_REFRESH_POTION);
+  Group.append(UOBJ_FULL_REFRESH_POTION);
+  Group.append("");
+  Group.append(UOBJ_LESSER_HEAL_POTION);
+  Group.append(UOBJ_HEAL_POTION);
+  Group.append(UOBJ_GREATER_HEAL_POTION);
+  Group.append("");
+  Group.append(UOBJ_LESSER_POISON_POTION);
+  Group.append(UOBJ_POISON_POTION);
+  Group.append(UOBJ_GREATER_POISON_POTION);
+  Group.append(UOBJ_DEADLY_POISON_POTION);
+  Group.append("");
+  Group.append(UOBJ_LESSER_EXPLOSION_POTION);
+  Group.append(UOBJ_EXPLOSION_POTION);
+  Group.append(UOBJ_GREATER_EXPLOSION_POTION);
+
+  Groups.append(Group);
+  Group      := {};
+  Group[1]   := "Mikstury";
+
+  Group.append(UOBJ_LESSER_AGILITY_POTION);
+  Group.append(UOBJ_AGILITY_POTION);
+  Group.append(UOBJ_GREATER_AGILITY_POTION);
+  Group.append("");
+  Group.append(UOBJ_LESSER_STRENGTH_POTION);
+  Group.append(UOBJ_STRENGTH_POTION);
+  Group.append(UOBJ_GREATER_STRENGTH_POTION);
+  Group.append("");
+  Group.append(UOBJ_LESSER_CURE_POTION);
+  Group.append(UOBJ_CURE_POTION);
+  Group.append(UOBJ_GREATER_CURE_POTION);
+  Group.append("");
+  Group.append(UOBJ_LESSER_CURSE_POTION);
+  Group.append(UOBJ_CURSE_POTION);
+  Group.append(UOBJ_GREATER_CURSE_POTION);
+
+  Groups.append(Group);
+  Group      := {};
+  Group[1]   := "Mikstury";
+
+  Group.append(UOBJ_MANA_POTION);
+  Group.append(UOBJ_PROTPOISON_POTION);
+  Group.append(UOBJ_POLYMORPH_POTION);
+  Group.append(UOBJ_WEARWOLF_CURE_POTION);
+  Group.append("");
+  Group.append(UOBJ_LIGHT_LIFE_ELIXIR);
+  Group.append(UOBJ_LIFE_ELIXIR);
+  Group.append(UOBJ_LIGHT_MANA_ELIXIR);
+  Group.append(UOBJ_MANA_ELIXIR);
+  Group.append(UOBJ_LIGHT_STAMINA_ELIXIR);
+  Group.append(UOBJ_STAMINA_ELIXIR);
+
+  Groups.append(Group);
+
+  return Groups;
+
+endfunction
+
+//-----------------------------------------------------------------------------

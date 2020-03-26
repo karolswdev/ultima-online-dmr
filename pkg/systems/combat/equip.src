@@ -1,0 +1,385 @@
+//-----------------------------------------------------------------------------
+
+include "include/bits";
+include "include/faith";
+include "include/getobj";
+include "include/items/basic";
+include ":magic:magic";
+include "include/mount";
+
+include "sets";
+include ":magicitems:magicitems";
+include ":wearwolf:common";
+include ":vampire:common";
+include ":artifacts:artifacts";
+include ":barbarian:barbarian";
+include ":kensai:kensai";
+include ":magiceffects:timed_equip";
+include ":crafting:mat_groups";
+
+
+//-----------------------------------------------------------------------------
+
+const MAGE_SHIELD_SKILL := 0;
+const MAGE_ARMOR_SKILL  := 0;
+
+//-----------------------------------------------------------------------------
+
+program EquipIt(who, item)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+ 
+  if(item.hp > item.maxhp)
+    item.hp := item.maxhp;
+  endif
+
+  if(item.isa(POLCLASS_WEAPON))
+    item.hitscript := "";
+     ArchDelay(who,item);
+  endif
+
+  if(item.isa(POLCLASS_ARMOR) and !ItemCfg[item.objtype].Cloth and CInt(ItemCfg[item.objtype].AR) > 6)
+    if(IsEngaged(who, 10) or IsAttackingPlayer(who))
+      SendBad(who, "Ciezko bedzie Ci sie przebrac w trakcie ataku!");
+      return 0;
+    endif
+
+  endif
+
+  if(IsPlayer(who))
+    if(who.paralyzed)
+      return 0;
+    endif
+
+    if(!CanUseItem(who, item))
+      return 0;
+    endif
+  endif
+  
+  if(!who.isa(POLCLASS_NPC) and !who.cmdlevel)
+
+    if(IsSetTempFlag(Item, ITEMF_NO_EQUIP))
+      return 0;
+    endif
+
+    if(GetObjProperty(item,"ReqCmdLvl"))
+      if(GetObjProperty(item,"ReqCmdLvl") > who.cmdlevel)
+        return 0;
+      endif
+    endif
+
+    var Hand1 := GetEquipmentByLayer(who,LAYER_HAND1);
+    var Hand2 := GetEquipmentByLayer(who,LAYER_HAND2);
+	
+	var mount := HaveMount(who);
+	
+	if(ItemCfg[item.objtype].NoMount && mount)
+		SendBad(who, "Ciezko Ci bedzie z tym na wierzchowcu");
+		return 0;
+	endif
+
+    if(item.isa(POLCLASS_SPELLBOOK))
+      if(IsLoggedIn(who))
+        if(Hand1 or Hand2 or who.weapon.objtype != UOBJ_WRESTLE)
+          return 0;
+        endif
+      endif
+    endif
+
+    if(item.isa(POLCLASS_WEAPON))
+      if(IsLoggedIn(who))
+        if(who.weapon.objtype != UOBJ_WRESTLE)
+          return 0;
+        elseif(Hand1)
+          if(!ItemCfg[Hand1.objtype].Shield)
+            return 0;
+          endif
+        elseif(Hand2)
+          if(!ItemCfg[Hand2.objtype].Shield)
+            return 0;
+          endif
+        endif
+      endif
+    endif
+
+    var SkReq := ItemCfg[item.objtype].SkillReq;
+    if(SkReq)
+      SkReq := SplitWords(SkReq);
+      if(GetBaseSkill(who,CInt(SkReq[1])) < CInt(SkReq[2]))
+        SendSysMessage(who,"Twa wiedza jest za mala by moc to zalozyc.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+    endif
+
+    case(ItemCfg[item.objtype].GenderSpecific)
+      0:  if(who.gender == 1)
+            SendSysMessage(who, "Tylko mezczyzni moga to nosic.",FONT_NORMAL,COLOR_RED);
+            return 0;
+          endif
+      1:  if(who.gender == 0)
+            SendSysMessage(who, "Tylko kobiety moga to nosic.",FONT_NORMAL,COLOR_RED);
+            return 0;
+          endif
+    endcase
+
+    if(ItemCfg[item.objtype].Plate AND who.graphic == VP_GARGOYLE_GRAPHIC)
+      SendSysMessage(who,"Nie mozesz zalozyc zbroi plytowej bedac gargulcem.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+    if(!CheckFaithEquip(who,item))
+      return 0;
+    endif
+
+    if(GetBaseSkillBaseValue(who, SKILLID_KENSAI) > 0)
+      if(!CheckKensaiEquip(who, Item))
+        return 0;
+      endif
+    endif
+
+    if(GetBaseSkillBaseValue(who, SKILLID_BARBARIAN) > 0)
+      if(!CheckBarbEquip(who, Item))
+        return 0;
+      endif
+    endif
+
+    if(!CheckArcherEquip(who,item))
+      return 0;
+    endif
+
+    if(!CheckEquipmentByCover(who,item))
+      return 0;
+    endif
+
+    if(!CheckMageEquip(who,item))
+      return 0;
+    endif
+
+    if(!CheckBound(who,Item))
+      SendSysMessage(who, "Ten przedmiot nie nalezy do Ciebie!",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+    if(Item.tile_layer == LAYER_HAND1 or Item.tile_layer == LAYER_HAND2)
+      if(CInt(GetObjProperty(who, "#WpnEquipDelay")) > ReadGameClock())
+        SendSysMessage(who, "Nie mozesz tego jeszcze zalozyc.", FONT_NORMAL, COLOR_RED);
+        return 0;
+      endif
+    endif
+
+    var NbSkReq := ItemCfg[item.objtype].NbSkReq;
+    if(NbSkReq)
+      NbSkReq := SplitWords(NbSkReq);
+      if(GetBaseSkill(who,CInt(NbSkReq[1])) >= CInt(NbSkReq[2]))
+        item.newbie := 1;
+        IncRevision(item);
+      else
+        item.newbie := 0;
+        IncRevision(item);
+      endif
+    endif
+
+    if(ItemCfg[item.objtype].blockcircle == 1)
+      if(who.hidden)
+        who.hidden := 0;
+      endif
+    endif
+
+    var penalty := CInt(ItemCfg[item.objtype].DexPenalty);
+    if(penalty)
+      SetDexterityMod(who, GetDexterityMod(who) - penalty);
+    endif
+
+  endif
+
+  if(ItemCfg[item.objtype].EquipGraphic)
+    item.graphic := CInt(ItemCfg[item.objtype].EquipGraphic);
+  endif
+
+  if(item.isa(POLCLASS_WEAPON))
+    if(IsMagicItem(item) or IsArtifact(item))
+      if(GetModAmount(who,MOD_FIRE_BLOOD) or GetModAmount(who,MOD_COLD_DMG) or GetModAmount(who,MOD_FIRE_DMG) or GetModAmount(who,MOD_EXPLO_DMG) or GetModAmount(who,MOD_MANA_DMG))
+        SendSysMessage(who,"Nie mozesz utrzymac tej broni w reku.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+    endif
+  endif
+
+  if(IsVampire(who))
+    if(ItemCfg[item.objtype].Plate)
+      if(!CanMod(who, MOD_RUN_SPEED))
+        SendSysMessage(who,"Nie mozesz zalozyc zbroi plytowej.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+    endif
+  endif
+
+  SetObjProperty(item,"equipped",who.serial);
+  
+  if(!SendEquip(who, item))
+    if(IsMagicItem(item))
+      start_script(":magicitems:magicupkeep",{who,item});
+    elseif(IsArtifact(Item))
+      ArtCtl(Item);
+    endif
+  endif
+
+  CheckSetEquip(who, item);
+  CheckTimedEquipItem(who, Item);
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckEquipmentByCover(who,item)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(ItemCfg[item.objtype].dyeable)
+    return 1;
+  endif
+
+if(IsWearWolfMorphed(who))
+  if(item.isa(POLCLASS_WEAPON) and !ItemCfg[item.objtype].WearwolfWeapon)
+    return 0;
+  elseif(ItemCfg[item.objtype].Shield)
+    return 0;
+   elseif(ItemCfg[item.objtype].blockcircle <= 5 and ItemCfg[item.objtype].blockcircle != error)
+    return 0;
+  endif
+endif
+
+ if(!IsWearWolfMorphed(who) and ItemCfg[item.objtype].WearwolfWeapon)
+   return 0;
+ endif
+
+  var Cov     := GetConfigStringArray(ItemCfg[item.objtype],"Coverage");
+  var ItmCov;
+
+  foreach C in Cov
+    C := lower(C);
+  endforeach
+
+  foreach itm in ListEquippedItems(who)
+    if(!ItemCfg[itm.objtype].dyeable)
+      if(itm.isa(POLCLASS_WEAPON) or itm.isa(POLCLASS_ARMOR))
+        ItmCov := GetConfigStringArray(ItemCfg[itm.objtype],"Coverage");
+        foreach C in ItmCov
+          if(lower(C) in Cov)
+            return 0;
+          endif
+        endforeach
+      endif
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckArcherEquip(who,item)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var ArchSk := GetBaseSkillBaseValue(who,SKILLID_ARCHERY);
+
+  if(ArchSk)
+
+    if(!item.isa(POLCLASS_WEAPON))
+
+      if(ItemCfg[item.objtype].Shield)
+        if(ArchSk/10 >= MAGE_SHIELD_SKILL)
+          SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+          return 0;
+        endif
+      elseif(ItemCfg[item.objtype].blockcircle == 1)
+        SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+    elseif(lower(ItemCfg[item.objtype].Attribute) != "archery" and !ItemCfg[item.objtype].CanArch)
+      SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+  elseif(lower(ItemCfg[item.objtype].Attribute) == "archery")
+
+    SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+    return 0;
+
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMageEquip(who,item)
+
+  var MageSk := GetBaseSkill(who,SKILLID_MAGERY);
+  var Druid  := GetBaseSkill(who,SKILLID_DRUID);
+  var Necro  := GetBaseSkill(who,SKILLID_NECRO);
+
+  if(Druid > MageSk)
+    MageSk := Druid;
+  endif
+
+  if(Necro > MageSk)
+    MageSk := Necro;
+  endif
+
+  if(MageSk > MAGE_ARMOR_SKILL)
+
+    var ItemCfg := ReadConfigFile(ITEMS_CFG);
+    
+    if (item.isa(POLCLASS_WEAPON) AND GetBmReqSkills(who) >= 2400)
+      return 1;
+    
+    elseif(ItemCfg[item.objtype].NonForMage)
+      SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    elseif(!item.isa(POLCLASS_WEAPON))
+
+      if(ItemCfg[item.objtype].Shield)
+        if(MageSk > MAGE_SHIELD_SKILL)
+          SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+          return 0;
+        endif
+      else
+        var BlockCircle := ItemCfg[item.objtype].blockcircle;
+        if(BlockCircle == 1)
+          SendSysMessage(who,"Nie mozesz tego zalozyc.",FONT_NORMAL,COLOR_RED);
+          return 0;
+        elseif(BlockCircle == 2)
+          if(MageSk < 80)
+            SendSysMessage(who,"Twa wiedza o magii jest za mala by moc to zalozyc.",FONT_NORMAL,COLOR_RED);
+            return 0;
+          elseif(GetBmReqSkills(who) < 2400)
+            SendSysMessage(who,"Twa wiedza o walce jest za mala by moc to zalozyc.",FONT_NORMAL,COLOR_RED);
+            return 0;
+          endif
+        elseif(BlockCircle == 3)
+          if(MageSk < 80)
+            SendSysMessage(who,"Twa wiedza o magii jest za mala by moc to zalozyc.",FONT_NORMAL,COLOR_RED);
+            return 0;
+          elseif(GetBmReqSkills(who) < 1800)
+            SendSysMessage(who,"Twa wiedza o walce jest za mala by moc to zalozyc.",FONT_NORMAL,COLOR_RED);
+            return 0;
+          endif
+        endif
+      endif
+    endif
+
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+

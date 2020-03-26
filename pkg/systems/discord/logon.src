@@ -1,0 +1,8 @@
+use uo;
+use os;
+
+program discord_logon(who)
+
+    start_script(":discord:open", who);
+
+endprogram

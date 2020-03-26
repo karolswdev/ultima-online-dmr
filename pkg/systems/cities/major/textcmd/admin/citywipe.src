@@ -1,0 +1,41 @@
+use uo;
+use os;
+
+include ":major:major";
+include "include/gumps";
+include "include/gumpboxes";
+
+program wipe_playerCityData(who)
+
+    if(!YesNo(who, "Na pewno usunac wszystkich obywateli wszystkich miast oraz zrownac budzety?"))
+        return;
+    endif
+    
+    var Cities := GetCities();
+    
+    var Stone;
+    var numChanges := 0;
+    
+    foreach City in Cities
+    
+        Stone := FindCStone(City);
+        
+        if(Stone)
+            EraseObjProperty(Stone, "Citizens");
+            EraseObjProperty(Stone, "CityGold");
+            EraseObjProperty(Stone, "Created");
+            //EraseObjProperty(Stone, "History");
+            EraseObjProperty(Stone, "TaxRate");
+            EraseObjProperty(Stone, "TaxChange");
+            EraseObjProperty(Stone, "BoughtGuards");
+            numChanges := numChanges + 1;
+        endif
+        
+    endforeach
+    
+    SendSysMessage(who, "Zwipowano " + numChanges + " miast.", FONT_NORMAL, COLOR_RED);
+
+endprogram    
+    
+    
+        

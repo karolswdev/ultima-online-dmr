@@ -1,0 +1,136 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/cmds/cmds";
+include "include/gumpboxes";
+include "include/packets";
+
+include ":baseitems:common";
+include ":housing:housing";
+
+include "../../testing"; // nie uzywamy :testing:
+
+//-----------------------------------------------------------------------------
+
+program DesCmd( who, text )
+  
+  if(text["?"])
+    SendSysMessage(who, ".tdes [clb/near]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(text["clb"])
+  
+    var d := 0,e := 0;
+    
+    foreach Item in ListRootItemsInContainer(who.backpack)
+      if(CanInteract(who, Item))
+        if(DestroyItem(Item));
+          d := d + 1;
+        else
+          e := e + 1;
+        endif
+      endif
+    endforeach
+      
+    SendSysMessage(who,"Zniszczono ["+d+"] przedmiotow, bledow ["+e+"], razem ["+(d+e)+"]",FONT_NORMAL,COLOR_BLUE);
+    return;
+      
+  endif
+  
+  var sp := SplitWords(text);
+  var Prog := dictionary;
+  var Flags := CDI_IGNORE_GMC;
+  var range,res, n := 0;
+  
+  if(sp[1] == "near")
+    
+    range := CInt(sp[2]);
+    
+    if(!range)
+      range := 0;
+    endif
+    
+    if(range > 49)
+      SendSysMessage(who, "Maksymalny zasieg to 50.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+     
+    if(range > 20)
+      SendSysMessage(who, "Zasieg wiekszy od 20.", FONT_NORMAL, COLOR_GREEN);
+      if(!YesNo(who,"Na pewno?"))
+        return;
+      endif
+    endif
+
+    foreach Item in ListObjectsInBox(who.x-range, who.y-range, -127, who.x + range , who.y + range, 127, who.realm)
+      if(CanInteract(who, Item))
+        if(Item.isa(POLCLASS_ITEM))
+          Res := CanDestroyItem(Item, Flags);
+          if(Res)
+            Prog[Res] := CInt(Prog[Res]) + 1;
+            OnDestroyItem(Item);
+            if(DestroyItem(Item))
+              n := n + 1;
+            endif
+          else
+            Prog[Res.errortext] := CInt(Prog[Res.errortext]) + 1;
+          endif
+        endif
+      endif
+    endforeach
+
+    SendSysMessage(who, "["+CInt(Prog[1])+"]: Zaakceptowano, ["+n+"]: Zniszczono.", FONT_NORMAL, COLOR_GREEN);
+    
+    foreach Entry in Prog
+      if(_Entry_iter != 1)
+        SendSysMessage(who, "["+Entry+"]: "+_Entry_iter, FONT_NORMAL, COLOR_RED);
+      endif
+    endforeach
+
+    return;
+  endif
+  
+  SendSysMessage( who, "Co chcesz zniszczyc?", FONT_NORMAL, COLOR_GREEN);
+  var Targ := LocTarget(who);
+  
+  if(Targ.item)
+    if(!CanInteract(who, Targ.item))
+      SendSysMessage(who,"To nie ty stworzyles ten item.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+      
+    Targ := Targ.item;
+    
+    Res := CanDestroyItem(Targ, Flags);
+
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Desc := Targ.desc;
+    var Obj  := Targ.objtype;
+    var Clr  := Targ.color;
+    
+    var ItemRealm  := Targ.realm;
+    var ItemSerial := Targ.serial;
+
+    OnDestroyItem(Targ);
+    Res := DestroyItem(Targ);
+    
+    if(!Res)
+      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" "+Desc+", Obj ["+Obj+"] Clr: ["+Clr+"]",FONT_NORMAL,COLOR_GREEN);
+      if(who.realm != ItemRealm)
+        SendDeleteObjectPacket(who, ItemSerial);
+      endif
+    endif
+  else
+    SendSysMessage( who, "Nie wybrano przedmiotu.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,17 @@
+use uo;
+use os;
+
+include "include/npcs";
+
+program destroyGhost(parms)
+
+	var ghost := parms[1];
+	var time := parms[2];
+	
+	PrintTextAbove(ghost, "Za " + time + " sekund zniknie...", FONT_NORMAL, COLOR_RED);
+	
+	sleep(time);
+	
+	KillNpc(ghost);
+	
+endprogram

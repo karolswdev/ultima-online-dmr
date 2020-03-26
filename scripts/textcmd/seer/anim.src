@@ -1,0 +1,243 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use math;
+use util;
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/effects";
+include "include/predef_effects";
+include "include/packets";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program EffectCmd(who,text)
+
+  var Targ := who;
+
+  if(text["trg"])
+    if(text["steff"])
+      Targ := LocTarget(who);
+      if(!Targ)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    else
+      Targ := ObjTarget(who);
+      if(!Targ.isa(POLCLASS_UOBJECT))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+  endif
+
+  text := SplitWords(text);
+
+  if(text[1] == "trg")
+    text.erase(1);
+  endif
+
+  case(text[1])
+    "act":         text[2] := CInt(text[2]);
+    
+                   if(text[2])
+                     SendSysMessage(who, "Akcja - ID: "+text[2], FONT_NORMAL, COLOR_GREEN);
+                     PlayPcAnim(Targ, text[2], __IfElse(text.size() >= 3, CInt(text[3]), -1), __IfElse(text.size() >= 4, CInt(Text[4]), 0), CInt(Text[5]), CInt(Text[6]));
+                   else
+                     SendSysMessage(who, ".anim act id", FONT_NORMAL, COLOR_RED);
+                   endif
+
+    "light":       PlayLightningBoltEffect(Targ);
+
+    "ceff":
+    "csteff":
+    "cmoveff":
+    "eff":
+    "steff":
+    "moveff": 
+                   if(!CInt(text[2]) and text[2])
+                     var EffList := GetEffList();
+                     text[2] := EffList[Upper(text[2])];
+                   endif
+
+                   var zMod := 0, i;
+
+                   for(i:=1;i<=text.size();i:=i+1)
+                     if(text[i] == "zm")
+                       zMod := CInt(text[i+1]);
+                       text.erase(i);
+                       text.erase(i);
+                       break;
+                     endif
+                   endfor
+
+                   if(Targ.z + zMod > 127)
+                     zMod := 127 - Targ.z;
+                   elseif(Targ.z + zMod < -127)
+                     zMod := -127 - Targ.z;
+                   endif
+
+                   text[2] := CInt(text[2]);
+                   text[3] := CInt(text[3]);
+                   text[4] := CInt(text[4]);
+                   text[5] := CInt(text[5]);
+                   text[6] := CInt(text[6]);
+                   text[7] := CInt(text[7]);
+                   text[8] := CInt(text[8]);
+
+                   if(text[2])
+                     case(text[1])
+                       "ceff":
+                       "cmoveff":
+                       "csteff":   if(!text[3]) text[3] := 0;    endif
+                                   if(!text[4]) text[4] := 0x10; endif
+                                   if(!text[5]) text[5] := 0x10; endif
+                       "eff":
+                       "moveff":
+                       "steff":    if(!text[3]) text[3] := 0x10; endif
+                                   if(!text[4]) text[4] := 0x10; endif
+                     endcase
+
+                     case(text[1])
+                       "ceff":     PlayPcEffect(Targ, CInt(text[2]), CInt(text[3]), CInt(text[4]), CInt(text[5]), text[6]);
+                                   SendSysMessage(who, "["+text[1]+"]: ID: "+hex(text[2])+" Color: "+text[3]+" Speed: "+text[4]+" Dur: "+text[5]+" Rm: "+text[6], FONT_NORMAL, COLOR_GREEN);
+
+                       "csteff":   PlayPcStEffect(Targ.x, Targ.y, Targ.z+zMod, who.realm, CInt(text[2]), CInt(text[3]), CInt(text[4]), CInt(text[5]), text[6]);
+                                   SendSysMessage(who, "["+text[1]+"]: ID: "+hex(text[2])+" Z: "+(Targ.z+zMod)+" Color: "+text[3]+" Speed: "+text[4]+" Dur: "+text[5]+" Rm: "+text[6], FONT_NORMAL, COLOR_GREEN);
+
+                       "cmoveff":  var sTarg := LocTarget(who);
+                                   if(sTarg.mobile)
+                                     sTarg := sTarg.mobile;
+                                   elseif(sTarg.item)
+                                     sTarg := sTarg.item;
+                                   endif
+
+                                   if(sTarg)
+                                     SendSysMessage(who, "["+text[1]+"]: ID: "+hex(text[2])+" Color: "+text[3]+" Speed: "+text[4]+" Dur: "+text[5]+" Explode: "+text[6]+" FixDir: "+text[7]+" Rm: "+text[8], FONT_NORMAL, COLOR_GREEN);
+                                     PlayPcMovEffect(Targ, sTarg, CInt(text[2]), CInt(text[3]), CInt(text[4]), CInt(text[5]), text[6], text[7], text[8]);
+                                   else
+                                     SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                                   endif
+
+                       "eff":      PlayObjectCenteredEffect(Targ, text[2], text[3], text[4]);
+                                   SendSysMessage(who, "["+text[1]+"]: ID: "+hex(text[2])+" Speed: "+text[3]+" Dur: "+text[4], FONT_NORMAL, COLOR_GREEN);
+
+                       "steff":    var Loc := LocTarget(who);
+                                   if(!Loc)
+                                     SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                                     return;
+                                   endif
+                                   PlayStationaryEff(Loc.x, Loc.y, Loc.z+zMod, text[2], text[3], text[4], text[5], who.realm);
+                                   SendSysMessage(who, "["+text[1]+"]: ID: "+hex(text[2])+" Speed: "+text[3]+" Dur: "+text[4]+" Explode: "+text[5], FONT_NORMAL, COLOR_GREEN);
+
+                       "moveff":   var Loc := LocTarget(who);
+                                   if(!Loc)
+                                     SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                                     return;
+                                   endif
+
+                                   if(Loc.mobile)
+                                     PlayMovingEff(Targ, Loc.mobile, text[2], text[3], text[4], text[5]);
+                                   else
+                                     PlayMovEffXYZ(Targ.x, Targ.y, Targ.z+zMod, Loc.x, Loc.y, Loc.z, text[2], text[3], text[4], text[5], Targ.realm);
+                                   endif
+                                   SendSysMessage(who, "["+text[1]+"]: ID: "+hex(text[2])+" Speed: "+text[3]+" Loop: "+text[4]+" Explode: "+text[5], FONT_NORMAL, COLOR_GREEN);
+                     endcase
+                   else
+                     case(text[1])
+                       "ceff":   SendSysMessage(who, ".anim ceff id hue speed dur rendermode", FONT_NORMAL, COLOR_RED);
+                       "csteff": SendSysMessage(who, ".anim csteff id hue speed dur rendermode", FONT_NORMAL, COLOR_RED);
+                       "eff":    SendSysMessage(who, ".anim eff id speed dur", FONT_NORMAL, COLOR_RED);
+                       "steff":  SendSysMessage(who, ".anim steff id speed dur explode", FONT_NORMAL, COLOR_RED);
+                       "moveff": SendSysMessage(who, ".anim moveff id speed loop explode", FONT_NORMAL, COLOR_RED);
+                     endcase
+                   endif
+
+    "efflist":      var EffList := GetEffList();
+                    foreach Eff in EffList
+                      SendSysMessage(who, hex(Eff)+" "+_Eff_iter, FONT_NORMAL, COLOR_BLUE);
+                    endforeach
+               
+     "sound":       var i;
+                    for(i:=2;i<=text.size();i:=i+1)
+                      text[i] := CInt(text[i]);
+                      if(text[i])
+                        PlaySoundEffect(Targ, text[i]);
+                        SendSysMessage(who, "Sound - ID: "+hex(text[i]), FONT_NORMAL, COLOR_GREEN);
+                      else
+                        SendSysMessage(who, ".anim sound id", FONT_NORMAL, COLOR_RED);
+                        break;
+                      endif
+                    endfor
+
+     "soundpriv":   text[2] := CInt(text[2]);
+                    if(text[2])
+                      SendSysMessage(who, "Dla kogo zagrac?", FONT_NORMAL, COLOR_GREEN);
+                      var ForChar := ObjTarget(who);
+                      if(!IsPlayer(ForChar))
+                        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                        return;
+                      endif
+                      PlaySoundEffectPrivate(Targ, text[2], ForChar);
+                      SendSysMessage(who, "Sound - ID: "+hex(text[2]), FONT_NORMAL, COLOR_GREEN);
+                    else
+                      SendSysMessage(who, ".anim sound id", FONT_NORMAL, COLOR_RED);
+                    endif
+
+      "stone":      PlayStoneFallEffect(Targ); 
+
+    default:        SendSysMessage(who, ".anim [act/light/eff/ceff/steff/csteff/moveff/cmoveff/sound/soundpriv/efflist] [trg]", FONT_NORMAL, COLOR_RED);
+  endcase
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetEffList()
+
+  var EffList := dictionary;
+
+  EffList["FX_SPLASH"]                        := FX_SPLASH;
+  EffList["FX_EXPLODE_1"]                     := FX_EXPLODE_1;
+  EffList["FX_EXPLODE_2"]                     := FX_EXPLODE_2;
+  EffList["FX_EXPLODE_3"]                     := FX_EXPLODE_3;
+  EffList["FX_FIREBALL"]                      := FX_FIREBALL; 
+  EffList["FX_MAGIC_ARROW"]                   := FX_MAGIC_ARROW;
+  EffList["FX_FIRE_BOLT"]                     := FX_FIRE_BOLT;
+  EffList["FX_EXPLODE_BALL"]                  := FX_EXPLODE_BALL;
+
+  EffList["FX_FLAMESTRIKE"]                   := FX_FLAMESTRIKE;
+  EffList["FX_SMOKE"]                         := FX_SMOKE;
+  EffList["FX_TELE_VANISH"]                   := FX_TELE_VANISH;
+  EffList["FX_SPELL_FAIL"]                    := FX_SPELL_FAIL;
+  EffList["FX_BLESS_EFFECT"]                  := FX_BLESS_EFFECT;
+  EffList["FX_CURSE_EFFECT"]                  := FX_CURSE_EFFECT;
+  EffList["FX_SPARK_EFFECT"]                  := FX_SPARK_EFFECT;
+  EffList["FX_HEAL_EFFECT"]                   := FX_HEAL_EFFECT;
+  EffList["FX_MARK_EFFECT"]                   := FX_MARK_EFFECT;
+  EffList["FX_BLUEMOONSTART"]                 := FX_BLUEMOONSTART;
+  EffList["FX_ENERGY_BOLT"]                   := FX_ENERGY_BOLT;
+  EffList["FX_BLADES_EMERGE"]                 := FX_BLADES_EMERGE;
+  EffList["FX_GLOW"]                          := FX_GLOW;
+  EffList["FX_GLOW_SPIKE"]                    := FX_GLOW_SPIKE;
+  EffList["FX_DEATH_FUNNEL"]                  := FX_DEATH_FUNNEL;
+  EffList["FX_BLADES"]                        := FX_BLADES;
+  EffList["FX_STATIC"]                        := FX_STATIC;
+  EffList["FX_POISON_F_EW"]                   := FX_POISON_F_EW;
+  EffList["FX_POISON_F_NS"]                   := FX_POISON_F_NS;
+  EffList["FX_ENERGY_F_EW"]                   := FX_ENERGY_F_EW;
+  EffList["FX_ENERGY_F_NS"]                   := FX_ENERGY_F_NS;
+  EffList["FX_PARA_F_EW"]                     := FX_PARA_F_EW;
+  EffList["FX_PARA_F_NS"]                     := FX_PARA_F_NS;
+  EffList["FX_FIRE_F_EW"]                     := FX_FIRE_F_EW;
+  EffList["FX_FIRE_F_NS"]                     := FX_FIRE_F_NS;
+  EffList["FX_POISON_GAS"]                    := FX_POISON_GAS;
+
+  return EffList;
+
+endfunction
+
+//-----------------------------------------------------------------------------

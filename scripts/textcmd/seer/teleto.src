@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/client/fonts";
+include "include/log";
+include "include/coords";
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program TeleToCmd(who)
+
+  SendSysMessage(who, "Kogo lub co?",FONT_NORMAL,COLOR_GREEN);
+  var what := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+
+  if(!what)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Gdzie?",FONT_NORMAL,COLOR_BLUE);
+  var where := LocTarget(who);
+
+  if(!where)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var z := GetStandZ(where.x, where.y, who.realm, where.z);
+
+  if(z == error)
+    z := where.z;
+  endif
+
+  var Res := CanCmdMoveTo(who, what, where);
+  if(!Res)
+    SendSysMessage(who, "Blad: "+Res.errortext);
+    return;
+  endif
+
+  LogMsg(MOVE_LOG,who,{what,where.x,where.y,where.z,who.realm});
+  
+  SendSysMessage(who, GetName(what)+ " ["+what.x+","+what.y+","+what.z+","+what.realm+"] - ["+where.x+","+where.y+","+where.z+","+who.realm+"]",FONT_NORMAL, COLOR_GREEN);
+  MoveObject(what, where.x, where.y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

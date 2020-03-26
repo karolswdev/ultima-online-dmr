@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/objtypes/magic";
+include "include/objtypes/misc";
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+program CanInsertVampBag(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(inserttype);
+  __ParamUnused(movetype);
+  __ParamUnused(backpack);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if((Item.objtype >= UOBJ_VAMPWAR_RUNE_SET and Item.objtype <= UOBJ_VAMPWAR_RUNE_END) or Item.objtype == UOBJ_WATCH)
+    return 1;
+  endif
+
+  SendSysMessage(who, "Nie mozesz tego tutaj wlozyc.", FONT_NORMAL, COLOR_RED);
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------

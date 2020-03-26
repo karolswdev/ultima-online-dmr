@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use boat;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/npcs";
+include "include/gumpboxes";
+include "include/player/target";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+program ReCreateCmd( who )
+
+  var tgt := LocTarget( who );
+
+  if (tgt.mobile.isa(POLCLASS_NPC))
+    SendSysMessage(who,"Na pewno chcesz stworzyc jeszcze raz "+tgt.mobile.name+" ?",FONT_NORMAL,COLOR_BLUE);
+    if(!YesNo(who,"Na pewno?"))
+      return;
+    endif
+  
+    var Npc := CreateNpc(tgt.mobile.npctemplate,tgt.mobile.x,tgt.mobile.y,tgt.mobile.z,tgt.mobile.realm);
+    SendSysMessage(who,"Stworzony nowy NPC: "+CInt(Npc.serial),FONT_NORMAL,COLOR_GREEN);
+    KillNpc(tgt.mobile);
+  else
+    SendSysMessage(who,"To nie NPC.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/std";
+include "include/msgs";
+include "include/attributes/skills";
+
+//-----------------------------------------------------------------------------
+
+program CraftingStopGump(Params)
+
+  var who       := Params[1];
+  var SkillID   := Params[2];
+  var MaxAmount := Params[3];
+
+  var CurGump := GetObjProperty(who, "#CraftStopGump_"+SkillID);
+
+  if(ExPid(CurGump))
+    return;
+  endif
+
+  SetObjProperty(who, "#CraftStopGump_"+SkillID, GetPid());
+
+  var Res := BuildStopGump(who, SkillID, MaxAmount);
+
+  EraseObjProperty(who, "#CraftStopGump_"+SkillID);
+
+  if(Res)
+    SetObjProperty(who, "#StopCraft_"+SkillID, 1);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildStopGump(who, SkillID, MaxAmount)
+
+  GInit(60, 60);
+  GNoDispose();
+  GNoClose();
+  
+  GResPic(0, 0, 2600, 320, 140);
+
+  var Elem := GetSkillConfigElem(SkillID);
+
+  if(!Elem)
+    return;
+  endif
+  
+  GTextLine(30, 30, 900, "Wytwarzasz "+MaxAmount+" przedmiot"+Gam(MaxAmount, GAM_OW));
+  GTextLine(30, 50, 900, "za pomoca umiejetnosci "+Elem.Name);
+  
+  GButton( 120, 100, 3, 4, 1);
+  GTextLine(140, 97, 900, "Przerwij");
+
+  return CInt(GSend(who)[0]);
+
+endfunction
+
+//-----------------------------------------------------------------------------

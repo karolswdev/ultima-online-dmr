@@ -1,0 +1,66 @@
+use uo;
+use os;
+
+include "include/checks/stdchecks";
+include ":banking:common";
+include "include/move";
+
+var CPROP_MOVESCRIPT_PID := "#movescriptpid";
+
+var DELAY := 60;
+var Player;
+
+//-----------------------------------------------------------------------
+
+program movetobank(param)
+
+  Player := FindPlayerBySerial(param[1]);
+  var Cont := SystemFindObjectBySerial(param[2]);
+
+  if(!Player or !Cont)
+    return;
+  endif
+
+  var Bank := FindBankBox(Player);
+  SetScriptController( player );
+  SetObjProperty(Cont,CPROP_MOVESCRIPT_PID, GetPid());
+  for i := 1 to DELAY
+    
+    sleep(1);
+    if(Player.dead)
+      MoveTo(Cont,Player.getcorpse());
+      SendSysMessage(Player, "Przeniesiono przedmioty do zwlok.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(!Cont)
+      return;
+    elseif(GetObjProperty(Cont,CPROP_MOVESCRIPT_PID) != GetPid())
+      return;
+    endif
+  endfor
+
+  MoveTo(Cont, Bank);
+  SendSysMessage(Player, "Przeniesiono przedmioty do banku.", FONT_NORMAL, COLOR_BLUE);
+  
+endprogram
+
+//-----------------------------------------------------------------------
+
+function MoveTo(FromCont, ToCont)
+
+  if(!ToCont.isa(POLCLASS_CONTAINER))
+    return;
+  endif
+
+  foreach item in EnumerateItemsInContainer(FromCont,ENUMERATE_ROOT_ONLY)
+    if(Item.objtype == UOBJ_GOLDCOIN)
+      if(Item.amount == 1)
+        PlaySoundEffect(Player,0x2E5);
+      elseif(Item.amount < 100)
+        PlaySoundEffect(Player,0x2E6);
+      else
+        PlaySoundEffect(Player,0x2E7);
+      endif
+    endif
+    MoveToCont(item, ToCont, MOVECONT_JOIN_STACKS);
+  endforeach
+endfunction

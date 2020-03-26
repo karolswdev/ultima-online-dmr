@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+
+include "mqdata";
+
+//-----------------------------------------------------------------------------
+
+program MiniQuestItemControl(Item)
+
+  var MQCfg := ReadConfigFile(MQUESTS_CFG);
+  var Time  := CInt(MQCfg[MQCFG_GLOBAL].ItemExpTime);
+
+  if(!Time)
+    LogError("MiniQuestItemControl: Brak czasu wygasniecia przedmiotu MQuestow, Item: ["+Item.serial+"]", LOGF_SCRIPTS);
+    Time := 900;
+  endif
+
+  sleep(Time);
+  DestroyItem(Item);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+

@@ -1,0 +1,29 @@
+//--------------------------------------------------------------------------------
+
+use os;
+use uo;
+use polsys;
+
+//--------------------------------------------------------------------------------
+
+program autostart_boat(boat)
+
+  var ms := ReadMillisecondClock() + 500;
+
+  while(!CInt(GetObjProperty(boat.hold, "owner")) and ms > ReadMillisecondClock())
+    if(CInt(GetObjProperty(boat, "TempShip")) == 1)
+      DestroyMulti(boat);
+      return;
+    endif
+    Sleepms(20);
+  endwhile
+
+  if(GetObjProperty(boat, "Carrier"))
+    start_script(":carrier:boat", boat);
+  else
+    start_script(":boat:boat", boat);
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------

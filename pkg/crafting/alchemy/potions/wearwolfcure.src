@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "../pkg/systems/wearwolf/common";
+
+//-----------------------------------------------------------------------------
+
+program UseCursePotion(who,potion)
+
+  var Skill := GetBaseSkillBaseValue(who,SKILLID_WEARWOLF);
+
+  if(!IsWearWolf(who) and !Skill)
+    SendSysMessage(who,"Nie jestes wilkolakiem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(GetEffectiveSkill(who,SKILLID_WEARWOLF) >= WWSK_MINCURE)
+    SendSysMessage(who,"Jest juz dla Ciebie za pozno.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who,potion))
+    return;
+  endif
+
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  if(IsWearWolfMorphed(who) or GetObjProperty(who,"#EndedMorph") or GetObjProperty(who,"#WWInitiateComplete"))
+    SendSysMessage(who,"Teraz nie uda Ci sie wyleczyc!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  if(RandomInt(100) < 50 * QualMod + (ExpMod * 4))
+    EraseObjProperty(who,"IsWearWolf");
+    UndoMod(who,MOD_STR);
+    UndoMod(who,MOD_DEX);
+    UndoMod(who,MOD_INT);
+    UndoMod(who,MOD_GRAPHIC);
+    UndoMod(who,MOD_COLOR);
+    UndoMod(who,MOD_LIGHT);
+    UndoMod(who,MOD_RUN_SPEED);
+    EraseObjProperty(who, "CanBeWearWolf");
+    SendSysMessage(who,"Udalo Ci sie wyleczyc! Nie jestes juz wilkolakiem.",FONT_NORMAL,COLOR_GREEN);
+    SetBaseSkill(who,SKILLID_WEARWOLF,0);
+  else
+    SendSysMessage(who,"Nie udalo Ci sie wyleczyc!",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

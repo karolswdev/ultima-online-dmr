@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/client/sounds";
+include "include/client/effects";
+include "include/client/cids";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+program MarkAnimal(who, Ball)
+
+  if(!StandardItemCheck(who, Ball))
+    return;
+  endif
+
+  PlaySoundEffect(who, SFX_CRYSTAL_BALL);
+
+  if(GetEffectiveSkill(who, SKILLID_VAMPIRE) >= 75)
+    SendSysMessage(who, "Wskaz kruka.", FONT_NORMAL, COLOR_GREEN);
+    var Targ := ObjTarget(who);
+
+    if(!StandardMobCheck(who, Targ))
+      return;
+    endif
+
+    if(!Targ.isa(POLCLASS_NPC) or Targ.graphic != CID_CROW)
+      SendSysMessage(who, "To nie wyglada na kruka.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who, "Jak nazwac kule?", FONT_NORMAL, COLOR_GREEN);
+    var Name := RequestInput(who, Ball, "");
+
+    if(Name)
+      SetName(Ball, "kula: "+Name);
+    endif
+
+    SetObjProperty(Ball, "CrowSer", Targ.serial);
+    Ball.newbie := 1;
+    PlayPcEffect(Targ, FX_MARK_EFFECT, 1024, 0x10, 0x10, 3);
+  endif
+
+  PlaySoundEffect(who, SFX_CRYSTAL_BALL);
+
+endprogram
+
+//-----------------------------------------------------------------------------

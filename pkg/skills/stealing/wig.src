@@ -1,0 +1,67 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/gumpboxes";
+include "include/checks/objchecks";
+include "include/tempmods";
+include "include/npcs";
+
+//-----------------------------------------------------------------------------
+
+const WIG_WEAR_TIME := 1800;
+const WIG_USE_TIMES := 250;
+
+//-----------------------------------------------------------------------------
+
+program UseWig(who,Wig)
+
+  if(Wig.objtype != UOBJ_WIG)
+    return;
+  endif
+  
+  if(!StandardItemCheck(who,Wig))
+    return;
+  endif
+  
+  if(GetEffectiveSkill(who,SKILLID_STEALING) < 70 or GetEffectiveSkill(who,SKILLID_HIDING) < 70)
+    SendSysMessage(who,"Nie wiesz co z tym zrobic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!GetObjProperty(Wig,"WigUses"))
+    SetObjProperty(Wig,"WigUses",1);
+  endif
+  
+  if(GetObjProperty(who,"NextWearTime") and GetObjProperty(who,"NextWearTime") + WIG_WEAR_TIME > ReadGameClock())
+    SendSysMessage(who,"Musisz chwie poczekac by znow zalozyc peruke...",FONT_NORMAL,COLOR_BLUE);
+    return;
+  endif
+  
+  
+  if(GetObjProperty(Wig,"WigUses") > WIG_USE_TIMES)
+    SendSysMessage(who,"Peruka sie zuzyla!",FONT_NORMAL,COLOR_RED);
+    DestroyItem(Wig);
+    return;
+  endif
+
+  var Duration := 100 + (GetEffectiveSkill(who,SKILLID_STEALING) * 4) + (GetEffectiveSkill(who,SKILLID_HIDING) * 4);
+
+  SetObjProperty(who,"NextWearTime",ReadGameClock());
+  SetObjProperty(Wig,"WigUses",(CInt(GetObjProperty(Wig,"WigUses")) + 1));
+  
+  var NewName := "";
+  case(who.gender)
+    0: NewName := AssignName( "", MALE_IDX );
+    1: NewName := AssignName( "", FEMALE_IDX );
+  endcase
+  
+  DoMod(who,MOD_INCO,    NewName            ,Duration);
+  DoMod(who,MOD_HAIRS,   {0x203C,Wig.color} ,Duration);
+  DoMod(who,MOD_TPREFIX, ""                 ,Duration);
+  DoMod(who,MOD_TSUFFIX, ""                 ,Duration);
+  DoMod(who,MOD_TGUILD,  ""                 ,Duration);
+  DoMod(who,MOD_TRACE,   "Czlowiek"         ,Duration);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

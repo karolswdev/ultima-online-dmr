@@ -1,0 +1,114 @@
+use uo;
+use os;
+
+include "include/msgs";
+include "include/npcs";
+include "include/objtypes/misc";
+include "include/gumps";
+include "include/gumpboxes";
+include "include/effects";
+
+program use_MainGift(who, theGift)
+
+    GInit(0, 0);
+    GResPic(23, 26, 2600, 415, 313);
+    GCheckerTrans( 14, 21, 442, 326); 
+    GButton(65, 81, 1154, 1155, 1);
+    GTextLine(105, 83, 1152, "Sniezna zbroja - dla maga badz wojownika");
+    GButton(65, 131, 1154, 1155, 2);
+    GTextLine(105, 133, 1152, "Sniezny zwoj - +1 do wybranej statystyki");
+    GButton(65, 181, 1154, 1155, 3);
+    GTextLine(105, 183, 1153, "Paczka - 6000 kazdego podst. reagenta");
+    GButton(65, 233, 1154, 1155, 4);
+    GTextLine(105, 233, 1153, "Narzedzie (kow., kra.,. luc.) gwarantujace 5 exp.");
+    
+	var res := GSend(who);
+	
+	if(!res)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	if(!YesNo(who, "Napewno?"))
+		return;
+	endif
+	
+	DestroyItem(theGift);
+	
+	if(res[0] == 1)
+		GenerateWinterKit(who);
+	elseif(res[0] == 2)
+		var theScroll := CreateItemInContainer(who.backpack, 0x778a, 1);
+		if(theScroll)
+			SetObjProperty(theScroll, "DestSerial", who.serial);
+		endif
+		
+	elseif(res[0] == 3)
+		GenerateWinterRegs(who);
+	elseif(res[0] == 4)
+		GenerateWinterExp(who);
+	endif
+	
+endprogram
+
+function ApplyWinterAndCreate(who, itemName)
+
+	var tItem := CreateItemInContainer(who.backpack, itemName, 1);
+	
+	tItem.quality := 1.5;
+	
+	if(tItem.isA(POLCLASS_ARMOR))
+		tItem.ar_mod := 23;
+	else
+		tItem.dmg_mod := 8;
+	endif
+	
+	SetObjProperty(tItem, "ExpItem", 1);
+	SetName(tItem, "Element snieznej zbroi");
+	tItem.color := 1152;
+
+endfunction
+
+function GenerateWinterKit(who)
+
+	var warrEqpt := {"PlatemailGloves", "HeaterShield", "PlateHelm", "PlatemailBreastplate", "PlatemailArms"};
+	
+	var mageEqpt := {"leathercap", "leathertunic", "leatherleggings", "leathersleeves", "leathergloves" };
+	
+	var eqpt;
+	
+	if(YesNo(who, "Jestes wojownikiem?"))
+		eqpt := warrEqpt;
+	else
+		eqpt := mageEqpt;
+	endif
+	
+	foreach tItem in eqpt
+		tItem := ApplyWinterAndCreate(who, tItem);
+	endforeach
+	
+endfunction
+
+function GenerateWinterRegs(who)
+
+    var amount := 6000;
+    var backpack := CreateItemInPack(who, UOBJ_BACKPACK, 1);
+    backpack.color := 1152;
+
+    foreach thing in array {0x0f7a, 0x0f7b, 0x0f84, 0x0f85, 0x0f86, 0x0f88, 0x0f8c, 0x0f8d}
+        CreateItemInCont(backpack, thing, amount);
+    endforeach
+	
+endfunction
+
+function GenerateWinterExp(who)
+
+	SetObjProperty(who, "NeedsGMHelp", 1);
+	SendSysMessage(who, "Zglos sie do Bogow.", FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+	
+	
+
+	

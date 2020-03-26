@@ -1,0 +1,243 @@
+use uo;
+use util;
+use cfgfile;
+include "include/misc";
+include "include/names";
+include "include/const/props";
+include ":artifacts:artifacts";
+include ":magicitems:common";
+include ":baseitems:common";
+
+const OFFSET_OBJECT_SERIAL   := 0x05;
+const OFFSET_CLILOC_ID       := 0x0F;
+const OFFSET_LENGTH_ID       := 0x13;
+const OFFSET_UNICODE_TEXT    := 0x14;
+
+program Install()
+
+    print("[0xD6]: Tooltip");
+    return 1;
+
+endprogram
+
+exported function MegaCliloc( who, byref packet )
+
+  __ParamUnused(who);
+
+	var Obj := SystemFindObjectBySerial(packet.GetInt32(OFFSET_OBJECT_SERIAL));
+
+	if ( Obj )
+
+		packet.SetSize(15);
+    
+    //var Text_Color := "CBA300";
+    //if (Obj.murderer)
+    //  Text_Color := "737373";
+    //elseif (Obj.criminal)
+    //  Text_Color := "666666";
+    //else
+    //  Text_Color := "399CA5";
+    //endif
+   
+    
+    var  Object_Name := GetName(Obj, NAME_CLEAN_AMOUNT);
+    var  exp;
+    if(Obj.isa(POLCLASS_ITEM))
+      exp := Find(Object_Name, EXP_ITEM_NAME, 1);
+      if(exp == 1)
+        //Len(EXP_ITEM_NAME) == 18+1 - dla optymalizacji wyliczone
+        Object_Name[exp,19] := "";
+      endif
+    endif
+
+    
+		// If you try to break a new line in the first cliloc(below) it doesn't
+		// display right for some reason.
+		// If you want to change the color of the Object's name.
+		// Use this. 
+   Object_Name[1] := Upper(Object_Name[1]);
+   Object_Name := CAscZ(Object_Name);
+	 //Object_Name := CAscZ("<BASEFONT COLOR=#" + Text_Color + ">" + Object_Name + "</FONT>");
+
+
+		packet.SetInt32(OFFSET_CLILOC_ID, 1042971);
+		packet.SetUnicodeString(OFFSET_UNICODE_TEXT, Object_Name, 1);
+		// I've noticed that this packet is only sent if this value has changed
+		// from the last time it was checked. And using html to change the size doesn't work
+		// for some reason. Maybe a core/client issue?
+		packet.SetInt16(OFFSET_LENGTH_ID, Object_Name.Size() * 2);
+
+
+	
+
+		var Desc := "";
+    var main_desc := "";
+//--------------------------------------------------------------------------    
+    if(Obj.isa(POLCLASS_ITEM))
+      if(exp)
+        main_desc := "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
+      endif
+      
+      if( Obj.amount > 1 )
+        Desc := Desc + "Sztuk: " + Obj.Amount + "<br>";
+      endif
+      
+      if(IsArtifact(obj))
+        Desc := Desc + "Artefakt<br>";
+        if(ExPid(GetObjProperty(obj, "#Pid")))
+          Desc := Desc + "<BASEFONT COLOR=#04bc77>Aktywny<br>";
+        endif
+      elseif(IsMagicItem(obj))
+        Desc := Desc + "Magiczny<br>";
+        if(ExPid(GetObjProperty(obj, "#Pid")))
+          Desc := Desc + "<BASEFONT COLOR=#04bc77>Aktywny<br>";
+        endif
+      endif
+	  
+	  if(GetObjProperty(Obj, "ToolTip"))
+		Desc := Desc + "<BASEFONT COLOR=#993333>" + GetObjProperty(Obj, "ToolTip") + "<br>";
+	  endif
+
+	  if(GetObjProperty(Obj, "SpecialTag"))
+		Desc := Desc + "<BASEFONT COLOR=#00ff00>" + GetObjProperty(Obj, "SpecialTag") + "<br>";
+	  endif
+	  
+	  if(GetObjProperty(Obj, "Paragon"))
+		Desc := Desc + "<BASEFONT COLOR=#840037 BGCOLOR=#ffffff> Potezny potwor <br />";
+	  endif
+
+	  if(GetObjProperty(Obj, "UsesRemaining"))
+	    Desc := Desc + "<BASEFONT COLOR=#FF3399>Uzycia: " + CInt(GetObjProperty(Obj, "UsesRemaining")) + "<br>";
+	  endif
+
+      if ( Obj.newbie )
+        Desc := Desc + "<BASEFONT COLOR=#77baeb>Poblogoslawiony<br>";
+      endif
+      
+      if(IsGmCreated(obj) and !GetItemBINr(obj))
+        Desc += "<BASEFONT COLOR=#DAA520>Swiety<br>";
+      endif
+
+      var Level := CInt(GetObjProperty(Obj, "ItemLevel"));
+
+      if(Level)
+        Desc += "<BASEFONT COLOR=#1B9BE0>Poziom: "+Level+"<br>";
+      else
+        Level := CInt(GetObjProperty(Obj, "ExpMod"));
+
+        if(Level)
+          Desc += "<BASEFONT COLOR=#1B9BE0>Poziom: "+Level+"<br>";
+        endif
+      endif
+
+
+      if(GetItemMaxHpMod(obj))
+        Desc := Desc + "<BASEFONT COLOR=#25ff8d>Zywotnosc " + CInt((GetItemMaxHp(obj)*100)/(GetItemMaxHp(obj)-GetItemMaxHpMod(obj))) +"%<br><BASEFONT COLOR=#99D9EA>";
+      endif
+      
+      if(CInt(GetObjProperty(obj, "BulkLevel")))
+        Desc := Desc + "<BASEFONT COLOR=#8dff25>" + GetBulkLevelDesc(CInt(GetObjProperty(obj, "BulkLevel"))) +"<br><BASEFONT COLOR=#99D9EA>";
+      endif
+      
+      var arr := GetObjProperty(Obj, PROP_TT_DESC);
+      if(arr.size())
+        foreach line in arr
+          Desc := Desc + line + "<br>";
+        endforeach
+      endif
+
+      arr := GetObjProperty(Obj, PROP_HARVESTED);
+      if(arr)
+        var harvName := arr[1];
+        if(!harvName)
+          harvName := GetRealName(FindPlayerBySerial(arr[2]));
+        endif
+        if(!harvName)
+          harvName  := "Nieznajomy";
+        endif
+        Desc := Desc + "<BASEFONT COLOR=#99D9EA>Wydobyl: " + HarvName + "<br>";
+      endif
+
+      if(IsStackableObj(Obj.objtype))
+        arr := GetObjProperty(Obj, PROP_MADE);
+
+        if(arr)
+          var harvName := arr[1];
+          if(!harvName)
+            harvName := GetRealName(FindPlayerBySerial(arr[2]));
+          endif
+          if(!harvName)
+            harvName  := "Nieznajomy";
+          endif
+          Desc := Desc + "<BASEFONT COLOR=#99D9EA>Stworzyl: " + HarvName + "<br>";
+        endif
+      endif
+      
+      arr := dictionary;
+      ExtractToolTipProp(Obj,arr);
+      foreach Prop in arr
+        Desc := Desc + _Prop_iter + ": " + Prop + "<br>";
+      endforeach
+//--------------------------------------------------------------------------
+    elseif(Obj.isa(POLCLASS_MOBILE))
+      if(Obj.title_race)
+        main_desc := Obj.title_race + "<br>";
+      endif
+
+      if(Obj.title_guild)
+        main_desc := main_desc + "<BASEFONT COLOR=#FFD74A>" + Obj.title_guild + "<br>";
+      endif
+
+	  if(GetObjProperty(Obj, "Paragon"))
+		Desc := Desc + "<BASEFONT COLOR=#840037 BGCOLOR=#ffffff> Potezny potwor <br />";
+	  endif	  
+
+      var arr := dictionary;
+      ExtractToolTipProp(Obj,arr);
+      foreach Prop in arr
+        Desc := Desc + _Prop_iter + ": " + Prop + "<br>";
+      endforeach
+    endif
+//--------------------------------------------------------------------------
+    
+    if(main_desc and desc)
+      Desc := main_desc + "<BASEFONT COLOR=#FFFFFF>" + Desc;
+    elseif(main_desc)
+      Desc := main_desc;
+    endif
+
+    
+    if ( Len(Desc) > 0)
+      Desc := CAscZ(Desc);
+			// Cliloc ID if these two ID's match it'll only show one line.
+			packet.SetInt32(packet.GetSize() - 1, 1070722);
+
+			// Get the offset of where the next text size
+			var Length_ID := packet.GetSize();
+			packet.SetUnicodeString(packet.GetSize() + 1, Desc, 1);
+
+			// SetUnicodeString adds 00 BYTE[1] at the start of the Unicode offset, which messes with the length offset.
+			// Setting the length of the unicode text below will fix that issue. Same deal as above.
+			packet.SetInt16(Length_ID, Desc.Size() * 2);
+		endif
+
+		// End of loop.
+
+		packet.SetInt32(packet.GetSize(), 0);
+	endif
+
+	return 0;
+
+endfunction
+
+function GetBulkLevelDesc(Level)
+
+  case(Level)
+    1: return "zwykly";
+    2: return "doskonaly";
+    3: return "dobry";
+    4: return "wspanialy";
+    5: return "niezwykly"; 
+  endcase
+
+endfunction
