@@ -1,0 +1,28 @@
+use uo;
+
+include ":banking:common";
+include "include/misc";
+
+program goldbag_on_insert(character, container, movetype, inserttype, adding_item, existing_stack, amount_to_add)
+
+  __paramunused(movetype);
+  __paramunused(inserttype);
+  __paramunused(adding_item);
+  __paramunused(existing_stack);
+  __paramunused(amount_to_add);
+
+  if(!character)
+    return 0;
+  endif
+
+  if(amount_to_add == 1)
+    PlaySoundEffect(character,0x2E5);
+  elseif(amount_to_add < 100)
+    PlaySoundEffect(character,0x2E6);
+  else
+    PlaySoundEffect(character,0x2E7);
+  endif
+  
+  start_script(":donations:movetobank",{character.serial,container.serial});
+  
+endprogram

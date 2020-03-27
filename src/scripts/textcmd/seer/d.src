@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/effects";
+include "include/client/sounds";
+
+//-----------------------------------------------------------------------------
+
+program EffConcCmd(who)
+
+  if(who.concealed)
+    PlayObjectCenteredEffect(who , FX_EXPLODE_3, 7, 0x10 );
+    PlaySoundEffect(who, SFX_SPELL_EXPLOSION );
+    PlaySoundEffect(who, SFX_SPELL_LIGHTNING);
+    PlayLightningBoltEffect(who);
+    who.concealed := 0;
+  else
+    PlayObjectCenteredEffect(who, FX_FLAMESTRIKE, 0x0a, 0x1e );
+    PlayObjectCenteredEffect(who, FX_SPARK_EFFECT, 7, 0x10 );
+    PlaySoundEffect(who,0xf8);
+    who.concealed := 1;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

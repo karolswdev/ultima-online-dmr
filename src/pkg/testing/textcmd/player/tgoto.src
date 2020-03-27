@@ -1,0 +1,161 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/log";
+include "include/client/fonts";
+include "include/cmds/misc";
+include "include/finding";
+include "include/move";
+include "include/staff";
+include "include/misc";
+
+include "include/clock";
+
+
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program GoToCmd(who,text)
+
+  var Online := EnumerateOnlineCharacters();
+  var Split  := SplitWords(text);
+  var whom;
+
+  var NewOnline := array;
+
+  foreach Player in Online
+      
+    if(Player.concealed <= who.cmdlevel or !Player.cmdlevel)
+      NewOnline.append(Player);
+    endif
+        
+  endforeach
+
+  case(Split[1])
+    "next":   var Nr := GetObjProperty(who,"#GotoPlayerNumber");
+              if(!Nr)
+                Nr := 1;
+              endif
+              Nr := Nr + 1;
+              if(Nr < 1 or Nr > NewOnline.size())
+                Nr := 1;
+              endif
+
+              SetObjProperty(who,"#GotoPlayerNumber",Nr);
+              whom := NewOnline[Nr];
+
+    "nr":     var Nr := CInt(Split[2]);
+              if(!Nr)
+                Nr := 1;
+              endif
+              SetObjProperty(who,"#GotoPlayerNumber", Nr);
+              whom := NewOnline[Nr];
+
+    "prev":   var Nr := GetObjProperty(who,"#GotoPlayerNumber");
+              if(!Nr)
+                Nr := NewOnline.size();
+              endif
+              Nr := Nr - 1;
+
+              if(Nr < 1 or Nr > NewOnline.size())
+                Nr := NewOnline.size();
+              endif
+
+              SetObjProperty(who,"#GotoPlayerNumber",Nr);
+              whom := NewOnline[Nr];
+     "sr":
+              var AllChars := array;
+              var Vals     := struct;
+
+              if(!split[2])
+                SendSysMessage(who, ".goto sr", FONT_NORMAL, COLOR_RED);
+                return 0;
+              endif
+
+              SearchAllChars(who,split, Vals, AllChars);
+              SendSysMessage(who,"Znaleziono "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+              SendSysMessage(who,"Kryteria: "+Vals.sname+" gdzie: "+ClStr(Vals.value), FONT_NORMAL, COLOR_BLUE);
+
+              if(AllChars.size())
+                whom := ShowCharsSelection(who, AllChars, Vals.sname+": "+ClStr(Vals.value));
+              endif
+
+              if(!whom)
+                return 0;
+              endif
+
+    "loc":    var x := CInt(Split[2]);
+              var y := CInt(Split[3]);
+              var z := CInt(Split[4]);
+              var realm := Split[5];
+
+              if(!realm)
+                realm := who.realm;
+              endif
+
+              var Res := MoveObject(who, x, y, z, realm, MOVECHAR_FORCELOCATION);
+
+              if(Res)
+                SendSysMessage(who, "Loc: "+x+", "+y+", "+z+", "+realm, FONT_NORMAL, COLOR_GREEN);
+              else
+                SendBad(who, "Blad: "+Res.errortext);
+              endif
+              return;
+
+  endcase
+
+  if(!whom)
+    if(CInt(text))
+      whom := FindPlayerBySerial(CInt(text));
+      if(!whom)
+        SendSysMessage(who,"Nie znaleziono osoby "+text,FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    elseif(text)
+      whom := FindCharacterByName(CStr(text));
+      if(!whom)
+        SendSysMessage(who,"Nie znaleziono osoby "+text,FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endif
+  endif
+
+  if(!whom)
+    GInit(0,0);
+    GResPic(50,0,2600,400,525);
+    GResPic(100,480,5100,300,25);
+    GPage();
+    
+    GAddPageData(125,481,5537,5538,360,481,5540,5541);
+ 
+    GTextLine(220,30,550,NewOnline.size()+" Online");
+
+    foreach Player in NewOnline
+      
+      GCheckNextPage(20);
+      GTextLine(85, (70+(GNPCount()*20)),997,_Player_iter);
+      GTextLine(115,(70+(GNPCount()*20)),__ifelse(Player.cmdlevel,1153,998),__ifelse(Player.dead or CanMod(Player,MOD_INCO),Player.name,GetRealName(Player) + " | " + Player.name));
+      if(Player.cmdlevel)
+        GTextLine(325,(70+(GNPCount()*20)),1152,GetCmdLevelName(Player.cmdlevel));
+      endif
+      GButton(400,(75+(GNPCount()*20)),2118,2117,_Player_iter);
+
+    endforeach
+
+    whom := GSend(who)[0];
+    if(whom)
+      whom := NewOnline[whom];
+    endif
+
+  endif
+
+  if(whom)
+    GoToPlayerBySerial(who,whom.serial);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

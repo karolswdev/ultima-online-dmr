@@ -1,0 +1,2542 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-24
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/clock";
+include "include/getobj";
+include ":magic:magicatt";
+include "include/std";
+include "include/move";
+include "include/player/misc";
+include "include/cmds/cancmd";
+include "include/objects/location";
+
+include ":quests:quests";
+include ":npcguilds:gd_gump";
+include ":npcguilds:shared";
+include ":crafting:mat_groups";
+include ":crafting:common";
+
+//-----------------------------------------------------------------------------
+
+var QData, QStageData, QLocData, _Res, who, QStageID, QuestID, QEStageData, QEData, QLocPos, QLocFlags, QTipIdx;
+var gQuestGroup;
+
+InitQuestStageData(QStageData); 
+InitQuestData(QData);
+InitQuestStageData(QEStageData);
+InitQuestData(QEData);
+InitQLocData(QLocData);
+
+//-----------------------------------------------------------------------------
+
+program QuestToolCmd(_who, text)
+
+  who  := _who;
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+  _Res  := 0;
+
+  case(text[1])
+    "aqs":
+    "aq":
+    "qs":
+    "q":
+    "stat":
+    "tstat":    if(IsValidQuestGroup(text[2]))
+                  gQuestGroup := text[2];
+                  text.erase(2);
+                endif
+
+    default:    if(IsValidQuestGroup(text[1]))
+                  gQuestGroup := text[1];
+                  text.erase(1);
+                endif
+  endcase
+
+  if(!gQuestGroup)
+    gQuestGroup := SelectQuestGroup(who);
+  endif
+
+  var Started := 0;
+
+  case(text[1])
+    "aqs":    ProcAddQuestStage();
+
+    "aq":     ProcAddQuest();
+
+    "alg":    ProcAddQuestLocGroup();
+
+    "qs":     ProcQuestStages(CInt(text[2]), CInt(text[3]));
+              if(!_Res)
+                return;
+              endif
+
+    "q":      ProcQuests(CInt(text[2]), CInt(text[3]));
+              if(!_Res)
+                return;
+              endif
+
+    "lg":     ProcQuestLocs(text[2]);
+              if(_Res.errortext)
+                SendSysMessage(who, _Res.errortext, FONT_NORMAL, COLOR_RED);
+                return;
+              endif
+
+    "inlg":   CheckIsInLocGroup();
+              return;
+
+    "strg":   ShowQuestTargets(text);
+              return;
+
+    "snpc":   SelectQuestNpcs(text);
+              return;
+
+    "srch":   SearchQuests(who, text);
+              return;
+
+    "stat":   BuildQuestStatsGump();
+              Started := 1;
+
+    "tstat":  BuildQuestTypesStatsGump();
+              Started := 1;
+
+    default:  if(text[1])
+                SendSysMessage(who, ".qt [aqs/aq/alg/qs/q/lg/inlg] group id", FONT_NORMAL, COLOR_RED);
+                return;
+              endif
+  endcase
+
+  if(!Started)
+    BuildMainQtGump();
+  endif
+
+  while(IsLoggedIn(who))
+    
+    _Res := GSend(who);
+
+    if(!_Res or !_Res.butid)
+      break;
+    endif
+
+    case(_Res.butid)
+      1:      ProcQuestStages();
+
+      2:      ProcAddQuestStage();
+
+      3:      ProcQuests();
+
+      4:      ProcAddQuest();
+
+      5:      ProcQuestLocs();
+
+      6:      ProcAddQuestLocGroup();
+
+      7:      BuildAllStatsGump();
+              continue;
+
+      30:     BuildQStagesTypesStatsGump();
+              continue;
+    endcase
+
+    if(_Res.butid >= 10 and _Res.butid <= 15)
+      BuildQuestStatsGump(_Res.butid-10);
+      continue;
+    elseif(_Res.butid >= 20 and _Res.butid <= 25)
+      BuildQuestTypesStatsGump(_Res.butid-20);
+      continue;
+    endif
+
+    BuildMainQtGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainQtGump()
+
+  GInit(20, 20);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GResPic(0, 0, 3600, 500, 320);
+  GTextLine(210, 20, 680, "Quest Menu ["+gQuestGroup+"]");
+
+  GButton(80,  63, 2117, 2118, 1);
+  GTextLine(100,  60, 550, "Lista etapow");
+  GButton(240, 63, 2117, 2118, 2);
+  GTextLine(260, 60, 550, "Dodawanie etapu");
+
+  GButton(80,  88, 2117, 2118, 3);
+  GTextLine(100,  85, 550, "Lista questow");
+  GButton(240, 88, 2117, 2118, 4);
+  GTextLine(260, 85, 550, "Dodawanie questa");
+
+  GButton(80,  113, 2117, 2118, 5);
+  GTextLine(100,  110, 550, "Lista grup lokacji");
+  GButton(240, 113, 2117, 2118, 6);
+  GTextLine(260, 110, 550, "Dodawanie grupy lokacji");
+
+  GButton(80,  138, 2117, 2118, 7);
+  GTextLine(100,  135, 550, "Pelne statystyki");
+  GButton(240, 138, 2117, 2118, 10);
+  GTextLine(260, 135, 550, "Statystyki Questow");
+
+  var GProps := GetQuestGlobalProps(gQuestGroup);
+
+  var QsCrInfo  := GProps.GetProp(QGPROP_QSCRINFO);
+  var QCrInfo   := GProps.GetProp(QGPROP_QCRINFO);
+
+  BuildQuestElemModSegInfo(QsCrInfo,  "Ostatnio stworzony Etap Questu:",  40, 200);
+  BuildQuestElemModSegInfo(QCrInfo,   "Ostatnio stworzony Quest:",        40, 250);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAllStatsGump()
+
+  BQGInit("Pelne Statystyki", 500, 450, 100);
+
+  var GProps := GetQuestGlobalProps(gQuestGroup);
+
+  var QsCrInfo  := GProps.GetProp(QGPROP_QSCRINFO);
+  var QsUpInfo  := GProps.GetProp(QGPROP_QSUPINFO);
+  var LCrInfo   := GProps.GetProp(QGPROP_LCRINFO);
+  var LUpInfo   := GProps.GetProp(QGPROP_LUPINFO);
+
+  var QCrInfo   := GProps.GetProp(QGPROP_QCRINFO);
+  var QUpInfo   := GProps.GetProp(QGPROP_QUPINFO);
+  var QUseInfo  := GProps.GetProp(QGPROP_QUSEINFO);
+
+  BuildQuestElemModSegInfo(QsCrInfo,  "Ostatnio stworzony Etap Questu:",    40, 60);
+  BuildQuestElemModSegInfo(QsUpInfo,  "Ostatnio zmodyfikowany Etap Questu:",40, 110);
+  
+  BuildQuestElemModSegInfo(QCrInfo,   "Ostatnio stworzony Quest:",          40, 170);
+  BuildQuestElemModSegInfo(QUpInfo,   "Ostatnio zmodyfikowany Quest:",      40, 220);
+  BuildQuestElemModSegInfo(QUseInfo,  "Ostatnio uzywany Quest:",            40, 270);
+
+  BuildQuestElemModSegInfo(LCrInfo,   "Ostatnio stworzona lokacja:",        40, 330);
+  BuildQuestElemModSegInfo(LUpInfo,   "Ostatnio zmodyfikowana lokacja:",    40, 380);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStatsGump(Lvl := 0)
+
+  BQGInit("Statystyki", 620, 570, 100);
+
+  GButton(130, 23, 2117, 2118, 20);
+  GTextLine(150, 20, 560, "Statystyki Typow");
+
+  BuildLvlSelectGump(300, 20, 10);
+
+  var Stats, Keys, i;
+  var Data := GetQuestData(gQuestGroup);
+
+  GResPic(35, 80, 0xA3C, 170, 450);
+  GTextLine(40, 60, 999, "Etapy:");
+
+  GResPic(225, 80, 0xA3C, 170, 450);
+  GTextLine(230, 60, 999, "Questy:");
+
+  GResPic(415, 80, 0xA3C, 170, 450);
+  GTextLine(420, 60, 999, "Lokacje:");
+
+  Keys := GetDataKeys(Data, QSTAGE_TITLE);
+  i    := 0;
+
+  FillQuestStats(gQuestGroup, Stats, Keys, QSTAGE_TITLE);
+
+  foreach Stat in Stats
+    GTextLine(50,  90+i*20, 550,  _Stat_iter);
+    GTextLine(155, 90+i*20, 1419, Stat);
+    i := i + 1;
+  endforeach
+
+  Keys := GetDataKeys(Data, QUEST_TITLE);
+  i    := 0;
+
+  FillQuestStats(gQuestGroup, Stats, Keys, QUEST_TITLE, Lvl);
+
+  foreach Stat in Stats
+    GTextLine(240, 90+i*20, 550,  _Stat_iter);
+    GTextLine(345, 90+i*20, 1419, Stat);
+    i := i + 1;
+  endforeach
+  
+  var LocData := GetQuestData(QGROUP_LOCDATA);
+
+  Keys := GetDataKeys(LocData, QLOC_TITLE);
+  i    := 0;
+
+  FillQuestStats(QGROUP_LOCDATA, Stats, Keys, QLOC_TITLE);
+
+  foreach Stat in Stats
+    GTextLine(430, 90+i*20, 550,  _Stat_iter);
+    GTextLine(535, 90+i*20, 1419, Stat);
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestTypesStatsGump(Lvl := 0)
+
+  BQGInit("Statystyki Typow", 420, 540, 100);
+
+  GButton(150, 23, 2117, 2118, 10);
+  GTextLine(170, 20, 560, "Statystyki Questow");
+
+  var Stats, Keys;
+  var Data := GetQuestData(gQuestGroup);
+
+  GResPic(35, 80, 0xA3C, 340, 430);
+  GTextLine(40, 60, 999, "Questy:");
+  BuildLvlSelectGump(100, 60, 20);
+
+  GButton(330, 63, 2117, 2118, 30);
+  GTextLine(350, 60, 560, "Etapy");
+  GPage();
+
+  Keys := GetDataKeys(Data, QUEST_TITLE);
+
+  FillQuestTypesStats(Stats, Keys, QUEST_TITLE, Lvl);
+  DisplayQTypesStats(Stats);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQStagesTypesStatsGump(Lvl := 0)
+
+  BQGInit("Statystyki Typow", 420, 540, 100);
+
+  GButton(150, 23, 2117, 2118, 10);
+  GTextLine(170, 20, 560, "Statystyki Questow");
+
+  var Stats, Keys;
+  var Data := GetQuestData(gQuestGroup);
+
+  GResPic(35, 80, 0xA3C, 340, 430);
+  GTextLine(40, 60, 999, "Etapy:");
+
+  GButton(330, 63, 2117, 2118, 20);
+  GTextLine(350, 60, 560, "Questy");
+  GPage();
+
+  Keys := GetDataKeys(Data, QSTAGE_TITLE);
+
+  FillQuestTypesStats(Stats, Keys, QSTAGE_TITLE, Lvl);
+  DisplayQTypesStats(Stats);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisplayQTypesStats(byref Stats)
+
+  GAddPageData(385,18,2650,2651,385,507,2648,2647);
+
+  var sType;
+
+  foreach Stat in Stats
+    GCheckNextPage(20);
+    sType := SplitWords(_Stat_iter);
+    if(Stat)
+      GTextLine(50,  90+GNPCount()*20, 550,  GetQuestTypeName(sType[1]));
+      GTextLine(150, 90+GNPCount()*20, 550,  GetQuestSubTypeName(sType[2]));
+      GTextLine(320, 90+GNPCount()*20, 1419, Stat);
+    else
+      GTextLine(50,  90+GNPCount()*20, 1204, GetQuestTypeName(sType[1]));
+      GTextLine(150, 90+GNPCount()*20, 1204, GetQuestSubTypeName(sType[2]));
+      GTextLine(320, 90+GNPCount()*20, 1206, Stat);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLvlSelectGump(x, y, Id)
+
+  GButton(x, y+3, 2117, 2118, Id);
+  GTextLine(x+20, y, 560, "A");
+
+  GButton(x+35, y+3, 2117, 2118, Id+1);
+  GTextLine(x+55, y, 560, "1");
+
+  GButton(x+70, y+3, 2117, 2118, Id+2);
+  GTextLine(x+90, y, 560, "2");
+
+  GButton(x+105, y+3, 2117, 2118, Id+3);
+  GTextLine(x+125, y, 560, "3");
+
+  GButton(x+140, y+3, 2117, 2118, Id+4);
+  GTextLine(x+160, y, 560, "4");
+
+  GButton(x+175, y+3, 2117, 2118, Id+5);
+  GTextLine(x+195, y, 560, "5");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillQuestStats(QuestGroup, byref Stats, byref Keys, ElemName, Lvl := 0)
+
+  Stats := dictionary;
+  var Data := GetQuestData(QuestGroup);
+  var Info, Elem, qLvl;
+
+  foreach Key in Keys
+    Elem := Data.FindElement(ElemName+Key);
+
+    if(Lvl)
+      qLvl := Elem.GetProp(QPROP_LEVEL);
+      if(qLvl)
+        if(Lvl != qLvl)
+          continue;
+        endif
+      endif
+    endif
+
+    Info := Elem.GetProp(QAPROP_CRINFO);
+    if(Info[2])
+      Stats[Info[2]] := CInt(Stats[Info[2]]) + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillQuestTypesStats(byref Stats, byref Keys, ElemName, Lvl := 0)
+
+  Stats := dictionary;
+  var i, n, AvTypes;
+
+  for(i:=1;i<=QTYPE_MAXID;i:=i+1)
+    AvTypes := GetQuestAvSubTypes(i);
+    for(n:=1;n<=AvTypes.size();n:=n+1)
+      Stats[i+" "+AvTypes[n]] := 0;
+    endfor
+  endfor
+
+  var Data := GetQuestData(gQuestGroup);
+  var Type, Elem, qLvl;
+
+  foreach Key in Keys
+    Elem := Data.FindElement(ElemName+Key);
+
+    if(Lvl)
+      qLvl := Elem.GetProp(QPROP_LEVEL);
+      if(qLvl)
+        if(Lvl != qLvl)
+          continue;
+        endif
+      endif
+    endif
+
+    Type := Elem.GetProp(QPROP_TYPE)+" "+Elem.GetProp(QPROP_SUBTYPE);
+    Stats[Type] := CInt(Stats[Type]) + 1;
+  endforeach
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quest Stages
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function ProcQuestStages(QsId := 0, QsRange := 0)
+
+  var Modif := 0;
+  
+  if(!QsID or QsRange > QsId)
+    ShowQuestStages(0, QsID, QsRange);
+    if(!QStageID)
+      return 0;
+    endif
+  else
+    QStageID := QsID;
+  endif
+
+  _Res := AssignQuestStageData(gQuestGroup, QStageID, QEStageData);
+  if(!_Res)
+    SendSysMessage(who, _Res.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  QTipIdx := 1;
+  BuildShowQuestStage();
+
+  while(IsLoggedIn(who))
+    _Res := GSend(who);
+    if(Modif)
+      SaveQuestStageData(QEStageData);
+    endif
+
+    if(_Res.butid >= 20 and _Res.butid <= 52)
+
+      ChangeQuestStageFlag(QEStageData, _Res.butid-20);
+
+    elseif(_Res.butid >= 60 and _Res.butid <= 60+QUEST_MAXTARG)
+      
+      if(QEStageData.Flags & QSTF_TARG_GROUP)
+        QEStageData.Targ.erase(_Res.butid-60);
+      else
+        QEStageData.Targ := 0;
+      endif
+
+    elseif(_Res.butid > 1000 and _Res.butid < 1099)
+      
+      QTipIdx := _Res.butid - 1000;
+
+    else
+
+      case(_Res.butid)
+        5:        ShowQuestStages();
+                  if(!QStageID)
+                    return;
+                  endif
+                  
+                  var Res := AssignQuestStageData(gQuestGroup, QStageID, QEStageData);
+                  if(!Res)
+                    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+                    return;
+                  endif
+                  Modif   := 0;
+                  QTipIdx := 1;
+
+        6:        Modif   := 0;
+ 
+        7:        Modif   := 1;
+
+        11:       ShowChooseTypeGump(who, QEStageData);
+
+        12:       ShowChooseSubTypeGump(who, QEStageData);
+
+        13:       SelectQuestLocation(who, QEStageData, QLocData);
+
+        14:       AddQuestTarget(QEStageData);
+
+        15:       var Res := SetQuestStage(gQuestGroup, QStageID, QEStageData, who);
+                  if(Res)
+                    SendSysMessage(who, "Zmieniono Etap Questu, ID: "+QStageID, FONT_NORMAL, COLOR_GREEN);
+                    Modif := 0;
+                  else
+                    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyQuestStage(QEStageData);
+                  if(Check)
+                    SendSysMessage(who, "Etap Questu zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        17:       SaveOPQStageData(QEStageData);
+  
+        18:       SendSysMessage(who, "Chcesz zaladowac szablon?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    LoadOPQStageData(QEStageData);
+                  endif
+      
+        19:       SendSysMessage(who, "Chcesz skasowac Etap ID: "+QStageID+"?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    var Res := DeleteQuestStage(gQuestGroup, QStageID);
+                    if(Res)
+                      SendSysMessage(who, "Skasowano Etap Questu ID: "+QStageID+".", FONT_NORMAL, COLOR_GREEN);
+                      QStageID := 0;
+                      InitQuestStageData(QEStageData);
+                      return;
+                    else
+                    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        1099:     var i;
+                  for(i:=1;i<=10;i:=i+1)
+                    QEStageData.Tip.erase(QTipIdx);
+                  endfor
+
+        default:  return;
+      endcase
+    endif
+
+    if(Modif)
+      BuildModifyQuestStage();
+    else
+      BuildShowQuestStage();
+    endif
+
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShowQuestStage()
+
+  BQGInit("Etap Questu, ID: "+QStageID, 650, 550, 5);
+
+  GButton(90, 513, 2117, 2118, 7);
+  GTextLine(110, 510, 999, "Modyfikuj");
+
+  GButton(290, 513, 2117, 2118, 17);
+  GTextLine(310, 510, 999, "Zapisz");
+
+  if(IsAdmin(who) or CanUseCmd(who, "qt delstage"))
+    GButton(390, 513, 2117, 2118, 19);
+    GTextLine(410, 510, 999, "Usun");
+  endif
+
+  BuildQuestStageInfo(QEStageData, BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModifyQuestStage()
+
+  BQGInit("Modyfikowanie Etapu Questa, ID: "+QStageID, 650, 550, 6);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Zmien");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  GButton(290, 513, 2117, 2118, 17);
+  GTextLine(310, 510, 999, "Zapisz");
+
+  GButton(390, 513, 2117, 2118, 18);
+  GTextLine(410, 510, 999, "Zaladuj");
+
+  BuildQuestStageInfo(QEStageData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuestStages(Flags := 0, QsSet := 0, QsEnd := 0)
+
+  var Data := GetQuestData(gQuestGroup);
+  var Keys := GetDataKeys(Data, QSTAGE_TITLE, BQG_ZEROFILL, QsSet, QsEnd);
+  Keys.sort();
+  Keys.reverse();
+
+  BuildQuestStages(Keys, Data);
+
+  while(IsLoggedIn(who))
+    _Res := CInt(GSend(who).butid);
+
+    if(_Res != 100000)
+      if(_Res > 10000)
+        BuildQuestStageModInfo(Data, CInt(UnZeroFill(Keys[_Res-10000])));
+        continue;
+      elseif(_Res > 0)
+        if(Flags & BQG_RETVAL)
+          return CInt(UnZeroFill(Keys[_Res]));
+        else
+          QStageID := CInt(UnZeroFill(Keys[_Res]));
+        endif
+        return;
+      elseif(!(Flags & BQG_RETVAL))
+        QStageID := 0;
+        return;
+      else
+        return;
+      endif
+    endif
+
+    BuildQuestStages(Keys, Data);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStages(byref Keys, byref Data)
+
+  BQGInit("Etapy Questow: "+Keys.size(), 600, 500, 0, 1);
+  GAddPageData(565,18,2650,2651,565,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Tytul");
+  GTextLine(380, 40, 999, "Typ");
+  GTextLine(460, 40, 999, "PodTyp");
+  GTextLine(558, 40, 999, "Info");
+  GMultiPage();
+
+  var Stage, i := 1;
+
+  foreach Key in Keys
+    GCheckNextPage(20);
+    Stage := Data.FindElement(QSTAGE_TITLE+UnZeroFill(Key));
+    GTextLine(30, 60+GNPCount()*20, 1419, Key);
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GButton(560, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(100,60+GNPCount()*20, 550, Stage.GetProp(QSTPROP_TITLE));
+    GTextLine(380,60+GNPCount()*20, 550, GetQuestTypeName(Stage.GetProp(QSTPROP_TYPE)));
+    GTextLine(460,60+GNPCount()*20, 550, GetQuestSubTypeName(Stage.GetProp(QSTPROP_SUBTYPE)));
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStageModInfo(byref Data, QsId)
+
+  var Stage := Data.FindElement(QSTAGE_TITLE+QsId);
+
+  BQGInit("Info: Etap Questu ID: "+QsID, 440, 330, 100000);
+  GTextLine(30, 40, 999, "Nazwa:");
+  GTextLine(80, 40, 550, Stage.GetProp(QSTPROP_TITLE));
+
+  BuildQuestElemModInfo(Stage, 30, 80);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcAddQuestStage()
+
+  QTipIdx := 1;
+  BuildAddQuestStage();
+
+  while(IsLoggedIn(who))
+
+    _Res := GSend(who);
+    SaveQuestStageData(QStageData);
+
+    if(_Res.butid >= 20 and _Res.butid <= 52)
+      ChangeQuestStageFlag(QStageData, _Res.butid-20);
+
+    elseif(_Res.butid >= 60 and _Res.butid <= 60+QUEST_MAXTARG)
+      
+      if(QStageData.Flags & QSTF_TARG_GROUP)
+        QStageData.Targ.erase(_Res.butid-60);
+      else
+        QStageData.Targ := 0;
+      endif
+
+    elseif(_Res.butid > 1000 and _Res.butid < 1099)
+
+      QTipIdx := _Res.butid - 1000;
+
+    else
+
+      case(_Res.butid)
+        11:       ShowChooseTypeGump(who, QStageData);
+
+        12:       ShowChooseSubTypeGump(who, QStageData);
+
+        13:       SelectQuestLocation(who, QStageData, QLocData);
+
+        14:       AddQuestTarget(QStageData);
+
+        15:       var nId := AddQuestStage(gQuestGroup, QStageData, who);
+                  if(nId)
+                    SendSysMessage(who, "Dodano nowy Etap Questu, ID: "+nId, FONT_NORMAL, COLOR_GREEN);
+                    InitQuestStageData(QStageData);
+                    QTipIdx := 1;
+                  else
+                    SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyQuestStage(QStageData);
+                  if(Check)
+                    SendSysMessage(who, "Etap Questu zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        17:       SaveOPQStageData(QStageData);
+
+        18:       SendSysMessage(who, "Chcesz zaladowac szablon etapu?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    LoadOPQStageData(QStageData);
+                  endif
+
+        19:       SendSysMessage(who, "Chcesz wyczyscic aktualny szablon etapu?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    InitQuestStageData(QStageData);
+                  endif
+
+        1099:     var i;
+                  for(i:=1;i<=10;i:=i+1)
+                    QStageData.Tip.erase(QTipIdx);
+                  endfor
+
+        default:  return;
+      endcase
+    endif
+
+    BuildAddQuestStage();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveOPQStageData(byref Data)
+
+  SetObjProperty(who, QGPROP_QSCRINFO, Data);
+  SendSysMessage(who, "Zapisal"+ggm(who,3)+" szablon etapu.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LoadOPQStageData(byref qData)
+
+  var Data := GetObjProperty(who, QGPROP_QSCRINFO);
+
+  if(!Data or Data.Type == error)
+    SendSysMessage(who, "Nie zapisywal"+ggm(who,3)+" jeszcze szablonu etapu lub zapisany jest bledny.", FONT_NORMAL, COLOR_RED);
+  else
+    qData := Data;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeQuestStageFlag(byref Data, Bit)
+
+ Bit := CInt(Pow(2, CInt(Bit)));
+
+  if(Data.Flags & Bit)
+    SetBitOff(Data.Flags, Bit);
+  else
+    SetBitOn(Data.Flags, Bit);
+  endif
+
+  if(Bit == QSTF_TARG_GROUP)
+    if(Data.Flags & Bit)
+      if(Data.Targ)
+        Data.Targ := array(Data.Targ);
+      else
+        Data.Targ := array;
+      endif
+    else
+      if(Data.Targ.size())
+        Data.Targ := Data.Targ[1];
+      else
+        Data.Targ := 0;
+      endif
+    endif
+  endif
+
+  if(Bit == QSTF_SIMPLE_LOC)
+    Data.Loc := 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQuestStageData(byref Data)
+
+  if(_Res.unitext[5])
+    Data.Title := _Res.unitext[5];
+  else
+    Data.Title := "";
+  endif
+
+  var i, Guard;
+
+  for(i:=QTipIdx;i<QTipIdx+10;i:=i+1)
+    Data.Tip[i] := _Res.unitext[i+9];
+  endfor
+
+  Data.Guards := array;
+
+  for(i:=50;i<60;i:=i+1)
+    Guard := _Res.text[i];
+    if(Guard)
+      Data.Guards.append(Guard); 
+    endif
+  endfor
+
+  if(Data.Flags & QSTF_TARG_GROUP)
+    for(i:=1;i<=Data.Targ.size();i:=i+1)
+      SaveQuestTargData(Data, Data.Targ[i], 60+i);
+    endfor
+  else
+    SaveQuestTargData(Data, Data.Targ, 60);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddQuestStage()
+
+  BQGInit("Dodawanie Etapu Questa", 650, 550);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Dodaj");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  GButton(290, 513, 2117, 2118, 17);
+  GTextLine(310, 510, 999, "Zapisz");
+
+  GButton(390, 513, 2117, 2118, 18);
+  GTextLine(410, 510, 999, "Zaladuj");
+
+  GButton(490, 513, 2117, 2118, 19);
+  GTextLine(510, 510, 999, "Wyczysc");
+
+  BuildQuestStageInfo(QStageData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestTipsGump(byref Data, Flags)
+
+  if(Flags & BQG_NOTIPSCROLL)
+    BQGAddTextBox(100, 80, 300, 20, FCLR_TEBOX, Data.Tip, Flags, 10, 10, "Wskazowki:");
+  else
+    if(!(Flags & BQG_EDITABLE))
+      while(QTipIdx > Data.Tip.size() and QTipIdx > 1)
+        QTipIdx := QTipIdx - 10;
+      endwhile
+    endif
+
+    BQGAddTextBox(100, 80, 300, 20, FCLR_TEBOX, Data.Tip, Flags, 10, 10, "Wskazowki:", QTipIdx);
+
+    if(QTipIdx == 1 or (QTipIdx > 10 and QTipIdx < 30))
+      if(Flags & BQG_EDITABLE or QTipIdx+10 <= Data.Tip.size())
+        GButton(407, 260, 2648, 2647, 1000+QTipIdx+10);
+      endif
+    endif
+
+    if(QTipIdx > 10)
+      GButton(407, 80, 2650, 2651, 1000+QTipIdx-10);
+    endif
+
+    if(Flags & BQG_EDITABLE)
+      GButton(409, 103, 2117, 2118, 1099);
+    endif
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStageInfo(byref Data, Flags := 0)
+
+  var n;
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Title, Flags, 1, 5, "Tytul:");
+  BuildQuestTipsGump(Data, Flags);
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    if(Flags & BQG_SHOWTITLES)
+      GTextLine(490, 50, 670, "Straznicy:");
+    endif
+    BQGAddTextBox(435, 80, 180, 20, FCLR_TEBOX, Data.Guards, Flags, 10, 50);
+  endif
+
+  BQGAddTextBox(100, 290, 120, 20, FCLR_TEBOX, GetQuestTypeName(Data.Type), Flags, 1, 0, "Typ:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 290, 2714, 2715, 11);
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    BQGAddTextBox(100, 320, 120, 20, FCLR_TEBOX, GetQuestSubTypeName(Data.SubType), Flags, 1, 0, "PodTyp:");
+    if(Flags & BQG_EDITABLE)
+      GButton(230, 320, 2714, 2715, 12);
+    endif
+  endif
+
+  var sLoc := Data.Loc;
+
+  if(Data.Flags & QSTF_SIMPLE_LOC)
+    sLoc := GetLocString(Data.Loc);
+  else
+    sLoc := Data.Loc;
+  endif
+
+  BQGAddTextBox(470, 290, 120, 20, FCLR_TEBOX, sLoc, Flags, 1, 0, "Lokacja:");
+  if(Flags & BQG_EDITABLE)
+    GButton(600, 290, 2714, 2715, 13);
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    BQGAddTextBox(470, 320, 125, 20, FCLR_TEBOX, "Niezalezny", Flags);
+    BQGCheckBox(595, 317, Flags, Data.Flags & QSTF_PREV_INDEPENDENT, 20);
+    BQGAddTextBox(470, 350, 125, 20, FCLR_TEBOX, "Losowy straznik", Flags);
+    BQGCheckBox(595, 347, Flags, Data.Flags & QSTF_RANDOM_GUARD, 21);
+    BQGAddTextBox(470, 380, 125, 20, FCLR_TEBOX, "Ukryj lokacje", Flags);
+    BQGCheckBox(595, 377, Flags, Data.Flags & QSTF_HIDDEN_LOC, 22);
+    BQGAddTextBox(470, 410, 125, 20, FCLR_TEBOX, "Ukryj cel", Flags);
+    BQGCheckBox(595, 407, Flags, Data.Flags & QSTF_HIDDEN_TARG, 23);
+    BQGAddTextBox(470, 440, 125, 20, FCLR_TEBOX, "Grupuj cel", Flags);
+    BQGCheckBox(595, 437, Flags, Data.Flags & QSTF_TARG_GROUP, 24);
+    BQGAddTextBox(470, 470, 125, 20, FCLR_TEBOX, "Prosta lokacja", Flags);
+    BQGCheckBox(595, 467, Flags, Data.Flags & QSTF_SIMPLE_LOC, 25);
+  endif
+
+  if(Flags & BQG_SHOWTITLES)
+    GTextLine(20, 365, 670, "Cel:");
+  endif
+
+  GResPic(90, 365, 0xBB8, 360, 136);
+
+  BuildQuestTargetTitle(Data, 100, 345);
+
+  if(Flags & BQG_EDITABLE and Data.SubType != QSTYPE_HOUSE)
+    if((Data.Flags & QSTF_TARG_GROUP and Data.Targ.size() < QUEST_MAXTARG) or (!(Data.Flags & QSTF_TARG_GROUP) and !Data.Targ))      
+      GTextLine(315, 325, 999, "Dodaj Cel");
+      GButton(295, 328, 2117, 2118, 14);
+    endif
+
+    GTextLine(390, 325, 999, "Usun Cel");
+  endif
+
+  if(Data.Flags & QSTF_TARG_GROUP)
+    GPage();
+    GAddPageData(72,366,2650,2651,72,480,2648,2647);
+    n := 1;
+    foreach Targ in (Data.Targ)
+      GCheckNextPage(5);
+      BuildQuestTarget(Data, n, Targ, Flags, 100, 370+GNPCount()*25, 60+n);  
+      n := n + 1;
+    endforeach
+  else
+    BuildQuestTarget(Data, 1, Data.Targ, Flags, 100, 370, 60);
+  endif
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quests
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function ProcQuests(QId := 0, QRange := 0)
+
+  var Modif := 0;
+  
+  if(!QId or QRange > QId)
+    ShowQuests(0, QId, QRange);
+    if(!QuestID)
+      return;
+    endif
+  else
+    QuestID := QId;
+  endif
+
+  _Res := AssignQuestData(gQuestGroup, QuestID, QEData);
+  if(!_Res)
+    SendSysMessage(who, _Res.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  QTipIdx := 1;
+  BuildShowQuest();
+
+  while(IsLoggedIn(who))
+    _Res := GSend(who);
+    if(Modif)
+      SaveQuestData(QEData);
+    endif
+
+    if(_Res.butid >= 20 and _Res.butid <= 52)
+
+      ChangeQuestFlag(QEData, _Res.butid-20);
+
+    elseif(_Res.butid >= 60 and _Res.butid <= 60+QUEST_MAXPRICE)
+      
+      QEData.Price.erase(_Res.butid-60);
+
+    elseif(_Res.butid >= 100 and _Res.butid <= 100+QUEST_MAXSTAGES)
+  
+      ProcQuestStages(QEData.Stages[_Res.butid-100]);
+/*      BQGInit("Etap Questu, ID: "+QStageID, 650, 520, 5);
+      AssignQuestStageData(gQuestGroup, QStageID, QEStageData);
+      BuildQuestStageInfo(QEStageData, BQG_SHOWTITLES | BQG_SHOWEXTRA | BQG_NOTIPSCROLL);*/
+
+    elseif(_Res.butid > 1000 and _Res.butid < 1099)
+      
+      QTipIdx := _Res.butid - 1000;
+
+    else
+
+      case(_Res.butid)
+        4:        ShowQuests();
+                  if(!QuestID)
+                    return;
+                  endif
+                  
+                  var Res := AssignQuestData(gQuestGroup, QuestID, QEData);
+                  if(!Res)
+                    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+                    return;
+                  endif
+                  Modif   := 0;
+                  QTipIdx := 1;
+
+        5:        ;
+        
+        6:        Modif   := 0;
+ 
+        7:        Modif   := 1;
+
+        10:       var nStage := ShowQuestStages(BQG_RETVAL);
+                  if(nStage and QEData.Stages.size() < QUEST_MAXSTAGES)
+                    QEData.Stages.append(nStage);
+                  endif
+
+        11:       ShowChooseTypeGump(who, QEData);
+
+        12:       ShowChooseSubTypeGump(who, QEData);
+
+        13:       QEData.GuildType := ChooseNGdTypeGump(who, BQG_ADDABLE);
+
+        9:        QEData.GuildCities := ChooseQuestCities(who, QEData.GuildCities, BQG_ADDABLE);
+
+        14:       AddQuestPrice(QEData);
+
+        15:       var Res := SetQuest(gQuestGroup, QuestID, QEData, who);
+                  if(Res)
+                    SendSysMessage(who, "Zmieniono Quest, ID: "+QuestID, FONT_NORMAL, COLOR_GREEN);
+                    Modif := 0;
+                  else
+                    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyQuest(gQuestGroup, QEData);
+                  if(Check)
+                    SendSysMessage(who, "Quest zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        17:       SaveOPQData(QEData);
+  
+        18:       SendSysMessage(who, "Chcesz zaladowac szablon questa?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    LoadOPQData(QEData);
+                  endif
+      
+        19:       SendSysMessage(who, "Chcesz skasowac Quest ID: ["+QuestID+"] ?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    var Res := DeleteQuest(gQuestGroup, QuestID);
+                    if(Res)
+                      SendSysMessage(who, "Skasowano Quest ID: "+QuestID+".", FONT_NORMAL, COLOR_GREEN);
+                      QuestID := 0;
+                      InitQuestData(QEData);
+                      return;
+                    else
+                    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        1099:     var i;
+                  for(i:=1;i<=10;i:=i+1)
+                    QEData.Tip.erase(QTipIdx);
+                  endfor
+
+        default:  return;
+      endcase
+    endif
+
+    if(Modif)
+      BuildModifyQuest();
+    else
+      BuildShowQuest();
+    endif
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveOPQData(byref Data)
+
+  SetObjProperty(who, QGPROP_QCRINFO, Data);
+  SendSysMessage(who, "Zapisal"+ggm(who,3)+" szablon questa.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LoadOPQData(byref qData)
+
+  var Data := GetObjProperty(who, QGPROP_QCRINFO);
+
+  if(!Data or !Data.Type or !Data.SubType)
+    SendSysMessage(who, "Nie zapisywal"+ggm(who,3)+" jeszcze szablonu lub zapisany jest bledny.", FONT_NORMAL, COLOR_RED);
+  else
+    qData := Data;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeQuestFlag(byref Data, Bit)
+
+  Bit := CInt(Pow(2, CInt(Bit)));
+
+  if(Data.Flags & Bit)
+    SetBitOff(Data.Flags, Bit);
+  else
+    SetBitOn(Data.Flags, Bit);
+  endif
+
+  case(Bit)
+    QF_CUSTOM_PRICE:    Data.Price   := array;
+
+    QF_CUSTOM_MAXTIME:  Data.MaxTime := 0;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQuestData(byref Data)
+
+  if(_Res.unitext[5])
+    Data.Title := _Res.unitext[5];
+  else
+    Data.Title := "";
+  endif
+
+  Data.Level   := CInt(_Res.text[6]);
+  Data.Chance  := CInt(_Res.text[8]);
+
+  var i;
+
+  for(i:=QTipIdx;i<QTipIdx+10;i:=i+1)
+    Data.Tip[i] := _Res.unitext[i+9];
+  endfor
+
+  Data.Stages := array;
+  var Stage;
+
+  for(i:=50;i<60;i:=i+1)
+    Stage := CInt(_Res.text[i]);
+    if(Stage)
+      Data.Stages.append(Stage);
+    endif
+  endfor
+
+  if(Data.Flags & QF_CUSTOM_PRICE)
+    for(i:=1;i<=Data.Price.size();i:=i+1)
+      SaveQuestPriceData(Data.Price[i], 60+i);
+    endfor
+  endif
+
+  if(Data.Flags & QF_CUSTOM_MAXTIME)
+    Data.MaxTime := CInt(_Res.text[7]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShowQuest()
+
+  BQGInit("Quest ID: "+QuestID, 650, 550, 4);
+
+  GButton(90, 513, 2117, 2118, 7);
+  GTextLine(110, 510, 999, "Modyfikuj");
+
+  GButton(290, 513, 2117, 2118, 17);
+  GTextLine(310, 510, 999, "Zapisz");
+
+  if(IsAdmin(who) or CanUseCmd(who, "qt delquest"))
+    GButton(390, 513, 2117, 2118, 19);
+    GTextLine(410, 510, 999, "Usun");
+  endif
+
+  BuildQuestInfo(QEData, BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModifyQuest()
+
+  BQGInit("Modyfikowanie Questa ID: "+QuestID, 650, 550, 6);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Zmien");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  GButton(290, 513, 2117, 2118, 17);
+  GTextLine(310, 510, 999, "Zapisz");
+
+  GButton(390, 513, 2117, 2118, 18);
+  GTextLine(410, 510, 999, "Zaladuj");
+
+  BuildQuestInfo(QEData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuests(Flags := 0, QSet := 0, QEnd := 0)
+
+  var QId := SelectQuest(gQuestGroup, who, QSet, QEnd);
+  if(QId)
+    if(Flags & BQG_RETVAL)
+      return QId;
+    else
+      QuestId := QId;
+    endif
+  elseif(!(Flags & BQG_RETVAL))
+    QuestId := 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SearchQuests(who, text)
+
+  var Data := GetQuestData(gQuestGroup);
+  var Keys := GetDataKeys(Data, QUEST_TITLE, BQG_ZEROFILL);
+  var Res;
+
+  Keys.sort();
+  Keys.reverse();
+
+  var SrchKeys := array;
+
+  foreach Key in Keys
+    var IdKey := CInt(UnZeroFill(Key));
+    var Quest := Data.FindElement(QUEST_TITLE+IdKey);
+
+    var Res := IsSearchQuest(who, Data, Quest, text);
+    
+    if(Res == error)
+      return;
+    elseif(Res)
+      SrchKeys.append(Key);
+    endif
+
+  endforeach
+
+  if(!SrchKeys.size())
+    SendBad(who, "Brak wynikow dla podanych kryteriow.");
+    return;
+  endif
+
+  BuildQuests(SrchKeys, Data);
+
+  while(IsLoggedIn(who))
+    Res := CInt(GSend(who).butid);
+
+    if(Res != 100000)
+      if(Res > 10000)
+        BuildQuestModInfo(Data, CInt(UnZeroFill(SrchKeys[Res-10000])));
+        continue;
+      elseif(Res > 0)
+        ProcQuests(CInt(UnZeroFill(SrchKeys[Res])));
+      else
+        return 0;
+      endif
+    endif
+
+    BuildQuests(SrchKeys, Data);
+  endwhile
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsSearchQuest(who, Data, Quest, byref text)
+
+  case(text[2])
+    "city":
+
+      var Cities := Quest.Getprop(QPROP_CITIES);
+      var Name := MergeArray(text, 3);
+
+      if(Name in Cities)
+        return 1;
+      endif
+
+    "title":
+      if(!text[3])
+        SendBad(who, "Nie podano tytulu.");
+        return error;
+      endif
+
+      var Title := lower(ToAscii(Quest.GetProp(QSTPROP_TITLE)));
+
+      if(Title[text[3]])
+        return 1;
+      endif
+    
+    "npctemp":
+      if(!text[3])
+        SendBad(who, "Nie podano operatora i npctemplate.");
+        return error;
+      elseif(!text[4])
+        SendBad(who, "Nie podano npctemplate.");
+        return error;
+      elseif(Text[3] != "in" and text[3] != "eq")
+        SendBad(who, "Bledny operator ["+text[3]+"] Dostepne: in (zawiera), eq (rowne).");
+        return error;
+      endif
+
+      var Stages := Quest.Getprop(QPROP_STAGES);
+
+      foreach Stage in (Stages)
+        var Elem := Data.FindElement(QSTAGE_TITLE+Stage);
+        if(Elem)
+          var Targ := Elem.GetProp(QSTPROP_TARG);
+          var Guards := Elem.GetProp(QSTPROP_GUARDS);
+
+          if(Targ.Template)
+            var Temp := lower(Targ.Template);
+            
+            case(text[3])
+              "in":
+                if(Temp[text[4]])
+                  return 1;
+                endif
+              "eq":
+                if(Temp == text[4])
+                  return 1;
+                endif
+            endcase
+          endif
+
+          foreach Guard in Guards
+            var Temp := lower(Guard.Template);
+
+            case(text[3])
+              "in":
+                if(Temp[text[4]])
+                  return 1;
+                endif
+              "eq":
+                if(Temp == text[4])
+                  return 1;
+                endif
+            endcase
+          endforeach
+        endif
+      endforeach
+
+    default:
+      SendBad(who, "Nie podano typu wyszukiwania [title/npctemp].");
+      return error;
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcAddQuest()
+
+  QTipIdx := 1;
+  BuildAddQuest();
+
+  while(IsLoggedIn(who))
+    _Res := GSend(who);
+    SaveQuestData(QData);
+
+    if(_Res.butid >= 20 and _Res.butid <= 52)
+
+      ChangeQuestFlag(QData, _Res.butid-20);
+
+    elseif(_Res.butid >= 60 and _Res.butid <= 60+QUEST_MAXPRICE)
+      
+      QData.Price.erase(_Res.butid-60);
+
+    elseif(_Res.butid > 1000 and _Res.butid < 1099)
+      
+      QTipIdx := _Res.butid - 1000;
+
+    else
+
+      case(_Res.butid)
+        10:       var nStage := ShowQuestStages(BQG_RETVAL);
+                  if(nStage and QData.Stages.size() < QUEST_MAXSTAGES)
+                    QData.Stages.append(nStage);
+                  endif
+
+        11:       ShowChooseTypeGump(who, QData);
+
+        12:       ShowChooseSubTypeGump(who, QData);
+
+        13:       QData.GuildType := ChooseNGdTypeGump(who);
+        
+        9:        QData.GuildCities := ChooseQuestCities(who, QData.GuildCities);
+
+        14:       AddQuestPrice(QData);
+
+        15:       var nId := AddQuest(gQuestGroup, QData, who);
+                  if(nId)
+                    SendSysMessage(who, "Dodano nowy Quest, ID: "+nId, FONT_NORMAL, COLOR_GREEN);
+                    InitQuestData(QData);
+                    QTipIdx := 1;
+                  else
+                    SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyQuest(gQuestGroup, QData);
+                  if(Check)
+                    SendSysMessage(who, "Quest zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        17:       SaveOPQData(QData);
+  
+        18:       SendSysMessage(who, "Chcesz zaladowac szablon questa?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    LoadOPQData(QData);
+                  endif
+      
+        19:       SendSysMessage(who, "Chcesz wyczyscic aktualny szablon Questa?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    InitQuestData(QData);
+                  endif
+
+        1099:     var i;
+                  for(i:=1;i<=10;i:=i+1)
+                    QData.Tip.erase(QTipIdx);
+                  endfor
+
+        default:  return;
+      endcase
+    endif
+
+    BuildAddQuest();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddQuest()
+
+  BQGInit("Dodawanie Questa", 650, 550);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Dodaj");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  GButton(290, 513, 2117, 2118, 17);
+  GTextLine(310, 510, 999, "Zapisz");
+
+  GButton(390, 513, 2117, 2118, 18);
+  GTextLine(410, 510, 999, "Zaladuj");
+
+  GButton(490, 513, 2117, 2118, 19);
+  GTextLine(510, 510, 999, "Wyczysc");        
+
+  BuildQuestInfo(QData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestInfo(byref Data, Flags := 0)
+
+  var n;
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Title, Flags, 1, 5, "Tytul:");
+  BQGAddTextBox(380, 20, 20,  20, FCLR_TEBOX, CStr(Data.Level), Flags, 1, 6, "Poziom:");
+
+  BuildQuestTipsGump(Data, Flags);
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    if(Flags & BQG_SHOWTITLES)
+      GTextLine(430, 50, 670, "Etapy:");
+    endif
+    if(Flags & BQG_EDITABLE and Data.Stages.size() < QUEST_MAXSTAGES)
+      GButton(560, 53, 2117, 2118, 10);
+      GTextLine(580, 50, 999, "Dodaj");
+    endif
+    var Stages    := array;
+    var QuestData := GetQuestData(gQuestGroup);
+    var Elem;
+
+    foreach Stage in (Data.Stages)
+      Elem := QuestData.FindElement(QSTAGE_TITLE+Stage);
+      if(Elem)
+        var Title := Elem.GetProp(QSTPROP_TITLE);
+        ConvToAscii(Title);
+        Stages.append(Stage+" "+Title);
+      endif
+    endforeach
+
+    if(Flags & BQG_EDITABLE)
+      Data.Stages := array;
+
+      foreach Stage in Stages
+        Data.Stages.append(CInt(Stage));
+      endforeach
+    endif
+  
+    BQGAddTextBox(435, 80, 180, 20, FCLR_TEBOX, Stages, Flags, 10, 50);
+    if(!(Flags & BQG_EDITABLE))
+      for(n:=0;n<Stages.size();n:=n+1)
+        GButton(600, 83+n*20, 2117, 2118, 101+n);
+      endfor
+    endif
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    if(Data.Flags & QF_CUSTOM_MAXTIME)
+      BQGAddTextBox(100, 475, 120, 20, FCLR_TEBOX, CStr(Data.MaxTime), Flags, 1, 7, "Czas(sec):");
+    endif
+
+    BQGAddTextBox(100, 295, 120, 20, FCLR_TEBOX, CStr(Data.Chance), Flags, 1, 8, "Szansa:");
+  endif
+  
+  BQGAddTextBox(100, 325, 120, 20, FCLR_TEBOX, GetQuestTypeName(Data.Type), Flags, 1, 0, "Typ:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 325, 2714, 2715, 11);
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    BQGAddTextBox(100, 355, 120, 20, FCLR_TEBOX, GetQuestSubTypeName(Data.SubType), Flags, 1, 0, "PodTyp:");
+    if(Flags & BQG_EDITABLE)
+      GButton(230, 355, 2714, 2715, 12);
+    endif
+
+    var CitiesDesc;
+
+    if(Data.GuildCities and Data.GuildCities.size() > 0)
+      CitiesDesc := "["+Data.GuildCities.size()+"] "+CombineWords(Data.GuildCities, 1, 0, ", ");
+    else
+      CitiesDesc := "Wszystkie";
+    endif
+
+    BQGAddTextBox(100, 385, 120, 20, FCLR_TEBOX, CitiesDesc, Flags, 1, 0, "Miasta:");
+    if(Flags & BQG_EDITABLE)
+      GButton(230, 385, 2714, 2715, 9);
+    endif
+
+    BQGAddTextBox(100, 415, 120, 20, FCLR_TEBOX, GetNGdTypeName(Data.GuildType), Flags, 1, 0, "Gildia:");
+    if(Flags & BQG_EDITABLE)
+      GButton(230, 415, 2714, 2715, 13);
+    endif
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    BQGAddTextBox(100, 445, 125, 20, FCLR_TEBOX, "Wpisana nagroda", Flags, 1, 0, "Flagi:");
+    BQGCheckBox(225, 442, Flags, Data.Flags & QF_CUSTOM_PRICE, 20);
+    BQGAddTextBox(100, 475, 125, 20, FCLR_TEBOX, "Wpisany czas", Flags);
+    BQGCheckBox(225, 472, Flags, Data.Flags & QF_CUSTOM_MAXTIME, 21);
+  endif
+
+  if(Data.Flags & QF_CUSTOM_PRICE)
+    if(Flags & BQG_SHOWTITLES)
+      GTextLine(280, 295, 670, "Nagroda:");
+    endif
+    GResPic(260, 337, 0xBB8, 360, 136);
+
+    BuildQuestPriceTitle(270, 315);
+
+    if(Flags & BQG_EDITABLE)
+      if(Data.Price.size() < QUEST_MAXPRICE)
+        GTextLine(420, 295, 999, "Dodaj nagrode");
+        GButton(400, 298, 2117, 2118, 14);
+      endif
+
+      GTextLine(550, 295, 999, "Usun nagrode");
+    endif
+
+    GPage();
+    GAddPageData(618,317,2650,2651,618,450,2648,2647);
+    n := 1;
+
+    foreach Price in (Data.Price)
+      GCheckNextPage(5);
+      BuildQuestPrice(n, Price, Flags, 270, 340+GNPCount()*25, 60+n);  
+      n := n + 1;
+    endforeach
+  endif
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Locations
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function ProcAddQuestLocGroup()
+
+  while(IsLoggedIn(who))
+    BuildAddQuestLocGroup();
+    _Res := GSend(who);
+
+    case(_Res.butid)
+      5:         QLocData.GroupName := _Res.text[5];
+                 var Check          := AddQuestLocGroup(QLocData, who);
+                 if(Check)
+                   SendSysMessage(who, "Dodano nowa grupe lokacji ["+QLocData.GroupName+"]", FONT_NORMAL, COLOR_GREEN);
+                   InitQLocData(QLocData);
+                 else
+                   SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                 endif
+
+       default:  return;
+    endcase
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddQuestLocGroup()
+
+  BQGInit("Dodawanie Grupy Lokacji:", 350, 170);
+
+  BQGAddTextBox(100, 60, 200, 20, FCLR_TEBOX, QLocData.GroupName, BQG_EDITABLE | BQG_SHOWTITLES, 1, 5, "Nazwa:");
+
+  GButton(20, 133, 2117, 2118, 5);
+  GTextLine(40, 130, 550, "Dodaj grupe");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcQuestLocs(LocName := 0)
+
+  if(!LocName)
+    SelectQuestLocGroupGump(who, QLocData, BQG_EDITABLE);
+
+    if(!QLocData.GroupName)
+      return;
+    endif
+  else
+    QLocData.GroupName := LocName;
+  endif
+
+  var Data  := GetQuestData(QGROUP_LOCDATA);
+  var Group := Data.FindElement(QLOC_TITLE+QLocData.GroupName);
+
+  QLocData.Locs  := Group.GetProp(QLPROP_LOCS);
+  QLocData.Flags := Group.GetProp(QAPROP_FLAGS);
+  if(!QLocData.Locs)
+    QLocData.Locs := array;
+  endif
+
+  if(!Group)
+    _Res := error;
+    _Res.errortext := "Nie znaleziono grupy lokacji "+QLocData.GroupName;
+    return;
+  endif
+
+  QLocPos := 1;
+
+  BuildQuestLocs();
+
+  while(IsLoggedIn(who))
+    _Res := GSend(who);
+
+    if(_Res.butid > 1000)
+      QLocPos   := _Res.butid - 1000;
+      QLocFlags := BQG_EDITABLE;
+      BuildQuestLocs(QLocFlags);
+      continue;
+    endif
+
+    case(_Res.butid)
+      5:        SaveQuestLocs();
+                var Check := SetQuestLocs(QLocData, who);
+                if(Check)
+                  SendSysMessage(who, "Zmieniono ["+QLocData.Locs.size()+"] lokacji w grupie ["+QLocData.GroupName+"]", FONT_NORMAL, COLOR_GREEN);
+                  QLocPos := 1;
+                else
+                  SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  BuildQuestLocs(QLocFlags);
+                  continue;
+                endif
+
+      6:        SaveQuestLocs();
+                var Check := VerifyQuestLocs(QLocData);
+                if(Check)
+                  SendSysMessage(who, QLocData.Locs.size()+" lokacji zweryfikowanych pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                else
+                  SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+                BuildQuestLocs(QLocFlags);
+                continue;
+
+      7:        QLocPos   := QLocData.Locs.size()+1;
+                QLocFlags := BQG_ADDABLE;
+                BuildQuestLocs(QLocFlags);
+                continue;
+
+      8:        SendSysMessage(who, "Chcesz wyczyscic wszystkie lokacje z grupy ["+QLocData.GroupName+"] ?", FONT_NORMAL, COLOR_GREEN);
+                if(YesNo(who, "Tak?"))
+                  QLocData.Locs := array;
+                  SetQuestLocs(QLocData, who);
+                endif
+
+      9:        if(IsAdmin(who) or CanUseCmd(who, "qt loc del"))
+                  if(YesNo(who, "Tak?"))
+                    var Res := DeleteQuestLocGroup(QLocData.GroupName);
+                    if(!Res)
+                      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                    else
+                      SendSysMessage(who, "Skasowano grupe lokacji "+QLocData.GroupName, FONT_NORMAL, COLOR_GREEN);
+                      if(!ShowQuestLocGroupsFromLocs(Group))
+                        return;
+                      endif
+                    endif
+                  endif
+                endif
+
+      10:       if(!ShowQuestLocGroupsFromLocs(Group))
+                  return;
+                endif
+                QLocPos   := 1;
+                QLocFlags := 0;
+
+      11:       QLocPos   := 1;
+                QLocFlags := 0;
+
+      default:  return;
+    endcase
+
+    QLocData.Locs := Group.GetProp(QLPROP_LOCS);
+    BuildQuestLocs();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuestLocGroupsFromLocs(byref Group)
+
+  var Data := GetQuestData(QGROUP_LOCDATA);
+  SelectQuestLocGroupGump(who, QLocData, BQG_EDITABLE);
+
+  if(!QLocData.GroupName)
+    return 0;
+  endif
+
+  Group := Data.FindElement(QLOC_TITLE+QLocData.GroupName);
+
+  QLocData.Locs  := Group.GetProp(QLPROP_LOCS);
+  QLocData.Flags := Group.GetProp(QAPROP_FLAGS);
+  if(!QLocData.Locs)
+    QLocData.Locs := array;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQuestLocs()
+
+  var Locs := array;
+  var Loc, i;
+
+  if(QLocFlags & BQG_ADDABLE)
+    for(i:=1;i<QLocPos;i:=i+1)
+      Locs.append(QLocData.Locs[i]);
+    endfor
+    for(i:=QLocPos;i<=QLocPos+15;i:=i+1)
+      Loc := _Res.text[i+4];
+      if(Loc)
+        Locs.append(SplitWords(Loc));
+      endif
+    endfor
+  else
+    for(i:=1;i<=QLocData.Locs.size();i:=i+1)
+      if(i < QLocPos or i > QLocPos+15)
+        Locs.append(QLocData.Locs[i]);
+      else
+        Loc := _Res.text[i+4];
+        if(Loc)
+          Locs.append(SplitWords(Loc));
+        endif
+      endif
+    endfor
+  endif
+
+  QLocData.Locs := Locs;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestLocs(Flags := 0)
+
+  GInit(20, 20);
+  if(!(Flags & (BQG_EDITABLE | BQG_ADDABLE)))
+    GMode(GMODE_MULTIHD, GSMODE_PACKET);
+  else
+    GMode(GMODE_NORMAL, GSMODE_PACKET);
+  endif
+
+  if(Flags & BQG_EDITABLE or Flags & BQG_ADDABLE)
+    GNoClose();
+  endif
+
+  GResPic(0, 0, 3600, 400, 440);
+  GTextLine(30, 20, 999, "Grupa: "+QLocData.GroupName+" Locs ("+QLocData.Locs.size()+")");
+  if(Flags & BQG_EDITABLE or Flags & BQG_ADDABLE)
+    GButton(300, 20, 2714, 2715, 11);
+  else
+    GButton(300, 20, 2714, 2715, 10);
+  endif
+
+  GTextLine(320, 20, 560, "Wroc");
+  GResPic(25, 82, 0xBB8, 350, 310);
+
+  if(Flags & BQG_EDITABLE or Flags & BQG_ADDABLE)
+    if(Flags & BQG_ADDABLE)
+      GButton(30, 403, 2117, 2118, 5);
+      GTextLine(50, 400, 999, "Zapisz");
+    else
+      GButton(30, 403, 2117, 2118, 5);
+      GTextLine(50, 400, 999, "Zmien");
+    endif
+
+    GButton(130, 403, 2117, 2118, 6);
+    GTextLine(150, 400, 999, "Weryfikuj");
+  else
+    GButton(130, 403, 2117, 2118, 7);
+    GTextLine(150, 400, 999, "Dodaj");
+
+    if(IsAdmin(who) or CanUseCmd(who, "qt loc del"))
+      GButton(215, 403, 2117, 2118, 8);
+      GTextLine(235, 400, 999, "Wyczysc");
+
+      GButton(300, 403, 2117, 2118, 9);
+      GTextLine(320, 400, 999, "Usun");
+    endif
+  endif
+
+  GTextLine(35,  60, 999, "Nr");
+  GTextLine(70,  60, 999, "xSet");
+  GTextLine(120, 60, 999, "ySet");
+  GTextLine(170, 60, 999, "xEnd");
+  GTextLine(220, 60, 999, "yEnd");
+  GTextLine(270, 60, 999, "Realm");
+
+  GAddPageData(365,18,2650,2651,365,407,2648,2647);
+  if(Flags & BQG_EDITABLE or Flags & BQG_ADDABLE)
+    GPage();
+  else
+    GMultiPage();
+  endif
+
+  var n := 1;
+  var i := QLocPos;
+  var LocStr;
+
+  if(Flags & BQG_ADDABLE)
+    for(n:=0;n<15;n:=n+1)
+      GTextLine(35, 85+n*20, 1422, i);
+      if(!QLocData.Locs[i])
+        LocStr := "";
+      else
+        LocStr := CombineWords(QLocData.Locs[i]);
+      endif
+      GTextEntry(70, 85+n*20, 200, 20, FCLR_TEBOX, i+4, LocStr);
+      i := i + 1;
+    endfor
+    return;
+  endif
+
+  for(i:=QLocPos;i<=QLocData.Locs.size();i:=i+1)
+    if(n == 16)
+      if(Flags & BQG_EDITABLE)
+        break;
+      else
+        n := 1;
+      endif
+    endif
+
+    GCheckNextPage(15);
+
+    if(!(Flags & BQG_EDITABLE) and !(Flags & BQG_ADDABLE))
+      if(n == 1)
+        GButton(30, 403, 2117, 2118, 1000+i);
+        GTextLine(50, 400, 999, "Modyfikuj");
+      endif
+    endif
+
+    LocStr := CombineWords(QLocData.Locs[i]);
+    if(QLocData.Locs[i])
+      if(Flags & BQG_EDITABLE)
+        GTextLine(35, 85+GNPCount()*20, 1419, i);
+        GTextEntry(70, 85+GNPCount()*20, 200, 20, FCLR_TEBOX, i+4, LocStr);
+      else
+        GTextLine(35,  85+GNPCount()*20, 1419, i);
+        GTextLine(70,  85+GNPCount()*20, FCLR_TEBOX, QLocData.Locs[i][1]);
+        GTextLine(120, 85+GNPCount()*20, FCLR_TEBOX, QLocData.Locs[i][2]);
+        GTextLine(170, 85+GNPCount()*20, FCLR_TEBOX, QLocData.Locs[i][3]);
+        GTextLine(220, 85+GNPCount()*20, FCLR_TEBOX, QLocData.Locs[i][4]);
+        GTextLine(270, 85+GNPCount()*20, FCLR_TEBOX, QLocData.Locs[i][5]+" "+GetRealmById(QLocData.Locs[i][5]));
+      endif
+    endif
+    n := n + 1;
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuestTargets(text)
+
+  if(!text[2])
+    SendSysMessage(who, "Nie podano nazwy PodTypu.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, ".qt strg SubTypeName 1-5 (Lvl)", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Lvl := CInt(text[3]);
+
+  if(Lvl <= 0 or Lvl > 5)
+    SendSysMessage(who, "Nie podano poziomu lub jest on bledny: ["+text[3]+"].", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, ".qt strg SubTypeName 1-5 (Lvl)", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  text[2] := lower(text[2]);
+  
+  var i;
+  var SubType := 0;
+
+  if(text[2]["oswo"])
+    SubType := 110;
+  else
+    for(i:=1;i<=QSTYPE_MAXID;i:=i+1)
+      if(lower(GetQuestSubTypeName(i))[text[2]])
+        SubType := i;
+        break;
+      endif
+    endfor
+  endif
+
+  if(!SubType)
+    SendSysMessage(who, "Podano bledna nazwe ["+text[2]+"] PodTypu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var SkCfg;
+  var ObjTypes := array;
+  var SkRange  := GetQuestSkillRange(Lvl);
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+  var SkId     := GetQuestSkIDFromSubType(SubType);
+
+  case(SubType)
+    QSTYPE_ALCHEMY:          
+    QSTYPE_BLACKSMITH:       
+    QSTYPE_BOWCRAFTING:      
+    QSTYPE_CARPENTING:       
+    QSTYPE_TINKERING:        
+    QSTYPE_TAILORING:        
+    QSTYPE_COOKING:          
+    QSTYPE_MAGICITEMMAKING:  ObjTypes := GetCraftObjTypes(SkID, SkRange[1], SkRange[2]);
+
+    QSTYPE_INSCRIPTION:      SkCfg := ReadConfigFile(":*:spells");
+                             foreach Spell in GetConfigIntKeys(SkCfg)
+                               Spell := CInt(Spell);
+                               if(!SkCfg[Spell].scroll)
+                                 continue;
+                               endif
+
+                               if(Spell > 80)
+                                 break;
+                               endif
+
+                               var Diff := CInt(GetCircleValue(GetSpellValue(Spell, "Circle"),"InscDiff"));
+                               if(Diff >= SkRange[1] and Diff <= SkRange[2])
+                                 ObjTypes.append(CInt(SkCfg[Spell].scroll));
+                               endif
+                             endforeach
+
+    QSTYPE_MINE:             SkCfg := ReadConfigFile(":mining:mining");
+                             foreach Item in GetOresObjTypes()
+                               if(Item != UOBJ_MYSTIC_ORE)
+                                 if(CInt(SkCfg[Item].Diff) >= SkRange[1] and CInt(SkCfg[Item].Diff) <= SkRange[2])
+                                   ObjTypes.append(CInt(Item));
+                                 endif
+                               endif
+                             endforeach
+
+    QSTYPE_CHOP:             foreach Item in GetLogObjTypes()
+                               if(CInt(ItemCfg[Item].skill) >= SkRange[1] and CInt(ItemCfg[Item].skill) <= SkRange[2])
+                                 ObjTypes.append(CInt(Item));
+                               endif
+                             endforeach
+
+    QSTYPE_FISH:             SkCfg := ReadConfigFile(":fishing:fish_groups");
+
+                             foreach Group in GetConfigStringKeys(SkCfg)
+                               var Skill := SplitWords(SkCfg[Group]);
+                               Skill[1] := CInt(Skill[1]);
+                               Skill[2] := CInt(Skill[2]);
+
+                               if(Skill[2])
+                                 if(SkRange[1] < Skill[1] and SkRange[2] > Skill[2])
+                                   continue;
+                                 endif
+                               elseif(SkRange[1] < Skill[1] or SkRange[2] > Skill[1])
+                                 continue;
+                               endif
+
+                               foreach Item in GetConfigStringArray(SkCfg[Group], "ObjType")
+                                 ObjTypes.append(CInt(Item));
+                               endforeach
+                             endforeach
+
+    QSTYPE_HERB:             SkCfg := ReadConfigFile(":herding:herding");
+                             foreach Item in GetConfigIntKeys(SkCfg)
+                               if(SkCfg[Item].Product)
+                                 if(CInt(SkCfg[Item].skill) >= SkRange[1] and CInt(SkCfg[Item].skill) <= SkRange[2])
+                                   ObjTypes.append(CInt(SkCfg[Item].Product));
+                                 endif
+                               endif
+                             endforeach
+
+    QSTYPE_FARMING:          SkCfg := ReadConfigFile(":farming:cut");
+                             foreach Item in GetConfigIntKeys(SkCfg)
+                               if(CInt(SkCfg[Item].skill) >= SkRange[1] and CInt(SkCfg[Item].skill) <= SkRange[2])
+                                 var Prods := SplitWords(SkCfg[Item].Product);
+                                 foreach Prod in Prods
+                                   if(!(CInt(Prod) in ObjTypes))
+                                     ObjTypes.append(CInt(Prod));
+                                   endif
+                                 endforeach
+                               endif
+                             endforeach
+
+    QSTYPE_LOCKTAKE:         SkCfg := ReadConfigFile(ITEMS_CFG);
+                             foreach Item in GetConfigIntKeys(SkCfg)
+                               if(SkCfg[Item].LockPickDiff != error)
+                                 if(CInt(SkCfg[Item].LockPickDiff) >= SkRange[1] and CInt(SkCfg[Item].LockPickDiff) <= SkRange[2])
+                                   ObjTypes.append(CInt(Item));
+                                 endif
+                               endif
+                             endforeach
+
+    110:                     var cfgElem;
+                             foreach Temp in GetAllNpcTemplates()
+
+                               cfgElem := GetNpcConfig(Temp);
+
+                               if(cfgElem.tameskill != error)
+                                 if(CInt(cfgElem.tameskill) >= SkRange[1] and CInt(cfgElem.tameskill) <= SkRange[2])
+                                   ObjTypes.append(Temp);
+                                 endif
+                               endif
+                             endforeach
+
+    default:                 SendSysMessage(who, "Ten PodTyp nie posiada okreslonych celi.", FONT_NORMAL, COLOR_RED);
+                             return;
+  endcase
+
+  if(!ObjTypes.size())
+    SendSysMessage(who, "Nie znaleziono odpowiadajacych celow.", FONT_NORMAL, COLOR_RED);
+  else
+    ShowQuestTargetObjTypes(ObjTypes);
+  endif
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuestTargetObjTypes(byref ObjTypes)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var i       := 1;
+
+  BQGInit("Znaleziono "+ObjTypes.size()+" przedmiotow.", 600, 500, 0, 1);
+  GAddPageData(565,18,2650,2651,565,467,2648,2647);
+  GMultiPage();
+  
+  GTextLine(30,  40, 999, "Nr");
+  GTextLine(60,  40, 999, "ObjType");
+  GTextLine(160, 40, 999, "Nazwa");
+  GTextLine(320, 40, 999, "Opis");
+
+  foreach ObjType in ObjTypes
+    GCheckNextPage(20);
+    GTextLine(30, 60+GNPCount()*20, 1419, i);
+    if(CInt(ObjType))
+      GTextLine(60, 60+GNPCount()*20, 550,  hex(ObjType));
+      GTextLine(110,60+GNPCount()*20, 550,  ObjType);
+      GTextLine(160,60+GNPCount()*20, 999,  ClStr(ItemCfg[ObjType].name));
+      GTextLine(320,60+GNPCount()*20, 670,  GetDescForItem(ObjType));
+    else
+      GTextLine(160,60+GNPCount()*20, 550,  ObjType);
+    endif
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectQuestNpcs(text)
+
+  if(text[2] == "?")
+    SendSysMessage(who, ".qt snpc temp_part lvl (1-5) sort (1-4)", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Lvl  := 0;
+  var Sort := 1;
+  var i;
+  var Range;
+
+  for(i:=1;i<text.size();i:=i+1)
+    if(text[i] == "lvl")
+      Lvl := CInt(text[i+1]);
+      text[i] := 0;
+      text[i+1] := 0;
+    elseif(text[i] == "sort")
+      Sort := CInt(text[i+1]);
+      text[i] := 0;
+      text[i+1] := 0;
+    endif
+  endfor
+
+  if(Lvl <= 0 or Lvl > 5)
+    Lvl := 0;
+  else
+    Range := GetQuestNpsScoreRange(Lvl);
+  endif
+
+  if(text[2])
+    text[2] := lower(text[2]);
+  endif
+
+  var AllNpcs := GetAllNpcTemplates();
+  var sNpcs   := array;
+  var lwTemp, Score, cfgElem;
+
+  foreach Temp in AllNpcs
+    lwTemp := lower(Temp);
+    cfgElem := GetNpcConfig(Temp);
+
+    if(cfgElem.CityNpc or lwTemp["summoned"])
+      continue;
+    endif
+
+    if(text[2])
+      if(lwTemp[text[2]])
+        if(Range)
+          Score := CalcNpcScore(cfgElem);
+          if(Score >= Range[1] and Score <= Range[2])
+            sNpcs.append(Temp);
+          endif
+        else
+          sNpcs.append(Temp);
+        endif
+      endif
+    else
+      if(Range)
+        Score := CalcNpcScore(cfgElem);
+        if(Score >= Range[1] and Score <= Range[2])
+          sNpcs.append(Temp);
+        endif
+      else
+        sNpcs.append(Temp);
+      endif
+    endif
+  endforeach
+
+  ShowQuestNpcsGump(who, sNpcs, Sort);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcNpcScoreMagic(Elem)
+
+  return CInt((CInt(Elem.STR / 5) + GetConfigInt(Elem, Elem.AttackAttribute) + CInt(Elem.INT / 5) + (GetConfigInt(Elem, "Magery")-20))/4);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcNpcScoreNormal(Elem)
+
+  return CInt((CInt(Elem.STR / 5) + GetConfigInt(Elem, Elem.AttackAttribute))/2);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcNpcScore(Elem)
+
+  return CInt((CalcNpcScoreMagic(Elem) + CalcNpcScoreNormal(Elem)) / 2);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetQuestNpcScoreLvl(byref Ranges,Score)
+
+  var i     := 1;
+  var Lvls  := array;
+
+  for(i:=1;i<=Ranges.size();i:=i+1)
+    if(Score >= Ranges[i][1] and Score <= Ranges[i][2])
+      Lvls.append(i);
+    endif
+  endfor
+
+  return Lvls;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowQuestNpcsGump(who, byref Temps, Sort := 1)
+
+  Temps.sort();
+
+  GInit(30, 30);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0, 3600, 480, 460);
+  GAddPageData(448,16,2650,2651,448,428,2648,2647);
+  GTextLine(60, 40+GNPCount()*20, 999, "Template");
+  GTextLine(220,40+GNPCount()*20, 999, "Mage");
+  GTextLine(280,40+GNPCount()*20, 999, "Norm");
+  GTextLine(340,40+GNPCount()*20, 999, "Score");
+  GTextLine(400,40+GNPCount()*20, 999, "Lvls");
+  GMultiPage();
+
+  var dTemps  := dictionary;
+  var Ranges  := array;
+  var Score, nLvls, i, cfgElem;
+
+  for(i:=1;i<=5;i:=i+1)
+    Ranges[i] := GetQuestNpsScoreRange(i);
+  endfor
+
+  if(Sort < 1 or Sort > 4)
+    Sort := 1;
+  endif
+
+  foreach Temp in Temps
+
+    cfgElem := GetNpcConfig(Temp);
+
+    case(Sort)
+      1:   dTemps[Temp] := Temp;
+      2:   Score := CalcNpcScoreMagic(cfgElem);
+           Score := ZeroFill(Score, 4);
+           dTemps[Score+"_"+Temp] := Temp;
+      3:   Score := CalcNpcScoreNormal(cfgElem);
+           Score := ZeroFill(Score, 4);
+           dTemps[Score+"_"+Temp] := Temp;
+      4:   Score := CalcNpcScore(cfgElem);
+           Score := ZeroFill(Score, 4);
+           dTemps[Score+"_"+Temp] := Temp;
+    endcase
+  endforeach
+
+  i := 1;
+
+  foreach Temp in dTemps
+
+    cfgElem := GetNpcConfig(Temp);
+    Score   := CalcNpcScore(cfgElem);
+
+    GCheckNextPage(20);
+    GTextLine(20, 40+GNPCount()*20, 550, i);
+    GTextLine(60, 40+GNPCount()*20, 1309, Temp);
+    GTextLine(220,40+GNPCount()*20, 670, CalcNpcScoreMagic(cfgElem));
+    GTextLine(280,40+GNPCount()*20, 670, CalcNpcScoreNormal(cfgElem));
+    GTextLine(340,40+GNPCount()*20, 995, Score);
+    nLvls := CombineWords(GetQuestNpcScoreLvl(Ranges, Score));
+    GTextLine(400,40+GNPCount()*20, 995, nLvls);
+    i := i + 1;
+  endforeach
+  
+  SendSysMessage(who,"Znaleziona liczba npecow: "+Temps.size(),FONT_NORMAL,COLOR_BLUE);
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckIsInLocGroup()
+
+  var Targ := LocTarget(who);
+
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Data  := GetQuestData(QGROUP_LOCDATA);
+  var Keys  := GetDataKeys(Data, QLOC_TITLE);
+  var RlmId := GetRealmId(who.realm);
+  var Group, Locs, i;
+
+  SendSysMessage(who, "["+Targ.x+","+Targ.y+","+Targ.z+" "+who.realm+"]", FONT_NORMAL, COLOR_STONE);
+
+  foreach GLocName in Keys
+    Group  := Data.FindElement(QLOC_TITLE+GLocName);
+    Locs   := Group.GetProp(QLPROP_LOCS);
+    i      := 1;
+
+    foreach Loc in Locs
+      if(Targ.x >= Loc[1] and Targ.x <= Loc[3] and Targ.y >= Loc[2] and Targ.y <= Loc[4] and Loc[5] == RlmId)
+        SendSysMessage(who, GLocName+" ["+i+"] ["+Loc[1]+","+Loc[2]+"-"+Loc[3]+","+Loc[4]+" "+GetRealmById(Loc[5])+"]", FONT_NORMAL, COLOR_GREEN);
+      endif
+      i := i + 1;
+    endforeach
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQuestPriceData(byref Price, Id)
+
+  Price.ObjType   := CInt(_Res.text[Id]);
+  Price.ToObjType := CInt(_Res.text[Id+20]);
+  Price.Amount    := _Res.text[Id+40];
+  Price.Chance    := CInt(_Res.text[Id+60]);
+  Price.Color     := CInt(_Res.text[Id+80]);
+  Price.Name      := _Res.text[Id+100];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveQuestTargData(byref Data, byref Targ, Id)
+
+  case(Data.SubType)
+    QSTYPE_NPC:              Targ.Template  := _Res.text[Id];
+                             Targ.Color     := CInt(_Res.text[Id+20]);
+                             Targ.Name      := _Res.text[Id+40];
+                             
+    QSTYPE_EXNPC:            Targ.Template  := _Res.text[Id];
+                             Targ.Gender    := CInt(_Res.text[Id+20]);
+                             Targ.Script    := _Res.text[Id+40];
+
+    QSTYPE_ITEM:             Targ.ObjType   := CInt(_Res.text[Id]);
+                             Targ.ToObjType := CInt(_Res.text[Id+20]);
+                             Targ.Color     := CInt(_Res.text[Id+40]);
+                             Targ.Name      := _Res.text[Id+60];
+
+    QSTYPE_PLAYER:           Targ.SkID      := CInt(_Res.text[Id]);
+                             Targ.SkVal     := _Res.text[Id+20];
+
+    QSTYPE_LOC:              Targ.x         := CInt(_Res.text[Id]);
+                             Targ.y         := CInt(_Res.text[Id+20]);
+                             Targ.z         := CInt(_Res.text[Id+40]);
+                             Targ.Realm     := _Res.text[Id+60];
+
+    QSTYPE_FROMNPC:          Targ.ObjType   := CInt(_Res.text[Id]);
+                             Targ.Color     := CInt(_Res.text[Id+20]);
+                             Targ.Name      := _Res.text[Id+40];
+                             Targ.Template  := _Res.text[Id+60];
+                             Targ.Script    := _Res.text[Id+80];
+                             Targ.Gender    := CInt(_Res.text[Id+100]);
+
+    QSTYPE_LOOTNPC:          Targ.ObjType   := CInt(_Res.text[Id]);
+                             Targ.Color     := CInt(_Res.text[Id+20]);
+                             Targ.Name      := _Res.text[Id+40];
+                             Targ.Template  := _Res.text[Id+60];
+                             Targ.NpcName   := _Res.text[Id+80];
+                              
+    QSTYPE_ALCHEMY:          
+    QSTYPE_BLACKSMITH:
+    QSTYPE_BOWCRAFTING:
+    QSTYPE_CARPENTING:
+    QSTYPE_TINKERING:
+    QSTYPE_TAILORING:
+    QSTYPE_COOKING:
+    QSTYPE_INSCRIPTION:
+    QSTYPE_CARTOGRAPHY:
+    QSTYPE_MAGICITEMMAKING:  Targ.ObjType    := CInt(_Res.text[Id]);
+                             Targ.ToObjType  := CInt(_Res.text[Id+20]);
+                             Targ.SkVal      := CInt(_Res.text[Id+40]);
+                             Targ.ExpChance  := CInt(_Res.text[Id+60]);
+                             Targ.MatObjType := CInt(_Res.text[Id+80]);
+
+    QSTYPE_MINE:
+    QSTYPE_CHOP:
+    QSTYPE_FISH:
+    QSTYPE_HERB:
+    QSTYPE_FARMING:          Targ.ObjType   := CInt(_Res.text[Id]);
+                             Targ.ToObjType := CInt(_Res.text[Id+20]);
+                             Targ.SkVal     := CInt(_Res.text[Id+40]);
+    QSTYPE_HOUSE:            
+
+    QSTYPE_LOCKTAKE:         Targ.ObjType     := CInt(_Res.text[Id]);
+                             Targ.ToObjType   := CInt(_Res.text[Id+20]);
+                             Targ.Color       := CInt(_Res.text[Id+40]);
+                             Targ.Name        := _Res.text[Id+60];
+                             Targ.ContObjType := CInt(_Res.text[Id+80]);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectQuestLocation(who, byref QEStageData, byref QLocData)
+
+  var nLoc;
+  if(QEStageData.Flags & QSTF_SIMPLE_LOC)
+    SendSysMessage(who, "Wskaz lokacje.", FONT_NORMAL, COLOR_GREEN);
+    nLoc := LocTarget(who);
+    if(nLoc)
+      nLoc := GetLocStruct(nLoc); // tak dla czystosci, aby nie bylo nic wiecej niz loc.
+    endif
+  else
+    nLoc := SelectQuestLocGroupGump(who, QLocData, BQG_RETVAL);
+  endif
+
+  if(nLoc)
+    QEStageData.Loc := nLoc;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

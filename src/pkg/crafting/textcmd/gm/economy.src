@@ -1,0 +1,279 @@
+//-----------------------------------------------------------------------------
+
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/deeds";
+include "include/finding";
+include "include/gumpboxes";
+include "include/player/misc";
+include "include/tempmods";
+include "include/cmds/cancmd";
+
+include ":crafting:economy";
+include ":discord:outbound";
+
+//-----------------------------------------------------------------------------
+
+program EconomyCmd(who, text)
+
+  if(!CanUseCmd(who, "economy"))
+    return;
+  endif
+
+  if(text == "force" and IsAdmin(who))
+    SetGlobalProperty("#RegenEconomy", 1);
+    SendSysMessage(who, "Wymuszono przegenerowanie statow ekonomicznych dla dnia biezacego!", FONT_NORMAL, COLOR_BLUE);
+    return;
+  endif
+
+  var EconData := GetEconomyData();
+  var Dates := EconData.keys();
+  Dates.reverse();
+
+  while(IsLoggedIn(who))
+    BuildEconomyGump(Dates);
+
+    var Res := GSend(who)[0];
+
+    if(Res and Res != 99999999)
+      ShowEconomyForDate(who, Dates[Res]);
+    else
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildEconomyGump(byref Dates)
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 720, 410);
+  GTextLine(230, 20, 690, "Statystyki ekonomiczne");
+  GButton(480, 23, 2117, 2118, 99999999);
+  GTextLine(500, 20, 670, "Zamknij");
+  GAddPageData(685,18,2650,2651,685,377,2648,2647);
+
+  GResPic(20, 60,  0xa3c, 680, 320);
+  GTextLine(40,  40, 999, "Id");
+  GTextLine(70,  40, 999, "Data");
+  GTextLine(180, 40, 999, "Postaci");
+  GTextLine(220, 40, 999, "Kont");
+  GTextLine(430, 40, 999, "Przedmiotow");
+  GMultiPage();
+
+  var Data := GetEconomyData();
+  var i, Elem;
+  
+  Elem := Dates[1];
+  
+  PresetDiscordMessage("Ekonomia: " + Elem.GetProp("SumGold") + " lacznie zlota.", "Staff");
+  PresetDiscordMessage("Ekonomia: " + Elem.GetProp("SumCheque") + " lacznie w czekach", "Staff");
+  PresetDiscordMessage("Ekonomia: " + Elem.GetProp("SumBankAccount") + " lacznie na kontach", "Staff");
+  
+  var accounts := Elem.GetProp("CountAccs");
+  PresetDiscordMessage("Gracze: " + accounts[1] + " aktywni  ," + accounts[2] + " nowi", "Staff");
+
+  for(i:=1; i<=Dates.size(); i+=1)
+	
+    Elem := Data.FinDelement(Dates[i]);
+
+    var Accs := Elem.GetProp("CountAccs");
+    GCheckNextPage(12);
+    GTextLine(40,  70+GNPCount()*25, 999, i+".");
+    GTextLine(70,  70+GNPCount()*25, 1000, Dates[i]);
+    GTextLine(180, 70+GNPCount()*25, 1419, Elem.GetProp("CountChars"));
+    if(Accs)
+      GTextLine(220, 70+GNPCount()*25, 1419, Accs[1]+" akt, "+Accs[2]+" new, "+Accs[3]+" all");
+    endif
+    GTextLine(430, 70+GNPCount()*25, 550,  Elem.GetProp("CountItems"));
+
+    GCheckNextPage(12);
+    GButton(  60, 67+GNPCount()*25, 2117, 2118, i);
+
+    var SumAll := Elem.GetProp("SumCheque") + Elem.GetProp("SumGold") + CInt(Elem.GetProp("SumBankAccount"));
+    GTextLine(80, 65+GNPCount()*25, 1001, "Zloto: "+FormatSize(Elem.GetProp("SumGold"), ".")+"gp, Czeki: "+FormatSize(Elem.GetProp("SumCheque"), ".")+"gp, Konta: "+FormatSize(CInt(Elem.GetProp("SumBankAccount")), ".")+"gp");
+    GTextLine(540, 65+GNPCount()*25, 1421, "Razem: "+FormatSize(SumAll, ".")+"gp");
+
+    Sleepms(1);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEconomyForDate(who, Date)
+
+  var Data := GetEconomyData();
+  var Elem := Data.FinDelement(Date);
+  var Width := 670;
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, Width+30, 410);
+  GTextLine(230, 20, 670, "Statystyki ekonomiczne z dnia "+Date);
+  GButton(480, 23, 2117, 2118, 99999999);
+  GTextLine(500, 20, 670, "Zamknij");
+  GAddPageData(Width-5,18,2650,2651,Width-5,377,2648,2647);
+
+  GResPic(15, 60,  0xa3c, Width, 320);
+  GTextLine(40,  40, 999, "Nazwa");
+  GTextLine(100,  40, 999, "Wartosc");
+  GMultiPage();
+
+  var InfoLines := array;
+
+  InfoLines.append(array("Zloto", FormatSize(Elem.GetProp("CountGold"),".")+"szt "+FormatSize(Elem.GetProp("SumGold"),".")+"gp")); 
+  InfoLines.append(array("Czeki", FormatSize(Elem.GetProp("CountCheque"),".")+"szt "+FormatSize(Elem.GetProp("SumCheque"),".")+"gp")); 
+  InfoLines.append(array("Konta", FormatSize(CInt(Elem.GetProp("CountBankAccount")),".")+"szt "+FormatSize(CInt(Elem.GetProp("SumBankAccount")),".")+"gp"));
+  InfoLines.append(array("Razem", FormatSize(Elem.GetProp("CountCheque")+Elem.GetProp("CountGold"),".")+"szt "+FormatSize(Elem.GetProp("SumCheque")+Elem.GetProp("SumGold")+Elem.GetProp("SumBankAccount"),".")+"gp"));
+  InfoLines.append(array("Postaci", "Wszystkich", "Orderów", "Morderców"));
+  InfoLines.append(array("Ilosci", Elem.GetProp("CountChars")) + Elem.GetProp("CountStatus"));
+  InfoLines.append(array("Kont", "Wszystkich", "Aktywnych", "Nowych"));
+  InfoLines.append(array("Ilosci") + Elem.GetProp("CountAccs"));
+
+  var Races := Elem.GetProp("CountRaces");
+  var Classes := Elem.GetProp("CountClasses");
+  var SubClasses := Elem.GetProp("CountSubClasses");
+  var RacesCfg := ReadConfigFile(RACES_CFG);
+  var ClassesCfg := ReadConfigFile(CLASSES_CFG);
+  var CountChars := Elem.GetProp("CountChars");
+
+  var c := 2;
+  var LineRace := array("Rasa");
+  var LineCount := array("Ilosci");
+
+  foreach Race in Races
+
+    if(c > 4)
+      InfoLines.append(LineRace);
+      InfoLines.append(LineCount);
+      c := 2;
+      LineRace := array("Rasa");
+      LineCount := array("Ilosci");
+    else
+      c += 1;
+    endif
+
+    LineRace.append(RacesCfg[_Race_iter].Name);
+    LineCount.append(Race+" ("+CInt(CDbl(Race)/CountChars*100)+"%)");
+  endforeach
+
+  if(LineCount.size() > 1)
+    InfoLines.append(LineRace);
+    InfoLines.append(LineCount);
+  endif
+
+
+  c := 2;
+  LineRace := array("Klasa");
+  LineCount := array("Ilosci");
+
+  foreach Class in Classes
+
+    if(c > 4)
+      InfoLines.append(LineRace);
+      InfoLines.append(LineCount);
+      c := 2;
+      LineRace := array("Klasa");
+      LineCount := array("Ilosci");
+    else
+      c += 1;
+    endif
+
+    LineRace.append(ClassesCfg[_Class_iter].Title);
+    LineCount.append(Class+" ("+CInt(CDbl(Class)/CountChars*100)+"%)");
+  endforeach
+
+  if(LineCount.size() > 1)
+    InfoLines.append(LineRace);
+    InfoLines.append(LineCount);
+  endif
+
+  c := 1;
+  LineRace := array("Podklasa");
+  LineCount := array("Ilosci");
+
+  foreach Class in SubClasses
+
+    if(c > 3)
+      InfoLines.append(LineRace);
+      InfoLines.append(LineCount);
+      c := 2;
+      LineRace := array("Podklasa");
+      LineCount := array("Ilosci");
+    else
+      c += 1;
+    endif
+
+    LineRace.append(_Class_iter);
+    LineCount.append(Class+" ("+CInt(CDbl(Class)/CountChars*100)+"%)");
+  endforeach
+
+  if(LineCount.size() > 1)
+    InfoLines.append(LineRace);
+    InfoLines.append(LineCount);
+  endif
+
+  var MagicItems := Elem.GetProp("MagicItems");
+
+  if(MagicItems)
+    InfoLines.append(array("MagicItems", "<5lvl", "<10lvl", "<15lvl", "<=20lvl"));
+    InfoLines.append(array("Ilosci") + MagicItems);
+  endif
+
+  InfoLines.append(array("Craft", "<25%", "<50%", "<75%", "<100%", "100%", ">100%"));
+  foreach Skill in (Elem.GetProp("CraftSkills"))
+    InfoLines.append(array(GetSkillConfigElem(_Skill_Iter).Name) + Skill);
+  endforeach
+
+  InfoLines.append(array("Harvest", "<25%", "<50%", "<75%", "<100%", "100%", ">100%"));
+  foreach Skill in (Elem.GetProp("HarvSkills"))
+    InfoLines.append(array(GetSkillConfigElem(_Skill_Iter).Name) + Skill);
+  endforeach
+  
+  InfoLines.append(array("CraftItems", "Armor", "Weapon", "Equip", "Item"));
+  foreach Skill in (Elem.GetProp("CraftItems"))
+    InfoLines.append(array(GetSkillConfigElem(_Skill_Iter).Name) + Skill);
+  endforeach
+
+  var InfoArr := array;
+  var ItemsCfg := ReadConfigFile(ITEMS_CFG);
+
+  foreach Items in (Elem.GetProp("HarvItems"))
+    InfoArr[1] := GetSkillConfigElem(_Items_Iter).Name;
+
+    foreach Item in Items
+      InfoArr[2] := GetDescForItem(_Item_iter);
+      InfoArr[3] := Item[1]+" kup "+Item[2]+" szt";
+      InfoArr[4] := hex(_Item_iter)+"/"+ClStr(ItemsCfg[_Item_iter].Name);
+      InfoLines.Append(InfoArr);
+    endforeach
+  endforeach
+
+  foreach Line in InfoLines
+    GCheckNextPage(12);
+    GTextLine(25+(15-len(Line[1]))*6,  70+GNPCount()*25, 999, Line[1]);
+    GTextLine(140,  70+GNPCount()*25, 560, Line[2]);
+
+    if(Line.size() > 2)
+      var ElemWidth := ceil((Width - 120) / (Line.size()-1));
+      for(c:=3;c<=Line.size(); c+=1)
+        GTextLine(120 + (ElemWidth*(c-2)),  70+GNPCount()*25, 560, Line[c]);
+      endfor
+    endif
+
+  endforeach
+
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

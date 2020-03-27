@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include ":banking:gold";
+include "include/player/misc";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+program OnDestroyCheque(Cheque)
+
+  var Cont := Cheque.container;
+  
+  while(Cont and !IsPlayer(Cont))
+    Cont := Cont.container;
+  endwhile
+  
+  if(IsPlayer(Cont))
+    SendGoldCheck(Cont);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

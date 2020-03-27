@@ -1,0 +1,170 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/client/fonts";
+include "include/clock";
+include "include/log";
+include "include/finding";
+include "include/move";
+include "include/cmds/misc";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+program TalkCheckCmd(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var SrchW := 0;
+  var SrchN := 0;
+
+  if(text)
+
+    text := SplitWords(text);
+
+    case(lower(text[1]))
+      "name":      SrchN := lower(CombineWords(text, 2));
+
+      "word":      SrchW := CAscZ(lower(CombineWords(text, 2)));
+                   
+      "era":         if(YesNo(who,"Na pewno?"))
+                       WriteFile(FSPEECH_LOG,{});
+                       SendSysMessage(who,"Skasowano dane.",FONT_NORMAL,COLOR_GREEN);
+                     endif
+                     return;
+                   
+      "del":       if(IsGm(who))
+                     DeleteSentences(who, text[2], CombineWords(text, 3));
+                     return;
+                   endif
+    endcase
+
+  endif
+
+  var AllWords;
+  var AddKey;
+  var Sers;
+  var Words;
+  var Pr, i;
+  var Res;
+
+  while(IsLoggedIn(who))
+
+    AllWords := ReadFile(FSPEECH_LOG);
+    Sers     := array;
+    Words    := array;
+
+    AllWords.reverse();
+    i := AllWords.size();
+
+    GInit(0, 30);
+    GMode(GMODE_NORMAL, GSMODE_PACKET);
+    GSetUnicode();
+    GMultiHeaderInit();
+    GResPic(0, 0, 3600, 800,450);
+    GMultiPage();
+    GAddPageData(765,20,2650,2651,765,413,2648,2647);
+
+    foreach Key in AllWords
+      Key    := UnPack(Key);
+      AddKey := 0;
+
+      if(SrchW)
+        Pr := ConvPlLetters(StrLower(Key[5]));
+        if(UniStrFind(Pr, SrchW))
+          AddKey := 1;
+        endif
+      elseif(SrchN)
+        Pr := StrLower(Key[2]);
+        if(Pr[SrchN])
+          AddKey := 1;
+        else
+          Pr := lower(Key[3]);
+          if(Pr[SrchN])
+            AddKey := 1;
+          endif
+        endif
+      else
+        AddKey := 1;
+      endif
+
+      if(AddKey)
+        GCheckNextPage(20);
+        Sers.append(Key[1]);
+        GButton(16, GNPCount()*20+20, 2714, 2715, Sers.size());
+        if(IsGm(who))
+          Words.append({Key[2], Key[5]});
+          GButton(36, GNPCount()*20+20, 2710, 2711, AllWords.size()+Words.size());
+        endif
+        GTextLine(58, GNPCount()*20+20, 1212, i);
+        GTextLine(85 , GNPCount()*20+20, 670, CUnixTime(Key[4]));
+        GTextLine(210, GNPCount()*20+20, 490, Key[2]+"/"+Key[3]);
+        GTextLine(425, GNPCount()*20+20, 550, Key[5]);
+      endif
+
+      i := i - 1;
+
+    endforeach
+
+    Res := CInt(GSend(who).butid);
+
+    if(!Res)
+      break;
+    elseif(Res > 0 and Res <= Sers.size())
+      GoToPlayerBySerial(who,Sers[Res]);
+    elseif(Res > AllWords.size() and Res <= AllWords.size()+Words.size())
+      Res := Res - AllWords.size();
+      DeleteSentences(who, Words[Res][1], Words[Res][2], 1);
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DeleteSentences(who, pName, pWord, Eq := 0)
+
+  if(!pName or !pWord)
+    SendSysMessage(who, "Nie podano imienia gracza lub slowa.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var AllWords := ReadFile(FSPEECH_LOG);
+  var delCnt := 0;
+  var toSave := array;
+
+  pName := lower(pName);
+  pWord := ConvPlLetters(StrLower(pWord));
+
+  ConvToUnicode(pWord);
+
+  var uKey, lName, lWord;
+
+  foreach Key in AllWords
+    uKey := UnPack(Key);
+
+    lName := lower(uKey[2]);
+    lWord := ConvPlLetters(StrLower(uKey[5]));
+
+    if((!Eq and lName[pName] and UniStrFind(lWord, pWord)) or (Eq and lName == pName and lWord == pWord))
+      delCnt := delCnt+1;
+    else
+      toSave.append(Key);
+    endif
+  endforeach
+
+  WriteFile(FSPEECH_LOG, toSave);
+
+  ConvToAscii(pWord);
+  if(Eq)
+    SendSysMessage(who, "Skasowano "+delCnt+" wpisow, rownych co do: Name: ["+pName+"] Word: ["+pWord+"]", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Skasowano "+delCnt+" wpisow, zawierajacych: Name: ["+pName+"] Word: ["+pWord+"]", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

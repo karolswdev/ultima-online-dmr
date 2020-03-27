@@ -1,0 +1,16 @@
+Plan jest nastêpujacy:
+sto i variat deklaruja itemy dla recept i nagrod.
+Kazda recepta bedzie miec propa RewardItem i RewardProp.
+ RewardItem - objtype itema nagrody. W przypadku, gdy nie dotyczy konkretnie itema jako nagrody tylko np. zdolnosci nowej, RewardItem ma byc pusty
+ RewardProp - Prop jaki ma ustawic na postaci. W przypadku zdolnosci (RewardItem pusty) bedzie to polegac na ustawieniu propa z np. data uzycia.
+              Oznaczac to bedzie mozliwosc wykonywania danej zdolnosci. Prop nazwany po ang, moze byc dowolny. (SmithMetalurgy np. dla kowala mogacego kuc z nowych rud)
+              W przypadku np. nowych itemow do wykonania pojawiajacych sie w gumpie (czyli RewardItem uzupelniony), Prop bedzie tablica nowych mozliwych itemow do wykonania.
+              Oznacza to, ze dla np. Stolarza powinien byc jeden prop na wszystkie jego nagrody (SpecialCarpentry), dla kowala (SpecialBlacksmith) itp.
+
+Trzeba zrobic skrypcik:
+:ngd_recipes:recipe
+Ktory wyda jakis odglos z inskrypcji czytania scrolla, zaleznie od propow RewardItem iRewardProp ustawi propa na postaci (jak opisane wyzej)., zniszczy recepte, wysle msg.
+Nastepnie wszedzie gdzie trzeba, w menu listy itemow, dodac nowa grupe Specjalne - i zaleznie od propa odkrywac dane itemy do robienia. Najlepiej bedzie zrobic jakas funkcje HaveSpecialItem w includzie (nowy include/craft.inc), ktora dostaje parametry who char:ref, nazwa_propa (SpecialBlacksmith np. mozna porobic consty w craft.inc) i objtype itema.
+Sprawdzac bedzie czy w arrayu danego propa jest objtype. Druga funkcja HaveSpecialAbility, tez char:ref i nazwa_propa (SmithMetalurgy) zwracajaca 1/0, sprawdzajaca czy jest ustawiony prop specjalny.
+Trzeba zrobic nowy gump metalurgii, jeszcze nie wiem do konca jak to bedzie wykorzystywane. Najlepiej by bylo moze po kliku na piec metalurgiczny (bedzie nowy deed i item smallforge) (wtedy menu i wybor co chcemy przetopic + metalurgy.cfg w mining, ktory posiada spis itemow i  skladnikow na kazda nowa rude)
+Na reszte jeszcze nie mam pomyslu, nie doczytalem do konca. 

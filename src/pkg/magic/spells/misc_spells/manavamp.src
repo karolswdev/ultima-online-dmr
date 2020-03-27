@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 53;
+
+//-----------------------------------------------------------------------------
+
+program CastManaVampire( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if (Reflected(CastOn, Caster))
+    CastOn := caster;
+  endif
+  
+  if(!CastOn.isA(POLCLASS_MOBILE))
+    return;
+  endif
+  
+  var Dmg := Resisted(CastOn, Caster, (CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type) * 0.75), SpellGlob.Circle, SpellGlob.Type );
+  
+  if(Dmg)
+    SetModDelay(CastOn, MOD_PARA, 4);
+    PlaySoundEffect(Caster, SFX_SPELL_MANA_VAMPIRE);
+    PlayObjectCenteredEffect(CastOn, FX_GLOW, 7,0x10);
+    var gain := Min(Dmg, GetMana(CastOn));
+    DealManaDamage(CastOn, Dmg, Caster);
+
+    CagNpcDamaged(CastOn, Max(CInt(Dmg/2), 2), Caster);
+    SetMana(Caster, GetMana(Caster) + Gain);
+    SendChEvent(CastOn,Caster,EVID_ENGAGED);
+    if(GetMana(Caster) > GetMaxMana(Caster))
+      SetMana(Caster, GetMaxMana(Caster));
+    endif
+    
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

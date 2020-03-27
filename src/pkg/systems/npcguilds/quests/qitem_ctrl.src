@@ -1,0 +1,41 @@
+//---------------------------------------------------------------------
+// Modified: 2005-05-25
+//---------------------------------------------------------------------
+
+use uo;
+use os;
+
+//---------------------------------------------------------------------
+
+include ":quests:quest_ctrl";
+
+//---------------------------------------------------------------------
+
+program QuestItemControl(Item)
+
+  if(!GetObjProperty(Item, QTPROP_ITEMCRTIME))
+    SetObjProperty(Item, QTPROP_ITEMCRTIME, ReadGameClock());
+  endif
+
+  sleep(10);
+
+  if(!Item)
+    return;
+  endif
+
+  if(!CInt(GetObjProperty(Item, QTPROP_ITEMEXPTIME)))
+    LogError("QuestItemControl: QuestItem ["+Item.serial+"] nie posiada czasu wygasniecia ["+GetObjProperty(Item, QTPROP_ITEMEXPTIME)+"]. Ustawianie na domyslny.", LOGF_SCRIPTS);
+    SetObjProperty(Item, QTPROP_ITEMEXPTIME, QDEF_ITEMEXPTIME);
+  endif
+
+  var Time := CInt(GetObjProperty(Item, QTPROP_ITEMEXPTIME)) - (ReadGameClock() - CInt(GetObjProperty(Item, QTPROP_ITEMCRTIME)));
+
+  if(Time > 0)
+    sleep(Time);
+  endif
+
+  DestroyItem(Item);
+
+endprogram
+
+//---------------------------------------------------------------------

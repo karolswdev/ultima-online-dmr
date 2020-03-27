@@ -1,0 +1,165 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include "include/gumps";
+include "include/player/basic";
+include "include/gumpboxes";
+include "ai/include/citynpcs";
+
+include ":character:common";
+include ":character:creation_gumps";
+
+//-----------------------------------------------------------------------------
+
+program NpcCharClassChooseMaxSkills(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  var cfgElem := GetCreationConfig("MaxSkills");
+
+  if(GetOnlineTimer(Data.source) < CInt(cfgElem.OnlineTime))
+    NpcSpeechJustSay(Data.npc, Data.source, "Jestes zbyt mlod"+ggm(Data.source,6)+", aby doskonalic swe umiejetnosci. Przyjdz pozniej.");
+    return 1;
+  endif
+
+  ChooseSkillGump(Data.source, Data.npc);
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ChooseSkillGump(who, Npc)
+
+  var Data    := struct;
+  var mercSkills := GetMerchantPerfectSkillsArray(Npc);
+
+  var ClassCfg   := ReadConfigFile(CLASSES_CFG);
+  Data.+ClassId  := GetCharClass(who);
+  Data.+cfgClass := ClassCfg[Data.ClassId];
+
+  while(IsLoggedIn(who))
+    BuildMainMaxSkillGump(who);
+
+    var Res := GSend(who).butid;
+
+    if(Res)
+      var SkId := SelectClassSkillGump(who, Data, mercSkills);
+
+      if(SkId != error)
+        AddMaxSkill(Npc, who, Res, SkID);
+        break;
+      endif
+    else
+      break;
+    endif
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddMaxSkill(Npc, who, Idx, SkID)
+
+  var prevSkId := -1;
+  var cfgElem := GetCreationConfig("MaxSkills");
+  var ChooseDelay := CInt(cfgElem.ChooseDelay);
+  var MaxData := GetMaxSkills(who);
+
+//  if(IsStaff(who))
+//    ChooseDelay := 60;
+//  endif
+
+  if(Idx >= 100)
+    prevSkId := Idx-100;
+
+    if(MaxData[SkID][2] + ChooseDelay > ReadGameClock())
+      NpcSpeechJustSay(Npc, who, "Nie jestes jeszcze gotow"+ggm(who,3)+" do zmiany umiejetnosci.");
+      SendSysMessage(who, "Nie mozesz jeszcze zmienic tej umiejetnosci. Nie uplynal wymagany czas: "+DescGameTime(ChooseDelay)+".", FONT_NORMAL, COLOR_ORANGE);
+      return;
+    endif
+  endif
+  
+  if(prevSkId == SkID or MaxData.exists(SkID))
+    NpcSpeechJustSay(Npc, who, "Przeciez juz wiesz jak udoskonalic umiejetnosc "+GetSkillConfigElem(SkID).Name+".");
+    NpcSpeechJustSay(Npc, who, "*wzdycha*");
+    return;
+  endif
+
+  var Desc := "Wybral"+ggm(who,3)+" umiejetnosc "+GetSkillConfigElem(SkID).Name+".|";
+  Desc += "Czy jestes pewn"+ggm(who,6)+" ze ta umiejetnosc chcesz doskonalic?||";
+  Desc += "Pamietaj, ze mozesz wybrac umiejetnosc raz na "+DescGameTime(ChooseDelay)+"|";
+  Desc += "Ponadto koszt udoskonalenia umiejetnosci to "+CInt(cfgElem.ChooseCost)+" gp";
+
+  if(!YesNoEx(who, Desc))
+    return;
+  endif
+
+  if(!SpendGold(who, cfgElem.ChooseCost))
+    NpcSpeechJustSay(Npc, who, "Przykro mi, ale brakuje Ci zlota!");
+    NpcSpeechJustSay(Npc, who, "Potrzebujesz "+cfgElem.ChooseCost+" gp");
+    return;
+  endif
+
+  if(prevSkId != -1)
+    EraseMaxSkill(who, prevSkId);
+  endif
+
+  SetMaxSkillValue(who, SkID, cfgElem.MaxValue, MSKT_CLASS);
+  NpcSpeechJustSay(Npc, who, "Gratuluje!");
+  NpcSpeechJustSay(Npc, who, "Nauczyl"+ggm(Npc,8)+" Cie jak doskonalic umiejetnosc "+GetSkillConfigElem(SkID).Name);
+  NpcSpeechJustSay(Npc, who, "Powodzenia w nauce!");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainMaxSkillGump(who)
+
+  var MaxSkills := GetMaxSkills(who);
+
+  GInit(50,50);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GResPic(0, 0, 0xA28, 550, 330);
+
+  GTextLine(50,25,400,"Aktualne umiejetnosci:");
+
+  var i := 0, skCount := 0;
+
+  foreach SkData in MaxSkills
+    var SkId := GetSkillIdByAttributeId(_SkData_iter);
+    if(SkData[1] == MSKT_CLASS)
+      GButton(45, 57+i*80, 0x867, 0x869, 100+SkId);
+      skCount += 1;
+    elseif(SkData[1] == MSKT_NPCGUILD)
+      GTextLine(320,60+(i*80), 999, GetMaxSkillTypeName(SkData[1]));
+    endif
+    GTextLine(80, 60 + i*80, 1310, GetSkillConfigElem(SkId).Name);
+    GTextLine(250, 60 + i*80, 560, GetSkillMaxValue(who, SkId)+"%");
+    GTextLine(90, 85 + i*80, 999, "Data wybrania:");
+    GTextLine(180, 85 + i*80, 1420, GetDescDate(SkData[2]));
+    GTextLine(180, 105 + i*80, 1320, DescGameTime(ReadGameClock() - SkData[2]) + " temu");
+    i += 1;
+  endforeach
+
+  while(skCount < MSK_CLASS_COUNT)
+    GButton(45, 57+i*80, 0x867, 0x869, i+1);
+    GTextLine(80, 60 + i*80, 999, "Nie wybrana");
+    i += 1;
+    skCount += 1;
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,384 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/key";
+include "include/buildings";
+
+include "cooking";
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+
+//-----------------------------------------------------------------------------
+
+const COOK_BURN_COLOR        := 1109;
+const PMSG_DELAY             := 30;
+const PROP_PMSG_DELAY        := "#CkMsgDelay";
+const PROP_GROUPITEM         := "GroupItem";
+
+//-----------------------------------------------------------------------------
+
+var gCookCfg;
+var gItemCfg     := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program CookRecipe(Params)
+
+  var who := Params[1];
+  var Book := Params[2];
+  var CraftData := Params[3];
+
+  gCookCfg := GetCookCfgFromBook(Book);
+
+  if(!gCookCfg)
+    return 0;
+  endif
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Book))
+    return;
+  endif
+
+  var Materials, NutrObjTypes;
+
+  if(!PrepareCraft(who, CraftData.objtype, Materials, NutrObjTypes))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_COOKING, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Book, CraftData.objtype, IterData, Materials, NutrObjTypes))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, RecipeId, byref Materials, byref NutrObjTypes)
+
+  var Ingrs := GetConfigStringArray(gCookCfg[RecipeId], "Ingredient");
+  var ObjType, Amount;
+  var CookGrpCfg := ReadConfigFile(COOKGROUPS_CFG);
+
+  Materials := DefineCraftMaterials();
+  NutrObjTypes := array;
+
+  foreach Ingr in Ingrs
+    Ingr := SplitWords(Ingr);
+
+    if(!CookGrpCfg[Ingr[1]])
+
+      ObjType := GetItemObjType(Ingr[1]);
+      Amount := CInt(Ingr[2]);
+
+      if(gItemCfg[ObjType].CookGroup)
+        NutrObjTypes.append(array(gItemCfg[ObjType].CookGroup, ObjType));
+      endif
+    else
+      var ObjTypes := GetCookGroupObjTypes(Ingr[1]);
+      Amount := CInt(Ingr[2]);
+
+      SendSysMessage(who, "Wskaz skladnik z grupy "+CookGrpCfg[Ingr[1]].Name+".", FONT_NORMAL, COLOR_GREEN);
+      var tItem := ObjTarget(who);
+
+      if(!tItem)
+        SendSysMessage(who, "Nie wybrano skladnika.", FONT_NORMAL, COLOR_RED);
+        return error;
+      elseif(!(tItem.objtype in ObjTypes))
+        SendSysMessage(who, "To nie nalezy do grupy "+CookGrpCfg[Ingr[1]].Name+".", FONT_NORMAL, COLOR_RED);
+        return error;
+      else
+        ObjType := tItem.objtype;
+        NutrObjTypes.append(array(Ingr[1], ObjType));
+      endif
+
+    endif
+
+    AddCraftMaterial(Materials, who.backpack, ObjType, Amount);
+    Sleepms(1);
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, Book, RecipeId, byref IterData, byref Materials, byref NutrObjTypes)
+
+  var CookElem     := gCookCfg[RecipeId];
+  var CookTypeCfg  := ReadConfigFile(COOKTYPES_CFG);
+
+  var CookType     := CookElem.CookType;
+  var Products     := GetConfigStringArray(CookElem, "Product");
+  var Diff         := CInt(CookElem.Diff);
+  var ObjDescs     := array;
+  var MySkill      := GetEffectiveSkill(who, SKILLID_COOKING); 
+  var Points       := GetCraftPoints(SKILLID_COOKING, MySkill);
+  
+  var CookSound    := CInt(CookTypeCfg[CookType].Sound);
+  var Quality      := GetFoodQuality(MySkill);
+  var MultiDict    := GetCookBookMultiple(Book);
+  var ProdAmount;
+
+  if(CookElem.Multiple and MultiDict.exists(RecipeId) and !NutrObjTypes.size())
+    ProdAmount := CInt(MySkill / 10);
+  else
+    ProdAmount := 1;
+  endif
+
+  if(!CookType)
+    LogError("[Cookbook] CookRecipe: "+RecipeId+" brak CookType!", LOGF_SCRIPTS);
+    SendSysMessage(who, "Przepis jest niekompletny.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(!Products.size())
+    LogError("[Cookbook] CookRecipe: "+RecipeId+" blednie zdefiniowany produkt! ["+Products+"]", LOGF_SCRIPTS);
+    SendSysMessage(who, "Przepis jest niekompletny.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  foreach Product in Products
+    Product          := SplitWords(Product);
+    Product[1]       := GetItemObjType(Product[1]);
+    Product[2]       := CInt(Product[2]);
+    
+    if(!Product[1] or !Product[2])
+      LogError("[Cookbook] CookRecipe: "+RecipeId+" blednie zdefiniowany produkt! ["+Product[1]+" "+Product[2]+"]", LOGF_SCRIPTS);
+      SendSysMessage(who, "Przepis jest niekompletny.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    ObjDescs.append(GetItemDescriptor(Product[1]));
+
+    Sleepms(1);
+  endforeach
+
+  if(!CanCookType(who, CookType, CookElem))
+    return 0;
+  endif
+
+  foreach ObjDesc in ObjDescs
+    if(gItemCfg[ObjDesc.objtype].Script == EAT_SCRIPT)
+      ObjDesc.CProps.insert(PROP_FOODQUALITY, Quality);
+      AddNutrCookGroup(CookElem, ObjDesc, NutrObjTypes);
+    endif
+  endforeach
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  if(!CanCookType(who, CookType, CookElem, CCTF_SUB))
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  SendSysMessage(who, CookTypeCfg[CookType].PrepMsg, FONT_NORMAL, COLOR_GREEN);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, CookSound))
+    return 0;
+  endif
+    
+  if(!CheckSkill(who, SKILLID_COOKING, Diff, 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " " + CookTypeCfg[CookType].FailMsg, FONT_NORMAL, COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(CookTypeCfg[CookType].MakeMsg)
+    PrintCookMsg(who);
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, CookSound))
+    return 0;
+  endif
+  
+  var pItem;
+  var pItems := array;
+
+  if(CookTypeCfg[CookType].CanBurn and RandomInt(1000) < ((Diff + 15) - MySkill) * 3)
+    SendSysMessage(who, "O kurcze, spalil"+ggm(who,3)+" to!", FONT_NORMAL, COLOR_RED);
+
+    foreach ObjDesc in ObjDescs
+      ObjDesc.color := COOK_BURN_COLOR;
+      ObjDesc.CProps[PROP_FOODQUALITY] := 0;
+      pItem := CreateProduct(who, ObjDesc, Products[_ObjDesc_iter][2]);
+      if(pItem)
+        pItems.append(pItem);
+      endif
+    endforeach
+
+    FailCraftIteration(IterData);
+  else
+    var n;
+    for(n:=0;n<ProdAmount;n:=n+1)
+      foreach ObjDesc in ObjDescs
+        pItem := CreateProduct(who, ObjDesc, Products[_ObjDesc_iter][2]);
+        if(pItem)
+          pItems.append(pItem);
+        endif
+      endforeach
+    endfor
+
+    if(pItems.size())
+      if(n > 1)
+        SendSysMessage(who, GetCraftIterDesc(IterData) + " " +CookTypeCfg[CookType].SuccMsg+" Ilosc: "+n, FONT_NORMAL, COLOR_GREEN);
+      else
+        SendSysMessage(who, GetCraftIterDesc(IterData) + " " +CookTypeCfg[CookType].SuccMsg, FONT_NORMAL, COLOR_GREEN);
+      endif
+    else
+      SendSysMessage(who, "Cos bylo nie tak z ta potrawa...", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+  if(pItems.size())
+    foreach Item in pItems
+      SetNutrCookGroup(Item);
+      SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_COOKING, array(Item, 0));
+    endforeach
+    AwardPoints(who, SKILLID_COOKING, Points, GAIN_RESTRICT, Diff);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddNutrCookGroup(CookElem, byref ObjDesc, byref NutrObjTypes)
+ 
+  var Group;
+  var CookGrpCfg  := ReadConfigFile(COOKGROUPS_CFG);
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+  foreach sItem in NutrObjTypes
+    Group := CookGrpCfg[sItem[1]];
+    if(Group)
+      if(Group.Vitamin)
+        ObjDesc.CProps[PROP_NUTR_VITAMIN] := CInt(ObjDesc.CProps[PROP_NUTR_VITAMIN]) + CInt(Group.Vitamin);
+      endif
+
+      if(Group.Protein)
+        ObjDesc.CProps[PROP_NUTR_PROTEIN] := CInt(ObjDesc.CProps[PROP_NUTR_PROTEIN]) + CInt(Group.Protein);
+      endif
+
+      if(Group.Hunger)
+        ObjDesc.CProps[PROP_NUTR_HUNGER] := CInt(ObjDesc.CProps[PROP_NUTR_HUNGER]) + CInt(Group.Hunger);
+      endif
+
+      if(Group.Sugar)
+        ObjDesc.CProps[PROP_NUTR_SUGAR] := CInt(ObjDesc.CProps[PROP_NUTR_SUGAR]) + CInt(Group.Sugar);
+      endif
+
+      if(!ObjDesc.CProps[PROP_GROUPITEM])
+        ObjDesc.CProps[PROP_GROUPITEM] := sItem[2];
+        if(!CookElem.NoDColor)
+          ObjDesc.color := CInt(ItemCfg[sItem[2]].Color);
+        endif
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetFoodQuality(MySkillill)
+
+  if(MySkillill < 20)
+    return 0;
+  elseif(MySkillill < 30)
+    return 1;
+  elseif(MySkillill < 45)
+    return 2;
+  elseif(MySkillill < 70)
+    return 3;
+  else
+    return 4 + CInt((MySkillill-70) / 10);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PrintCookMsg(who)
+
+  if(CInt(GetObjProperty(who, PROP_PMSG_DELAY)) > ReadGameClock())
+    return;
+  endif
+
+  SetObjProperty(who, PROP_PMSG_DELAY, ReadGameClock() + PMSG_DELAY + RandomInt(10));
+  var MySkill := GetEffectiveSkill(who, SKILLID_COOKING);
+
+  case(GetFoodQuality(MySkill))
+    0:         PrintTextAbove(who, "*Wokol unosi sie nieprzyjemny zapach*");
+    1:         PrintTextAbove(who, "*Wokol unosi sie zapach przypalonego jedzenia*");
+    2:         PrintTextAbove(who, "*Wokol unosi sie zapach jedzenia*");
+    3:         PrintTextAbove(who, "*Wokol unosi sie przyjemny zapach jedzenia*");
+    4:         PrintTextAbove(who, "*Wokol unosi sie bardzo smakowity zapach*");
+    5:         PrintTextAbove(who, "*wokol unosi sie rozkoszny zapach*");
+    6:         PrintTextAbove(who, "*Wokol unosi sie zapach czegos pysznego*");
+    default:   PrintTextAbove(who, "*wokol unosi sie zapach czegos wysmienitego*");
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetNutrCookGroup(Item)
+ 
+  var GroupItem := GetObjProperty(Item, PROP_GROUPITEM);
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(GroupItem)
+    if(ItemCfg[GroupItem].SuffixName)
+      SetName(Item, GetDescForItem(Item.objtype) + " " + ItemCfg[GroupItem].SuffixName + "%%");
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateProduct(who, byref ObjDesc, Amt)
+
+  ObjDesc.CProps[PROP_MADE] := GenMade(who, MTYPE_COOK, 1);
+
+  if(IsStackableObj(ObjDesc.objtype))
+    return CreateItemInPack(who, ObjDesc, Amt);
+  else
+    var i, pItem;
+    for(i:=1;i<=Amt;i:=i+1)
+      pItem := CreateItemInPack(who, ObjDesc, 1);
+      if(!pItem)
+        break;
+      endif
+    endfor
+
+    return pItem;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

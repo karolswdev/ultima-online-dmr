@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/bits";
+include "include/objtypes/misc";
+include "include/objtypes/magic";
+include "include/client/fonts";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program can_insert(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  __ParamUnused(inserttype);
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(IsPlayer(who))
+    if(IsSetFlag(backpack, ITEMF_NO_INSERT) and !who.cmdlevel)
+      SendSysMessage(who, "Nie mozesz tego tutaj wlozyc.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+    var ownerserial := CInt(GetObjProperty(backpack, PROP_OWNER));
+    if(ownerserial)
+      if((who.serial != ownerserial) and (who.cmdlevel < 3))
+        SendSysMessage(who, "Nie mozesz tego tutaj wlozyc.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+    endif
+    
+    if(who.dead)
+      return 0;
+    endif
+  endif
+  
+  if(item.newbie and Item.objtype != UOBJ_RUNEBOOK)
+    if(IsPlayer(who))
+      SendSysMessage(who,"Nie uda Ci sie tego wlozyc do tego pojemnika.",FONT_NORMAL,COLOR_RED);
+    endif
+    return 0;
+  endif
+  
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

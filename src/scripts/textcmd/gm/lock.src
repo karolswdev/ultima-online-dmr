@@ -1,0 +1,236 @@
+use util;
+
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/objtypes/misc";
+include "include/client/fonts";
+
+
+include ":housing:housing";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program LockCmd(who, text)
+
+  var stext := SplitWords(text);
+  
+  var nr := 0;
+  
+  case(stext[1])
+    "book":
+    "unbook":
+    "m":
+    "um":
+    "l":
+    "ul":
+    "nul":
+    "lp":    SendSysMessage(who,"Wskaz przedmiot.",FONT_NORMAL,COLOR_GREEN);
+             var Item := ObjTarget(who);
+             if(!Item)
+               SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+               return;
+             endif
+             
+             case(stext[1])
+               "book":    if(Item.graphic in array(0xa97,0xa98,0xa9b,0xa9d))
+                            case(RandomInt(3)+1)
+                              1: Item.graphic := 0xa97;
+                              2: Item.graphic := 0xa98;
+                              3: Item.graphic := 0xa9b;
+                            endcase
+                            SendSysMessage(who,"Zmieniono grafike na pelna polke.",FONT_NORMAL,COLOR_GREEN);
+                            Item.usescript := ":sysbook:empty_shelf";
+                            nr:= 1;
+                          elseif(Item.graphic in array(0xa99,0xa9a,0xa9c,0xa9e))
+                            case(RandomInt(3)+1)
+                              1: Item.graphic := 0xa99;
+                              2: Item.graphic := 0xa9a;
+                              3: Item.graphic := 0xa9c;
+                            endcase
+                            SendSysMessage(who,"Zmieniono grafike na pelna polke.",FONT_NORMAL,COLOR_GREEN);
+                            Item.usescript := ":sysbook:empty_shelf";
+                            nr:= 1;
+                          endif
+               "unbook":  if(Item.graphic in array(0xa97,0xa98,0xa9b,0xa9d))
+                            Item.graphic := 0xa9d;
+                            
+                            SendSysMessage(who,"Zmieniono grafike na pusta polke.",FONT_NORMAL,COLOR_GREEN);
+                            Item.usescript := "";
+                            nr:= 1;
+                          elseif(Item.graphic in array(0xa99,0xa9a,0xa9c,0xa9e))
+                            Item.graphic := 0xa9e;
+                            
+                            SendSysMessage(who,"Zmieniono grafike na pusta polke.",FONT_NORMAL,COLOR_GREEN);
+                            Item.usescript := "";
+                            nr:= 1;
+                         endif
+               "m":    if(!Item.movable)
+                         if(IsSecured(Item))
+                           if(text["hsc"])
+                             EraseSecured(Item, GetHouse(Item));
+                             nr := nr + 1;
+                           endif
+                         elseif(IsLockedDown(Item))
+                           if(text["hld"])
+                             EraseItemLockDown(Item, GetHouse(Item));
+                             nr := nr + 1;
+                           endif
+                         elseif(Item.objtype == UOBJ_TRASHBARREL and Item.multi)
+                           if(HaveBarrel(Item.multi) != Item)
+                             Item.movable := 1;
+                             nr := nr + 1;
+                           endif
+                         else
+                           Item.movable := 1;
+                           nr := nr + 1;
+                         endif
+                       endif
+
+               "um":   if(Item.movable)
+                         Item.movable   := 0;
+                         nr := 1;
+                       endif
+               "l":    if(!Item.locked and item.isa(POLCLASS_LOCKABLE))
+                         Item.locked    := 1;
+                         nr := 1;
+                       endif
+               "ul":   if(Item.locked and item.isa(POLCLASS_LOCKABLE))
+                         Item.locked    := 0;
+                         nr := 1;
+                       endif
+
+               "lp":    
+                      if(item.isa(POLCLASS_LOCKABLE))
+                         if(GetObjProperty(Item, PROP_NO_LOCKPICK))
+                           EraseObjProperty(Item, PROP_NO_LOCKPICK);
+                           SendSysMessage(who,"Wlamywacz bedzie mogl otworzyc ten zamek.",FONT_NORMAL,COLOR_GREEN);
+                         else
+                           SendSysMessage(who,"Wlamywacz nie otworzy tego zamka.",FONT_NORMAL,COLOR_BLUE);
+                           SetObjProperty(Item, PROP_NO_LOCKPICK, 1);
+                         endif
+                         nr := 1;
+                      endif
+              "nul":  if(item.isa(POLCLASS_LOCKABLE))
+                        if(GetObjProperty(Item, PROP_NO_UNLOCK))
+                          EraseObjProperty(Item, PROP_NO_UNLOCK);
+                          SendSysMessage(who, "Od teraz bedzie mozna otwierac kluczem ten zamek", FONT_NORMAL, COLOR_GREEN);
+                        else
+                          SetObjProperty(Item, PROP_NO_UNLOCK, 1);
+                          SendSysMessage(who, "Od teraz nie bedzie mozna otwierac kluczem tego zamka", FONT_NORMAL, COLOR_BLUE);
+                        endif
+                        nr  :=  1;
+                      endif
+             endcase
+             
+             if(nr)
+               SendSysMessage(who,"Cmd: ["+stext[1]+"] wykonane na "+Item.desc+".",FONT_NORMAL,COLOR_BLUE);
+             else
+               SendSysMessage(who,"Cmd: ["+stext[1]+"] nie wykonane na "+Item.desc+".",FONT_NORMAL,COLOR_RED);
+             endif
+    "mr":    
+    "umr":
+    "lr":
+    "ulr":   var Range := CInt(stext[2]);
+             if(Range > 20)
+               if(!YesNo(who,"Napewno?"))
+                 return;
+               endif
+             elseif(!Range)
+               Range := 3;
+             endif
+             
+             foreach Item in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+               if(Item.isa(POLCLASS_ITEM))
+                 if(Item.objtype != UOBJ_SECURED_CONT)
+                   if(text["om"])
+                     if(ItemCfg[Item.objtype].movable == 0)
+                       continue;
+                     endif
+                   endif
+
+                   case(stext[1])
+                     "mr":   if(!Item.movable)
+                               if(IsSecured(Item))
+                                 if(text["hsc"])
+                                   EraseSecured(Item, GetHouse(Item));
+                                   nr := nr + 1;
+                                 endif
+                               elseif(IsLockedDown(Item))
+                                 if(text["hld"])
+                                   EraseItemLockDown(Item, GetHouse(Item));
+                                   nr := nr + 1;
+                                 endif
+                               elseif(Item.objtype == UOBJ_TRASHBARREL and Item.multi)
+                                 if(HaveBarrel(Item.multi) != Item)
+                                   Item.movable := 1;
+                                   nr := nr + 1;
+                                 endif
+                               else
+                                 Item.movable := 1;
+                                 nr := nr + 1;
+                               endif
+                             endif
+
+                     "umr":  if(Item.movable)
+                               Item.movable   := 0;
+                               nr := nr + 1;
+                             endif
+                     "lr":   if(!Item.locked and item.isa(POLCLASS_LOCKABLE))
+                               Item.locked    := 1;
+                               nr := nr + 1;
+                             endif
+                     "ulr":  if(Item.locked and item.isa(POLCLASS_LOCKABLE))
+                               Item.locked    := 0;
+                               nr := nr + 1;
+                             endif
+                   endcase
+                 endif
+               endif
+             endforeach
+             SendSysMessage(who,"Cmd ["+stext[1]+"] Znaleziono "+nr+" przedmiotow odpowiednich.",FONT_NORMAL,COLOR_BLUE);
+             
+    "mb":    
+    "umb":
+    "lb":
+    "ulb":   var Targ := ObjTarget(who);
+             if(!Targ.isa(POLCLASS_CONTAINER))
+               SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+             endif
+
+             foreach Item in EnumerateItemsInContainer(Targ)
+               if(Item.isa(POLCLASS_ITEM))
+                 case(stext[1])
+                   "mb":   if(!Item.movable)
+                             Item.movable   := 1;
+                             nr := nr + 1;
+                           endif
+                   "umb":  if(Item.movable)
+                             Item.movable   := 0;
+                             nr := nr + 1;
+                           endif
+                   "lb":   if(!Item.locked and item.isa(POLCLASS_LOCKABLE))
+                             Item.locked    := 1;
+                             nr := nr + 1;
+                           endif
+                   "ulb":  if(Item.locked and item.isa(POLCLASS_LOCKABLE))
+                             Item.locked    := 0;
+                             nr := nr + 1;
+                           endif
+                 endcase
+               endif
+             endforeach
+             SendSysMessage(who,"Cmd ["+stext[1]+"] Znaleziono "+nr+" przedmiotow odpowiednich.",FONT_NORMAL,COLOR_BLUE);
+
+    default: SendSysMessage(who,".lock [book/m/um/l/ul/lp/nul] [mr/umr/lr/ulr range (3-based) [mb/umb/lb/ulb] opts: [om (onlymovable) hsc hld]",FONT_NORMAL,COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

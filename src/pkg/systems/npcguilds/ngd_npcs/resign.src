@@ -1,0 +1,63 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":npcguilds:ngd_ctrl";
+include ":ngd_npcs:common";
+include ":ngd_npcs:membership";
+include ":ngd_npcs:quests";
+
+//-----------------------------------------------------------------------------
+
+program GuildNpcResign(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!IsGuildNpc(Data.npc))
+    return -1;
+  endif
+
+  if(!CheckPlayerMembership(Data.npc, Data.source, CPM_NOCHECK_LEVEL))
+    return 0;
+  endif
+
+  var PlayerData := GetObjProperty(Data.source, PROP_NGDDATA);
+  var NpcData    := GetObjProperty(Data.npc, PROP_NGDDATA);
+
+  if(PlayerData.Guilds.exists(NpcData.GuildId))
+    if(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_TEST_QUEST)
+      NpcSpeechJustSay(Data.npc, Data.source, "Juz chcesz sie wypisac, a nawet nie zakonczy"+ggm(Data.source,3)+" zadania na probe?! Idz szybko je ukonczyc.");
+      return 0;
+    elseif(!(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_MEMBER))
+      NpcSpeechJustSay(Data.npc, Data.source, "Nie nalezysz do naszej Gildii.");
+      return 0;
+    endif
+  endif
+
+  if(NpcData.Level != 5)
+    NpcSpeechJustSay(Data.npc, Data.source, "Jesli chcesz sie wypisac z naszej Gildii, porozmawiaj z Mistrzem.");
+    return 0;
+  endif
+
+  if(!NpcAskYesNo(Data.npc, Data.source, "Na pewno chcesz odejsc z naszej Gildii?"))
+    NpcSpeechJustSay(Data.npc, Data.source, "Dobrze, zastanow sie jeszcze nad tym.");
+    return 0;
+  endif
+
+  ResignPlayerFromGuild(Data.source, NpcData.GuildId, 1); // 1 bo rezygnujemy dobrowolnie, wiec nie tracimy exp/innych rzeczy.
+  NpcSpeechJustSay(Data.npc, Data.source, "Przykro mi, ze musisz opuszczac nasza Gildie, lecz jesli taka twoja wola... niech tak bedzie.");
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

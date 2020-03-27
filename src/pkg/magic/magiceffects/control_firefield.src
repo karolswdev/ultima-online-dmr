@@ -1,0 +1,77 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magicatt";
+include "include/finding";
+include "include/attack";
+include "include/const/props";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 28;
+
+//-----------------------------------------------------------------------------
+
+program FireFieldControl( field )
+
+  var Circle    := GetSpellValue(SPELL_ID,"Circle");
+  var SpellType := GetSpellValue(SPELL_ID,"SpellType");
+
+  if(!Circle)
+    Circle := 3;
+  endif
+
+  var CasterSer := CInt(GetObjProperty(field, PROP_SUMMONED_FIELD));
+  var Caster    := FindPlayerBySerial(CasterSer);
+  var fx        := field.x;
+  var fy        := field.y;
+  var fz        := field.z;
+  var fRealm    := field.realm;
+  var Dmg := 0,i;
+
+  SetScriptController(Caster);
+  
+  while(field and Caster)
+  
+    foreach CastOn in ListMobilesNearLocation(fx, fy, fz, 0, fRealm)
+      if(!Caster or !field)
+        return;
+      endif
+
+      case(RandomInt(3))
+        0:  PlaySoundEffect(field, SFX_FIRE1);
+        1:  PlaySoundEffect(field, SFX_FIRE2);
+      endcase
+
+      if(!CastOn)
+        continue;
+      endif
+      
+      if(!CastOn.dead)
+        if(GetNpcConfig(CastOn).WallsImmune or !CanDamageWall(Caster,CastOn))
+          continue;
+        endif
+        
+        Dmg := Cint(CalcSpellDamage(Circle,Caster,CastOn,SpellType,NO_FIELD_REDUCE) / 2);
+        if(CastOn.isa(POLCLASS_NPC))
+          Dmg := Dmg / 4;
+        endif
+        
+        PlaySoundEffect(CastOn, 0x209);
+
+        DoMagicDamage(CastOn, Caster, Dmg, Circle, DMGTYPE_FIRE, SpellType, NO_RESIST_GAIN);
+      endif
+    endforeach
+    
+    for(i:=1;i<=15;i:=i+1)
+      sleepms(100);
+      if(GetObjProperty(Field,"WalkOn"))
+        EraseObjProperty(Field,"WalkOn");
+        break;
+      endif
+    endfor
+    
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------

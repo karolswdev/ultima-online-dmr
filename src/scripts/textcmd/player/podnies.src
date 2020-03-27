@@ -1,0 +1,92 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/checks/stdchecks";
+include "include/move";
+include "include/misc";
+
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+program Podnies(who)
+
+  SendSysMessage(who,"Wskaz przedmiot, ktory chcesz podniesc.", FONT_NORMAL, COLOR_GREEN);
+
+  var Item := ObjTarget(who);
+
+  if(!StandardItemCheck(who, Item, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(Item.container)
+    SendSysMessage(who,"Tego przedmiotu nie mozesz podniesc.",FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsGm(who))
+
+    var House := CheckIsHouseItem(Item);
+
+    if(!House)
+      SendSysMessage(who, "Ten przedmiot nie znajduje sie w domu.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(Item.movable)
+      SendSysMessage(who, "Ten przedmiot nie jest unieruchomiony.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(!IsHouseOwner(who, House) and !IsHouseCoOwner(who, House) and !IsHouseFriend(who, House))
+      SendSysMessage(who, "Ten przedmiot nie znajduje sie w twoim domu.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+  endif
+
+  var z   := GetStandZ(Item.x, Item.y, Item.realm, Item.z);
+  var UpZ := GetUpZ(Item.graphic);
+
+  if(z == error)
+    z := GetStandZ(Item.x, Item.y, Item.realm, Item.z-UpZ);
+  endif
+
+  if(!UpZ)
+    SendSysMessage(who,"Tego przedmiotu nie mozesz podniesc.",FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Item.z - UpZ == z)
+    SendSysMessage(who,"Ten przedmiot zostal juz podniesiony!",FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!MoveObject(Item, Item.x, Item.y, Item.z+UpZ, Item.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE))
+    SendSysMessage(who,"Nie udalo sie podniesc przedmiotu.", FONT_NORMAL, COLOR_RED);
+  else    
+    SendSysMessage(who,"Podniosl"+ggm(who,3)+" przedmiot.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  Item.movable := 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetUpZ(Graphic)
+
+  case(Graphic)
+    0x2234:
+    0x2235:     return 10;
+
+    0x104B:     
+    0x104C:     return 10;
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

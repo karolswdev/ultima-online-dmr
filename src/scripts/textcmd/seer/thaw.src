@@ -1,0 +1,71 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/npcs";
+include "include/misc";
+
+
+//-----------------------------------------------------------------------------
+
+program ThawCmd(who, text)
+
+  var sp := SplitWords(text);
+  var range := CInt(sp[2]);
+  var nr := 0;
+  if(sp[1] == "me")
+    if(who.frozen)
+      who.frozen := 0;
+      SendSysMessage(who, "Odmrozil"+ggm(who,3)+" sie.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Nie jestes zamrozon"+ggm(who,6)+".", FONT_NORMAL, COLOR_GREEN);
+    endif
+    return;
+  endif
+  
+  if(sp[1] == "all")
+    if(range < 50 and range > 2)
+    
+      foreach Mob in ListMobilesNearLocationEx( who.x, who.y, who.z, Range, LISTEX_FLAG_NORMAL + LISTEX_FLAG_HIDDEN, who.realm )
+        
+        if(Mob != who and !Mob.cmdlevel and Mob.frozen)
+          if(Mob.isa(POLCLASS_MOBILE))
+            Mob.frozen := 0;
+            if(Mob.isa(POLCLASS_NPC))
+              UnSetFlag(Mob, NPCF_FROZEN);
+            endif
+          endif
+          nr := nr +1;
+        endif
+      
+      endforeach
+      
+      SendSysMessage( who, "Odmroziles "+nr+" osob w zasiegu "+range+".", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage( who, "Podales za maly lub za duzy zasieg.", FONT_NORMAL, COLOR_RED );
+    endif
+  return;
+  endif
+
+  SendSysMessage( who, "Kogo chcesz odmrozic?", FONT_NORMAL, COLOR_GREEN);
+  var Targ := LocTarget( who ).mobile;
+
+  if(Targ.isa(POLCLASS_MOBILE))
+    if(Targ.frozen)
+      Targ.frozen := 0;
+      if(Targ.isa(POLCLASS_NPC))
+        UnSetFlag(Targ, NPCF_FROZEN);
+      endif
+
+      SendSysMessage(who, "Odmrozil"+ggm(who,3)+" "+Targ.name, FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Osoba "+Targ.name+" nie jest zamrozona.", FONT_NORMAL, COLOR_GREEN);
+    endif
+  else
+    SendSysMessage( who, "Anulowano.", FONT_NORMAL, COLOR_RED );
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

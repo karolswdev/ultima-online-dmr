@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cancmd";
+include "include/move";
+include "include/gumpboxes";
+
+include ":waypoints:include/waypoints";
+
+//-----------------------------------------------------------------------------
+
+program CmdWaypointGo(who, text)
+
+  __ParamUnused(text);
+
+  var Cfg := ReadConfigFile(CFG_WAYPOINTS);
+  var Names := GetConfigStringKeys(Cfg);
+
+  var Marked := GetMarkedWaypoints(who);
+  
+  foreach Name in Names
+    if(!Marked.exists(Name))
+      Marked[Name] := ReadGameClock();
+    endif
+  endforeach
+
+  SetObjProperty(who, PROP_WAYPOINTS, Marked);
+  
+  SendGood(who, "Odkryte zostaly wszystkie waypointy dla Ciebie.");
+
+endprogram
+
+//-----------------------------------------------------------------------------

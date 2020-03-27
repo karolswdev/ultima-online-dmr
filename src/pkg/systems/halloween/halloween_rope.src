@@ -1,0 +1,32 @@
+use uo;
+use os;
+use util;
+
+include "include/client/fonts";
+include "include/const/props";
+include "include/finding";
+include "include/mobile/tamed";
+
+program use_Dye(who, theRope)
+
+
+	SendSysMessage(who, "Wskaz kogo powiesic: ", FONT_NORMAL, COLOR_GREEN);
+	var targ := Target(who);
+	
+	if(!targ)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(!targ.isA(POLCLASS_MOBILE))
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	PrintTextAbove(targ, "*wiesza sie*");
+	
+	if(RandomInt(22) == 2)
+		PrintTextAbove(theRope, "... zastanawiam sie po co to robisz?!");
+	endif
+
+endprogram

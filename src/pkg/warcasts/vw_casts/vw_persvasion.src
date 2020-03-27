@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "include/events";
+include "ai/include/tamed";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 25;
+
+//-----------------------------------------------------------------------------
+
+program VwPersvasion(Parms)
+
+  VampireRuneCast(Parms, VW_WCID, TRGT_NPC, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  var Duration  := GetVampireWarSpDur(Caster);
+  var MaxRange  := CInt(GetEffectiveSkill(Caster, SKILLID_VAMPIRE) * 3.5);
+
+  if(GetStrength(CastOn) > MaxRange or IsTamed(CastOn) or !CastOn.isa(POLCLASS_NPC) or GetNpcConfig(CastOn).alignment != "evil")
+    WcFizzleId(Caster, "To stworzenie nie ulegnie twej perswazji.", VW_WCID);
+    return 0;
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_REVEAL);
+  PlaySoundEffect(CastOn, SFX_MIRROR_IMAGE);
+  PlayPcEffect( CastOn, FX_MARK_EFFECT, 95, 0xF, 0xF, 4);
+
+  if(RandomInt(100) > (((MaxRange - GetStrength(CastOn)) * 100) / MaxRange) )
+    if(RandomInt(100) > (GetEffectiveSkill( Caster, SKILLID_VAMPIRE) * 0.75) )
+      SendChEvent(CastOn,Caster,EVID_ENGAGED);
+    endif
+    WcFizzleId(Caster, "Perswazja nie powiodla sie.", VW_WCID);
+    return 0;
+  endif
+
+  Detach();
+  SetNecroControl(CastOn, Caster, ReadGameClock()+Duration);
+  GainWarcastPoints(Caster, CastOn, VW_WCID, WCGAIN_OFFENSIVE);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

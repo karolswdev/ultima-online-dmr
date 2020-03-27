@@ -1,0 +1,19 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+program OnInsertToArenaChest(who,Chest,movetype, inserttype, adding_item, existing_stack)
+
+  var Item := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    Item := existing_stack;
+  endif
+
+  SetObjProperty(item,"DropTime",ReadGameClock());
+  return 1;
+
+endprogram
+
+//--------------------------------------------------------------------------------

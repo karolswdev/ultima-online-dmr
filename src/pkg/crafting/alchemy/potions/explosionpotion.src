@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+program UseExplosionPotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(CInt(GetObjProperty(who,"#ThrowTime")) > ReadGameClock())
+    SendSysMessage(who,"Musisz chwile odczekac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsMurderer(who) and IsHolyPotion(potion.objtype))
+    SendSysMessage(who, "Nie mozesz uzyc tej mikstury!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Loc := LocTarget( who );
+
+  if(Loc.item.isa(POLCLASS_ITEM))
+    var Dir := GetDirFromObjToObj(who, Loc.item);
+    var Mods := GetDirLocMods(Dir);
+    var Item := Loc.item;
+    Loc := BuildLocStruct(item.x-Mods[1], item.y-Mods[2], item.z, who.realm);
+  endif
+
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK | NEW_DIST_CHECK, 8))
+    return;
+  endif
+
+  SetObjProperty(who,"#ThrowTime",ReadGameClock() + 7);
+
+  ThrowExplosionPotion(who,Loc,potion);
+
+endprogram
+
+//-----------------------------------------------------------------------------

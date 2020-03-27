@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "../../baseitems";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program UnloadSetItemsCfg(who)
+ 
+  var Res := UnloadConfigFile(SET_ITEMS_CFG);
+  var Msg := "";
+  if(Res == error)
+    Msg := "Blad: "+Res;
+  elseif(Res < 0)
+    Msg := "Konfig zaladowany.";
+  else
+    Msg := "Konfig przeladowany, "+res+" zmian.";
+  endif
+
+  SendSysMessage(who,"Unload ["+SET_ITEMS_CFG+"] - "+Msg,FONT_NORMAL,COLOR_GREEN);
+
+  Res := UnloadConfigFile(CPX_ITEMS_CFG);
+  Msg := "";
+  if(Res == error)
+    Msg := "Blad : "+Res;
+  elseif(Res < 0)
+    Msg := "Konfig zaladowany.";
+  else
+    Msg := "Konfig przeladowany, "+res+" zmian.";
+  endif
+
+  SendSysMessage(who,"Unload ["+CPX_ITEMS_CFG+"] - "+Msg,FONT_NORMAL,COLOR_GREEN);
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "include/finding";
+include "include/traps";
+
+//--------------------------------------------------------------------------------
+
+program OpenTrappedItem(who, item)
+
+  var Trapper := FindPlayerBySerial(GetTrapValue(Item,"Trapper"));
+  
+  if(Trapper)
+    SetScriptController(Trapper);
+  endif
+  
+  ArmTrap(who, Item);
+
+endprogram
+
+//--------------------------------------------------------------------------------

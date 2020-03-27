@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/deeds";
+include "include/std";
+include "include/gumpboxes";
+
+//-----------------------------------------------------------------------------
+
+program CreateWirs(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  UnloadConfigFile(":boat:wir");
+  var WCfg := ReadConfigFile(":boat:wir");
+  var x,y,z,n := 0,br := 0,a := 0;
+  
+  if(WCfg)
+    foreach Wir in GetConfigStringKeys(WCfg)
+      x := CInt(Wir[1,find(Wir,"_",1)]);
+      y := CInt(Wir[find(Wir,"_",1)+1,len(Wir)]);
+      z := GetMapInfo(x,y).z;
+      if(x and y and z != error)
+        var Items := ListItemsNearLocation(x,y,z,5);
+
+        if(Items.size() > 0)
+          br := 1;
+        endif
+        
+        if(!br)
+          BuildFromTemplate(who,"wir",x,y,z);
+          n := n + 1;
+        endif
+      endif
+      br := 0;
+      a := a + 1;
+    endforeach
+    
+    SendSysMessage(who,"Dodane: "+n+" Wszystkie: "+a+".",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie znaleziono CFG!",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

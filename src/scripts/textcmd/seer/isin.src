@@ -1,0 +1,101 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-27
+//-----------------------------------------------------------------------------
+
+include "include/findcity";
+include "include/buildings";
+include "include/client/fonts";
+include "include/checks/locchecks";
+include "include/inncheck";
+include ":pvparea:common";
+
+//-----------------------------------------------------------------------------
+
+program CmdIsIn(who, text)
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "nearcity": 
+               var Result := FindNearestCity(who.x, who.y, who.realm); 
+                
+               if(Result.city)
+                 var Coords := GetCityCoords(Result.city);
+                 SendSysMessage(who,"Miasto: "+Result.city+" Odleglosc: "+Result.dist,FONT_NORMAL,COLOR_GOOD);
+                 SendSysMessage(who,"["+Coords[1]+","+Coords[2]+"] ["+Coords[3]+","+Coords[4]+"]",FONT_NORMAL,COLOR_STONE);
+               else
+                 SendSysMessage(who,"Brak miasta.",FONT_NORMAL,COLOR_RED);
+               endif
+
+    "city":    var City := FindCity(who);
+
+               if(City)
+                 var Coords := GetCityCoords(City);
+                 SendSysMessage(who,"Miasto: "+City,FONT_NORMAL,COLOR_GOOD);
+                 SendSysMessage(who,"["+Coords[1]+","+Coords[2]+"] ["+Coords[3]+","+Coords[4]+"]",FONT_NORMAL,COLOR_STONE);
+               else
+                 SendSysMessage(who,"Brak miasta.",FONT_NORMAL,COLOR_RED);
+               endif
+
+    "umb":     if(IsInUmbra(who))
+                 SendSysMessage(who, "Znajdujesz sie w lesie Umbra.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie w lesie Umbra.", FONT_NORMAL, COLOR_RED);
+               endif
+               
+    "nt":      if(NoTeleportZone(who.x, who.y, who.realm))
+                 SendSysMessage(who, "To miejsce jest zakazane. Nie mozna sie tu teleportowac.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "W to miejsce mozna sie teleportowac.", FONT_NORMAL, COLOR_RED);
+               endif
+               
+    "ga":      if(IsInGa(who.x, who.y, who.realm))
+                 SendSysMessage(who, "Znajdujesz sie na GA.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie na GA.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "dung":    if(IsDungeon(who.x,who.y,who.realm))
+                 SendSysMessage(who, "Znajdujesz sie w lochu.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie w lochu.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "bld":     if(IsInBuilding(who.x, who.y, who.realm))
+                 SendSysMessage(who, "Znajdujesz sie w budynku.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie w budynku.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "bldex":   if(IsInBuildingEx(who.x, who.y, who.realm, who.z))
+                 SendSysMessage(who, "Znajdujesz sie w budynku.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie w budynku.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "inn":     if(Inncheck(who))
+                 SendSysMessage(who, "Znajdujesz sie w karczmie.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie w karczmie.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "pvp":     if(IsInPvpAreaLoc(who.x,who.y,who.realm))
+                 SendSysMessage(who, "Znajdujesz sie w strefie PvP.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie w strefie PvP.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "deep":    if(IsDeepWater(who.x,who.y,who.realm))
+                 SendSysMessage(who, "Znajdujesz sie na glebokiej wodzie.", FONT_NORMAL, COLOR_GREEN);
+               else
+                 SendSysMessage(who, "Nie znajdujesz sie na glebokiej wodzie.", FONT_NORMAL, COLOR_RED);
+               endif
+
+    "?":       SendSysMessage(who, ".isin [city/bld/bldex/dung/umb/inn/ga/nt/deep]", FONT_NORMAL, COLOR_RED);
+
+    default:   SendSysMessage(who, "Zla opcja [.isin ?]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

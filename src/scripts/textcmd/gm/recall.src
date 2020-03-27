@@ -1,0 +1,63 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/effects";
+include "include/objtypes/misc";
+include "include/objtypes/magic";
+include "include/checks/locchecks";
+include "include/move";
+include "include/portals";
+
+
+//-----------------------------------------------------------------------------
+
+program RecallCmd( who, text )
+
+  SendSysMessage( who, "Wybierz runo.", FONT_NORMAL, COLOR_GREEN );
+  var cast_on := ObjTarget(who);
+  if (!cast_on)
+    return;
+  endif
+
+  if (cast_on.objtype != UOBJ_RUNE)
+    SendSysMessage(who, "To nie runo.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var tox := CInt(GetObjProperty( cast_on, "x" ));
+  var toy := CInt(GetObjProperty( cast_on, "y" ));
+  var toz := CInt(GetObjProperty( cast_on, "z" ));
+  var Rlm := GetObjProperty(cast_on,"Rlm");
+        
+  if(!Rlm)
+    Rlm := _DEFAULT_REALM;
+  endif
+
+  SendSysMessage(who, "Loc: "+tox+", "+toy+", "+toz+", "+Rlm,FONT_NORMAL, COLOR_BLUE);
+
+  if(text["gate"])
+    if(IsInGa(who.x, who.y, who.realm) or IsInGa(tox, toy, Rlm))
+      SendSysMessage(who, "Miejsce zrodlowe lub docelowe jest na GA.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(who.x == tox and who.y == toy and who.realm == Rlm)
+    SendSysMessage(who, "Znajdujesz sie w miejscu docelowym.",FONT_NORMAL, COLOR_RED);
+  else
+    if(text["gate"])
+      CreateGateTravel(who.x, who.y, who.z, who.realm, tox, toy, toz, Rlm);
+    else
+      MoveObject(who, tox, toy, toz, Rlm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD );
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

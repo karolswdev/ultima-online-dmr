@@ -1,0 +1,55 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+include ":banking:gold";
+include "include/gumps";
+
+program sendGump(parms)
+
+	// malloc for thread safety
+	Malloc(parms[1]);
+	
+	var who := parms[1];
+	var house := parms[2];
+	var components := parms[3];
+	
+	// This will be 0 upon first house building = you have to pay the full price, but afterwards if you modify your house you won't have to keep repaying the same price
+	var currentSavedComponents := CInt(GetObjProperty(house, "CurrentSavedComponents"));
+	
+	var cost := (components.size() - currentSavedComponents) * 200;
+	
+	if(cost < 0)
+		cost := 0;
+	endif
+
+    GInit(0, 0);
+    GPage(1);
+    GResPic(40, 48, 5170, 369, 199);
+    GTilePic(66, 83, 3648); 
+    GTextLine(120, 87, 0, "Koszt tego projektu to ");
+    GTextLine(120, 107, 30, cost);
+    GTextLine(156, 52, 0, "A R C H I T E K T");
+    GTextLine(120, 149, 0, "Czy chcesz kontynuowac?");
+    GButton(70, 187, 247, 248, 1);
+    GButton(315, 187, 241, 242, 2);
+    var res := GSend(who)[0];
+	
+	if(res == 2)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		house.acceptcommit(who, 0);
+	else
+		if(SpendGold(who, cost) || who.cmdlevel)
+			SendSysMessage(who, "Gratulujemy swietnego wyboru.", FONT_NORMAL, COLOR_GREEN);
+			syslog(who.serial + " bought a custom house for " + cost + ", house location is at X:" + house.x + " Y:" + house.y + " Z:" + house.z);
+			house.acceptcommit(who, 1);
+			SetObjProperty(house, "CurrentSavedComponents", components.size());
+			start_script(":housing:customhousesign", {who, house});
+		endif
+	endif
+	
+endprogram
+			
+			
+		
+		

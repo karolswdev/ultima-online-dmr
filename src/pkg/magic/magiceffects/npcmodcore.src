@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/std";
+include "include/checks/objchecks";
+
+include "modcore";
+include "../pkg/magic/magicitems/magicitems";
+
+//-----------------------------------------------------------------------------
+
+var Who, WhoSer;
+
+//-----------------------------------------------------------------------------
+
+program NpcModCore(Parms)
+
+  var ev;
+
+  SetLogRunCycles(LST_HOOK);
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  while(1)
+    ev := wait_for_event(120);
+    if(ev)
+      case(ev.type)
+        EVID_MOD:          who := ev.source;
+                           DoTempMod(ev);
+        EVID_SKMOD:        who := ev.source;
+                           DoTempSkMod(ev);
+        EVID_MAGICMOD:     who := ev.source;
+                           DoTempMagicMod(ev);
+        EVID_MAGICSKMOD:   who := ev.source;
+                           DoTempMagicSkMod(ev);
+        EVID_UNDOMOD:      who := ev.source;
+                           UndoTempMod(ev);
+        EVID_UNDOSKMOD:    who := ev.source;
+                           UndoSkillTempMod(ev);
+      endcase
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

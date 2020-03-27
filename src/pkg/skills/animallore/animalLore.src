@@ -1,0 +1,182 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/poison";
+include "ai/include/tamed";
+
+//-----------------------------------------------------------------------------
+
+program AnimalLore(who)
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SendSysMessage (who, "Wybierz stworzenie.",FONT_NORMAL,COLOR_GREEN);
+  var Subject := ObjTarget(who);
+  
+  if(!StandardMobCheck(who,Subject,NO_CHECK_SPECLOS | NEW_DIST_CHECK | NO_COMBAT_CHECK | NO_USE_CHECK, 12))
+    return;
+  endif
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_ANIMALLORE));
+  
+  var cfgElem    := GetNpcConfig(Subject);
+  var TameDiff   := cfgElem.tameskill;
+
+  if(Subject.acctname or TameDiff == error)
+    SendSysMessage(who, "Nie wiesz jak to ocenic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  TameDiff := CInt(TameDiff);
+
+  var Diff := TameDiff - 15;
+  
+  if(Diff < 0)
+    Diff := 0;
+  endif
+
+  var phisical   := "";
+  var health     := "";
+  var poison     := "";
+
+  var TameSkill  := GetBaseSkill( who , SKILLID_TAMING ) ;
+  var LoreSkill  := GetBaseSkill( who , SKILLID_ANIMALLORE ) ;
+  var Points     := GetDefaultPointsValue(SKILLID_ANIMALLORE);
+  var foodtype   := cfgElem.food;
+  var RName      := cfgElem.Name;
+  var ReqSkill   := cfgElem.ReqSkill;
+  
+  if(ReqSkill)
+    ReqSkill := SplitWords(ReqSkill);
+  endif
+
+  if(!RName or RName["<random>"])
+    RName := 0;
+  endif
+  
+  if(!foodtype)
+    foodtype     := "all";
+  endif
+  var foodmsg    := FindFood(foodtype);
+
+  if(CheckSkill(who, SKILLID_ANIMALLORE, -1, 0) and CheckSkill(who, SKILLID_ANIMALLORE, Diff, 0))
+
+    AwardPoints(who,SKILLID_ANIMALLORE,Points);
+    
+    phisical     := GetStr(CInt(Getstrength(Subject) / 100));
+    health       := GetHealth(10 * Gethp(Subject)/Getmaxhp(Subject));
+ 
+    if(GetPoisonLevel(Subject) > 0 )
+      poison     := ", i jest zatrute.";
+    endif
+
+    if(RName and RName != Subject.name)
+      RName := RName + " o imieniu "+Subject.name;
+    else
+      RName := Subject.name;
+    endif
+
+    SendSysmessage(who, "Zwierze "+ RName + " wyglada " + phisical+ " i jest " + health + poison,FONT_NORMAL,COLOR_GREEN);
+    sleep(1);
+
+    if(!IsTamed(Subject))
+      if(GetPrevTamed(Subject))
+        SendSysMessage(who,"Zwierze bylo juz oswajane.",FONT_NORMAL,COLOR_RED);
+      else
+        SendSysMessage(who,"Zwierze nigdy nie bylo oswajane.",FONT_NORMAL,COLOR_GREEN);
+      endif
+    endif
+
+    if(GetBaseSkill(who, CInt(ReqSkill[1])) < CInt(ReqSkill[2]))
+      SendSysMessage(who,"Nie masz szans by je oswoic.",FONT_NORMAL,COLOR_RED);
+    elseif((TameSkill < (TameDiff) - 10) or (LoreSkill < (TameDiff) - 30))
+      SendSysMessage(who,"Nie masz szans by je oswoic.",FONT_NORMAL,COLOR_RED);
+    elseif(TameSkill < TameDiff or (LoreSkill < (TameDiff) - 20))
+      SendSysMessage(who,"Masz nikle szanse na oswojenie tego zwierza.",FONT_NORMAL,COLOR_RED+1);
+    elseif(TameSkill > TameDiff+8 and (LoreSkill > (TameDiff) - 12))
+      SendSysMessage(who,"Masz duza szanse na oswojenie tego zwierza.",FONT_NORMAL,COLOR_BLUE);
+    else
+      SendSysMessage(who,"Masz szanse na oswojenie tego zwierza.",FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    sleep(1);
+      
+    if(LoreSkill >= 50)
+      if(IsTamed(Subject))
+        SendSysmessage(who,"Zwierze jest oswojone i "+GetHungry(GetHappiness(Subject))+".",FONT_NORMAL,COLOR_BLUE);
+        sleep(1);
+      endif
+      if(ReadGameClock() < GetTameTimer(Subject))
+        SendSysmessage(who, "To zwierze jest sploszone.",FONT_NORMAL,COLOR_RED + 1);
+        sleep(1);
+      endif
+    endif
+      
+    if(LoreSkill >= 60)
+      SendSysMessage(who, foodmsg,FONT_NORMAL,COLOR_GREEN);
+      sleep(1);
+    endif
+    
+  else
+    SendSysmessage(who, "Nie udalo Ci sie ocenic tego zwierzecia.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetStr(temp)
+
+  case(temp)
+	0:        return "na bardzo slabe";
+	1:        return "na slabe"; 
+	2:        return "jak przecietny czlowiek";
+	3:        return "na troche silne";
+	4:        return "na silne";
+	5:        return "na bardzo silne";
+	6:        return "na silne jak Tytan";
+	7:        return "na silne jak Smok";
+	default:  return "na silne ponad ludzkie pojecie";
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetHealth(percentage)
+
+  case(percentage)
+	0:        return "blisko smierci";    //0-9 life
+	1:        return "w zlej formie";  //10-19
+	2:
+	3:        return "w slabym zdrowiu"; //20-39
+	4:
+	5:        return "w srednim zdrowiu"; //40-59
+	6:
+	7:        return "w dobrym zdrowiu"; //60-79
+	default:  return "w doskonalej formie";  //80+
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindFood(foodtype)
+
+  if(foodtype == "all")
+    return "To stworzenie je zarowno warzywa jak i mieso.";
+  elseif(foodtype == "meat")
+    return "To stworzenie jest miesozerne.";
+  elseif(foodtype == "veggie")
+    return "To stworzenie je owoce i warzywa.";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

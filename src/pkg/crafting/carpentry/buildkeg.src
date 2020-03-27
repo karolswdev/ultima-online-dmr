@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+
+//-----------------------------------------------------------------------------
+
+const POTION_KEG_SKILL    := 65;
+
+//-----------------------------------------------------------------------------
+
+program BuildPotionKeg(who, item)
+
+  if(!StandardItemCheck(who,item))
+    return;
+  endif
+
+  var EmptyBottles := FindItemInContainer(who.backpack,UOBJ_EMPTY_BOTTLE);
+  var Lid          := FindItemInContainer(who.backpack,0x1db8);
+  var Tap          := FindItemInContainer(who.backpack,0x1004);
+  var Hoops        := FindItemInContainer(who.backpack,0x10e1);
+  
+  if(!EmptyBottles or EmptyBottles.amount < 10 or !lid or !Tap or !Hoops)
+    SendSysMessage(who,"Do zrobienia kega potrzebujesz wieka, kurka, obreczy i 10 pustych butelek.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!ReserveItem(EmptyBottles) or !ReserveItem(Lid) or !ReserveItem(Tap) or !ReserveItem(Hoops))
+    SendSysMessage(who,"Do zrobienia kega potrzebujesz wieka, kurka, obreczy i 10 pustych butelek.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Zaczynasz skladac kega...",FONT_NORMAL,COLOR_GREEN);
+  
+  if(!MakeNoise(who, 0x23E, 3000))
+    return;
+  endif
+      
+  if(!SubtractAmount(EmptyBottles, 10) or !DestroyItem(Tap) or !DestroyItem(Lid) or !DestroyItem(item) or !DestroyItem(Hoops))
+    SendSysMessage(who,"Do zrobienia kega potrzebujesz wieka, kurka i 10 pustych butelek.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(CheckSkill(who, SKILLID_TINKERING, POTION_KEG_SKILL, 0) and CheckSkill(who, SKILLID_CARPENTRY, POTION_KEG_SKILL, 0))
+    var TheItem := CreateItemInPack(who, UOBJ_POTION_KEG, 1);
+    if(!TheItem)
+      SendSysMessage(who, "Masz za malo miejsca w plecaku.");
+      return;
+    endif
+    TheItem.movable := 1;
+    SendSysMessage( who, "Zrobil"+ggm(who,3)+" kega i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_GOOD);
+    AwardPoints(who,SKILLID_CARPENTRY,40,GAIN_RESTRICT,POTION_KEG_SKILL);
+  else
+    SendSysMessage(who, "Nie udalo Ci sie zrobic kega.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

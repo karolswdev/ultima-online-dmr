@@ -1,0 +1,292 @@
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Alchemy
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+include ":quests:quest_ctrl";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/skills/gumps";
+include "include/skills/std";
+include "include/findcity";
+include "include/tools";
+include "include/objtypes/skills";
+include ":crafting:creation";
+include ":crafting:exceptional";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+
+var gItemCfg := ReadConfigFile(ITEMS_CFG);    
+
+//-----------------------------------------------------------------------------
+
+program Alchemy(who, mortar)
+
+  if(mortar.objtype == UOBJ_CAULDRON or mortar.objtype == UOBJ_CAULDRON2)
+    if(!StandardItemCheck(who, mortar, NO_MOVABLE_CHECK | NO_OWNER_CHECK | NEW_DIST_CHECK, 1))
+      return;
+    endif
+
+    var SkillReq := gItemCfg[mortar.objtype].SkillReq;
+
+    if(SkillReq)
+      SkillReq := SplitWords(SkillReq);
+      if(GetBaseSkill(who, CInt(SkillReq[1])) < CInt(SkillReq[2]))
+        SendSysMessage(who, "Twa wiedza o alchemii jest za mala by wiedziec jak to uzyc.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+  else
+    if(!StandardItemCheck(who, mortar))
+      return;
+    endif
+  endif
+  
+  TriggerTipEvent(who, TEID_CRAFT_ALCHEMY);
+  var LastCraft := AlchemyGump(who);
+  
+  if(!LastCraft)
+    return;
+  endif
+
+  start_script(":alchemy:craft_item", array(who, mortar, LastCraft));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AlchemyGump(who)
+
+  var butRes := 0;
+  var doCraft := 0;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_ALCHEMY);
+
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":alchemy:alchemy", SKILLID_ALCHEMY);
+    SkillGlob.expCraftDot := 0;
+    BuildMainAlchGump(LastCraft.iters);
+
+    case(butRes)
+      2:   BuildHealGump();
+      3:   BuildPoisonGump();
+      4:   BuildCureGump();
+      5:   BuildAgilityGump();
+      6:   BuildStrengthGump();
+      7:   BuildExplosionGump();
+      8:   BuildRefreshGump();
+      9:   BuildCurseGump();
+      10:  BuildOthersGump();
+      11:  BuildElixirGump();
+      12:  BuildOilGump();
+    endcase
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1: 
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie przecieral"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+      
+      0:
+      99:
+    
+        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          LastCraft.objtype := butRes;
+          doCraft := 1;
+        endif
+        
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_ALCHEMY, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainAlchGump(ProdIters)
+
+  BuildGreyMainGump();
+  GNoClose();
+  GNoDispose();
+  GTextLine( 20, 22, 650, "Menu Alchemii");
+  
+  GButton( 400, 22, 2708, 2709, 99 );
+  GTextLine(430, 22,  600, "Anuluj");
+
+  GTextLine  (17,  75,  500,  "Leczenie");
+  GButton    (80,  75,  2710, 2711, 2);
+  GTextLine  (110, 75,  500,  "Trucizny");
+  GButton    (180, 75,  2710, 2711, 3);
+  GTextLine  (210, 75,  500,  "Uzdrowienia");
+  GButton    (300, 75,  2710, 2711, 4);
+  GTextLine  (330, 75,  500,  "Zrecznosci");
+  GButton    (410, 75,  2710, 2711, 5);
+  GTextLine  (435, 75,  500,  "Sily");
+  GButton    (475, 75,  2710, 2711, 6);
+  
+  GTextLine  (17,  345, 500,  "Wybuchowe");
+  GButton    (83, 345, 2710, 2711, 7);
+  GTextLine  (105, 345, 500,  "Odswiezania");
+  GButton    (177, 345, 2710, 2711, 8);
+  GTextLine  (200, 345, 500,  "Oslabienia");
+  GButton    (260, 345, 2710, 2711, 9);
+  GTextLine  (290, 345, 500,  "Oleje");
+  GButton    (325, 345, 2710, 2711, 12);
+  GTextLine  (355, 345, 500,  "Inne");
+  GButton    (390, 345, 2710, 2711, 10);
+  GTextLine  (415, 345, 500,  "Eliksiry");
+  GButton    (475, 345, 2710, 2711, 11);
+  
+  GTextLine(180, 395, 600, "Powtorz:");
+  BQGAddTextBox(250, 397, 60, 20, 1320, ProdIters, BQG_EDITABLE, 1, 1);
+
+  GButton( 335, 395, 2708, 2709, 1 );
+  GTextLine(360, 395,  600, "To co ostatnio");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildHealGump()
+
+      AddGumpElem( UOBJ_LESSER_HEAL_POTION,      180, 135, 230, 170, 280, 170 , gItemCfg[UOBJ_LESSER_HEAL_POTION].sName,      gItemCfg[UOBJ_LESSER_HEAL_POTION].graphic,       999 , 2704, 2705);
+      AddGumpElem( UOBJ_HEAL_POTION,             80,  225, 100, 260, 150, 260 , gItemCfg[UOBJ_HEAL_POTION].sName,             gItemCfg[UOBJ_HEAL_POTION].graphic,              999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_HEAL_POTION,     270, 225, 310, 260, 360, 260 , gItemCfg[UOBJ_GREATER_HEAL_POTION].sName,     gItemCfg[UOBJ_GREATER_HEAL_POTION].graphic,      999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPoisonGump()
+
+      AddGumpElem( UOBJ_LESSER_POISON_POTION,    60,  135, 100, 170, 150, 170 , gItemCfg[UOBJ_LESSER_POISON_POTION].sName,    gItemCfg[UOBJ_LESSER_POISON_POTION].graphic,     999 , 2704, 2705);
+      AddGumpElem( UOBJ_POISON_POTION,           300, 135, 310, 170, 360, 170 , gItemCfg[UOBJ_POISON_POTION].sName,           gItemCfg[UOBJ_POISON_POTION].graphic,            999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_POISON_POTION,   60,  225, 100, 260, 150, 260 , gItemCfg[UOBJ_GREATER_POISON_POTION].sName,   gItemCfg[UOBJ_GREATER_POISON_POTION].graphic,    999 , 2704, 2705);
+      AddGumpElem( UOBJ_DEADLY_POISON_POTION,    270, 225, 310, 260, 360, 260 , gItemCfg[UOBJ_DEADLY_POISON_POTION].sName,    3850, 999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildCureGump()
+
+      AddGumpElem( UOBJ_LESSER_CURE_POTION,      180, 135, 230, 170, 280, 170 , gItemCfg[UOBJ_LESSER_CURE_POTION].sName,      gItemCfg[UOBJ_LESSER_CURE_POTION].graphic,       999 , 2704, 2705);
+      AddGumpElem( UOBJ_CURE_POTION,             80,  225, 100, 260, 150, 260 , gItemCfg[UOBJ_CURE_POTION].sName,             gItemCfg[UOBJ_CURE_POTION].graphic,              999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_CURE_POTION,     270, 225, 310, 260, 360, 260 , gItemCfg[UOBJ_GREATER_CURE_POTION].sName,     gItemCfg[UOBJ_GREATER_CURE_POTION].graphic,      999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAgilityGump()
+
+      AddGumpElem( UOBJ_LESSER_AGILITY_POTION,   180, 135, 230, 170, 280, 170 , gItemCfg[UOBJ_LESSER_AGILITY_POTION].sName,   gItemCfg[UOBJ_LESSER_AGILITY_POTION].graphic,    999 , 2704, 2705);
+      AddGumpElem( UOBJ_AGILITY_POTION,          80,  225, 100, 260, 150, 260 , gItemCfg[UOBJ_AGILITY_POTION].sName,          gItemCfg[UOBJ_AGILITY_POTION].graphic,           999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_AGILITY_POTION,  270, 225, 310, 260, 360, 260 , gItemCfg[UOBJ_GREATER_AGILITY_POTION].sName,  gItemCfg[UOBJ_GREATER_AGILITY_POTION].graphic,   999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStrengthGump()
+
+      AddGumpElem( UOBJ_LESSER_STRENGTH_POTION,  210, 135, 230, 170, 280, 170 , gItemCfg[UOBJ_LESSER_STRENGTH_POTION].sName,  gItemCfg[UOBJ_LESSER_STRENGTH_POTION].graphic,   999 , 2704, 2705);
+      AddGumpElem( UOBJ_STRENGTH_POTION,         110, 225, 100, 260, 150, 260 , gItemCfg[UOBJ_STRENGTH_POTION].sName,         gItemCfg[UOBJ_STRENGTH_POTION].graphic,          999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_STRENGTH_POTION, 270, 225, 310, 260, 360, 260 , gItemCfg[UOBJ_GREATER_STRENGTH_POTION].sName, gItemCfg[UOBJ_GREATER_STRENGTH_POTION].graphic,  999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildExplosionGump()
+
+      AddGumpElem( UOBJ_LESSER_EXPLOSION_POTION, 20,  155, 70,  180, 120, 180 , gItemCfg[UOBJ_LESSER_EXPLOSION_POTION].sName, gItemCfg[UOBJ_LESSER_EXPLOSION_POTION].graphic,  999 , 2704, 2705);
+      AddGumpElem( UOBJ_EXPLOSION_POTION,        180, 125, 210, 150, 260, 150 , gItemCfg[UOBJ_EXPLOSION_POTION].sName,        gItemCfg[UOBJ_EXPLOSION_POTION].graphic,         999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_EXPLOSION_POTION,305, 155, 350, 180, 400, 180 , gItemCfg[UOBJ_GREATER_EXPLOSION_POTION].sName,gItemCfg[UOBJ_GREATER_EXPLOSION_POTION].graphic, 999 , 2704, 2705);
+
+      AddGumpElem( UOBJ_LESSER_HOLY_POTION,      20,  250, 70,  275, 120, 275 , gItemCfg[UOBJ_LESSER_HOLY_POTION].sName,      gItemCfg[UOBJ_LESSER_HOLY_POTION].graphic,       999 , 2704, 2705);
+      AddGumpElem( UOBJ_HOLY_POTION,             180, 220, 210, 245, 260, 245 , gItemCfg[UOBJ_HOLY_POTION].sName,             gItemCfg[UOBJ_HOLY_POTION].graphic,              999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_HOLY_POTION,     305, 250, 350, 275, 400, 275 , gItemCfg[UOBJ_GREATER_HOLY_POTION].sName,     gItemCfg[UOBJ_GREATER_HOLY_POTION].graphic,      999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRefreshGump()
+
+      AddGumpElem( UOBJ_REFRESH_POTION,          80,  175, 100, 210, 150, 210 , gItemCfg[UOBJ_REFRESH_POTION].sName,          gItemCfg[UOBJ_REFRESH_POTION].graphic,           999 , 2704, 2705);
+      AddGumpElem( UOBJ_FULL_REFRESH_POTION,     270, 175, 310, 210, 360, 210 , gItemCfg[UOBJ_FULL_REFRESH_POTION].sName,     gItemCfg[UOBJ_FULL_REFRESH_POTION].graphic,      999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildCurseGump()
+
+      AddGumpElem( UOBJ_LESSER_CURSE_POTION,     180, 135, 230, 170, 280, 170 , gItemCfg[UOBJ_LESSER_CURSE_POTION].sName,     gItemCfg[UOBJ_LESSER_CURSE_POTION].graphic,          999 , 2704, 2705);
+      AddGumpElem( UOBJ_CURSE_POTION,            80,  225, 100, 260, 150, 260 , gItemCfg[UOBJ_CURSE_POTION].sName,            gItemCfg[UOBJ_CURSE_POTION].graphic,                 999 , 2704, 2705);
+      AddGumpElem( UOBJ_GREATER_CURSE_POTION,    270, 225, 310, 260, 360, 260 , gItemCfg[UOBJ_GREATER_CURSE_POTION].sName,    gItemCfg[UOBJ_GREATER_CURSE_POTION].graphic,         999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildOthersGump()
+
+      AddGumpElem( UOBJ_NIGHTSIGHT_POTION,       40,  125, 30,  155, 80,  155 , gItemCfg[UOBJ_NIGHTSIGHT_POTION].sName,       gItemCfg[UOBJ_NIGHTSIGHT_POTION].graphic,        999 , 2704, 2705);
+      AddGumpElem( UOBJ_BLIND_POTION,            355, 125, 360, 155, 410, 155 , gItemCfg[UOBJ_BLIND_POTION].sName,            gItemCfg[UOBJ_BLIND_POTION].graphic,             999 , 2704, 2705);
+      AddGumpElem( UOBJ_MANA_POTION,             30,  190, 30,  225, 80,  225 , gItemCfg[UOBJ_MANA_POTION].sName,             gItemCfg[UOBJ_MANA_POTION].graphic,              999 , 2704, 2705);
+      AddGumpElem( UOBJ_PROTPOISON_POTION,       140, 190, 200, 225, 250, 225 , gItemCfg[UOBJ_PROTPOISON_POTION].sName,       gItemCfg[UOBJ_PROTPOISON_POTION].graphic,        999 , 2704, 2705);
+      AddGumpElem( UOBJ_POLYMORPH_POTION,        355, 190, 360, 225, 410, 225 , gItemCfg[UOBJ_POLYMORPH_POTION].sName,        gItemCfg[UOBJ_POLYMORPH_POTION].graphic,         999 , 2704, 2705);
+      AddGumpElem( UOBJ_WEARWOLF_CURE_POTION,    130, 260, 200, 290, 250, 290 , gItemCfg[UOBJ_WEARWOLF_CURE_POTION].sName,    gItemCfg[UOBJ_WEARWOLF_CURE_POTION].graphic,     999 , 2704, 2705);
+      AddGumpElem( UOBJ_VAMPIRE_CURE_POTION,     185, 125, 200, 155, 250, 155 , gItemCfg[UOBJ_VAMPIRE_CURE_POTION].sName,     gItemCfg[UOBJ_VAMPIRE_CURE_POTION].graphic,      999 , 2704, 2705);
+      AddGumpElem( UOBJ_DISPERSION_POTION,       355, 260, 360, 290, 410, 290 , gItemCfg[UOBJ_DISPERSION_POTION].sName,       gItemCfg[UOBJ_DISPERSION_POTION].graphic,        999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildElixirGump()
+
+      AddGumpElem( UOBJ_LIGHT_LIFE_ELIXIR,       20,  145, 70,   170, 120, 170 ,gItemCfg[UOBJ_LIGHT_LIFE_ELIXIR].sName ,      gItemCfg[UOBJ_LIGHT_LIFE_ELIXIR].graphic,        999 , 2704, 2705);
+      AddGumpElem( UOBJ_LIGHT_MANA_ELIXIR,       170, 145, 210,  170, 260, 170 ,gItemCfg[UOBJ_LIGHT_MANA_ELIXIR].sName ,      gItemCfg[UOBJ_LIGHT_MANA_ELIXIR].graphic,        999 , 2704, 2705);
+      AddGumpElem( UOBJ_LIGHT_STAMINA_ELIXIR,    305, 145, 350,  170, 400, 170 ,gItemCfg[UOBJ_LIGHT_STAMINA_ELIXIR].sName ,   gItemCfg[UOBJ_LIGHT_STAMINA_ELIXIR].graphic,     999 , 2704, 2705);
+
+      AddGumpElem( UOBJ_LIFE_ELIXIR,             40,  240, 70,   265, 120, 265 ,gItemCfg[UOBJ_LIFE_ELIXIR].sName ,            gItemCfg[UOBJ_LIFE_ELIXIR].graphic,              999 , 2704, 2705);
+      AddGumpElem( UOBJ_MANA_ELIXIR,             190, 240, 210,  265, 260, 265 ,gItemCfg[UOBJ_MANA_ELIXIR].sName ,            gItemCfg[UOBJ_MANA_ELIXIR].graphic,              999 , 2704, 2705);
+      AddGumpElem( UOBJ_STAMINA_ELIXIR,          325, 240, 350,  265, 400, 265 ,gItemCfg[UOBJ_STAMINA_ELIXIR].sName ,         gItemCfg[UOBJ_STAMINA_ELIXIR].graphic,           999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildOilGump()
+
+      AddGumpElem( UOBJ_LESSER_AGGRO_OIL_POTION,       70,  145, 70,   170, 120, 170 ,gItemCfg[UOBJ_LESSER_AGGRO_OIL_POTION].sName ,      gItemCfg[UOBJ_LESSER_AGGRO_OIL_POTION].graphic,        999 , 2704, 2705);
+      AddGumpElem( UOBJ_AGGRO_OIL_POTION,              200, 145, 210,  170, 260, 170 ,gItemCfg[UOBJ_AGGRO_OIL_POTION].sName ,      gItemCfg[UOBJ_AGGRO_OIL_POTION].graphic,        999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------

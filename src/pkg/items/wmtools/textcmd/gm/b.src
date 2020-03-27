@@ -1,0 +1,223 @@
+//-----------------------------------------------------------------------------
+// Modified: 2004-04-19
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/cmds/cancmd";
+include "include/move";
+include "include/std";
+include "include/gumpboxes";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program BuldingCmd(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!CanUseCmd(who, "b"))
+    return;
+  endif
+
+  Text := SplitWords(text);
+
+  var mx := 0;
+  var my := 0;
+  var mz := 0;
+  var New;
+
+  case(text[1])
+    "x": mx := CInt(text[2]);
+    "y": my := CInt(text[2]);
+    "z": mz := CInt(text[2]);
+    "c": case(text[2])
+           "x": mx := CInt(text[3]);
+           "y": my := CInt(text[3]);
+           "z": mz := CInt(text[3]);
+         endcase
+
+         var Targ := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+         if(Targ.isa(POLCLASS_ITEM) and !Targ.container)
+           if(!CInt(text[4]))
+             text[4] := 1;
+           endif
+           text[3]     := CInt(text[3]);
+           var Spacing := 1;
+           if(CInt(text[5]))
+             Spacing := text[3];
+           endif
+           var i;
+           for(i:=1;i<=Abs(Cint(text[4]));i:=i+1)
+             New := CreateItemAtLoc(Targ.x+mx,Targ.y+my,Targ.z+mz,Targ.objtype,1,who.realm);
+             New.movable := 0;
+             New.color   := Targ.color;
+             SetName(new, Targ.desc);
+             case(text[2])
+               "x": if(text[3] > 0)
+                      mx := mx + Spacing;
+                    else
+                      mx := mx - Spacing;
+                    endif
+               "y": if(text[3] > 0)
+                      my := my + Spacing;
+                    else
+                      my := my - Spacing;
+                    endif
+               "z": if(text[3] > 0)
+                      mz := mz + Spacing;
+                    else
+                      mz := mz - Spacing;
+                    endif
+             endcase
+           endfor
+         endif
+         return;
+    "ch":  var n := 0;
+           if(CInt(text[3]))
+
+             if(CInt(text[5]) > 40)
+               if(!YesNo(who, "Zasieg "+CInt(text[5])+"?!"))
+                 return;
+               endif
+             endif
+
+             foreach item in ListObjectsInBox(who.x-CInt(text[5]),who.y-CInt(text[5]),CInt(text[4]),who.x+CInt(text[5]),who.y+CInt(text[5]),127,who.realm)
+               if(item.isa(POLCLASS_ITEM))
+                 if(item.objtype == CInt(Text[2]))
+                   New := CreateItemAtLoc(item.x,item.y,item.z,CInt(text[3]),1,who.realm);
+                   New.movable := 0;
+                   New.color   := Item.color;
+                   DestroyItem(Item);
+                   n := n + 1;
+                 endif
+               endif
+             endforeach
+           endif
+           SendSysMessage(who, "Zamieniono "+n+" przedmiotow.", FONT_NORMAL, COLOR_GREEN);
+           return;
+    "chr": var n := 0;
+           if(CInt(text[3]))
+             foreach item in ListObjectsInBox(who.x-CInt(text[5]),who.y-CInt(text[5]),CInt(text[4]),who.x+CInt(text[5]),who.y+CInt(text[5]),127,who.realm)
+               if(item.isa(POLCLASS_ITEM))
+                 if(item.objtype == CInt(Text[2]) and RandomInt(100) < 50)
+                   New := CreateItemAtLoc(item.x,item.y,item.z,CInt(text[3]),1,who.realm);
+                   New.movable := 0;
+                   New.color   := Item.color;
+                   DestroyItem(Item);
+                   n := n + 1;
+                 endif
+               endif
+             endforeach
+           endif
+           SendSysMessage(who,"Znaleziono "+n+" przedmiotow.",FONT_NORMAL,COLOR_GREEN);
+           return;
+    "cl":  text[2] := CInt(text[2]);
+           text[3] := CInt(text[3]);
+           text[4] := CInt(text[4]);
+           text[5] := CInt(text[5]);
+
+           if(!text[5])
+             text[5] := text[4];
+           endif
+
+           if(text[3] > 40)
+             if(!YesNo(who, "Zasieg "+text[3]+"?!"))
+               return;
+             endif
+           endif
+
+           foreach item in ListObjectsInBox(who.x-text[3],who.y-text[3],-127,who.x+text[3],who.y+text[3],127,who.realm)
+             if(item.isa(POLCLASS_ITEM))
+               if(text[4])
+                 if(item.objtype >= Text[4] and Item.objtype <= Text[5])
+                   item.color := Text[2];
+                 endif
+               else
+                 item.color := Text[2];
+               endif
+             endif
+           endforeach
+           return;
+    "des": text[2] := CInt(text[2]);
+           text[3] := CInt(text[3]);
+           text[4] := CInt(text[4]);
+           text[5] := CInt(text[5]);
+           var n := 0;
+           
+           foreach item in ListObjectsInBox(who.x-text[2],who.y-text[2],text[3],who.x+text[2],who.y+text[2],127,who.realm)
+             if(item.isa(POLCLASS_ITEM))
+               if(item.objtype >= CInt(Text[4]) and item.objtype <= CInt(Text[5]))
+                 DestroyItem(item);
+                 n := n + 1;
+               endif
+             endif
+           endforeach
+           SendSysMessage(who,"N : "+n,FONT_NORMAL,COLOR_GREEN);
+           return;
+
+    "desl":text[2] := CInt(text[2]);
+           text[3] := CInt(text[3]);
+           text[4] := CInt(text[4]);
+           text[5] := CInt(text[5]);
+           text[6] := CInt(text[6]);
+           text[7] := CInt(text[7]);
+           var n := 0;
+
+           foreach item in ListObjectsInBox(text[2],text[3],-127,text[4],text[5],127,who.realm)
+             if(item.isa(POLCLASS_ITEM) and Item.objtype >= text[6] and Item.objtype <= text[7])
+               DestroyItem(item);
+               n := n + 1;
+             endif
+           endforeach
+           SendSysMessage(who,"N: "+n,FONT_NORMAL,COLOR_GREEN);
+           return;
+
+    "cn":  var n := 0;
+           text[2] := CInt(text[2]);
+           foreach Item in ListObjectsInBox(who.x-text[2],who.y-text[2],-127,who.x+text[2],who.y+text[2],127,who.realm)
+             if(Item.isa(POLCLASS_ITEM))
+               n := n + 1;
+             endif
+           endforeach
+
+           SendSysMessage(who,"Znaleziono "+n+" przedmiotow.",FONT_NORMAL,COLOR_GREEN);
+           return;
+
+    default:  SendSysMessage(who, "Bledna opcja - "+text[1]+".", FONT_NORMAL, COLOR_RED);
+              return;
+  endcase
+  
+  if(!CInt(text[3]))
+    text[3] := 1414;
+  endif
+  
+  if(!CInt(text[4]))
+    text[4] := 1652;
+  endif
+  
+  if(!CInt(text[5]) or CInt(text[5]) > 50)
+    text[5] := 5;
+  endif
+  
+  if(!Cint(text[6]) and text[6] != "0")
+    text[6] := -127;
+  endif
+
+  if(!Cint(text[7]) and text[7] != "0")
+    text[7] := 127;
+  endif
+
+  SendSysMessage(who, "Move: "+text[1]+" "+CInt(text[2])+" Obj: "+CInt(text[3])+"-"+CInt(text[4])+" sZ: "+CInt(text[6])+" eZ: "+CInt(text[7])+" Range: "+CInt(text[5]), FONT_NORMAL, COLOR_GREEN);
+
+  foreach item in ListObjectsInBox(who.x-CInt(text[5]),who.y-CInt(text[5]),CInt(text[6]),who.x+CInt(text[5]),who.y+CInt(text[5]),CInt(text[7]),who.realm)
+    if(item.isa(POLCLASS_ITEM))
+      if(item.objtype >= CInt(text[3]) and item.objtype <= CInt(text[4]))
+        MoveObject(item,item.x+mx,item.y+my,item.z+mz,item.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE, MOVETYPE_CMD);
+        item.movable := 0;
+      endif
+    endif
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

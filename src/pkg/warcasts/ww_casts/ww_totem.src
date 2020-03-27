@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 9;
+
+//-----------------------------------------------------------------------------
+
+program WwTotem(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastLoc)
+
+  var Duration := (GetEffectiveSkill(Caster,SKILLID_WEARWOLF) + GetEffectiveSkill(Caster,SKILLID_ANIMALLORE)) * 9 + RandomInt(150);
+
+  var oparms          := {};
+  oparms.+controlable := 1;
+  oparms.+nocrim      := 1;
+  oparms.+nosleep     := 1;
+  oparms.+onlyone     := 1;
+
+  var Summon := SummonCreature(Caster,"summonedtotem",CastLoc,Duration,oparms);
+
+  if(Summon)
+    GainWarcastPoints(Caster, Summon, WW_WCID, WCGAIN_NORMAL);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

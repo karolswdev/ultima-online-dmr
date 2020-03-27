@@ -1,0 +1,64 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-24
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/effects";
+include "include/events";
+include "include/portals";
+include "include/player/basic";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program TeleHoleWalk(who, Hole)
+  
+  if(!CanPortalTele(who) or !IsPlayer(who))
+    return;
+  endif
+
+  var Holes := GetObjProperty(Hole, "Holes");
+
+  if(!Holes or Holes.size() <= 1)
+    return 1;
+  endif
+
+  var TeleTo, Count := 0;
+
+  while(Count < 10 and !TeleTo)
+    TeleTo := Holes[RandomInt(Holes.size())+1];
+    if(TeleTo == Hole)
+      TeleTo := 0;
+    else
+      TeleTo := FindItemBySerial(TeleTo);
+    endif
+    Count += 1;
+  endwhile
+  
+  UnhidePlayer(who);
+  DisarmPlayer(who);
+
+  if(TeleTo)
+    MoveObject(who, TeleTo.x, TeleTo.y, TeleTo.z, TeleTo.realm);
+    SendBad(who, "Wpadl"+ggm(who,3)+" w dziure!", COLOR_RED_SPICED);
+  endif
+
+  var Dmg := CInt(GetObjProperty(Hole, "Damage"));
+
+  if(Dmg and !who.concealed)
+    var Creator := FindNpcBySerial(GetObjProperty(Hole, "Creator"));
+    Dmg += RandomInt(CInt(Dmg/2));
+    PlaySoundEffect(who, SFX_SPELL_CLUMSY);
+    PlayPcEffect(who, FX_SPARK_EFFECT, 1421, 0x10, 0x10, 2);
+    DealDamage(who, Dmg, Creator);
+
+    if(Creator)
+      SendChEvent(Creator, who, EVID_ENGAGED, "priormax");
+    endif
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

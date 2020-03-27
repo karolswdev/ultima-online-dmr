@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+
+include "doors";
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+
+include ":housing:housing";
+include ":housing:payments";
+
+//-----------------------------------------------------------------------------
+
+program Door(who, door)
+  
+  if(typeof(who) == typeof(array))
+    door := who[2];
+    who := who[1];
+  endif
+
+  if(!StandardItemCheck(who,door,NO_MOVABLE_CHECK | NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(GetObjProperty(door, "NoOpen") and !who.cmdlevel)
+    return;
+  endif
+
+  NoLongerBusy(who);
+  ReleaseItem(door);
+
+  if(IsOpened(door))
+    CloseDoor(door);
+  else
+
+    var Res := CanOpenDoor(who, door);
+
+    if(Res)
+
+      if(Res != DOOR_OPEN_INSIDE and GetHouseSerial(door))
+        var House := GetHouse(door);
+        if(House and IsHousePaymentLocked(House))
+          SendSysMessage(who,"Dom zostal zamkniety do czasu oplacenia podatku!",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+      endif
+
+      if(Res != DOOR_OPEN_UNLOCKED and IsPlayer(who))
+        PrintTextAbovePrivate(door,"*otworzyl"+ggm(who,3)+" drzwi*",who,FONT_NORMAL,COLOR_BLUE);
+      endif
+
+      OpenDoor(door);
+    else
+      PrintTextAbovePrivate(door,"*zamkniete*",who,FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

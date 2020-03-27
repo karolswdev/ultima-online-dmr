@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/faith";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 37;
+
+//-----------------------------------------------------------------------------
+
+program PdLight(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+  
+  CastOn := ObjTarget(Caster);
+  
+  if(!CastOn)
+    return;
+  endif
+  
+  PlaySoundEffect(CastOn, SFX_SPELL_NIGHT_SIGHT );
+  var Duration := CInt(GetEffectiveSkill(Caster, SKILLID_PALADINISM) * 50);
+  PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 10,10);
+  
+  PlaySoundEffect(Caster, SFX_SPELL_NIGHT_SIGHT );
+  
+  DoMod( CastOn, MOD_LIGHT, 1, Duration);
+
+endfunction
+
+//--------------------------------------------------------------------------------

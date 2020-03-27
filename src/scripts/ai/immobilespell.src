@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "ai/main/sleepmode";
+include "ai/main/loot";
+include "ai/setup/spellsetup";
+include "ai/main/mainloopimmobile";
+include "ai/combat/spellcombatevent";
+include "ai/combat/fight";
+include "ai/include/cdist";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 10;
+
+//-----------------------------------------------------------------------------
+
+program ImmobileSpell_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  SetBitOn(AiFlags, AIF_IMMOBILE);
+  SetWarMode( 0 );
+  main_AI_loop();
+
+endprogram
+
+//-----------------------------------------------------------------------------

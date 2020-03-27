@@ -1,0 +1,62 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/poison";
+include "include/itemuses";
+include "include/checks/objchecks";
+
+include ":hiding:hiding";
+
+//-----------------------------------------------------------------------------
+
+program use_magicfish(who, fish)
+
+  if(!StandardItemCheck(who,fish))
+    return;
+  endif
+
+  var spellnum    := GetObjProperty( fish, "spellnum" );
+  var spellsound  := GetObjProperty( fish, "spellsound" );
+  var spelleffect := GetObjProperty( fish, "spelleffect" );
+  var miscprop1   := GetObjProperty( fish, "miscprop1" );
+  var miscprop2   := GetObjProperty( fish, "miscprop2" );
+  
+  if(SubItemUses(fish, 1))
+    if(spellnum > 0)
+      if(spellnum != 44)
+        PlaySoundEffect( who, spellsound );
+        PlayObjectCenteredEffect( who, spelleffect, 10,10);
+      endif
+      case (spellnum)
+        4:          HealMobile( who, miscprop1, who);
+        6:          DoMod(who, MOD_LIGHT, miscprop1, miscprop2);
+        9:          DoMod(who, MOD_DEX,   miscprop1, miscprop2);
+        10:         DoMod(who, MOD_INT,   miscprop1, miscprop2);
+        11:         SetPoison(who,miscprop1,who);
+        16:         DoMod(who, MOD_STR,   miscprop1, miscprop2);
+        17:         DoMod(who, MOD_STR,   miscprop1, miscprop2);
+                    DoMod(who, MOD_DEX,   miscprop1, miscprop2);
+                    DoMod(who, MOD_INT,   miscprop1, miscprop2);
+        44:         if(!GetEquipmentByLayer(who, LAYER_MOUNT))
+                      if(!CInt(miscprop1))
+                        miscprop1 := 500;
+                      endif
+                      PlaySoundEffect(who, spellsound);
+                      PlayObjectCenteredEffect(who, spelleffect, 10, 10);
+                      if(fish)
+                        ReleaseItem(fish);
+                      endif
+                      TimeHidding(who, miscprop1);
+                    else
+                      SendSysMessage(who, "Nie udalo sie schowac wierzchowca.", FONT_NORMAL, COLOR_RED);
+                      return;
+                    endif
+      endcase
+    else
+      SendSysMessage(who, "Yech, ta ryba byla zgnila!",FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

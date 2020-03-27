@@ -1,0 +1,22 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+include "include/gumps";
+
+program youngDeath(parms)
+
+	var who := parms[1];
+	
+	
+	GInit(0, 0);
+    GPage(1);
+    GGumpPic(141, 23, 9, 0); 
+    GTilePic(190, 76, 3806); 
+    GTextLine(176, 152, 55, "Twoje rzeczy");
+    GTextLine(184, 167, 55, "znajdziesz");
+    GTextLine(206, 180, 55, "w");
+    GTextLine(171, 196, 55, "kamieniu poczty");
+    GSend(who);
+	
+endprogram

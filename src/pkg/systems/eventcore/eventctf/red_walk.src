@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/dirs";
+include "include/mobile/age";
+
+include ":eventctf:capture";
+include ":eventcore:proc_events";
+
+//-----------------------------------------------------------------------------
+
+program WalkOnRedFloor(who,FloorItem,Lx,Ly,Lz)
+  
+  __ParamUnused(FloorItem);
+
+  if(who.cmdlevel)
+    return 0;
+  endif
+
+  var Team := GetCaptureTeam(who);
+  var Cloak := GetCaptureCloak(who);
+  var Pass := 0;
+
+  if(!Team)
+    SendBad(who, "Musisz wybrac druzyne!");
+  elseif(Team != CTF_RED_TEAM)
+    SendBad(who, "Wybral"+ggm(who,3)+" druzyne niebieska!");
+  else
+    Pass := 1;
+  endif
+  
+  if(Pass)
+    if(!Cloak)
+      Pass := SendEventMessageForObject(who, MSGID_PLAYER_ENTERED, who);
+
+      if(!Pass)
+        SendBad(who, "Nie mozesz teraz przejsc. Sprobuj za chwile!");
+      endif
+    endif
+  endif
+  
+  if(!Pass)
+    MoveObject(who,Lx,Ly,Lz,who.realm,MOVECHAR_FORCELOCATION);
+  endif
+  
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

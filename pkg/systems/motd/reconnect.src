@@ -1,5 +1,0 @@
-use os;
-
-program reconnect(who)
-	  start_script(":motd:textcmd/player/motd", who);
-endprogram

@@ -1,0 +1,226 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/checks/stdchecks";
+include "include/poison";
+include "include/attack";
+include "include/packets";
+
+include ":magiceffects:effects";
+
+//-----------------------------------------------------------------------------
+
+program poisonhit (parms)
+
+  var who      := parms[1];
+  var plvl     := CInt(parms[2]);
+  var msg      := parms[3];
+  var PSer     := CInt(parms[4]);
+  var serial   := who.serial;
+  var Poisoner := FindPlayerBySerial(PSer);
+
+  if(!who.isa(POLCLASS_MOBILE) or !plvl)
+    return;
+  endif
+
+  if (plvl > 11)
+    plvl := 11;
+  endif
+
+  var poisoned := GetObjProperty (who, "#poisoninfo");
+
+  SetScriptController(Poisoner);
+
+  if(poisoned[1] > plvl)
+    if(poisoned[2] > ReadGameClock() + 2)
+      if(GetProcess(poisoned[3]))
+        RecalcVitals(who);
+        return;
+      endif
+    endif
+  endif
+
+  if(ProtectedFromPoison(who,plvl))
+    EraseObjProperty(who,"#poisoninfo");
+    RecalcVitals(who);
+    return;
+  endif
+	
+  var endtime := ReadGameClock () + 10 + (plvl * 3);
+  poisoned := {};
+  poisoned [1] := plvl;
+  poisoned [2] := endtime;
+  poisoned [3] := GetPID ();
+  poisoned [4] := PSer;
+  SetObjProperty (who, "#poisoninfo", poisoned);
+
+  var poison_damage := GetPoisonDamagePerTick (plvl);
+
+  who.SetPoisoned(plvl);
+  RecalcVitals(who);
+  if(msg)
+    SendSysMessage(who, msg, FONT_NORMAL, 41);
+  endif
+  
+  SendAddBuff(who, BFICON_POISON, endtime - ReadGameClock(), 1017383, 1075633, array(poison_damage, 7));
+
+  repeat
+  
+    if(IsInvulToAttack(who))
+      break;
+    endif
+    
+    if(!who)
+      who := FindPlayerBySerial(serial);
+    endif
+    
+    if(!who)
+      return;
+    endif
+
+    poisoned := GetObjProperty (who, "#poisoninfo");
+
+    if(!poisoned)
+      break;
+    endif
+
+    if(poisoned [3] != GetPid())
+      return;
+    endif
+
+    if(who.dead)
+      break;
+    endif
+
+    plvl          := poisoned[1];
+    endtime       := poisoned[2];
+    poison_damage := GetPoisonDamagePerTick (plvl);
+
+    PrintTextAbove(who,GetPoisonMsg(who,plvl),FONT_NORMAL,41);
+    
+    if(!Poisoner or PSer != poisoned[4])
+      PSer     := poisoned[4];
+      Poisoner := FindPlayerBySerial(PSer);
+    endif
+      
+    DealDamage (who, CheckForceField(who,poison_damage,1), Poisoner, MAGIC_DMG);
+    sleep(7);
+  
+  until (ReadGameClock () > endtime);
+  EndPoison(who);
+
+  SendDelBuff(who, BFICON_POISON);
+        
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function EndPoison(who,msg := 1)
+
+  EraseObjProperty (who, "#poisoninfo");
+  // WAZNE! Trzeba zdjac kontrolera z Poisonera, poniewaz ustawienie poisona na 0 spowoduje operacje "healowa", przez co dostanie sie krima.
+  SetScriptController(who);
+  who.SetPoisoned(0);
+  RecalcVitals(who);
+
+  if(!who.dead and msg)
+    SendSysMessage(who,"Twa krew sie oczyszcza.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+//  finds out if the target of the poison has an item equipped that protects them from poison
+//-----------------------------------------------------------------------------
+
+function ProtectedFromPoison (who,byref plvl)
+  
+  var plvlbase := plvl;
+
+  if(who.isa(POLCLASS_NPC))
+    if(GetNpcConfig(who).PoisonImmune)
+      return 1;
+    elseif(IsNpcElemental(who, NPCELEM_UNDEAD))
+      return 1;
+    elseif(IsNpcElemental(who, NPCELEM_POISON))
+      return 1;
+    endif
+    if(HaveForceField(who))
+      return 1;
+    endif
+  endif
+
+  var protpoison := GetModAmount(who, MOD_POISON_PROT);
+  if(protpoison)
+    if(protpoison >= plvl and plvlbase <= 7)
+      return 1;
+    else
+      plvl := plvl - 1;
+    endif
+  endif
+
+  if(IsVampire(who) or GetBaseSkill(who, SKILLID_NECRO) > 0)
+    plvl := plvl - 1;
+  endif
+
+  if(plvlbase >= 8)
+    plvl := ToMin(plvl, 7);
+  endif
+
+  var item;
+  foreach thing in ListEquippedItems (who)
+    if (GetObjProperty (thing, "protpoison"))
+      item := thing;
+      break;
+    endif
+  endforeach
+
+  if (!item)
+    return 0;
+  endif
+
+  protpoison := GetObjProperty (item, "protpoison");
+  if(Cint(protpoison[1]) >= plvl)
+    var charges := Cint(protpoison[2]);
+    if(charges <= 1)
+      SendSysMessage(who,"Wytrzymalosc ochorny przed trucizna przedmiotu "+GetDescForItem(item.objtype) + " sie skonczyla!",FONT_NORMAL,COLOR_RED);
+      EraseObjProperty (item, "protpoison");
+      var itemname := Lower(item.desc);
+      itemname[" ochrony przed trucizna"] := "";
+      SetName(item,itemname);
+      return 1;
+    else
+      charges := charges - 1;
+      protpoison[2] := charges;
+      SetObjProperty (item, "protpoison", protpoison);
+      SendSysMessage(who,"Przedmiot " + GetDescForItem(item.objtype) + " ochronil Cie przed trucizna!",FONT_NORMAL,COLOR_GREEN);
+      return 1;
+    endif
+  endif
+  
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetPoisonMsg(who,plvl)
+
+  plvl := MinMax(plvl, 1, 11);
+
+  case(plvl)
+    3:
+    4:       return "* - " + who.name + " wyglada na ciezko chor"+ggm(who,12)+" - *";
+    5:
+    6:       return "* - " + who.name + " ledwo sie trzyma - *";
+    7:       return "* - " + who.name + " ledwo wytrzymuje bol - *";
+    8:       return "* - " + who.name + " meczy straszliwy bol! - *";
+    9:       return "* - " + who.name + " meczy przeszywajacy bol! - *";
+    10:      return "* - " + who.name + " pada z bolu - *";
+	11:		 return "* - " + who.name + " topi sie od srodka - *";
+    default: return "* - " + who.name + " wyglada na chor"+ggm(who,12)+" - *";
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,96 @@
+//-----------------------------------------------------------------------------
+
+include "include/attack";
+include "include/mount";
+include "include/effects";
+include "include/checks/objchecks";
+include "include/player/misc";
+include "include/calc";
+
+include ":wearwolf:common";
+include ":vampire:vampire";
+
+//-----------------------------------------------------------------------------
+
+const BOLA_DELAY         := 5;
+const DISMOUNT_DELAY     := 3;
+const BOLA_STR_REQUIRED  := 60;
+
+//-----------------------------------------------------------------------------
+
+program UseBola(who,Bola)
+
+  if(!StandardItemCheck(who,Bola))
+    return;
+  endif
+
+  if(IsBusy(who))
+    return;
+  endif
+
+  var Targ    := ObjTarget(who,TGTOPT_HARMFUL);
+
+  if(Targ == who)
+    return;
+  endif
+
+  if(!StandardMobCheck(who, Targ, NEW_DIST_CHECK | NO_USE_CHECK, (6 + CInt(GetEffectiveSkill(who,SKILLID_ARCHERY) / 20))))
+    return;
+  endif
+
+  SetBusyTime(who,5);
+
+  if(GetBaseStrength(who) < BOLA_STR_REQUIRED)
+    SendSysMessage(who,"Jestes zbyt slab"+ggm(who, 6)+" by uzyc boli.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(CInt(GetObjProperty(who,"#BolaDelay")) + BOLA_DELAY > ReadGameClock())
+    SendSysMessage(who,"Musisz odczekac chwile.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  SetObjProperty(who,"#BolaDelay",ReadGameClock());
+
+  if(GetEquipmentByLayer(who,LAYER_MOUNT))
+    SendSysMessage(who,"Ciezko Ci bedzie rzucic bole bedac na koniu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(CanMod(who, MOD_RUN_SPEED) == 0 or who.graphic == VP_GARGOYLE_GRAPHIC)
+    SendSysMessage(who, "Nie mozesz uzywac boli w tej formie.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var MySkill := CInt((GetEffectiveSkill(who,SKILLID_ARCHERY) * 0.40) + (GetBaseDexterity(who) / 2));
+
+  if(CanMod(Targ, MOD_DEFENSE) == 0)
+    MySkill := MySkill - CInt(MinMax(GetTempModAmount(Targ, MOD_DEFENSE), -50, 50) / 5);
+  endif
+
+  PerformAction(who,13);
+  sleepms(200);
+  PlayMovEffXYZ( who.x, who.y, who.z+15, Targ.x, Targ.y, Targ.z+10, 0x1869, 8, 0, 0,who.realm );
+  
+  if(SubtractAmount(Bola,1))
+    if(CanMod(Targ, MOD_RUN_SPEED))
+      if(MySkill > 50 and GetEffectiveSkill(who,SKILLID_ARCHERY) > 60)
+        if(GetBaseDexterity(Targ) <= GetBaseDexterity(who))
+          if(RandomInt(100) < CInt(MySkill * 0.80 - (MySkill * GetModAmount(Targ, MOD_DISMOUNT_RES) * 0.01)))
+            if(IsHuman(Targ) and IsPlayer(Targ))
+              PlayHitAnim(Targ);
+              PlaySoundEffect(Targ, 0x13E);
+              sleepms(400);
+              var Duration := CInt(CalcSkillExponential(who, SKILLID_ARCHERY, 5));
+              DoMod(Targ, MOD_RUN_SPEED, RUNSPEED_SLOW, Duration);
+            endif
+            DealDamage(Targ,1,who);
+          endif
+        endif
+      endif
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

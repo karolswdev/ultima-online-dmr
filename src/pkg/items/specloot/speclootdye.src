@@ -1,0 +1,38 @@
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/effects";
+
+program speclootdye(who, itemDye)
+
+  if(!StandardItemCheck(who,itemDye))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz przedmiot do zafarbowania.",FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+
+  var cfg  := ReadConfigFile( ITEMS_CFG );
+
+  var element  := FindConfigElem(cfg,  item.objtype);
+  var dyeable  := GetConfigInt(element, "dyeable");
+  if(dyeable)
+    if((item.objtype == UOBJ_DYETUB) and (itemDye.color == 1))
+      return;
+    else
+      item.color := itemDye.Color;
+      PlaySoundEffect(who, 0x23f);
+    endif
+  else
+    SendSysMessage( who, "Ten przedmiot nie moze zostac zafarbowany.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(itemDye.amount > 1)
+    SubtractAmount(itemDye, 1);
+  else
+    DestroyItem(itemDye);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

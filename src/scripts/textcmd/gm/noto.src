@@ -1,0 +1,146 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-27
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/const/misc";
+include "include/cmds/cancmd";
+include "include/finding";
+include "include/tempmods";
+include "include/move";
+include "include/logerror";
+include "include/reputation/criminal";
+include "include/reputation/murderer";
+include "include/player/target";
+include "include/misc";
+include "include/faith";
+
+include ":character:race_validation";
+
+//-----------------------------------------------------------------------------
+
+program CmdIsIn(who, text)
+
+  if(!CanUseCmd(who, "noto"))
+    return;
+  endif
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "setcrim":        var Trg := GetTarget(who, text[2]);
+    
+                      if(Trg.isa(POLCLASS_MOBILE))
+                        SetCriminal(Trg, 1, "NotoCMD", "Krim ustawiony komenda .noto setcrim przez "+who.name+" ["+who.serial+"].");
+
+                        if(Trg.criminal)
+                          SendSysMessage(who,"Osoba: "+Trg.name+" ustawiony krim.",FONT_NORMAL,COLOR_GREEN);
+                        else
+                          SendSysMessage(who,"Osoba: "+Trg.name+" nie udalo sie ustawic krima.",FONT_NORMAL,COLOR_RED);
+                        endif
+                      else
+                        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                      endif
+                      
+    "eracrim":        var Trg := GetTarget(who, text[2]);
+    
+                      if(Trg.isa(POLCLASS_MOBILE))
+                        SetCriminal(Trg, 0);
+
+                        if(!Trg.criminal)
+                          SendSysMessage(who,"Osoba: "+Trg.name+" wyczyszczony krim.",FONT_NORMAL,COLOR_GREEN);
+                        else
+                          SendSysMessage(who,"Osoba: "+Trg.name+" nie udalo sie wyczyscic krima.",FONT_NORMAL,COLOR_RED);
+                        endif
+                      else
+                        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                      endif
+
+    "setmurd":        var Trg := GetTarget(who, text[3]);
+
+                      if(IsPlayer(Trg))
+                        SetMurderer(Trg);
+                        var longcount  := CInt(text[2]);
+                        ResetMurderLongTime(Trg, longcount);
+                        SendSysMessage(who,"Osoba: "+Trg.name+" MurdCnt: "+longcount,FONT_NORMAL,COLOR_GREEN);
+                      elseif(Trg.isa(POLCLASS_MOBILE))
+                        Trg.SetMurderer(1);
+                        if(Trg.murderer)
+                          SendSysMessage(who, "Npc: "+Trg.name+" ustawiono murda.", FONT_NORMAL, COLOR_GREEN);
+                        else
+                          SendSysMessage(who, "Npc: "+Trg.name+" nie udalo sie ustawic murda.", FONT_NORMAL, COLOR_RED);
+                        endif
+                      else
+                        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                      endif
+
+    "eramurd":        var Trg := GetTarget(who, text[2]);
+    
+                      if(Trg.isa(POLCLASS_MOBILE))
+                        EraseMurderer(Trg);
+
+                        if(!Trg.murderer)
+                          SendSysMessage(who,"Osoba: "+Trg.name+" wyczyszczony murd.",FONT_NORMAL,COLOR_GREEN);
+                        else
+                          SendSysMessage(who,"Osoba: "+Trg.name+" nie udalo sie wyczyscic murda.",FONT_NORMAL,COLOR_RED);
+                        endif
+                      else
+                        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                      endif
+
+    "forgive":       var Trg := GetTarget(who, text[2]);
+
+                     if(Trg.isa(POLCLASS_MOBILE))
+                       SetCriminal(Trg, 0);
+                       EraseMurderer(Trg);
+
+                       if(IsPlayer(Trg))
+                         EraseObjProperty(Trg,"shortmurders");
+                         EraseObjProperty(Trg,"decayshortcountat");
+                       endif
+
+                       SendSysMessage(who,"Przebaczono osobie "+Trg.name+".", FONT_NORMAL, COLOR_GREEN);
+                     else
+                       SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                     endif
+
+    
+    "?":             SendSysMessage(who, ".noto [setcrim/eracrim/setmurd/eramurd/forgive]", FONT_NORMAL, COLOR_RED);
+
+    default:         SendSysMessage(who, "Zla opcja [.noto ?]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetTarget(who, Ser)
+
+  var Trg := 0;
+  Ser := CInt(Ser);
+
+  if(Ser)
+    Trg := FindPlayerBySerial(Ser);
+  endif
+
+  if(!Trg)
+    Trg := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(IsPlayer(Trg) and !Trg.cmdlevel)
+    if(!CanUseCmd(who, "noto player"))
+      LogNotice("Unauthorized use of .noto by "+who.name+"/"+who.accname+" tried to use on "+Trg.name+"/"+Trg.accname, LOGF_FORCE_SYSLOG | LOGF_SCRIPTS);
+      return 0;
+    endif
+  endif
+
+  return Trg;
+
+endfunction
+
+//-----------------------------------------------------------------------------

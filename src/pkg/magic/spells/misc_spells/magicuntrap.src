@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/traps";
+include "include/findcity";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 14;
+
+//-----------------------------------------------------------------------------
+
+program CastMagicUnTrap( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_ITEM, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!IsTrappedItem(CastOn))
+    Fizzle(Caster,"Na tym przedmiocie nie zostala zastawiona pulapka.");
+    return;
+  endif
+  
+  if(GetTrapValue(CastOn,"TrapStr") > GetMagicSkillValue(Caster, SpellGlob.Type, SpellGlob.Circle))
+    Fizzle(Caster, "Nie udalo Ci sie rozbroic pulapki.");
+  else
+    PlaySoundEffect(Caster, SFX_SPELL_MAGIC_UNTRAP);
+    if(!CastOn.container)
+      PlayStationaryEff(CastOn.x, CastOn.y, CastOn.z, FX_HEAL_EFFECT, 30, 30,0,CastOn.realm);
+    endif
+    UnTrap(CastOn);
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_NORMAL);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

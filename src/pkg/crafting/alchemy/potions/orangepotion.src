@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+program UseOrangePotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion, 0.5);
+
+  if(ExpMod or QualMod != 1)
+    Strength := CInt(Strength * QualMod) + CInt(CInt(ExpMod / 5) * ((Strength * 2) * 0.1));
+  endif
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+  
+  if(GetPoisonLevel(who) > 0 )
+    PlaySoundEffect(who, SOUND_EFFECT_CURE);
+    PlayObjectCenteredEffect(who, EFFECT_SPARKLE, 10,10);
+    PotionDecreasePoison(who,GetPoisonLevel(who) - Strength);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

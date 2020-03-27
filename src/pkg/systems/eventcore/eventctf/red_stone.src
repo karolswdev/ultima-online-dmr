@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-08
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/clock";
+include "include/move";
+
+include ":eventcore:event_gump";
+include ":eventcore:common";
+include ":eventctf:capture";
+
+//-----------------------------------------------------------------------------
+
+program RedStoneUse(who, stone)
+  
+  __ParamUnused(stone);
+
+  if(GetCaptureTeam(who))
+    SendGood(who, "Juz wybral"+ggm(who,3)+" druzyne!");
+    return;
+  endif
+
+  if(!YesNoEx(who, "Czy chcesz do³¹czyæ do dru¿yny czerwonych?|Zastanów siê dobrze, mo¿esz wybraæ tylko raz!"))
+    return;
+  endif
+
+  SetCaptureTeam(who, CTF_RED_TEAM);
+  SendGood(who, "Wybral"+ggm(who,3)+" druzyne czerwonych!");
+  SendGood(who, "Przejdz przez korytarz i kieruj sie do bazy!");
+
+endprogram
+
+//-----------------------------------------------------------------------------

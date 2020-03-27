@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const BR_WCID                := 143;
+
+//-----------------------------------------------------------------------------
+
+program BrBattleShawl(Parms)
+
+  WarCast(Parms, BR_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(ExPid(GetObjProperty(Caster, "#BattleShawlPid")))
+    WcFizzleId(Caster, "Jestes juz pod wplywem szalu!", BR_WCID);
+    return 0;
+  endif
+
+  GainWarcastPoints(Caster, Caster, BR_WCID, WCGAIN_DEFENSIVE);
+
+  start_script(":barbarian:battle_shawl", Caster);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

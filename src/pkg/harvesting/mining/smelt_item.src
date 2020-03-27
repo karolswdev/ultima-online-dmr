@@ -1,0 +1,169 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/dirs";
+
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+program Smelting(Params)
+
+  var who := Params[1];
+  var Ore := Params[2];
+
+  if(!StandardItemCheck(who,ore))
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareHarvest(Ore, Materials))
+    return;
+  endif
+
+  SendSysMessage(who, "Rozpoczal"+ggm(who,3)+" przetapianie...", FONT_NORMAL, COLOR_GREEN);
+  var IterData := DefineCraftIterations(who, SKILLID_MINING, Params[3], Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!SmeltOre(who, Ore, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareHarvest(Ore, byref Materials)
+
+  Materials := DefineCraftMaterials();
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+  
+  var SmeltElem := GetOreElem(Ore);
+  var MatAmount := CInt(SmeltElem.Material);
+
+  AddCraftMaterialItem(Materials, ore, MatAmount);
+
+  if(SmeltElem.IterAmount)
+    Materials.maxIterAmount := CInt(SmeltElem.IterAmount);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetOreElem(Ore)
+
+  var MiniCfg   := ReadConfigFile(":mining:mining");
+  var SmeltCfg  := ReadConfigFile(":mining:smelting");
+
+  if(MiniCfg[Ore.objtype])
+    return MiniCfg[Ore.objtype];
+  elseif(SmeltCfg[Ore.objtype])
+    return SmeltCfg[Ore.objtype];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SmeltOre(who, Ore, byref IterData, byref Materials)
+
+  var SmeltElem := GetOreElem(Ore);
+
+  if(!SmeltElem)
+    SendSysMessage(who, "Nie wiesz jak to przetopic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var ProdObj      := CInt(SmeltElem.Product);
+  var Diff         := Max(CInt(SmeltElem.Diff) - 20, 20); // -20 tylko dlatego, ze cfg jest wspoldzielony z miningiem, przez co trzeba troche sie dostosowac.
+  var harvData     := GetHarvested(ore);
+  var ProdAmount   := GetHarvestAmount(who, SKILLID_MINING);
+  var Points       := GetHarvestProcessPoints(SKILLID_MINING, Diff);
+  var cont;
+
+  if(ore.container)
+    cont := ore.container;
+  else
+    cont := who.backpack;
+  endif
+
+  var Forge := IsNearForge(who);
+  if(!Forge)
+    SendSysMessage(who, "To mozesz przetopic tylko w piecu.", FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  TurnCharToward(who,Forge);
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, 0x2C))
+    return 0;
+  endif
+  
+  if(HarvestOverflowed(who))
+
+    SendSysMessage(who, "Prawie cos przetopil"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+    FailCraftIteration(IterData);
+    return 1;
+
+  elseif(!CheckSkill(who, SKILLID_MINING, Diff, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Zniszczyl"+ggm(who,3)+" troche materialu!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, 0x2C))
+    return 0;
+  endif
+
+  PlaySoundEffect(who, 0x22);
+  
+  var itmDesc := GetHarvestDescriptorForData(ProdObj, harvData);
+  var ingots := CreateItemInCont(cont, itmDesc, ProdAmount, who );
+
+  if(ingots)
+    AwardPoints(who, SKILLID_MINING, Points, NO_STAT_AWARD | GAIN_RESTRICT, Diff);
+    SendSysmessage(who, GetCraftIterDesc(IterData) + " Przetopil"+ggm(who,3)+" "+ProdAmount+" sztab i wlozyl"+ggm(who,3)+" je do plecaka.", FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w pojemniku!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(SmeltElem.SmeltProd)
+    var SmeltProd := SplitWords(SmeltElem.SmeltProd);
+    if(HaveChance(SmeltProd[2]))
+      CreateItemInPack(who, SmeltProd[1], RandomDiceRoll(SmeltProd[3]));
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

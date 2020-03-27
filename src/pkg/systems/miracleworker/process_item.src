@@ -1,0 +1,152 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include "include/loots";
+include "include/gumpboxes";
+include "include/move";
+include ":banking:common";
+include ":banking:gold";
+include "include/equipment";
+
+include "miracles";
+
+//-----------------------------------------------------------------------------
+
+program HandlerMiracleProcessItem(Data)
+
+  if(!AIHandler_Init(Data))
+    return AIH_RES_UNKNOWN;
+  endif
+
+  if(Data.npc.script != ":miracleworker:ai_miracleworker")
+    return AIH_RES_UNKNOWN;
+  endif
+  
+  if(Data.param.objtype == UOBJ_MIRACLE_TICKET)
+
+    if(CheckMiracleTicket(Data.npc, Data.source, Data.param))
+      var Script := start_script(":miracleworker:start_ritual", Data);
+      if(!Script)
+        LogError("[MiracleWorker]: Blad podczas proby uruchomienia rytualu! Err: "+Script.errortext, LOGF_SCRIPTS);
+        return AIH_RES_SUCCESS;
+      else
+        return Script;
+      endif
+    endif
+
+    return AIH_RES_SUCCESS; // tak tak przetworzylismy sobie ten item
+
+  elseif(CInt(GetObjProperty(Data.npc, PROP_ORDER_GET + CStr(Data.source.serial))[1]) > ReadGameClock())
+
+    CheckOrderItem(Data.npc, Data.source, Data.param);
+    return AIH_RES_SUCCESS; // tak tak przetworzylismy sobie ten item
+
+  endif
+
+  return AIH_RES_UNKNOWN; // przedmiot nie dotyczy cudotworcy
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMiracleTicket(me, who, Item)
+
+  var Order := GetObjProperty(Item, PROP_ORDER_DATA);
+
+  if(Order.Source != me.serial)
+    PrintTextAbove(me, "Hm.. to zamowienie nie jest odemnie.");
+    return 0;
+  elseif(Order.aTime + MIRACLE_ORDER_EXP_TIME < ReadGameClock())
+    PrintTextAbove(me, "To zamowienie nie jest juz wazne.");
+    return 0;
+  elseif(Order.Comp)
+    return 1;
+  endif
+
+  PrintTextAbove(me, "Wiec cos przyniosl"+ggm(who,3)+", he?");
+  PrintTextAbove(me, "Pokaz to");
+  SetObjProperty(me, PROP_ORDER_GET + who.serial, array(ReadGameClock() + MIRACLE_GET_DELAY, Item.serial) );
+  return 0;
+
+endfunction
+
+//------------------------------------------------------------------------
+
+function CheckOrderItem(me, who, Item)
+
+  var Ticket := FindItemBySerial(GetObjProperty(me, PROP_ORDER_GET + who.serial)[2]);
+  if(!Ticket)
+    PrintTextAbove(me, "A gdzie zgubil"+ggm(who,3)+" bilet?");
+    EraseObjProperty(me, PROP_ORDER_GET + who.serial);
+    return 0;
+  endif
+
+  SetObjProperty(me, PROP_ORDER_GET + who.serial, array(ReadGameClock() + MIRACLE_GET_DELAY, Ticket.serial) );
+
+  var Order := GetObjProperty(Ticket, PROP_ORDER_DATA);
+  var Table := dictionary;
+  var i     := 1;
+
+  if(Order.Comp)
+    PrintTextAbove(me, "Przeciez juz to zrobil"+ggm(who,3)+"!");
+    EraseObjProperty(me, PROP_ORDER_GET + who.serial);
+    return 0;
+  endif
+
+  foreach Item in (Order.Items)
+    Table[Item.ObjType] := i;
+
+    // dodamy tez czek, jak mamy na zamowieniu zloto - dla ulatwienia sprawy.
+    if(Item.ObjType == UOBJ_GOLDCOIN)
+      Table[UOBJ_CHEQUE] := i;
+    endif
+
+    i := i + 1;
+  endforeach
+
+  if(Item.isa(POLCLASS_CONTAINER) and Item.item_count-1 > 0)
+    var Res := CheckOrderItemCont(Item, Table);
+    if(Res.isa(POLCLASS_ITEM))
+      PrintTextAbove(me, "A po co mi "+Res.desc+"?");
+      return 0;
+    endif
+  else
+    if(!Table[Item.objtype])
+      case(RandomInt(3))
+        1:       PrintTextAbove(me, "Nie potrzebuje tego.");
+        default: PrintTextAbove(me, "Co Ty mi tu wciskasz!?");
+      endcase
+      return 0;
+    endif
+  endif
+
+  SubtractOrderItems(Item, Table, Order.Items, who);
+
+  case(RandomInt(5))
+    1:        PrintTextAbove(me, "Brawo! O to chodzilo gamoniu jeden.");
+    2:        PrintTextAbove(me, "Jednak udalo Ci sie to zdobyc. Gratuluje.");
+    3:        PrintTextAbove(me, "Tak to wlasnie chcial"+ggm(me,8)+" zobaczyc!");
+    4:        PrintTextAbove(me, "Blah, cuchnie to jak obslizgly ogr, skad ty to wzi"+ggm(who,5)+"...");
+    default:  PrintTextAbove(me, "Zatem cos Ci sie udalo nierobie!");
+  endcase
+
+  if(CheckTicketComplete(me, Order))
+    Ticket.color := MIRACLE_TICKETDONE_CLR;
+  endif
+
+  SetObjProperty(Ticket, PROP_ORDER_DATA, Order);
+
+  if(Item)
+    MoveToPack(Item, who);
+  endif
+
+  return 1;
+
+endfunction
+
+//------------------------------------------------------------------------

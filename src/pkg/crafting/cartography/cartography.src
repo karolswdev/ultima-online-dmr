@@ -1,0 +1,100 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include ":magic:magicatt";
+include "include/gumps";
+include "include/gump_utils";
+include "include/regs";
+include "include/findcity";
+include "include/buildings";
+include "include/tools";
+include "include/tempmods";
+
+include ":quests:quest_ctrl";
+include ":necromancy:necrobook";
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:exceptional";
+
+//-----------------------------------------------------------------------------
+
+program Cartography(who, tool)
+
+  if(!StandardItemCheck(who, tool))
+    SetBusyTime(who,GetSkillDelay(SKILLID_CARTOGRAPHY));
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_CARTOGRAPHY);
+  var Craft := CartographyGump(who);
+  
+  if(Craft)
+    start_script(":cartography:craft_map", array(who, tool, Craft));
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CartographyGump(who)
+
+  var LastCraft := GetCraftLastCreation(who, SKILLID_CARTOGRAPHY);
+  var Res := 0;
+  var ItemsCfg := ReadConfigFile(ITEMS_CFG);
+  var SkillCfg := ReadConfigFile(":cartography:cartography");
+  var CraftItems := GetConfigIntKeys(SkillCfg);
+  var MaxGumpSize := 120+CraftItems.size()*40;
+  var i := 0;
+
+  GInit( 50, 50 );
+  GNoClose();
+  GNoDispose();
+  GPage();
+  GResPic(0, 0, 2520, 300, MaxGumpSize);
+  GTextLine(50, 10, 655, "Menu Kartografii");
+  GButton( 200, 13, 2117, 2118, 99);
+  GTextLine(220,10, 655, "Anuluj");
+  GButton( 150, MaxGumpSize-27, 2117, 2118, 1);
+  GTextLine(170,MaxGumpSize-30, 655, "To co ostatnio");
+  
+  GTextLine(115, MaxGumpSize-65, 655, "Powtorz:");
+  BQGAddTextBox(180, MaxGumpSize-65, 60, 20, 1410, LastCraft.iters, BQG_EDITABLE | BQG_BACK_PAPER, 1, 1);
+
+  foreach ObjType in CraftItems
+
+    GTilePic(40, 40+(i*40), ItemsCfg[ObjType].Graphic);
+    GButton(80, 50+(i*40), 2117, 2118, ObjType);
+    GTextLine(100, 47+(i*40), 1310, SkillCfg[ObjType].Name);
+    i += 1;
+  
+  endforeach
+  
+  var GumpRes := GSend(who);
+  LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+  if(GumpRes[0] == 1)
+
+    if(!LastCraft.objtype)
+      SendSysMessage(who,"Nie tworzyl"+ggm(who,3)+" jeszcze mapy.",FONT_NORMAL,COLOR_RED);
+    else
+      Res := 1;
+    endif
+
+  elseif(!GumpRes[0] or GumpRes[0] == 99)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  else
+    LastCraft.objtype := GumpRes[0];
+    Res := 1;
+  endif
+
+  SetCraftLastCreation(who, SKILLID_CARTOGRAPHY, LastCraft);
+
+  if(Res and LastCraft.objtype and SkillCfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/move";
+include ":wmtools:common";
+include ":baseitems:common";
+
+//-----------------------------------------------------------------------------
+
+const BONES_TIME := 600;
+const PROP_DONTDESTROY := "DontDestroy";
+
+//-----------------------------------------------------------------------------
+
+program CorpseBoneControl(Bones)
+
+  if(IsWms(Bones) or GetItemBINr(Bones) or CInt(GetObjProperty(Bones, PROP_DONTDESTROY)))
+    return;
+  endif
+
+  sleep(BONES_TIME);
+
+  if(IsWms(Bones) or GetItemBINr(Bones) or CInt(GetObjProperty(Bones, PROP_DONTDESTROY)))
+    return;
+  endif
+
+  foreach item in ListRootItemsInContainer(Bones)
+    MoveObject(item, Bones.x, Bones.y, Bones.z, Bones.realm, MOVEITEM_FORCELOCATION);
+    item.decayat := ReadGameClock() + BONES_TIME;
+  endforeach
+
+  DestroyItem(Bones);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,172 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/move";
+include "include/dirs";
+include "farming";
+
+//--------------------------------------------------------------------------------
+
+var Dirt,House;
+var Plants;
+
+//--------------------------------------------------------------------------------
+
+program Harrow(who,Harrow)
+
+  if(!StandardItemCheck(who,Harrow,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  if(Harrow.container)
+    SendSysMessage(who,"Wybierz miejsce",FONT_NORMAL,COLOR_GREEN);
+    var Targ := LocTarget(who);
+    if(!StandardLocCheck(who,Targ))
+      return;
+    endif
+    if(coordist(who.x,who.y,Targ.x,Targ.y) > 1)
+      SendSysMessage(who,"Za daleko.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    MoveObject(Harrow, Targ.x, Targ.y, Targ.z, who.realm, MOVEITEM_NORMAL);
+  endif
+
+  StartPloughing(Harrow,who);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function StartPloughing(Harrow,who)
+
+  if(ExPid(GetObjProperty(Harrow,"#PloughPid")))
+    SetObjProperty(Harrow,"#StopPlough",1);
+    return;
+  endif
+  SetObjProperty(Harrow,"#PloughPid",GetPid());
+  
+  House := GetNearestHouseOf(Harrow.x, Harrow.y, Harrow.z, Harrow.realm, PLOUGH_RANGE, GNHOF_OWNER | GNHOF_COOWNER, who);
+  if(!House)
+    SendSysMessage(who, House.errortext,FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Mount := GetEquipmentByLayer(who,LAYER_MOUNT);
+  
+  if(!Mount)
+    SendSysMessage(who,"Ciezko Ci bedzie bez wierzchowca przesunac brone.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var PlTilesCfg := ReadConfigFile(":farming:plagtiles");
+  var SowCfg := ReadConfigFile(":farming:sow");
+  var Mx,My,Mz;
+
+  Plants := array;
+  foreach key in GetConfigStringKeys( SowCfg )
+    Plants.append(SowCfg[key].Product);
+  endforeach
+  
+  Detach();
+  NoLongerBusy(who);
+  ReleaseItem(Harrow);
+
+  while(IsLoggedIn(who) and !who.dead and Mount.container.serial == who.serial and !Harrow.container)
+    if(Harrow.movable)
+      Harrow.movable := 0;
+    endif
+
+    if(!House)
+      break;
+    elseif(Distance(Harrow,House) > PLOUGH_RANGE)
+      break;
+    endif
+
+    if(GetObjProperty(Harrow,"#StopPlough"))
+      EraseObjProperty(Harrow,"#StopPlough");
+      break;
+    endif
+    
+    if(Distance(Harrow,who) == 2)
+      case(GetDirFromObjToObj(Harrow,who))
+        DIR_N:     Harrow.graphic := UOBJ_HARROW_N;
+                   Mx :=  0;My := -1;
+        DIR_S:     Harrow.graphic := UOBJ_HARROW_N;
+                   Mx :=  0;My :=  1;
+        DIR_W:     Harrow.graphic := UOBJ_HARROW_W;
+                   Mx := -1;My :=  0;
+        DIR_E:     Harrow.graphic := UOBJ_HARROW_W;
+                   Mx :=  1;My :=  0;
+        default:   break;
+      endcase
+
+      Mz := GetStand(Harrow.x+Mx,Harrow.y+My,Harrow.realm);
+      
+      if(Mz.multi or Mz == error or Mz.z == error)
+        break;
+      endif
+
+      Mz := Mz.z;
+
+      foreach Object in ListObjectsInBox(Harrow.x+Mx,Harrow.y+My,Harrow.z-10,Harrow.x+Mx,Harrow.y+My,Harrow.z+10,Harrow.realm)
+        if(Object.isa(POLCLASS_MOBILE))
+          break;
+        elseif(Object.isa(POLCLASS_ITEM))
+          if(Object != Harrow)
+            break;
+          endif
+        endif
+      endforeach
+
+      if(PlTilesCfg[GetMapInfo(Harrow.x+Mx,Harrow.y+My,Harrow.realm).landtile])
+        CreateDirt(Harrow.x,Harrow.y,Harrow.z,Harrow.realm);
+      endif
+
+      if(!MoveObject(Harrow, Harrow.x+Mx, Harrow.y+My, Mz, Harrow.realm, MOVEITEM_IGNOREMOVABLE))
+        break;
+      endif
+      
+    elseif(Distance(Harrow,who) > 2)
+      break;
+    endif
+    
+    sleepms(500);
+  endwhile
+
+  if(!Harrow.movable)
+    Harrow.movable := 1;
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CreateDirt(x,y,z,Rlm)
+
+  Dirt := 0;
+  
+  foreach item in ListItemsAtLocation(x,y,LIST_IGNORE_Z,Rlm)
+    if(item.z == z+1 and item.objtype in Plants)
+      DestroyItem(item);
+    elseif(item.z == z and item.objtype == UOBJ_DIRT)
+      Dirt := item;
+    endif
+  endforeach
+
+  if(!Dirt)
+    Dirt := CreateItemAtLoc(x,y,z,UOBJ_DIRT,1,Rlm);
+    Dirt.color := DIRT_COLOR_S1;
+  else
+    case(Dirt.color)
+      DIRT_COLOR_S1:  Dirt.color := DIRT_COLOR_S2;
+      DIRT_COLOR_S2:  Dirt.color := 0;
+    endcase
+  endif
+
+  SetHouseItem(Dirt,House);
+
+endfunction
+
+//--------------------------------------------------------------------------------

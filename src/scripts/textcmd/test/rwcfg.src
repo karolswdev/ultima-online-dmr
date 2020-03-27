@@ -1,0 +1,169 @@
+//--------------------------------------------------------------------------
+
+include "include/std";
+include "include/items";
+
+//--------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//--------------------------------------------------------------------------
+
+program ReWriteConfigFileCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  set_script_option(SCRIPTOPT_NO_RUNAWAY, 1);
+
+  case(text)
+    MRCSPAWN_CFG:   ReWriteMrcSpawnCfg(who);
+    default:        ReWriteAny(who, text); //SendSysMessage(who, "Nie rozpoznany cfg.", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//--------------------------------------------------------------------------
+
+function ReWriteAny(who, text)
+
+  text := SplitWords(text);
+  var cfg   := ReadConfigFile(text[1]);
+  var propName := text[2];
+
+  if(!cfg)
+    return;
+  endif
+
+  var propElem := array;
+  var mn    := 0;
+  
+  foreach key in GetConfigStringKeys(cfg)
+
+    var elem := FindConfigElem(cfg, key);
+    var Props := ListConfigElemProps(elem);
+    propElem := array;
+    
+    foreach Prop in Props
+      var Items := GetConfigStringArray(elem, Prop);
+
+      foreach Item in Items
+        propElem.Append({Prop, Item});
+      endforeach
+    endforeach
+
+    AppendConfigFileElem(text[1]+"_new", propName, key, propElem);
+    mn += 1;
+
+  endforeach
+
+  SendSysMessage(who, "Przepisano "+mn+" elementow ["+text[1]+"]: ["+text[2]+"].", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ReWriteMrcSpawnCfg(who)
+
+  UnloadConfigFile(MRCSPAWN_CFG);
+  var cfg   := ReadConfigFile(MRCSPAWN_CFG);
+  var Props := array;
+  var mn    := 0;
+  var pg    := 0;
+  var buys, sells, items;
+  var Products   := dictionary;
+  var MercGroups := dictionary;
+  
+  foreach elem in GetConfigStringKeys(cfg)
+    buys  := GetConfigStringarray(cfg[elem], "Buys");
+    sells := GetConfigStringarray(cfg[elem], "Sells");
+    items := GetConfigStringarray(cfg[elem], "Item");
+    Props := array;
+
+    if(Items.size())
+      var objtype;
+      var nprop;
+
+      foreach item in items
+        item := SplitWords(Item);
+        item[2] := Cint(item[2]);
+        if(!CInt(Item[1]))
+          objtype := GetObjTypeByName(item[1]);
+        else
+          objtype := CInt(Item[1]);
+        endif
+        if(!itemcfg[objtype])
+          print("Bledny item ["+Item[1]+"] w grupie "+elem);
+        elseif(!item[2])
+          print("brak ilosci ["+Item[2]+"] w grupie "+elem);
+        else
+          nprop := "  Item";
+          AddSpaces(nprop, 8);
+          nprop := nprop + ItemCfg[objtype].name;
+          AddSpaces(nprop, 42);
+          nprop := nprop + item[2];
+          Props.append({"ixm", nprop});
+        endif
+      endforeach
+
+      Products[elem] := Props;
+      pg := pg + 1;
+
+    elseif(buys.size() or sells.size())
+      var nprop;
+      if(!buys.size() or !sells.size())
+        print("warning: merc "+elem+" nie posiada buys "+buys.size()+"  lub sells "+sells.size());
+      endif
+
+      foreach buy in buys
+        if(!cfg[buy])
+          print("brak buy grupy "+buy+" w "+elem);
+        else
+          nprop := "  Buys";
+          AddSpaces(nprop, 8);
+          nprop := nprop + buy;
+          Props.append({"ixm", nprop});
+        endif
+      endforeach
+
+      foreach sell in sells
+        if(!cfg[sell])
+          print("brak sell grupy "+sell+" w "+elem);
+        else
+          nprop := "  Sells";
+          AddSpaces(nprop, 8);
+          nprop := nprop + sell;
+          Props.append({"ixm", nprop});
+        endif
+      endforeach
+      
+      MercGroups[elem] := Props;
+      mn := mn + 1;
+    else
+      print("Bledna grupa "+elem);
+    endif
+  endforeach
+
+  SendSysMessage(who, "Przepisano "+mn+": MerchantType "+pg+": ProductGroup.", FONT_NORMAL, COLOR_GREEN);
+
+  foreach Group in MercGroups
+    AppendConfigFileElem(MRCSPAWN_CFG+"_new", "MerchantType", _Group_iter, Group);
+  endforeach
+
+  foreach Group in Products
+    AppendConfigFileElem(MRCSPAWN_CFG+"_new", "ProductGroup", _Group_iter, Group);
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------
+  
+function AddSpaces(byref text, num)
+
+  while(len(text) < num-1)
+    text := text + " ";
+  endwhile
+  text := text + " ";
+
+endfunction
+
+//--------------------------------------------------------------------------

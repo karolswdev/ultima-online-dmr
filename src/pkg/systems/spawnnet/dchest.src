@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/proc";
+include "include/objtypes/misc";
+include "include/finding";
+include "include/logerror";
+include "spawnchest";
+
+//-----------------------------------------------------------------------------
+
+program DestroyChest(Chest)
+
+  if(IsRunning(Chest) or IsSpawning(Chest))
+    return 0;
+  endif
+
+  var ChestNr := GetChestNr(Chest);
+
+  if(ChestNr and Chest == FindChestByNr(ChestNr))
+    SetGlobalProperty(SC_SER_FLAG+CStr(ChestNr),"Empty");
+  endif
+  return 1;
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,19 @@
+//-----------------------------------------------------------------------------
+
+include "renthouse";
+
+//-----------------------------------------------------------------------------
+
+program HrCont(who,Cont)
+
+  if(!CanControlHr(who,FindItemBySerial(GetObjProperty(Cont,"SignSer"))) and !IsAdmin(who))
+    SendSysMessage(who,"Skrzynia jest zamknieta.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendViewContainer( who, Cont );
+  SendSysMessage( who, "Otworzyl"+ggm(who,3)+" bezpieczny pojemnik.",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

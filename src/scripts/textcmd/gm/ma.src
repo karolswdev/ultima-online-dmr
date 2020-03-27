@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/cmds/cancmd";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program MakeAccountCmd(who, info)
+
+  if(!CanUseCmd(who, "ma"))
+    return;
+  endif
+
+  var split := SplitWords(info);
+  var uname := split[1];
+  var pword := split[2];
+  var check := 0;
+
+  foreach acctname in ListAccounts()
+    if(uname == acctname)
+      SendSysMessage(who, "Ta nazwa konta juz istnieje.", FONT_NORMAL, COLOR_RED);
+      check := 1;
+      break;
+    endif
+  endforeach
+
+  if(!check)
+    var act := CreateAccount(uname, pword, 1);
+    if(act.errortext)
+      SendSysMessage(who, "Blad : " + act.errortext,FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who, "Konto stworzone: login: "+uname+" pass: "+pword,FONT_NORMAL,COLOR_GREEN);
+    act.SetProp("CreateTime",ReadGameClock());
+    act.set_uo_expansion("HSA");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

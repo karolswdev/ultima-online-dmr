@@ -1,0 +1,133 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/player/misc";
+include "include/finding";
+include "include/items";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+var Read  := 1;
+var NoteData;
+
+//-----------------------------------------------------------------------------
+
+const NMAX_HEIGHT            := 500;
+const NMAX_WIDTH             := 500;
+
+//-----------------------------------------------------------------------------
+
+program NoteUse(who, Note)
+
+  var Res;
+
+  NoteData := struct;
+  NoteData.+Width  := CInt(GetObjProperty(Note, "Width"));
+  NoteData.+Height := CInt(GetObjProperty(Note, "Height"));
+  NoteData.+Lines  := GetObjProperty(Note, "Lines");
+
+  if(NoteData.Width < 200)
+    NoteData.Width := NMAX_WIDTH;
+  endif
+
+  if(NoteData.Height < 200)
+    NoteData.Height := NMAX_HEIGHT;
+  endif
+
+  if(!NoteData.Lines or !NoteData.Lines.size())
+    NoteData.Lines := array;
+  endif
+
+  while(IsLoggedIn(who) and Note)
+    BuildMainNoteGump(who, Note);
+    Res := GSend(who);
+
+    if(!Read)
+      SaveLines(Res, Note);
+      if(who.cmdlevel)
+        if(!FindItemOwner(Note))
+          SetItemOwner(Note, who);
+        endif
+      else
+        SetItemOwner(Note, who);
+      endif
+    endif
+
+    case(Res[0])
+      10:       NoteData.Width  := (NoteData.Width + 50) % NMAX_WIDTH;
+                NoteData.Height := (NoteData.Height + 50) % NMAX_HEIGHT;
+                if(NoteData.Width < 200) NoteData.Width := 200; endif
+                if(NoteData.Height < 200) NoteData.Height := 200; endif
+                SetObjProperty(Note, "Width", NoteData.Width);
+                SetObjProperty(Note, "Height", NoteData.Height);
+                CropLinesToHeight(Note);
+
+      11:       Read := !Read;
+
+      default:  return;
+    endcase
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainNoteGump(who, Note)
+
+  GInit(150+(NMAX_WIDTH-NoteData.Width)/4, 50+(NMAX_HEIGHT-NoteData.Height)/3);
+  GResPic(0,  20, 2520, NoteData.Width, NoteData.Height);
+
+  if(Read)
+    if(IsOwner(who, Note) or who.cmdlevel)
+      GButton(NoteData.Width-120, 32, 2117, 2118, 11);
+      GTextLine(NoteData.Width-100, 30, 550, "Zmien");
+    endif
+
+    var i;
+
+    for(i:=1;i<=(NoteData.Height-80)/20;i:=i+1)
+      if(NoteData.Lines[i])
+        GTextCrop(25, 40+i*20, NoteData.Width-50, 20, 999, NoteData.Lines[i]);
+      endif
+    endfor
+  else
+    GButton(NoteData.Width-120, 32, 2117, 2118, 11);
+    GTextLine(NoteData.Width-100, 30, 550, "Zapisz");
+    GButton(NoteData.Width-43, 26,  1227,1227, 10);
+
+    var i;
+
+    for(i:=1;i<=(NoteData.Height-80)/20;i:=i+1)
+      GTextEntry(25, 40+i*20, NoteData.Width-50, 20, 999, 100+i, ClStr(NoteData.Lines[i]));
+    endfor
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveLines(byref Res, Note)
+
+  var i;
+
+  for(i:=1;i<=(NoteData.Height-80)/20;i:=i+1)
+    NoteData.Lines[i] := CroppedId(Res[100+i]);
+  endfor
+
+  SetObjProperty(Note, "Lines", NoteData.Lines);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CropLinesToHeight(Note)
+
+  if(NoteData.Lines and NoteData.Lines.size())
+    NoteData.Lines.shrink((NoteData.Height-80)/20);
+    SetObjProperty(Note, "Lines", NoteData.Lines);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

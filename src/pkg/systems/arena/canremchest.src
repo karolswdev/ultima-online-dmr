@@ -1,0 +1,26 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/const/props";
+include "include/finding";
+
+//--------------------------------------------------------------------------------
+
+program CanRemoveItemFromArenaChest(who,Chest,Item)
+
+  var Owner := FindItemOwner(item);
+  
+  if(Owner.serial != who.serial and Owner)
+    SendSysMessage(who,"Ten przedmiot nie nalezy do Ciebie!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  return 1;
+  
+endprogram
+
+//--------------------------------------------------------------------------------

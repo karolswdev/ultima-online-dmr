@@ -1,0 +1,483 @@
+//-----------------------------------------------------------------------------
+
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "../../champions";
+include "include/clock";
+include "include/deeds";
+include "include/finding";
+include "include/gumpboxes";
+include "include/player/misc";
+include "include/tempmods";
+include "include/cmds/cancmd";
+
+//-----------------------------------------------------------------------------
+
+program ChampionCoreCmd(who,text)
+
+  if(!CanUseCmd(who, "chcore"))
+    return;
+  endif
+
+  if(text)
+    DoCommand(who,text);
+  else
+    ShowStatus(who);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DoCommand(who,Cmd)
+
+  Cmd := SplitWords(Cmd);
+  
+  case(Cmd[1])
+    "crgate":     if(IsAdmin(who))
+                    ControlGates(who,1);
+                  endif
+
+    "desgate":    if(IsAdmin(who))
+                    ControlGates(who,2);
+                  endif
+                  
+    "craltar":    CreateAltar(who,Cmd[2]);
+    
+    "crlamp":     if(IsAdmin(who))
+                    ControlTimeLamp(who,1);
+                  endif
+
+    "setbook":    SetAltarBook(who, Cmd[2]);
+    
+    "deslamp":    if(IsAdmin(who))
+                    ControlTimeLamp(who,2);
+                  endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowStatus(who)
+
+  var Res;
+  BuildChCoreStatusGump(who);
+
+  while(IsLoggedIn(who))
+    Res := GSend(who)[0];
+
+    if(Res > 10 and Res <= 16)
+      if(IsAdmin(who))
+        if(YesNo(who, "Zresetowac?"))
+          var Proc := GetChampProc();
+          var Ev   := struct;
+          Ev.+type := CHC_MSG_RESET_DELAY;
+          Ev.+nr   := Res-10;
+          Proc.sendevent(Ev);
+          sleepms(80);
+          SendSysMessage(who, "Zresetowano opoznienie Mistrza "+GetChampName(Res-10)+".", FONT_NORMAL, COLOR_GREEN);
+        endif
+      endif
+
+    elseif(Res>990 and Res < 1000)
+      var Proc := GetChampProc();
+      var Ev   := struct;
+      Ev.+type := CHC_MSG_CH_DAY_ACTIV;
+      Ev.+nr   := Res-990;
+      Proc.sendevent(Ev);
+      sleepms(80);
+      SendSysMessage(who, "Zmieniono aktywnosc ksiegi.", FONT_NORMAL, COLOR_GREEN);
+    else
+      case(Res)
+        1:         ;
+        2:         BuildChCoreHistGump();
+                   continue;
+
+        10:        if(IsAdmin(who))
+                     if(YesNo(who, "Zresetowac?"))
+                       var Proc := GetChampProc();
+                       var Ev   := struct;
+                       Ev.+type := CHC_MSG_RESET_DELAY;
+                       Ev.+nr   := 0;
+                       Proc.sendevent(Ev);
+                       sleepms(80);
+                       SendSysMessage(who, "Zresetowano globalne opoznienie.", FONT_NORMAL, COLOR_GREEN);
+                     endif
+                   endif
+        default:   return;
+      endcase
+    endif
+    BuildChCoreStatusGump(who);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildChCoreHistGump()
+
+  GInit(20, 20);
+  GMultiHeaderInit();
+  GResPic(0, 0, 3600, 600, 410);
+  GTextLine(230, 20, 670, "Historia Mistrzow");
+  GButton(480, 23, 2117, 2118, 1);
+  GTextLine(500, 20, 670, "Wroc");
+  GAddPageData(565,18,2650,2651,565,377,2648,2647);
+
+  GResPic(30, 60,  0xa3c, 520, 320);
+  GTextLine(40,  40, 999, "Nr");
+  GTextLine(70,  40, 999, "Mistrz");
+  GTextLine(180, 40, 999, "Data");
+  GTextLine(330, 40, 999, "Czas walki");
+  GMultiPage();
+
+  var History := GetGlobalProperty(PROP_CHHISTORY);
+  var Fighters, Player, Name, i, Hist;
+  
+  for(i:=1;i<=History.size();i:=i+1)
+    Hist := History[History.size()-i+1];
+    GCheckNextPage(12);
+    GTextLine(40,  70+GNPCount()*25, 999, i+".");
+    GTextLine(70,  70+GNPCount()*25, 1000, GetChampName(Hist[3]));
+    GTextLine(180, 70+GNPCount()*25, 1419, CUnixTime(Hist[1]));
+    GTextLine(330, 70+GNPCount()*25, 550,  RealTime(Hist[4]));
+
+    Fighters := "";
+
+    foreach Ser in (Hist[5])
+      Player := FindPlayerBySerial(Ser[1]);
+      if(!Player)
+        Name := Ser[2];
+      else
+        Name := GetRealName(Player);
+      endif
+
+      if(!Fighters)
+        Fighters := Name;
+      else
+        Fighters := Fighters + ", "+ Name;
+      endif
+    endforeach
+
+    GCheckNextPage(12);
+    GTextLine(80, 65+GNPCount()*25, 1001, Fighters);
+
+    Sleepms(1);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildChCoreStatusGump(who)
+  
+  GInit(20, 20);
+  GResPic(0, 0, 3600, 600, 470);
+  GTextLine(230, 20, 670, "Menu Mistrzow");
+  GButton(400, 23, 2117, 2118, 2);
+  GTextLine(420, 20, 670, "Historia");
+  GButton(480, 23, 2117, 2118, 1);
+  GTextLine(500, 20, 670, "Odswiez");
+  
+  GTextLine(30, 50, 999, "Opoznienia:");
+  GResPic(30, 70,  0xa3c, 320, 180);
+  GTextLine(30, 260, 999, "Ogolne:");
+  GResPic(30, 280, 0xa3c, 320, 100);
+  GTextLine(360, 50, 999, "Walczacy:");
+  GResPic(360, 70, 0xa3c, 210, 310);
+
+  GTextLine(30, 390, 999, "Dni aktywnosci:");
+  GResPic(30, 410, 0xa3c, 360, 40);
+  
+  var ChampData := GetGlobalProperty(PROP_CHDATA);
+  
+  if(!ChampData)
+    return;
+  endif
+  
+  if(IsAdmin(who))
+    GButton(25, 83, 2117, 2118, 10);
+  endif
+  GTextLine(60, 80, 1000, "Globalne:");
+  GTextLine(110, 80, 1206, CUnixTime(ChampData[CHI_GTIME][1]));
+  GTextLine(220, 80, 10, RealTime(GetGlobalActiveTime()));
+  GTextLine(280, 80, 60, RealTime(GetGlobalReadyTime()));
+  var i := 1;
+  foreach ChTime in (ChampData[CHI_CHTIME])
+    if(IsAdmin(who))
+      GButton(25, 93+i*20, 2117, 2118, 10+i);
+    endif
+    GTextLine(45,  90+i*20, 1000, i+".");
+    GTextLine(60,  90+i*20, 1000, GetChampName(i));
+    DescChampDelay(170, 90+i*20, ChTime, GetChampWaitTime(i));
+    i := i + 1;
+  endforeach
+
+  if(ChampData[CHI_FIGHTBOOK])
+    var Book    := FindItemBySerial(ChampData[CHI_FIGHTBOOK]);
+    var ChampNr := GetObjProperty(Book,PROP_CHAMPNR);
+
+    GTextLine(45, 290, 1000, "Mistrz:");
+    GTextLine(100,290, 1419, GetChampName(ChampNr));
+
+    GTextLine(45, 310, 1000, "Ksiazka:");
+    GTextLine(100,310, 550,  Book.serial);
+    GTextLine(190,310, 560,  Book.x+","+Book.y+","+Book.z+" "+Book.realm);
+
+    GTextLine(45, 330, 1000, "Czas:");
+    GTextLine(100,330, 550,  RealTime(ReadGameClock() - ChampData[CHI_FIGHTTIME]));
+    GTextLine(190,330, 670,  RealTime(GetChampFightTime(ChampNr)));
+  else
+    GTextLine(45, 290, 999,  "Nie odbywa sie aktualnie walka.");
+  endif
+
+  if(ChampData[CHI_OGATETIME])
+    GTextLine(45, 350, 1000, "Portal:");
+    GTextLine(100,350, 1419, RealTime(ReadGameClock() - ChampData[CHI_OGATETIME]));
+  endif
+
+  i := 1;
+  foreach Fighter in (ChampData[CHI_FIGHTERS])
+    Fighter := FindPlayerBySerial(Fighter);
+    GTextLine(375, 60+i*20, 1000, i+".");
+    GTextLine(400, 60+i*20, 550, GetRealName(Fighter));
+    i := i + 1;
+  endforeach
+  
+  var days_pl := {"pn", "wt", "sr", "cz", "pn", "sb", "nd"};
+  for j := 1 to 7
+    GTextLine(-10 + j*50, 418, 999, days_pl[j]);
+    if(ChampData[CHI_ACTIVE_DAYS][j])
+      GButton(10 + j*50, 420, 0x2343, 0x2344, 990+j);
+    else
+      GButton(10 + j*50, 420,0x2344 , 0x2343, 990+j);
+    endif
+  endfor
+  
+  
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescChampDelay(x, y, Delay, BaseTime)
+
+  if(Delay)
+    if(ReadGameClock() - Delay < 0)
+      GTextLine(x, y, 1206, RealTime(Abs(ReadGameClock() - Delay)));
+    else
+      GTextLine(x, y, 550, RealTime(ReadGameClock() - Delay));
+    endif
+  else
+    GTextLine(x, y, 1419, "Brak");
+  endif
+
+  GTextLine(x + 110, y, 670, RealTime(BaseTime));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ControlGates(who,Cmd)
+
+  var ChampCfg := ReadConfigFile(CHAMP_CFG);
+  
+  if(!ChampCfg)
+    SendSysMessage(who,"BLAD odczytu konfigu "+ChampCfg+".",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Locs := GetConfigStringArray(ChampCfg["Locs"],"OutLoc");
+  var Gate;
+  
+  if(!Locs)
+    SendSysMessage(who,"BLAD! Brak lokacji.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  foreach Loc in Locs
+    Loc  := SplitWords(Loc);
+    Gate := GetChampOutGate(Loc);
+    
+    if(Cmd == 1)
+    
+      if(Gate)
+        SendSysMessage(who,"Portal istnieje: "+Gate.serial+" x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ " R: "+Loc[4]+".",FONT_NORMAL,COLOR_BLUE);
+      else
+        Gate := CreateItemAtLoc(Loc[1], Loc[2], Loc[3], UOBJ_CHGATE_OUT, 1, Loc[4]);
+        if(!Gate)
+          SendSysMessage(who,"Blad podczas tworzenia portalu "+Gate + " x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ " R: "+Loc[4]+".",FONT_NORMAL,COLOR_RED);
+        else
+          SendSysMessage(who,"Portal stowrzony: "+Gate.serial+" x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ " R: "+Loc[4]+".",FONT_NORMAL,COLOR_GREEN);
+        endif
+      endif
+      
+    elseif(Cmd == 2)
+    
+      if(Gate)
+        DestroyItem(Gate);
+        SendSysMessage(who,"Portal skasowany. x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ "R: "+Loc[4]+".",FONT_NORMAL,COLOR_GREEN);
+      else
+        SendSysMessage(who,"Portal nie istnieje.",FONT_NORMAL,COLOR_RED);
+      endif
+
+    endif
+    
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ControlTimeLamp(who,Cmd)
+
+  var ChampCfg := ReadConfigFile(CHAMP_CFG);
+
+  if(!ChampCfg)
+    SendSysMessage(who,"BLAD odczytu konfigu "+ChampCfg+".",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Locs := GetConfigStringArray(ChampCfg["TimeLamp"],"Loc");
+  var Lamp;
+
+  if(!Locs)
+    SendSysMessage(who,"BLAD! Brak lokacji.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  foreach Loc in Locs
+    Loc  := SplitWords(Loc);
+    Lamp := GetChampTLLight(Loc);
+
+    if(Cmd == 1)
+
+      if(Lamp)
+        SendSysMessage(who,"Lampa istnieje: "+Lamp.serial+" x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ " R: "+Loc[4]+".",FONT_NORMAL,COLOR_BLUE);
+      else
+        if(!BuildFromTemplate(who, TEMP_CHTLAMP, CInt(Loc[1]), CInt(Loc[2]), CInt(Loc[3]), Loc[4]))
+          SendSysMessage(who,"Blad podczas tworzenia lampy x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ " R: "+Loc[4]+".",FONT_NORMAL,COLOR_RED);
+        else
+          SendSysMessage(who,"Lampa stowrzona: x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ " R: "+Loc[4]+".",FONT_NORMAL,COLOR_GREEN);
+        endif
+      endif
+
+    elseif(Cmd == 2)
+
+      if(Lamp)
+        var Items := GetTemplateItems(TEMP_CHTLAMP);
+        
+        foreach Item in ListObjectsInBox(CInt(Loc[1])-1,CInt(Loc[2])-1,-127,CInt(Loc[1])+1,CInt(Loc[2])+1,127,Loc[4])
+          if((Item.objtype in Items) and !Item.movable and GetObjProperty(Item, PROP_CREATED))
+            DestroyItem(Item);
+          endif
+        endforeach
+        SendSysMessage(who,"Lampa skasowana. x: "+Loc[1]+" y: "+Loc[2]+" z: "+Loc[3]+ "R: "+Loc[4]+".",FONT_NORMAL,COLOR_GREEN);
+      else
+        SendSysMessage(who,"Lampa nie istnieje.",FONT_NORMAL,COLOR_RED);
+      endif
+
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateAltar(who,Nr)
+
+  Nr := CInt(Nr);
+  
+  if(Nr < 1 or Nr > 6)
+    SendSysMessage(who,"Bledny numer mistrza. [craltar (1-6)].",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz lokacje oltarza.",FONT_NORMAL,COLOR_GREEN);
+  var AltarLoc := LocTarget(who);
+  
+  if(!AltarLoc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!BuildFromTemplate(who, TEMP_CHALTAR, AltarLoc.x, AltarLoc.y, AltarLoc.z))
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz lokacje miejsca portalu.",FONT_NORMAL,COLOR_GREEN);
+  var PodLoc := LocTarget(who);
+  
+  if(!PodLoc)
+    foreach Item in ListItemsNearLocation(AltarLoc.x, AltarLoc.y, AltarLoc.z, 2, who.realm)
+      if(GetObjProperty(Item, PROP_CREATED) == who.serial)
+        DestroyItem(Item);
+      endif
+    endforeach
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!BuildFromTemplate(who, TEMP_CHPOD+Nr, PodLoc.x, PodLoc.y, PodLoc.z))
+    foreach Item in ListItemsNearLocation(AltarLoc.x, AltarLoc.y, AltarLoc.z, 2, who.realm)
+      if(GetObjProperty(Item, PROP_CREATED) == who.serial)
+        DestroyItem(Item);
+      endif
+    endforeach
+    return;
+  endif
+
+  var Book;
+
+  foreach Item in ListItemsNearLocationOfType(AltarLoc.x, AltarLoc.y, AltarLoc.z, 1, UOBJ_CHBOOK, who.realm)
+    Book := Item;
+  endforeach
+  
+  if(!Book)
+    SendSysMessage(who,"BLAD! Nie znaleziono ksiegi!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  PodLoc := array(PodLoc.x, PodLoc.y, PodLoc.z, who.realm);
+  
+  SetObjProperty(Book, PROP_CHAMPNR, Nr);
+  SetObjProperty(Book, PROP_CHGATE_LOC, PodLoc);
+
+  SendSysMessage(who,"Stworzono oltarz mistrza NR: "+Nr+".",FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetAltarBook(who, Nr)
+
+  var Book := ObjTarget(who);
+
+  if(!Book or Book.objtype != UOBJ_CHBOOK)
+    SendSysMessage(who,"BLAD! Nie wybrano ksiegi!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Wskaz lokacje miejsca portalu.",FONT_NORMAL,COLOR_GREEN);
+  var PodLoc := LocTarget(who);
+
+  if(!PodLoc)
+    SendSysMessage(who,"BLAD! Nie wybrano lokacji!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  PodLoc := array(PodLoc.x, PodLoc.y, PodLoc.z, who.realm);
+  
+  SetObjProperty(Book, PROP_CHAMPNR, Nr);
+  SetObjProperty(Book, PROP_CHGATE_LOC, PodLoc);
+
+  SendSysMessage(who,"Stworzono oltarz mistrza NR: "+Nr+".",FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+

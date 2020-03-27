@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 84;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonWolfPack( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  SetScriptController (caster);
+  Detach ();
+
+  var Amount := RandomDiceRoll("1d2") + CInt(GetEffectiveSkill(caster, SKILLID_ANIMALLORE)/33);
+  if (amount > 4)
+   amount := 4;
+  endif
+ 
+  var Duration := GetDruidSpellDur( Caster );
+  var oparms   := {};
+  oparms.+controlable := 1;
+  oparms.+name        := "duchowy wilk";
+  oparms.+color       := COLOR_TRANSLUCENT;
+  oparms.+nosleep     := 1;
+  oparms.+nocrim      := 1;
+  oparms.+maxamt      := 1 + CInt(GetMindSkillValue(Caster, SpellGlob.Type)/20);
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+skillsmod   := array(GetMagicSkillId(SpellGlob.Type), GetMindSkillId(SpellGlob.Type));
+
+  if(SummonCreatureGroup(Caster, array("wolf"), Amount, CastLoc, Duration, oparms))
+    GainSpellPoints(Caster, 0, MAGICGAIN_SUMMON); 
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

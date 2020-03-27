@@ -1,0 +1,77 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/effects";
+include "include/loots";
+include "include/npcs";
+include "include/move";
+include "powerstone";
+
+//-----------------------------------------------------------------------------
+
+program TaskCompletion(Parms)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var PSCfg   := ReadConfigFile(":powerstone:powerstone");
+  var Stone   := Parms[1];
+  var Who     := Parms[2];
+  var Lvl     := CInt(ItemCfg[stone.objtype].Lvl);
+
+  PlaySoundEffect(who, 0x1DD);
+  PlayStationaryEff( stone.x,stone.y,stone.z,FX_HEAL_EFFECT, 0xF, 0xF,0, stone.realm );
+  sleep(1);
+
+  PlaySoundEffect(who, 0x1DD);
+  PlayStationaryEff( stone.x,stone.y,stone.z,FX_HEAL_EFFECT, 0xF, 0xF,0, stone.realm );
+  sleep(1);
+
+  PlaySoundEffect(who, SFX_SPELL_LIGHTNING);
+  PlayStationaryEff( stone.x+1,stone.y,stone.z,FX_HEAL_EFFECT, 0xF, 0xF,0, stone.realm );
+  PlayStationaryEff( stone.x-1,stone.y,stone.z,FX_HEAL_EFFECT, 0xF, 0xF,0, stone.realm );
+  sleep(1);
+
+  PlaySoundEffect(who, SFX_SPELL_LIGHTNING);
+  PlayStationaryEff( stone.x+1,stone.y,stone.z,FX_HEAL_EFFECT, 0xF, 0xF,0, stone.realm );
+  PlayStationaryEff( stone.x-1,stone.y,stone.z,FX_HEAL_EFFECT, 0xF, 0xF,0, stone.realm );
+  sleep(1);
+
+  var Monsters := GetConfigStringArray(PSCfg[Lvl],"Monster");
+  var MonSers  := {},Monster,MonTemp,i,Mods := {{-1,0},{1,0},{0,-1}};
+
+  for(i:=1;i<=3;i:=i+1)
+    MonTemp      := Monsters[RandomInt(len(Monsters))+1];
+    if(!MonTemp)
+      MonTemp := Monsters[1];
+    endif
+    Monster      := CreateNpc(MonTemp,stone.x+Mods[i][1],stone.y+Mods[i][2],stone.z,stone.realm);
+    if(!Monster)
+      LogError("[Powerstone] TaskCompletion: ["+stone.serial+"] nie mozna bylo stworzyc potwora: "+MonTemp, LOGF_SCRIPTS);
+      continue;
+    endif
+    SaveSkillSum(Monster);
+    PlaySoundEffect(who, SFX_SPELL_LIGHTNING);
+    PlayLightningBoltEffect(Monster);
+    sleepms(500);
+    if(who.hidden)
+      who.hidden := 0;
+    endif
+    SendChEvent(Monster,who,EVID_ENGAGED);
+    MonSers.append(Monster.serial);
+  endfor
+
+  var Chest := CreateItemAtLoc(stone.x,stone.y+1,stone.z,UOBJ_PS_CONT,1,stone.realm);
+  if(!Chest)
+    LogError("[Powerstone] TaskCompletion: ["+stone.serial+"] nie mozna bylo stworzyc skrzyni!", LOGF_SCRIPTS);
+  endif
+  Chest.color := Stone.color;
+  SetObjProperty(Chest, PROP_CHEST_LVL, Lvl);
+  SetObjProperty(Chest,"Monsters",MonSers);
+  Chest.usescript := ":powerstone:openchest";
+  CreateLoot(Chest,Lvl+4);
+
+endprogram
+
+//-----------------------------------------------------------------------------

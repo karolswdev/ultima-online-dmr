@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+include "include/calc";
+include ":wearwolf:wearwolf";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_BASE;
+const WW_WCID                := 5;
+
+//-----------------------------------------------------------------------------
+
+program WwFrostWolfMorph(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!IsWolfMorphed(Caster))
+    WcFizzleId(Caster, "Musisz byc w zwierzecej formie!", WW_WCID);
+    return 0;
+  endif
+  PlaySoundEffect(Caster,WEARWOLF_SOUND_SCREAM);
+  PlaySoundEffect(Caster,WEARWOLF_SOUND_SCREAM);
+
+  var Range := 1 + CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 2) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 4));
+  var cStam := 2 + CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 15) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 10) + RandomInt(3));
+  var Gained := 0;
+
+  foreach Mob in ListMobilesNearLocation(Caster.x,Caster.y,Caster.z,Range,Caster.realm)
+    if(CanDamage(Caster,Mob))
+      PlaySoundEffect(Mob,WEARWOLF_SOUND_SCREAM);
+      PlayPcEffect(Mob, FX_MARK_EFFECT, 50, 0xF, 0xF);
+
+      if(IsPlayer(Mob))
+        SendSysMessage(Mob,Mob.name+" piekielny krzyk Cie oslabia!",FONT_NORMAL,COLOR_RED);
+        DealStaminaDamage(Mob, cStam, Caster);
+      else
+        PrintTextAbove(Mob, "*czuje sie oslabion"+ggm(Mob,6)+"*");
+        DoMod(Mob, MOD_PENETRATE, 0 - CInt(cStam*1.6), Range*3); // zmniejsza szanse o 1-5% na czas 21s przy 100/100
+      endif
+      
+      if(Gained < 3)
+        Gained += GainWarcastPoints(Caster, Mob, WW_WCID, WCGAIN_OFFENSIVE);
+      endif
+
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

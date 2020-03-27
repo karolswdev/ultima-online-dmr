@@ -1,0 +1,298 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/key";
+include ":banking:common";
+include "include/findcity";
+include "include/move";
+include "include/checks/objchecks";
+include "include/player/misc";
+
+include ":housing:common";
+include ":housing:finding";
+
+//-----------------------------------------------------------------------------
+
+var FenceCfg := ReadConfigFile("fences");
+var gCreated := {};
+
+//-----------------------------------------------------------------------------
+
+program FenceDeed(who, deed)
+
+  if(!StandardItemCheck(who,deed))
+    return;
+  endif
+
+  if(!deed.container)
+    SendSysMessage(who, "Deed nie moze lezec na ziemi!");
+    return;
+  endif
+
+  if(FindCity(who))
+    SendSysMessage(who, "Nie mozesz zbudowac zagrody w miescie.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Gdzie chcial"+ggm(who,1)+" postawic zagrode?",FONT_NORMAL,COLOR_GREEN);
+  var Loc := LocTarget(who);
+
+//  if(who.realm == MALAS_REALM)
+//    SendSysMessage(who, "Nie mozesz postawic tu zagrody.", FONT_NORMAL, COLOR_RED);
+//    return;
+//  endif
+
+  if(!StandardLocCheck(who,Loc, NEW_DIST_CHECK, 4))
+    return;
+  endif
+
+  var House := GetNearestHouseOf(Loc.x, Loc.y, Loc.z, who.realm, 15, GNHOF_OWNER | GNHOF_COOWNER, who);
+//  if(!IsGm(who))
+    if(!House)
+      SendSysMessage(who,House.errortext,FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+//  endif
+
+  var Elem := FindConfigElem(FenceCfg,deed.objtype);
+  var site := ChooseDirection(who);
+
+  if(!site)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var max_x := CInt(Elem.max_x);
+  var max_y := CInt(Elem.max_y);
+  var Part,Sign;
+
+  if(!max_x)
+    return;
+  endif
+  
+  if(!max_y)
+    return;
+  endif
+
+  if(!CanBuild(who,Loc,Max_X,Max_Y))
+    return;
+  endif
+
+  var i;
+
+  for(i:=1;i<=max_x;i:=i+1)
+    Part := CreateItemAtLoc(5886, 1179, 0, CInt(Elem.fence_s),1);
+    AddCreated(who,Part,Loc.x+i,Loc.y-max_y,Loc.z);
+    if(i != max_x)
+      Part := CreateItemAtLoc(5886, 1178, 0, CInt(Elem.fence_s),1);
+      AddCreated(who,Part,Loc.x+i,Loc.y,Loc.z);
+    endif
+  endfor
+
+  for(i:=max_y;i>=1;i:=i-1)
+    Part := CreateItemAtLoc(5886, 1179, 0, CInt(ELem.fence_e),1);
+    AddCreated(who,Part,Loc.x,Loc.y-i+1,Loc.z);
+    if(i != 1)
+      Part := CreateItemAtLoc(5886, 1178, 0, CInt(ELem.fence_e),1);
+      AddCreated(who,Part,Loc.x+max_x,Loc.y-i+1,Loc.z);
+    endif
+  endfor
+
+  Part := CreateItemAtLoc(5886, 1178, 0, CInt(Elem.fence_c),1);
+  AddCreated(who,Part,Loc.x+max_x,Loc.y,Loc.z);
+
+  Part := CreateItemAtLoc(5886, 1178, 0, CInt(Elem.post),1);
+  AddCreated(who,Part,Loc.x,Loc.y-max_y,Loc.z,MOVEITEM_FORCELOCATION);
+
+  Part := CreateItemAtLoc(5886, 1178, 0, CInt(Elem.post),1);
+  AddCreated(who,Part,Loc.x+max_x,Loc.y-max_y,Loc.z,MOVEITEM_FORCELOCATION);
+
+  Part := CreateItemAtLoc(5886, 1178, 0, CInt(Elem.post),1);
+  AddCreated(who,Part,Loc.x,Loc.y,Loc.z,MOVEITEM_FORCELOCATION);
+
+  var LockId  := AllocLockId();
+  var bankbox := Findbankbox(who);
+  var bankkey := CreateItemInCont(bankbox, UOBJ_COPPER_KEY);
+  var packkey := CreateItemInPack(who,     UOBJ_COPPER_KEY);
+
+  if(!bankkey)
+    SendSysMessage(who, "Twoja skrzynka bankowa jest pelna!",FONT_NORMAL,COLOR_RED);
+    DestroyCreated();
+    return;
+  endif
+
+  if(!packkey)
+    SendSysMessage(who, "Twoj plecak jest pelny!",FONT_NORMAL,COLOR_RED);
+    DestroyCreated();
+    return;
+  endif
+
+  var D1x,D1y,D2x,D2y,Ps,Sx,Sy,D1Obj,D2Obj,SObj;
+  
+  case(site)
+    1:       Ps    := SplitWords(Elem.ps_s);
+             D1x   := Loc.x + CInt(Ps[1]) + 1;
+             D1y   := Loc.y;
+             D2x   := Loc.x + CInt(Ps[1]);
+             D2y   := Loc.y;
+             Sx    := Loc.x + CInt(Ps[2]);
+             Sy    := Loc.y + 1;
+             D1Obj := CInt(Elem.door_s1);
+             D2Obj := CInt(Elem.door_s2);
+             SObj  := CInt(Elem.sign_s);
+    2:       Ps    := SplitWords(Elem.ps_e);
+             D1x   := Loc.x + max_x;
+             D1y   := Loc.y - CInt(Ps[1]) - 1;
+             D2x   := Loc.x + max_x;
+             D2y   := Loc.y - CInt(Ps[1]);
+             Sx    := Loc.x + max_x + 1;
+             Sy    := Loc.y - CInt(Ps[2]);
+             D1Obj := CInt(Elem.door_e1);
+             D2Obj := CInt(Elem.door_e2);
+             SObj  := CInt(Elem.sign_e);
+    default: DestroyCreated();
+             return;
+  endcase
+
+  foreach Item in gCreated
+    if((Item.x == D1x and Item.y == D1y) or (Item.x == D2x and Item.y == D2y))
+      DestroyItem(Item);
+    endif
+  endforeach
+  
+  Sign := CreateItemAtLoc(5886, 1178, 0,SObj,1);
+  AddCreated(who,Sign,Sx,Sy,Loc.z);
+
+  Part := CreateItemAtLoc(5886, 1178, 0,D1Obj,1);
+  AddCreated(who,Part,D1x,D1y,Loc.z);
+  Part.locked := 1;
+  SetItemLockId(Part,LockId);
+  SetObjProperty(Sign,"Door1Ser",Part.serial);
+
+  Part := CreateItemAtLoc(5886, 1178, 0,D2Obj,1);
+  AddCreated(who,Part,D2x,D2y,Loc.z);
+  Part.locked := 1;
+  SetItemLockId(Part,LockId);
+  SetObjProperty(Sign,"Door2Ser",Part.serial);
+
+  SetItemLockId(packkey,LockId);
+  SetItemLockId(bankkey,LockId);
+  
+  var CreatedSers := {};
+  
+  foreach Item In gCreated
+    if(Item)
+      CreatedSers.append(Item.serial);
+      Item.invisible := 0;
+      if(House)
+        SetHouseItem(Item,House);
+      endif
+    endif
+  endforeach
+
+  SetObjProperty(sign,"owner",who.serial);
+  SetObjProperty(sign,"fenceparts",CreatedSers);
+  SetObjProperty(sign,"fencetype",deed.objtype);
+  sign.name := "zagroda";
+  DestroyItem(deed);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CanBuild(who,Loc,Mx,My)
+
+  var x,y, Stand;
+  
+  for(x:=-1;x<=Mx+1;x:=x+1)
+    for(y:=1;y>=-(My+1);y:=y-1)
+      Stand := GetStand(Loc.x+x, Loc.y+y, who.realm, Loc.z);
+      if(!Stand && !who.cmdlevel)
+        SendSysMessage(who, "Ten teren jest nie rowny.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+      if(Abs(Stand.z - Loc.z) > 2 && !who.cmdlevel)
+        SendSysMessage(who, "Ten teren jest nie rowny.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+      if(Stand.multi)
+        SendSysMessage(who, "Ten teren jest zabudowany.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+      if(ListItemsAtLocation(Loc.x+x,Loc.y+y,Loc.z,who.realm).size())
+        SendSysMessage(who, "Nie mozesz tu postawic zagrody.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+      if(ListMobilesNearLocation(Loc.x+x,Loc.y+y,Loc.z,0,who.realm).size())
+        SendSysMessage(who, "Ktos stoi w miejscu rozstawienia zagrody.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+
+    endfor
+  endfor
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddCreated(who,Part,x,y,z,mFlags := MOVEITEM_NORMAL)
+
+  if(!Part)
+    SendSysMessage(who,"Nie mozna bylo stworzyc zagrody.",FONT_NORMAL,COLOR_RED);
+    DestroyCreated();
+    exit;
+  endif
+
+  Part.movable   := 0;
+  Part.invisible := 1;
+  gCreated.append(Part);
+
+  if(x != Part.x or y != Part.y or z != Part.z)
+    if(!MoveObject(Part,x,y,z,who.realm,mFlags | MOVEITEM_IGNOREMOVABLE))
+      SendSysMessage(who, "Tu jest za malo miejsca.",FONT_NORMAL,COLOR_RED);
+      DestroyCreated();
+      exit;
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyCreated()
+
+  foreach Item in gCreated
+    if(Item)
+      DestroyItem(Item);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseDirection(who)
+
+  GInit(200,200);
+  GResPic(0,0,0x53,200,120);
+  GTextLine(50,20,999,"Wybierz kierunek");
+  GTextLine(20,40,999,"Poludnie");
+  GButton(170,43,1209,1210,1);
+
+  GTextLine(20,55,999,"Wschod");
+  GButton(170,58,1209,1210,2);
+
+  GTextLine(20,85,999,"Anuluj");
+  GButton(170,88,1209,1210,0);
+
+  return GSend(who)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------

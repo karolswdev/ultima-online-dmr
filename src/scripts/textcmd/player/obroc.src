@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/objtypes/misc";
+include "include/const/cfgs";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program Obroc(who)
+
+  var Cfg := ReadConfigFile(MCFG_PKG + "rotations");
+
+  SendSysMessage(who, "Wybierz przedmiot ktory chcesz obrocic.",FONT_NORMAL,COLOR_GREEN);
+  var Item := ObjTarget(who);
+
+  if(!Item)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!Item.isa(POLCLASS_ITEM))
+    SendSysMessage(who, "Musisz wybrac przedmiot!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Item.movable == 0 and Item.objtype != UOBJ_SECURED_CONT and !who.cmdlevel)
+    SendSysMessage(who, "Nie mozesz ruszac tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+ 
+  var NewGraphic := GetConfigInt(Cfg["Graphics"], lower(hex(Item.graphic)));
+
+  if(!NewGraphic)
+    SendSysMessage(who, "Ten przedmiot nie moze zostac obrocony.",FONT_NORMAL,COLOR_RED);
+  else
+    Item.graphic := NewGraphic;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

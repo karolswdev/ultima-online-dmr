@@ -1,0 +1,155 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/finding";
+include "include/logerror";
+include "include/npcs";
+include "include/objects/location";
+
+include "spawnrune";
+include "spawnchest";
+
+//-----------------------------------------------------------------------------
+
+program SpawnRune(rune)
+
+  rune.movable := 0;
+
+  sleep(10+RandomInt(30));
+  
+  if(Rune.objtype == UOBJ_SRUNE)
+    var RuneNr := GetRuneNr(Rune);
+    while(!RuneNr)
+      sleepms(1500);
+      RuneNr := GetRuneNr(Rune);
+    endwhile
+    
+    var RuneProp := GetGlobalProperty(SR_SER_FLAG+CStr(RuneNr));
+
+    if(RuneProp[1] != Rune.x or RuneProp[2] != Rune.y or RuneProp[3] != Rune.z or RuneProp[5] != Rune.realm or RuneProp[4] != Rune.serial)
+      RuneProp[1] := Rune.x;
+      RuneProp[2] := Rune.y;
+      RuneProp[3] := Rune.z;
+      RuneProp[4] := Rune.serial;
+      RuneProp[5] := Rune.realm;
+
+      if(RuneProp)
+        LogNotice("[SpawnRune] Zapisana lokacja runa [Nr: "+RuneNr+"/"+Rune.serial+"] nie zgadzala sie z prawdziwa lokacja, przepisanie lokacji z "+RuneProp[1]+","+RuneProp[2]+","+RuneProp[3]+" "+RuneProp[5]+" na "+GetLocString(Rune), LOGF_SCRIPTS);
+      endif
+
+      SetGlobalProperty(SR_SER_FLAG+CStr(RuneNr), RuneProp);
+    endif
+
+    if(FindRuneByNr(RuneNr) != Rune)
+      LogError("SpawnRune ["+GetRuneNr(Rune)+"] nie jest podpiety pod Spawnnet. Niszczenie.", LOGF_WORLD);
+      SetStopped(Rune);
+      DestroyItem(Rune);
+      return;
+    endif
+//    CheckRuneNpcName(Rune);
+  elseif(Rune.objtype == UOBJ_SCHEST)
+  
+    var ChestNr := GetChestNr(Rune);
+    while(!ChestNr)
+      sleepms(1500);
+      ChestNr := GetChestNr(Rune);
+    endwhile
+    
+    var RuneProp := GetGlobalProperty(SC_SER_FLAG+CStr(ChestNr));
+
+    if(RuneProp[1] != Rune.x or RuneProp[2] != Rune.y or RuneProp[3] != Rune.z or RuneProp[5] != Rune.realm or RuneProp[4] != Rune.serial)
+      RuneProp[1] := Rune.x;
+      RuneProp[2] := Rune.y;
+      RuneProp[3] := Rune.z;
+      RuneProp[4] := Rune.serial;
+      RuneProp[5] := Rune.realm;
+
+      if(RuneProp)
+        LogNotice("[SpawnRune] Zapisana lokacja chesta [Nr: "+ChestNr+"/"+Rune.serial+"] nie zgadzala sie z prawdziwa lokacja, przepisanie lokacji z "+RuneProp[1]+","+RuneProp[2]+","+RuneProp[3]+" "+RuneProp[5]+" na "+GetLocString(Rune), LOGF_SCRIPTS);
+      endif
+      
+      SetGlobalProperty(SC_SER_FLAG+CStr(ChestNr), RuneProp);
+    endif
+
+    if(FindChestByNr(ChestNr) != Rune)
+      LogError("SpawnChest ["+GetChestNr(Rune)+"] nie jest podpiety pod Spawnnet. Niszczenie.", LOGF_WORLD);
+      SetStopped(Rune);
+      DestroyItem(Rune);
+      return;
+    endif
+  else
+    return;
+  endif
+
+  while(Rune)
+
+    if(IsRunning(Rune))
+
+      if(!GetRuneRespawnTime(Rune))
+        SetStopped(Rune);
+      endif
+
+      if(GetSpawnTime(Rune) + (GetRuneRespawnTime(Rune)*60) < ReadGameClock())
+        SpawnIt(Rune);
+        SetSpawnTime(Rune,ReadGameClock() - RandomInt(GetRuneRespawnTime(Rune) * 4));
+      endif
+
+    endif
+
+    sleep(30+RandomInt(30));
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpawnIt(Rune)
+
+  if(IsSpawning(Rune))
+    return;
+  endif
+
+  if(Rune.objtype == UOBJ_SRUNE)
+    var Cr := CheckExistingObjects(rune);
+    if(Cr.size() >= GetRuneMaxAmount(Rune))
+      return;
+    endif
+    Cr := {};
+  endif
+
+  start_script(":spawnnet:do_spawn",rune);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckRuneNpcName(Rune)
+
+  if(GetRuneType(Rune) != "Npc")
+    return;
+  endif
+
+  var CreatedObjects := CheckExistingObjects(Rune);
+  if(!CreatedObjects.size())
+    return;
+  endif
+
+  var Name;
+
+  foreach Npc in CreatedObjects
+    Npc := FindNpcBySerial(Npc);
+    Name := GetNpcName(Npc);
+    if(!CheckNpcName(Npc))
+      LogNotice("Runo Nr: "+GetRuneNr(Rune)+". Zmieniono imie Npca ["+Npc.npctemplate+"/"+Npc.serial+"]: "+Name+" > "+GetNpcName(Npc)+".", LOGF_WORLD);
+    endif
+    Sleepms(1);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

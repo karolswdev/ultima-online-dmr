@@ -1,0 +1,85 @@
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/tempmods";
+include "include/player/misc";
+include "timed_equip";
+
+//-----------------------------------------------------------------------------
+
+program TimedEquip(Parms)
+
+  var who  := Parms[1];
+  var Item := Parms[2];
+
+  if(!who or !item)
+    return;
+  endif
+
+  SetObjProperty(Item, "#TimedEquipPid", GetPid());
+  SetObjProperty(Item, "TimeEquipStart", ReadGameClock());
+
+  var Res := 1;
+  var s := 0;
+
+  while(s < 10)
+    
+    sleep(1);
+    s += 1;
+
+    if(!GetObjProperty(Item, "equipped"))
+      Res := 0;
+      break;
+    endif
+
+    if(!IsLoggedIn(who) or GetObjProperty(Item, "#TimedEquipPid") == GetPid())
+      Res := 0;
+      break;
+    endif
+
+  endwhile
+
+  if(!Res)
+    if(GetObjProperty(Item, "#TimedEquipPid") == GetPid())
+      EraseObjProperty(Item, "#TimedEquipPid");
+    endif
+    return;
+  endif
+
+  var ItemCfg    := ReadConfigFile(ITEMS_CFG);
+  var Mod        := ItemCfg[Item.objtype].ModType;
+  var TimePassed := CInt(GetObjProperty(Item, "TimePassed"));
+  var TimeMax    := CInt(ItemCfg[Item.objtype].TimeMax);
+  var LastTime   := ReadGameClock();
+
+  if(Mod)
+    Mod := SplitWords(Mod);
+    DoMod(who, CInt(Mod[1]), CInt(Mod[2]), TimeMax - TimePassed);
+  endif
+
+  while(IsLoggedIn(who) and GetObjProperty(Item, "#TimedEquipPid") == GetPid())
+
+    TimePassed := TimePassed + (ReadGameClock() - LastTime);
+    LastTime   := ReadGameClock();
+    SetObjProperty(Item, "TimePassed", TimePassed);
+
+    if(TimePassed >= TimeMax)
+      DestroyItem(Item);
+      return;
+    endif
+
+    if(!GetObjProperty(Item, "equipped"))
+      break;
+    endif
+
+    sleep(2);
+
+  endwhile
+
+  if(GetObjProperty(Item, "#TimedEquipPid") == GetPid())
+    EraseObjProperty(Item, "#TimedEquipPid");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

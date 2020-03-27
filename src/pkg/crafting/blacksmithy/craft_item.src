@@ -1,0 +1,268 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/buildings";
+
+include ":quests:quest_ctrl";
+include ":crafting:common";
+include ":crafting:creation";
+include ":crafting:receptures";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+include ":crafting:exceptional";
+include ":crafting:iterations";
+include ":artifacts:artifacts";
+
+include ":glyphs:glyphs";
+
+//-----------------------------------------------------------------------------
+
+var gCurIter, gMaxIters, gMainSkId;
+
+//-----------------------------------------------------------------------------
+
+program BlacksmithyCraftItem(Params)
+
+  var who := Params[1];
+  var hammer := Params[2];
+  var CraftData := Params[3];
+  gMainSkId := Params[4];
+
+  if(!who or !hammer or !CraftData or !gMainSkId)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, hammer))
+    return;
+  endif
+  
+  var Anvil := IsNearAnvil(who);
+
+  if(!Anvil)
+    SendSysMessage(who, "Musisz byc blisko kowadla by cos wykuc.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who, "Wybierz sztaby z jakich chcesz zrobic przedmiot.",FONT_NORMAL,COLOR_GREEN);
+
+  var UseOn := ObjTarget(who);
+  if(!StandardItemCheck(who, UseOn))
+    return;
+  endif
+
+  if(!(UseOn.objtype in GetIngotsObjTypes()))
+    SendSysMessage(who,"Z tego nic nie wykujesz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Materials;
+  
+  if(!PrepareCraft(who, CraftData.objtype, UseOn, Materials))
+    return;
+  endif
+  
+  var Cont := GetContForTool(who, UseOn);
+  
+  var IterData := DefineCraftIterations(who, gMainSkId, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, hammer, Cont, Anvil, CraftData.objtype, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, ObjType, UseOn, byref Materials)
+
+  if(!UseOn)
+    SendSysMessage(who, "Skonczyly Ci sie sztaby.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  Materials := DefineCraftMaterials();
+  DefineMainMaterial(Materials, UseOn);
+
+  var Cont := GetContForTool(who, UseOn);
+  
+  var SkillCfg;
+  if(gMainSkId == SKILLID_BLACKSMITHY)
+    SkillCfg := ReadConfigFile(":blacksmithy:blacksmithy");
+  else
+    SkillCfg := ReadConfigFile(":blacksmithy:armorer");
+  endif
+
+  var Amount := SkillCfg[ObjType].Material;
+
+  AddCraftMaterial(Materials, Cont, UseOn.objtype, Amount);
+  
+  var Extra := SkillCfg[ObjType].ExtraMaterial;
+
+  if(Extra)
+    Extra := SplitWords(Extra);
+    AddCraftMaterial(Materials, Cont, Extra[1], CInt(Extra[2]));
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, hammer, Cont, Anvil, ObjType, byref IterData, byref Materials)
+
+  var MatCfg   := ReadConfigFile(":blacksmithy:materials");
+  var SkillCfg;
+  
+  if(gMainSkId == SKILLID_BLACKSMITHY)
+    SkillCfg := ReadConfigFile(":blacksmithy:blacksmithy");
+  else
+    SkillCfg := ReadConfigFile(":blacksmithy:armorer");
+  endif
+
+  var MySkill       := GetBaseSkillBaseValue(who,gMainSkId);
+  var EffSkill      := GetEffectiveSkillBaseValue(who,gMainSkId);
+  var Skill         := (SkillCfg[ObjType].Skill * 10);
+  var Points        := GetCraftPoints(gMainSkId, Skill/10);
+  var WhoStr        := GetStrength(who);
+  var ExpMod        := 0;
+  var NewName       := "";
+  var TheItem;
+  var IngotMod      := Cint(MatCfg[Materials.mainObj].ArMod);
+  var IngotSkill    := CInt(MatCfg[Materials.mainObj].Skill);
+  var ReqSkill      := CInt(MatCfg[Materials.mainObj].ReqSkill);
+  var ProdAmount    := 1;
+  var CraftLevel    := CInt(SkillCfg[ObjType].CraftLevel);
+
+  if(Cint(MySkill/10) < IngotSkill - 5 or !IngotSkill or CInt(EffSkill/10) < ReqSkill)
+    SendSysMessage(who, "Twa wiedza jest za mala by moc cos z tego wykuc.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  TurnCharToward(who,Anvil);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SFX_ANVIL, ANIM_ATTACK_1HAND_WIDE))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, hammer, gMainSkId, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+
+  if(!CheckSkill(who, gMainSkId, Cint(Skill / 10), 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData)+" Wypsnal Ci sie mlotek!", FONT_NORMAL, COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SFX_ANVIL, ANIM_ATTACK_1HAND_WIDE))
+    return 0;
+  endif
+
+  if(MySkill > (Skill - 200))
+    ExpMod := ExpMod + Cint((MySkill - Skill) / 30);
+  endif
+
+  ExpMod := ExpMod + Cint(WhoStr / 4);
+  ExpMod := ExpMod - Cint(IngotMod / 2);
+  ExpMod := ExpMod + CheckItemQuality(hammer);
+  
+  MySkill  := Cint(MySkill / 10);
+  
+  var itemLoops := 1;
+  
+  var doubleProduce := GetGlyphMod(who, "DoubleProduce");
+  
+  if(HaveChance(doubleProduce))
+	PrintTextAbove(who, "*cud, cud, podwojny wyrob!", FONT_NORMAL, COLOR_GREEN);
+	itemLoops := 2;
+   endif
+   
+   
+   
+   while(itemLoops > 0)
+
+	  TheItem := CreateItemInCont(cont, ObjType, 1, who);
+	  
+	  if(TheItem)
+		NewName := GetDescForItem(ObjType) + " " + GetDpsType(Materials.mainObj) + " " + GetDps(Materials.mainObj,ObjType);
+		TheItem.color := Materials.mainColor;
+
+		var ExpData := CraftExceptional(who, gMainSkId, ExpMod, CraftLevel);
+		
+		if(ExpData.makeExp)
+		  var AlMod := CInt(GetEffectiveSkill(who, gMainSkId) / 5) * 0.01;
+		  SetItemQuality(TheItem, EXP_QUALITY_MULTIPLIER - (0.2 - AlMod));
+		  SendSysMessage(who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" wyjatkowej jakosci przedmiot i wlozyl"+ggm(who, 3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+		  if(ExpData.makeNamed)
+			NewName := EXP_ITEM_NAME + " " + NewName + " [wykonal"+ggm(who, 4)+" " + GetRealName(who) + "]";
+		  else
+			NewName := EXP_ITEM_NAME + " " + NewName;
+		  endif
+		elseif(RandomInt(100) >= MySkill)
+		  SendSysMessage( who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" przedmiot sredniej jakosci.",FONT_NORMAL, COLOR_ORANGE);
+		  case((RandomInt(3)+1))
+			1: SetItemQuality(theitem, 0.7);
+			2: SetItemQuality(theitem, 0.8);
+			3: SetItemQuality(theitem, 0.9);
+		  endcase
+		else
+		  SendSysMessage( who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" przedmiot i wlozyl"+ggm(who, 3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
+		  SetItemQuality(theitem, 1.0);
+		endif
+
+		SetName(TheItem,NewName);
+		
+		if(expData.inscribe)
+			start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, TheItem});
+		endif
+		
+		if(expData.changeColor)
+			start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, TheItem});
+		endif
+		
+		SetItemHp(TheItem, GetItemMaxHp(TheItem) + CInt(IngotMod/2));
+		if(TheItem.isa(POLCLASS_ARMOR))
+		  TheItem.ar_mod  := IngotMod;
+		elseif(TheItem.isa(POLCLASS_WEAPON))
+		  TheItem.dmg_mod := Cint(IngotMod/2);
+		endif
+
+		SetMade(who, TheItem, MTYPE_INGOT, IngotMod);
+		AwardPoints(who, gMainSkId, Points, GAIN_RESTRICT, CInt(Skill/10));
+		SendQuestEvent(who, EVQID_ITEM_CREATE, gMainSkId, array(TheItem, Materials.mainObj));
+	  else
+		SendSysMessage(who, "Wiecej przedmiotow nie zmiesci Ci sie w plecaku.",FONT_NORMAL,COLOR_RED);
+		return 0;
+	  endif
+	  
+	itemLoops := itemLoops - 1;
+	  
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

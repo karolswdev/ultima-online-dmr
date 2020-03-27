@@ -1,0 +1,112 @@
+use uo;
+use os;
+
+include "include/items";
+include "include/effects";
+include "include/const/cfgs";
+include "include/checks/objchecks";
+include "include/player/misc";
+include "include/gumps";
+include "include/gumpboxes";
+
+program usexmasTree(who, tree)
+
+var firstpoem := { "Bog sie rodzi",
+                   "Bog sie rodzi, moc truchleje",
+		   "Pan niebiosow obnazany",
+		   "Ogien krzepnie, blask ciemnieje",
+		   "Ma granice, Nieskonczony",
+		   "Wzgardzony-okryty chwala",
+                   "Smiertelny-Krol nad wiekami !",
+                   "A Slowo Cialem sie stalo",
+		   "I mieszkalo miedzy nami." };
+		   
+
+				   
+var secondpoem := { "Slizgawka",
+         		"Rowno, rowno, jak po stole,",
+			"Na lyzewkach w dal...",
+			"Choc wyskoczy guz na czole,",
+			"nie bedzie mi zal !",
+			"Guz nabic-strach nieduzy,",
+			"Nie stanie sie nic",
+			"A gdy chlopiec zawsze tchorzy,",
+			"Powiedza, ze fryc !",
+			"Jak powiedza, tak powiedza,",
+			"Pojdzie nazwa w swiat:",
+			"Niech za piecem tchorze siedza,",
+			"A ja jestem chwat !" };
+
+var thirdpoem := { 
+"Mala biedronka, z siedmioma czarnymi kropkami na",
+"czerwonych skrzydelkach, latala przez caly dzien po",
+"lace. Po poludniu przyleciala do mojego ogrodka",
+"i zaczela niszczyc brzydkie mszyce na rozach.",
+"Bzz!, rozleglo sie nagle. I na rozy, na ktorej siedziala",
+"biedronka, usiadla pszczola.",
+"Ty tez przylecialas po mszyce? zapytala biedronka,",
+"ale pszczolka ze zdziwieniem zatrzepotala skrzydelkami.",
+"Co moglabym robic z mszycami? Wybieram pylek z kwiatow roz.",
+"Potem wracam do ula i tam z pylku robi sie miod.",
+"To cudownie biedronka az podskoczyla, a kto",
+"oprocz ciebie mieszka w ulu? Moja królowa",
+"i wiele innych pszczolek.",
+"Pszczolka znów zatrzepotala skrzydelkami",
+"i odleciala na inny kwiatek.",
+"Biedronka zobaczyla jasne swiatlo.",
+"Skierowala sie wprost ku niemu i jak myslisz,",
+"dokad doleciala? Oczywiscie, prosto do lampy",
+"na moim oknie. Przeciez inaczej nie moglaby mi",
+"o wszystkim opowiedziec !" };
+
+var fourthpoem := {
+
+"Kocur Niels",
+"W malej rybackiej wiosce na samotnej wyspie mieszkal",
+"rybak ze swoja zona Aniela.",
+"Mieli pieknego, srebrzystoszarego kocura.",
+"Nazywali go Niels i bardzo go lubili.",
+"Jednego wieczora Aniela powiedziala do swojego meza:",
+"Niedlugo bedzie Boze Narodzenie.",
+"Mysle, ze Niels zasluzyl na jakis prezent.",
+"Damy mu pod choinke dobra kielbase",
+"Nadeszla Wigilia.",
+"Na morzu szalal sztorm i przewalaly sie ogromne fale.",
+"Zona rybaka co chwila wygladala przez okno,",
+"przez ktore Niels zawsze wracal do domu,",
+"ale dzis wciaz go nie bylo.",
+"na dworze robilo sie coraz ciemniej,",
+"a burza przybierala na sile.",
+"W koncu Aniela uslyszala ciche skrobanie w okno.",
+"Natychmiast je otworzyla i Niels wskoczyl do pokoju.",
+"Przyniusl  cos w pyszczku i od razu polozyl to przed Aniela.",
+"Zrobil przy tym blagalna mine.",
+"Aniela wyciagnela reke i poczula cos miekkiego i bardzo zmoknietego.",
+"Po chwili rozleglo sie zalosne miauczenie.",
+"Niels znalazl je calkiem wyczerpane na brzegu morza.",
+"Aniela polozyl sie obok niego, zeby ogrzac go swoim cialem.",
+"Odtad kotek zamieszkal u rybaka i jego zony,",
+"którzy polubili go tak, jak Nielsa." }; 
+
+	
+	Detach();
+	
+	case(RandomInt(4)+1)
+		1: ReciteStory(tree, firstPoem);
+		2: ReciteStory(tree, secondPoem);
+		3: ReciteStory(tree, thirdPoem);
+		4: ReciteStory(tree, fourthPoem);
+	endcase
+	
+	tree.color := RandomInt(1500)+1;
+	
+endprogram
+
+function ReciteStory(tree, story)
+
+	foreach line in story
+		PrintTextAbove(tree, line, FONT_NORMAL, 55);
+		sleepms(len(line)*110);
+	endforeach
+	
+endfunction

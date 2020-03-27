@@ -1,0 +1,670 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-21
+// Modified: 2011-04-26
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/coords";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/items/utils";
+include "include/objects/location";
+
+include ":itemsets:definition";
+
+include ":wmtools:gmp_defs";
+include ":wmtools:wml_common";
+include ":wmtools:wmultis";
+
+//-----------------------------------------------------------------------------
+
+program WMLtaticsTool(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+
+    "cr":        CmdCreateWmlGroup(who, text[2]);
+                 return;
+                 
+    "s":         CmdAddItemsToGroup(who, text[2]);
+                 return;
+                 
+    "d":         CmdDelItemsFromGroup(who, text[2]);
+                 return;
+                 
+    "set":       CmdSetWmlLoc(who, text[2]);
+                 return;
+                 
+    "go":        CmdGotoWmlLoc(who, text[2]);
+                 return;
+
+    "imphe":     ImportHEMulti(who);
+                 return;
+                 
+    "ga":        ProcAddWmlGroup(who);
+
+    "gd":        CmdRemoveWmlGroup(who, text[2]);
+                 return;
+
+    "?":         SendSysMessage(who, ".is [cr/s/d/set/go/imphe/ga/gd]", FONT_NORMAL, COLOR_RED);
+                 return;
+
+  endcase
+
+  var SelName;
+
+  while(IsLoggedIn(who))
+
+    SelName := SelectWmlGroup(who);
+
+    if(SelName == 0)
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ProcessWmlGroupDetails(who, wmlName)
+
+  while(IsLoggedIn(who))
+    var wmlGroup := GetWmlGroup(wmlName);
+
+    if(!wmlGroup)
+      return;
+    endif
+
+    var Res := ShowItemDefinitionDetails(who, wmlName, wmlGroup.GetProp("Items"));
+
+    if(Res)
+      case(Res[1])
+        "rm":    CmdDeleteWmlGroupItem(who, wmlName, Res[2]);
+        default: break;
+      endcase
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectWmlGroup(who)
+
+  var Names := GetWmlGroups();
+
+  if(!Names)
+    SendSysMessage(who, "Wystapil blad podczas pobierania nazw grup: "+Names.errortext, FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  BQGInit("WML: zdefiniowane multi: "+Names.size(), 710, 500, 0, 1);
+  GAddPageData(675,18,2650,2651,675,467,2648,2647);
+
+  GTextLine(60, 40, 999, "Dodal");
+  GTextLine(140, 40, 999, "ID: Nazwa");
+  GTextLine(380, 40, 999, "Czas");
+  GTextLine(510, 40, 999, "Przedmiotow");
+
+  GGumpPic(15, 58, 0xBB9);
+  GGumpPic(230, 58, 0xBB9);
+  GGumpPic(455, 58, 0xBB9);
+
+  GMultiPage();
+
+  var i := 1;
+  var MultiTable := BuildMultiTable();
+
+  foreach wmlId in Names
+
+    var Elem := GetWmlGroup(wmlId);
+    var Status := Elem.GetProp("Status");
+    
+    if(Status)
+      Status := Status[1];
+    else
+      Status := "?";
+    endif
+
+    GCheckNextPage(20);
+    
+    GTextLine(20,60+GNPCount()*20, 550, Status);
+    
+
+    GButton(40, 63+GNPCount()*20, 2117, 2118, i);
+    GTextLine(60,60+GNPCount()*20, __ifelse(!"E?"[Status], 550, 999), Elem.GetProp("Creator"));
+    GTextLine(140,60+GNPCount()*20, __ifelse(!"E?"[Status], 590, 999), hex(wmlId)+": "+ClStr(MultiTable[CInt(wmlId)].Name) );
+    GTextLine(380,60+GNPCount()*20, __ifelse(!"E?"[Status], 1321, 999), CUnixTime(Elem.GetProp("AddTime")));
+    GTextLine(510,60+GNPCount()*20, __ifelse(!"E?"[Status], COLOR_YELLOW, 999), Elem.GetProp("ItemCount"));
+
+    if(Status != "R")
+
+      if(Elem.GetProp("ItemCount"))
+        GButton(594, 63+GNPCount()*20, 2117, 2118, 100000 + i);
+        GTextLine(611,60+GNPCount()*20, 990, "Cl");
+        GButton(560, 63+GNPCount()*20, 2117, 2118, 200000 + i);
+        GTextLine(577,60+GNPCount()*20, 990, "Cr");
+        GButton(625, 63+GNPCount()*20, 2117, 2118, 300000 + i);
+        GTextLine(642,60+GNPCount()*20, 990, "Rn");
+      endif
+
+
+      GButton(659 , 63+GNPCount()*20, 2117, 2118, 400000 + i);
+      GTextLine(676,60+GNPCount()*20, 990, "Rm");
+
+
+    endif
+    i += 1;
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(!Res.butid)
+    return 0;
+  endif
+  
+  if(Res.butid > 400000)
+    CmdRemoveWmlGroup(who, Names[Res.butid-400000]);
+  elseif(Res.butid > 300000)
+    CmdRenameWmlGroup(who, Names[Res.butid-300000]);
+  elseif(Res.butid > 200000)
+    CmdCreateWmlGroup(who, Names[Res.butid-200000]);
+    return error;
+  elseif(Res.butid > 100000)
+    CmdCleanWmlGroup(who, Names[Res.butid-100000]);
+    return error;
+  elseif(Res.butid)
+    ProcessWmlGroupDetails(who, Names[Res.butid]);
+    return error;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdDelItemsFromGroup(who, Name)
+
+  var wmlGroup := GetWmlGroup(Name);
+
+  if(!wmlGroup)
+
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  var midLoc := GetWmlMidLoc(who, Name);
+
+  if(!midLoc)
+    SendSysMessage(who, "Nie posiadasz przypisanej lokacji srodkowej do WML ID: "+Name+".", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var nwLoc, seLoc;
+
+  SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog NW?"))
+    return;
+  endif
+
+  nwLoc := GetLocStruct(who);
+  SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+  
+  SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog SE?"))
+    return;
+  endif
+
+  seLoc := GetLocStruct(who);
+  SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  var Items := GetItemsInBoundary(nwLoc, seLoc);
+
+  if(Items)
+
+    var Res := DelItemsFromWmlGroup(Name, Items, midLoc);
+    DisplayWmlResult(who, Res);
+
+  else
+
+    SendSysMessage(who, "Blad: "+Items.errortext, FONT_NORMAL, COLOR_RED);
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdAddItemsToGroup(who, Name)
+
+  var wmlGroup := GetWmlGroup(Name);
+
+  if(!wmlGroup)
+
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  var midLoc := GetWmlMidLoc(who, Name);
+
+  if(!midLoc)
+    SendSysMessage(who, "Nie posiadasz przypisanej lokacji srodkowej do WML ID: "+Name+".", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var nwLoc, seLoc;
+
+  SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog NW?"))
+    return;
+  endif
+
+  nwLoc := GetLocStruct(who);
+  SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+  
+  SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog SE?"))
+    return;
+  endif
+
+  seLoc := GetLocStruct(who);
+  SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  var Items := GetItemsInBoundary(nwLoc, seLoc);
+
+  if(Items)
+
+    var Res := CleanItemsInWmlGroup(Name);
+
+    if(!Res)
+      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    Res := AddItemsToWmlGroup(Name, Items, midLoc);
+    DisplayWmlResult(who, Res);
+
+  else
+
+    SendSysMessage(who, "Blad: "+Items.errortext, FONT_NORMAL, COLOR_RED);
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdCreateWmlGroup(who, wmlName)
+
+  var wmlGroup := GetWmlGroup(wmlName);
+
+  if(!wmlGroup)
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz lokacje tymczasowego utworzenia multi.", FONT_NORMAL, COLOR_GREEN);
+  var midLoc := LocTarget(who);
+
+  if(!midLoc)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+  midLoc := GetLocStruct(midLoc);
+  midLoc.realm := who.realm;
+
+  var Res := CreateWmlGroup(wmlName, midLoc);
+
+  if(Res == error)
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Utworzono multi ID: "+hex(wmlName), FONT_NORMAL, COLOR_WHITE);
+    SendSysMessage(who, "Zapisano centrum dla danego multi.", FONT_NORMAL, COLOR_GREEN);
+
+    SetWmlMidLoc(who, wmlName, midLoc);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdCleanWmlGroup(who, wmlName)
+
+  var wmlGroup := GetWmlGroup(wmlName);
+
+  if(!wmlGroup)
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Chcesz wyczyscic przedmioty z grupy statikow o nazwie: "+wmlName+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Res := CleanItemsInWmlGroup(wmlName);
+
+  if(Res == error)
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  elseif(Res)
+    SendSysMessage(who, "Zniszczono "+Res.desCount+" przedmiotow. Usunieto "+Res.allCount+" wpisow.", FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Nie znaleziono przypisanych przedmiotow.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+// WML group addition!
+//-----------------------------------------------------------------------------
+
+function ProcAddWmlGroup(who)
+
+  var Data := WmlGroupStruct();
+  Data.Id := "";
+
+  BuildAddWmlGroup(Data);
+
+  while(IsLoggedIn(who))
+
+    var Res := GSend(who);
+    SaveWmlGroupData(Data, Res);
+
+    case(Res.butid)
+      15:       var nId := AddWmlGroup(who, Data);
+                if(nId)
+                  SendSysMessage(who, "Dodano nowa grupe WML: "+Data.Id, FONT_NORMAL, COLOR_GREEN);
+                  return;
+                else
+                  SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+
+      16:       var Check := VerifyWmlGroupData(Data);
+                if(Check)
+                  SendSysMessage(who, "Dane zweryfikowane pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                else
+                  SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                endif
+
+      default:  return;
+    endcase
+
+    BuildAddWmlGroup(Data);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveWmlGroupData(byref Data, byref Res, bModifyMode := 0)
+ 
+  if(!bModifyMode)
+    Data.Id := CInt(Res.text[2]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddWmlGroup(byref Data)
+
+  BQGInit("Dodawanie elementu WML", 650, 250);
+
+  GButton(90, 213, 2117, 2118, 15);
+  GTextLine(110, 210, 999, "Dodaj");
+
+  GButton(190, 213, 2117, 2118, 16);
+  GTextLine(210, 210, 999, "Weryfikuj");
+
+  BuildWmlGroupInfo(Data, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildWmlGroupInfo(byref Data, Flags := 0)
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+
+  if(Flags & BQG_MODIFY_MODE)
+    SetBitOff(Flags, BQG_EDITABLE);
+  endif
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Id, Flags, 1, 2, "Id:");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdDeleteWmlGroupItem(who, wmlName, Index)
+ 
+  var wmlGroup := GetWmlGroup(wmlName);
+
+  if(!wmlGroup)
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(wmlGroup.GetProp("Creator") != who.acctname and !IsRealAdmin(who))
+    SendSysMessage(who, "Grupa: "+wmlName+" nie zostala stworzona przez Ciebie. Nie mozesz usuwac z niej przedmiotow.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  var Item := GetWmlGroupItem(wmlName, Index);
+  var Res  := DeleteItemFromWmlGroup(wmlName, Index);
+
+  if(Res)
+    SendSysMessage(who, "Usunieto przedmiot: "+Item.name+"/"+hex(Item.objtype), FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveWmlGroup(who, wmlName)
+ 
+  var wmlGroup := GetWmlGroup(wmlName);
+
+  if(!wmlGroup)
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(wmlGroup.GetProp("Creator") != who.acctname and !IsRealAdmin(who))
+    SendSysMessage(who, "Grupa: "+wmlName+" nie zostala stworzona przez Ciebie. Nie mozesz usuwac jej.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  var Res  := DeleteWmlGroup(wmlName);
+
+  if(Res)
+    SendSysMessage(who, "Usunieto grupe: " + wmlName, FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRenameWmlGroup(who, wmlName)
+ 
+  var wmlGroup := GetWmlGroup(wmlName);
+
+  if(!wmlGroup)
+    SendSysMessage(who, "Blad: "+wmlGroup.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(wmlGroup.GetProp("Creator") != who.acctname and !IsRealAdmin(who))
+    SendSysMessage(who, "Grupa: "+wmlName+" nie zostala stworzona przez Ciebie. Nie mozesz zmieniac jej nazwy.", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+  
+  var NewWmlName := SendTextEntryGump( who, "Podaj nowe MultiID:");
+  
+  if(typeof(NewWmlName) == "Integer")
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  NewWmlName := CStr(CInt(NewWmlName));
+
+  if(!YesNo(who, "MultiID: " + NewWmlName + " ?"))
+    return;
+  endif
+ 
+  var NWmlGroup := GetWmlGroup(NewWmlName);
+  if(NWmlGroup)
+    if(NWmlGroup.getProp("Status") != "Removed")
+      SendSysMessage(who, "Grupa " + NewWmlName + " istnieje i nie mozna jej zastapic.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+  
+    var wmlData := GetWmlData();
+    if(!wmlData)
+      SendSysMessage(who, "Error Danych poinformuj admina", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    NWmlGroup := wmlData.CreateElement(NewWmlName);
+
+  endif
+
+  var Props := wmlGroup.PropNames();
+  foreach prop in Props
+    
+    NWmlGroup.setProp(prop, wmlGroup.getProp(prop));
+
+  endforeach
+
+  SendSysMessage(who, "Stworzona nowa grupe i przekopionowano do niej dane ze starej" , FONT_NORMAL, COLOR_GREEN);
+  
+  
+  var Res := DeleteWmlGroup(wmlName);
+
+  if(Res)
+    SendSysMessage(who, "Usunieto grupe: " + wmlName, FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGotoWmlLoc(who, wmlId)
+
+  if(!GetWmlGroup(wmlId))
+    SendSysMessage(who, "Nie ma WML ID: " + wmlId, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var midLoc := GetWmlMidLoc(who, wmlId);
+
+  if(!midLoc)
+    SendSysMessage(who, "Blad: "+midLoc.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Przenoszenie do centrum WML ID: "+wmlId+" "+GetLocString(midLoc), FONT_NORMAL, COLOR_BLUE);
+  MoveObject(who, midLoc.x, midLoc.y, midLoc.z, midLoc.realm, MOVEOBJECT_FORCELOCATION);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdSetWmlLoc(who, wmlId)
+
+  if(!GetWmlGroup(wmlId))
+    SendSysMessage(who, "Nie ma WML ID: " + wmlId, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var midLoc := GetWmlMidLoc(who, wmlId);
+
+  SendSysMessage(who, "Poprzednie centrum dla WML ID: "+wmlId+": "+GetLocString(midLoc), FONT_NORMAL, COLOR_GREEN);
+
+  SendSysMessage(who, "Stan w centrum.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Srodek??"))
+    return;
+  endif
+
+  midLoc := GetLocStruct(who);
+  
+  SetWmlMidLoc(who, wmlId, midLoc);
+  SendSysMessage(who, "Nowe centrum dla WML ID: "+wmlId+": "+GetLocString(midLoc), FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ImportHEMulti(who)
+
+  UnloadConfigFile(SHARECFG_PKG+"multihe");
+  var Cfg := ReadConfigFile(SHARECFG_PKG+"multihe");
+  
+  if(!Cfg)
+    SendSysMessage(who,"Plik 'mutlihe.cfg' nie isnieje. Wgraj go przez interfejs POLa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Gdzie postawic zaimportowany dom z HouseEditora?",FONT_NORMAL,COLOR_GREEN);
+  var Loc := LocTarget(who);
+  var Item, n := 0,i,Div := 0;
+
+  if(Cfg and Loc)
+    var Elem := FindConfigElem(Cfg,"House");
+    for(i:=0;i<=5;i:=i+1)
+      foreach Str in GetConfigStringArray(Elem,CStr(i));
+        if(Str)
+          Str  := SplitWords(Str);
+          if(i > 0)
+            Div := 5+((i - 1) * 20);
+          else
+//            if((CInt(Str[4]) >= 1801 and CInt(Str[4]) <= 1967) or (CInt(Str[4]) >= 950 and CInt(Str[4]) < 1020) )
+              Div := 0;
+//            else
+//              Div := 5;
+//            endif
+          endif
+          Item := CreateItemAtLoc(Loc.x+CInt(Str[1]),Loc.y+CInt(Str[2]),Loc.z+CInt(Str[3])+(Div),CInt(Str[4]));
+          Item.movable := 0;
+          n := n + 1;
+        endif
+      endforeach
+    endfor
+    SendSysMessage(who,"Stworzono "+n+" przedmiotow.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

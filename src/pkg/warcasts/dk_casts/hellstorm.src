@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 74;
+
+//-----------------------------------------------------------------------------
+
+program DkHellStorm(Parms)
+
+  WarCast(Parms, DK_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var MainSk := GetEffectiveSkill(Caster, SKILLID_FANATICISM);
+  var MindSk := GetEffectiveSkill(Caster, SKILLID_ZEAL);
+  var Dmg    := CalcWarCastDamage(Caster, DK_WCID);
+  var Range  := CInt(MainSk / 30 + MindSk / 40);
+  var Gained := 0;
+  
+  DMG := (MainSk + MindSk) / 40 + DMG;
+  
+  PerformAction(Caster, ANIM_CAST_AREA);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(Mobile.isa(POLCLASS_NPC))
+      if(IsGoodNpc(Mobile))
+        PlaySoundEffect(Mobile, SFX_THUNDER_STORM);
+        PlayPcEffect(Mobile, FX_SPARK_EFFECT, 32, 0xf, 0x20, 5);
+        DealDamage(Mobile, Dmg, Caster);
+
+        if(Gained < 3)
+          Gained += GainWarcastPoints(Caster, Mobile, DK_WCID, WCGAIN_OFFENSIVE);
+        endif
+
+      endif
+    endif
+  endforeach
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+use uo;
+use os;
+
+// added becuase Control Scripts can't be reloaded
+program textcmd_instances(who)
+
+	var instanceArray := array;
+	
+	instanceArray.append(1818979807);
+	instanceArray.append(1821159457);
+	instanceArray.append(1819543436);
+	instanceArray.append(1819882950);
+	instanceArray.append(1819201757);
+	instanceArray.append(1819474289);
+	instanceArray.append(1819780335);
+	
+	SetGlobalProperty("InstanceStones", instanceArray);
+	
+
+	
+	
+
+endprogram

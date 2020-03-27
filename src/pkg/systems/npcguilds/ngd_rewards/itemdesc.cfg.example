@@ -1,0 +1,316 @@
+// ------------------------------------------------------------------------------
+// 0x9351 - 0x965f Nagrody (zasieg - 782 itemow)
+// ------------------------------------------------------------------------------
+// Opis:
+// ------------------------------------------------------------------------------
+// Itemy nagrod beda definiowane w roznoraki sposob zaleznie od typu.
+// Armory maja swoje wlasciwosci, Weapon swoje, meble swoje itp.
+// Nagrody maja miec objtype w zakresie podanym powyzej
+// Zdefiniowany Graphic i Color, Name i desc.
+// SGumpGrapM/F - Grafika w gumpie dla Male/Female (wykorzystywana w malarstwie, trzeba znalezc w inside odpowiednik gumpa dla danego itema equip)
+// ChName - to koncowka w odmianach nazwy przedmiotu wykorzystywana w skryptach przy nadawaniu nazwy.
+//
+// ------------------------------------------------------------------------------
+// Przyklad:
+// ------------------------------------------------------------------------------
+//
+// Item 0x9351
+// {
+//   Name                            bonethrone
+//   desc                            Tron z kosci
+//   Graphic                         0x2A3A
+//   weight                          10
+//   movable                         1
+//   VendorSellsFor                  1800
+//   VendorBuysFor                   700
+//   furniture                       1
+//   ChName                          e
+// }
+// ------------------------------------------------------------------------------
+
+
+
+
+// -- to wytnij, info dla Ciebie sto:
+// SGumpGrapM/F - Grafika w gumpie dla Male/Female (wykorzystywana w malarstwie, trzeba znalezc w inside odpowiednik gumpa dla danego itema equip)
+// reszta to przyklady dekleracji roznych itemow jak zbroje, bronie itp.
+// kopiuj z nich i pozmieniaj co trzeba
+// ChName - to koncowka w odmianach nazwy przedmiotu
+// TileFlags ignoruj
+// Staraj sie grafike podawac w hexie (.prop hex liczba) - ale to nie jest wymagane specjalnie
+// narazie podeklaruj wszystko jak leci
+// Ze specjalnymi wlasciwosciami to pomysli sie pozniej
+// Pewnie dojda jakies propy, ale to juz bedzie prostsze, nie ma az tyle itemow ze specjalami.
+
+Armor 0x13C7
+{
+  Name                            LeatherGorget
+  desc                            skorzany karczek
+  AR                              13
+  Coverage                        Neck
+  VendorSellsFor                  74
+  VendorBuysFor                   18
+  MaxHP                           35
+  strrequired                     10
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  blockcircle                     7
+  Kind                            7
+  ChName                          y
+  SGumpGrapM                      0xC572
+  SGumpGrapF                      0xEC82
+  CanBeMagicArmor                 1
+  repairable                      34
+  Leather                         1
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+}
+
+Armor 0x8101
+{
+  Name                            RangerGloves
+  desc                            rekawice lowcy
+  graphic                         0x13D5
+  color                           34202
+  AR                              20
+  Coverage                        Hands
+  VendorSellsFor                  98
+  VendorBuysFor                   24
+  MaxHP                           60
+  strrequired                     25
+  repairable                      34
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  Cprop                           type sranger
+  blockcircle                     6
+  ChName                          e
+  SGumpGrapM                      0xC55C
+  SGumpGrapF                      0xEC6C
+  CanBeMagicArmor                 1
+  Studded                         1
+  DecaysOnMultis                  1
+  Gloves                          1
+  TileFlags                       0x00400002
+}
+
+Armor 0x13BE
+{
+  Name                            ChainmailLeggings
+  desc                            nogawice
+  AR                              23
+  Coverage                        Legs/feet
+  VendorSellsFor                  169
+  VendorBuysFor                   42
+  MaxHP                           55
+  strrequired                     35
+  repairable                      7
+  DexPenalty                      3
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  blockcircle                     2
+  ChName                          e
+  SGumpGrapM                      0xC56C
+  SGumpGrapF                      0xEC7C
+  CanBeMagicArmor                 1
+  Chain                           1
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+  OldObjType                      0x13C3
+}
+
+Armor 0x13BF
+{
+  Name                            ChainmailTunic
+  desc                            kolczuga
+  AR                              23
+  Coverage                        Arms
+  Coverage                        Body
+  VendorSellsFor                  202
+  VendorBuysFor                   51
+  MaxHP                           53
+  strrequired                     35
+  repairable                      7
+  DexPenalty                      5
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  blockcircle                     2
+  ChName                          a
+  SGumpGrapM                      0xC56A
+  SGumpGrapF                      0xEC7A
+  CanBeMagicArmor                 1
+  Chain                           1
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+  OldObjType                      0x13C4
+}
+
+Armor 0x1408
+{
+  Name                            CloseHelm
+  desc                            zamkniety helm
+  AR                              25
+  Coverage                        Head
+  VendorSellsFor                  147
+  VendorBuysFor                   37
+  MaxHP                           55
+  strrequired                     40
+  repairable                      7
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  blockcircle                     2
+  ChName                          y
+  SGumpGrapM                      0xC6F0
+  SGumpGrapF                      0xEE00
+  CanBeMagicArmor                 1
+  Plate                           1
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+  OldObjType                      0x1409
+}
+
+Armor 0x140A
+{
+  Name                            Helmet
+  desc                            otwarty helm
+  AR                              21
+  Coverage                        Head
+  VendorSellsFor                  147
+  VendorBuysFor                   37
+  MaxHP                           55
+  strrequired                     40
+  repairable                      7
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  blockcircle                     2
+  ChName                          y
+  SGumpGrapM                      0xC585
+  SGumpGrapF                      0xC585
+  CanBeMagicArmor                 1
+  Plate                           1
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+  OldObjType                      0x140B
+}
+
+Armor 0x1B7A
+{
+  Name                            WoodenShield
+  desc                            tarcza
+  AR                              14
+  Kind                            9
+  LogChName                       a
+  VendorSellsFor                  64
+  VendorBuysFor                   16
+  MaxHP                           22
+  Coverage                        Shield
+  Shield                          1
+  strrequired                     10
+  EquipScript                     :combat:equip
+  Script                          :combat:equipitem
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  blockcircle                     1
+  ChName                          a
+  SGumpGrapM                      0xC592
+  SGumpGrapF                      0xC592
+  CanBeMagicArmor                 1
+  repairable                      11
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+}
+
+
+Item 0xB01D
+{
+  Name                            longmarbletable
+  Desc                            deed na dlugi marmurowy stol
+  Graphic                         0x14EF
+  Script                          carpentryDeed
+  Weight                          1
+  VendorSellsFor                  5000
+  VendorBuysFor                   200
+  ChName                          y
+  TileFlags                       0x00000000
+}
+
+Item 0xB01E
+{
+  Name                            shortmarbletable
+  Desc                            deed na krotki marmurowy stol
+  Graphic                         0x14EF
+  Script                          carpentryDeed
+  Weight                          1
+  VendorSellsFor                  5000
+  VendorBuysFor                   200
+  ChName                          y
+  TileFlags                       0x00000000
+}
+
+Item 0xB01F
+{
+  Name                            longmarblebench
+  Desc                            deed na dluga marmurowa lawke
+  Graphic                         0x14EF
+  Script                          carpentryDeed
+  Weight                          1
+  VendorSellsFor                  5000
+  VendorBuysFor                   200
+  ChName                          y
+  TileFlags                       0x00000000
+}
+
+Item 0xB020
+{
+  Name                            shortmarblebench
+  Desc                            deed na krotka marmurowa lawke
+  Graphic                         0x14EF
+  Script                          carpentryDeed
+  Weight                          1
+  VendorSellsFor                  5000
+  VendorBuysFor                   200
+  ChName                          a
+  TileFlags                       0x00000000
+}
+
+Weapon 0x0F47
+{
+  Name                            BattleAxe
+  desc                            bojowy topor
+  Speed                           50
+  Damage                          5d4+4
+  Attribute                       Axesmanship
+  MaxHP                           55
+  HitSound                        0x23C
+  MissSound                       0x23A
+  VendorSellsFor                  53
+  VendorBuysFor                   13
+  repairable                      7
+  strrequired                     35
+  Anim                            0x000d
+  Script                          :combat:equipitem
+  EquipScript                     :combat:equip
+  UnEquipScript                   :combat:unequip
+  DestroyScript                   :combat:destroy
+  BlocksCastingIfInHand           0
+  blockcircle                     1
+  poisonable                      1
+  ChName                          y
+  NonForMage                      1
+  SGumpGrapM                      0xC5B7
+  SGumpGrapF                      0xC5B7
+  CanBeMagicWeapon                1
+  DecaysOnMultis                  1
+  TileFlags                       0x00400002
+}

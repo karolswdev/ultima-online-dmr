@@ -1,0 +1,346 @@
+//-----------------------------------------------------------------------------
+
+use datafile;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/std";
+include "include/player/misc";
+include "include/gump_utils";
+include "include/cmds/cancmd";
+include "include/gumpboxes";
+include "include/names";
+include "include/cmds/cmds";
+
+include ":gods:common";
+include ":gods:gods";
+
+//-----------------------------------------------------------------------------
+
+program Gods(who,text)
+  
+  if(!CanUseCmd(who, "gods"))
+    SendSysMessage(who, "Nie mozesz uzyc tej komendy.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var sp := SplitWords(text);
+  
+  var res, i, targ, bExit;
+  var Targs := array;
+  
+  case(sp[1])
+    "history":  targ := GetCmdTarget(who, sp[2]);
+
+                if(!Targ)
+                  SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                else
+                  HistoryGodsPoints(who,targ);
+                endif
+
+                return;
+
+    "info":     var Targ := GetCmdTarget(who, sp[2]);
+                
+                if(!Targ)
+                  SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                else
+                  ShowGodInfo(who, Targ);
+                endif
+
+                return;
+
+    "sr":       var AllChars := array;
+                var Vals     := struct;
+
+                if(!sp[2])
+                 SendSysMessage(who, ".gods sr [nm/st/sk/age/ontimer/lastlog/extime/murd/murdtime] Liczbowe: [= < >] Czasowe: [s/m/h/d], np. info sr age > 10, info sr murdtime > 10 d", FONT_NORMAL, COLOR_RED);
+                 return 0;
+                endif
+
+                SearchAllChars(who, sp, Vals, AllChars);
+                SendSysMessage(who,"Znaleziono "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+                SendSysMessage(who,"Kryteria: "+Vals.sname+" gdzie: "+ClStr(Vals.value), FONT_NORMAL, COLOR_BLUE);
+                
+                var Targ;
+
+                if(AllChars.size())
+                  Targ := ShowCharsSelection(who, AllChars, Vals.sname+": "+ClStr(Vals.value));
+                endif
+
+                if(!Targ)
+                  SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+                else
+                  ShowGodInfo(who, Targ);
+                endif
+                return;
+
+    "god":      var godId := SelectGod(who);
+
+                if(godId)
+                  SearchCharacterByGod(who, godId);
+                else
+                  SendSysMessage(who, "Nie wybrano boga.", FONT_NORMAL, COLOR_RED);
+                endif
+                return;   
+
+  endcase
+
+  var Count := CInt(text);
+  
+  if(sp[1] == "add")
+    Count := 1;
+    targ := GetCmdTarget(who, sp[2]);
+    
+    if(!Targ)
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    Targs[Count] := targ;
+  else
+    if(Count > 5)
+      SendSysMessage(who, "Blad w wypelnieniu drugiej wlasciwosci. Pamietaj ze maksymalnie 5 osobom mozesz naraz dac pkt.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  
+    if(Count <= 0)
+      Count := 1;
+    endif
+ 
+    for(i:=1;i<=Count;i:=i+1)
+      
+      SendSysMessage(who, "Wskaz gracza nr: "+i+".", FONT_NORMAL, COLOR_GREEN);
+      Targs[i] := Target(who);
+      if(!Targs[i] or !IsPlayer(Targs[i]))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+      
+    endfor
+
+  endif
+
+  var godId := SelectGod(who);
+  var QuestName, reason, bw, pw;
+
+  if(!godId)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var GodName := GetGodNameById(godId);
+  
+  while(IsLoggedIn(who) and !bExit)
+
+    BQGInit("Dodawanie Boskich Punktow:", 400, 250);
+    BQGAddTextBox(100, 60, 230, 20, FCLR_TEBOX, QuestName, BQG_EDITABLE | BQG_SHOWTITLES, 1, 1, "Nazwa Q:");
+    BQGAddTextBox(100, 90, 230, 20, FCLR_TEBOX, Reason, BQG_EDITABLE | BQG_SHOWTITLES, 1, 2, "Powod:");
+    BQGAddTextBox(100, 120, 20, 20, FCLR_TEBOX, Bw, BQG_EDITABLE | BQG_SHOWTITLES, 1, 3, "BW:");
+    BQGAddTextBox(250, 120, 20, 20, FCLR_TEBOX, Pw, BQG_EDITABLE | BQG_SHOWTITLES, 1, 4, "PW:");
+    BQGAddTextBox(150, 155, 120, 20, FCLR_TEBOX, GodName, BQG_SHOWTITLES, 1, 5, "Bog:");
+
+    GButton(20, 193, 2117, 2118, 6);
+    GTextLine(40, 190, 550, "Dodaj:");
+    
+    Res := GSend(who);
+    bExit := 1;
+    
+    if(Res.butid == 6)
+    
+      QuestName := Res.text[1];
+      Reason := Res.text[2];
+      Bw := Res.text[3];
+      Pw := Res.text[4];
+      
+      if(!QuestName or !reason or !bw or !pw)
+        SendSysMessage(who, "Musisz wypelnic wszystkie pola.", FONT_NORMAL, COLOR_RED);
+        bExit := 0;
+      endif
+
+      Res := 1;
+    else
+      Res := 0;
+    endif
+  
+  endwhile
+
+  if(Res)
+
+    for(i:=1;i<=Count;i:=i+1)
+
+      targ := Targs[i];
+      
+      if(!Targs[i])
+        SendSysMessage(who, "Cel "+i+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+        continue;
+      endif
+      
+      SendSysMessage(who, "Gracz: "+GetRealName(targ), FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, "Nazwa Q: "+QuestName, FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, "Powod: "+reason, FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, "Bog: "+GodName, FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, "BW: "+bw, FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, "PW: "+pw, FONT_NORMAL, COLOR_GREEN);
+      
+      if(!YesNo(who,"Zgadza sie?"))
+        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      SetGodPoints(targ, godId, bw, pw); 
+      LogGodsPoint(who, targ, QuestName, reason, GodName, bw, pw);
+      SendSysMessage(who, "Dodano punkty osobie "+GetRealName(targ), FONT_NORMAL, COLOR_WHITE);
+      
+    endfor
+   
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SelectGod(who)
+
+  var Entries := GetGodsList();
+
+  return BQSelectEntry(who, Entries);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LogGodsPoint(who, targ, quest, reason, god, bw, pw)
+
+  var history := struct;
+  var Data := OpenDataFile(GODS_DATA);
+
+  if(!Data)
+    Data := CreateDataFile(GODS_DATA);
+  endif
+
+  if(!Data)
+    LogError("LogGodsPoint: Nie udalo sie stworzyc GodsData ["+GODS_DATA+"]", LOGF_SCRIPTS);
+  endif
+  
+  var Elem := Data.FindElement(PLAYER_TITLE+targ.serial);
+  
+  if(!Elem)
+    Elem := Data.CreateElement(PLAYER_TITLE+targ.serial);
+  endif
+  
+  var nextId := Cint(Elem.GetProp(PROP_ID)) + 1;
+
+  Elem.SetProp(PROP_ID, nextId);
+  
+  history.+god    := god;
+  history.+quest  := quest;
+  history.+reason := reason;
+  history.+date   := CUnixTime(PolCore().systime);
+  history.+who    := GetRealName(who);
+  history.+bw     := bw;
+  history.+pw     := pw;
+  
+  Elem.SetProp(PROP_HISTORY+""+nextId, history);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HistoryGodsPoints(who,targ)
+
+  var history := struct;
+  var Data := OpenDataFile(GODS_DATA);
+
+  if(!Data)
+    Data := CreateDataFile(GODS_DATA);
+  endif
+
+  if(!Data)
+    LogError("HistoryGodsPoints: Nie udalo sie stworzyc GodsData ["+GODS_DATA+"]", LOGF_SCRIPTS);
+  endif
+  
+  var Elem := Data.FindElement(PLAYER_TITLE+targ.serial);
+  
+  if(!Elem)
+    Elem := Data.CreateElement(PLAYER_TITLE+targ.serial);
+  endif
+  
+  var id := Cint(Elem.GetProp(PROP_ID));
+  
+  BQGInit("Historia Boskich Punktow dla: ", 1000, 400);
+  GTextLine(220, 20, 540, targ.name);
+  GPage();
+  GAddPageData(950,40,2650,2651,950,360,2648,2647);
+
+  var i := 1;
+  
+  while(IsLoggedIn(who) and (id-1)>=0)
+    
+    GCheckNextPage(17);
+    history := Elem.GetProp(PROP_HISTORY+""+id);
+    
+    GTextLine(20, 40+(GNPCount()*20), 550, i+".");
+    GTextLine(40, 40+(GNPCount()*20), 540, history.date);
+    GTextLine(170, 40+(GNPCount()*20), 550, "Kto:");
+    GTextLine(200, 40+(GNPCount()*20), 540, history.who);
+    GTextLine(260, 40+(GNPCount()*20), 550, "Bog:");
+    GTextLine(290, 40+(GNPCount()*20), 540, history.god);
+    GTextLine(360, 40+(GNPCount()*20), 550, "BW");
+    GTextLine(390, 40+(GNPCount()*20), 540, history.bw);
+    GTextLine(420, 40+(GNPCount()*20), 550, "PW");
+    GTextLine(450, 40+(GNPCount()*20), 540, history.pw);
+    GTextLine(490, 40+(GNPCount()*20), 550, "Quest:");
+    GTextLine(530, 40+(GNPCount()*20), 540, history.quest);
+    GTextLine(650, 40+(GNPCount()*20), 550, "Powod:");
+    GTextLine(690, 40+(GNPCount()*20), 540, history.reason);
+  
+    id := id - 1;
+    i := i + 1;
+    
+  endwhile
+
+  var Res := GSend(who);
+  if(!Res)
+    return;
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SearchCharacterByGod(who, godId)
+
+  var AllAcc   := ListAccounts();
+  var AllChars := array;
+  var Char, i, Points, whom;
+  var GodName := GetGodNameById(godId);
+
+  foreach Acc in AllAcc
+    Acc := FindAccount(Acc);
+    for(i:=1;i<=5;i:=i+1)
+      Char := Acc.GetCharacter(i);
+      if(Char)
+        points := GetGodPoints(Char, godId);
+
+        if(points and points.bw != 0)
+          AllChars.append(array(GetRealName(Char), points.bw, Char.serial));
+        endif
+      endif
+    endfor
+  endforeach
+
+  SendSysMessage(who,"Znaleziono "+AllChars.size()+" graczy dla boga "+godName+".",FONT_NORMAL,COLOR_GREEN);
+
+  repeat
+    whom := ShowCharsSelection(who, AllChars, "Wszyscy gracze dla boga "+godName);
+
+    if(whom)
+      ShowGodInfo(who, whom);
+    endif
+  until(!whom);
+
+endfunction
+
+//-----------------------------------------------------------------------------

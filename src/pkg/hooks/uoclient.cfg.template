@@ -1,0 +1,23 @@
+General General
+{
+  Strength      Strength
+  Intelligence  Intelligence
+  Dexterity     Dexterity
+
+  Hits          Life
+  Mana          Mana
+  Stamina       Stamina
+ 
+  MaxSkillID    51
+}
+
+Protocol Protocol
+{
+  EnableFlowControlPackets 0
+}
+
+Listener None
+{
+  Port        5001
+  Encryption  none
+}

@@ -1,0 +1,64 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 71;
+
+//-----------------------------------------------------------------------------
+
+program CastWraithBreath( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var Range := CInt(GetMagicSkillValue(Caster, SpellGlob.Type) / 30) + CInt(GetMindSkillValue(Caster, SpellGlob.Type) / 30);
+  var Dmg   := 0;
+  var Num   := 0;
+  var Gained := 0;
+
+  foreach mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range,Caster.realm)
+    if(CanDamage(Caster,mobile,0, CastLoc.mobile))
+
+      PlayPcEffect(mobile, FX_SMOKE, 90, 0xf, 0xf, 3);
+      PlaySoundEffect(mobile, 0x1FA);
+
+      Dmg := CInt(CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type) / 2);
+      if(Dmg > GetMana(Mobile))
+        Dmg := GetMana(Mobile);
+      endif
+
+      HealMana(Caster, Dmg, Caster);
+      DealManaDamage(Mobile, Dmg, Caster);
+      SendChEvent(Mobile, Caster, EVID_ENGAGED);
+      AddMurdReport(mobile, Caster);
+      
+      Num := Num + 1;
+
+      if(Gained < 3) 
+        Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+      endif
+
+      if(Num >= 5)
+        break;
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

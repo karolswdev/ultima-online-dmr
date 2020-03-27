@@ -1,0 +1,30 @@
+use uo;
+
+include "include/player/target";
+include "include/client/fonts";
+include "include/items/containers"; 
+
+program ContTop(who)
+
+  var Targ := ObjTarget(who);
+  
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var backpack := targ.backpack;
+  var conts := array;
+  foreach item in EnumerateItemsInContainer(backpack, ENUMERATE_ROOT_ONLY)
+    if(item.isa(POLCLASS_CONTAINER))
+      conts.append(item);
+    endif
+  endforeach
+  
+  if(conts.size())
+    backpack := conts[RandomInt(conts.size())+1];
+  endif
+  SendViewContainer(targ, backpack);
+  SendSysMessage(who, "Otwarto pojemnik: " + GetName(Targ), FONT_NORMAL, COLOR_GREEN);
+  
+endprogram

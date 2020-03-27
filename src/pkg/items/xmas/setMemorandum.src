@@ -1,0 +1,41 @@
+use uo;
+use os;
+
+include "include/items";
+include "include/effects";
+include "include/const/cfgs";
+include "include/checks/objchecks";
+include "include/player/misc";
+include "include/gumps";
+include "include/gumpboxes";
+
+program useMemorandum(who, stone)
+
+    if(!YesNo(who, "Zaznaczyc Twoja obecnosc na swiecie Zimy Dream Masters Revolution"))
+	return;
+    endif
+    
+    if(GetObjProperty(stone, "NameSet"))
+	SendSysMessage(who, "Ten kamien nosi juz jakies imie...", FONT_NORMAL, RED_COLOR);
+	return;
+    endif
+    
+    SetObjproperty(stone, "Legendary", 1);
+    
+    var shortstory := "Odkryto moc zimy";
+    
+    case(RandomInt(8)+1)
+	1: shortstory := "Zima przytula";
+	2: shortstory := "Sniezny Krol";
+	3: shortstory := "Kwiat sniegu";
+	4: shortstory := "Balwanek";
+	5: shortstory := "Zabawa!";
+	6: shortstory := "Chwala!";
+    endcase
+    
+    SetObjProperty(stone, "SpecialTag", shortstory);
+    SetName(stone, who.name);
+    
+    SendSysMessage(who, "Ten kamien nosi Twe imie...", FONT_NORMAL, RED_COLOR);
+    
+endprogram

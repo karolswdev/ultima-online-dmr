@@ -1,0 +1,118 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/finding";
+include "include/clock";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program Oszust(who,text)
+
+  var Targ;
+  var ODesc := "";
+
+  if(CInt(text))
+    Targ := FindPlayerBySerial(CInt(text));
+  endif
+  
+  if(!Targ)
+    Targ := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+  endif
+  
+  if(!IsPlayer(Targ))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Name := Targ.name;
+  case(Targ.gender)
+    0: ODesc := " - Oszust";
+    1: ODesc := " - Oszustka";
+  endcase
+
+  if(text["era"])
+    if(!Name[ODesc])
+      SendSysMessage(who,"Ta osoba  nie jest oszustem.",FONT_NORMAL,COLOR_RED);
+    else
+      Name[ODesc] := "";
+      SetName(Targ,Name);
+      SendSysMessage(who,"Osoba "+Targ.name+" nie jest juz oszustem.",FONT_NORMAL,COLOR_GREEN);
+    endif
+    if(GetObjProperty(Targ,"Oszust"))
+      SendSysMessage(who,"Kasowanie licznika.",FONT_NORMAL,COLOR_GREEN);
+      EraseObjProperty(Targ,"Oszust");
+      var acc    := Targ.acct;
+      var Makros := Acc.GetProp("Makros");
+      Makros.erase(Len(Makros));
+      Acc.SetProp("Makros",Makros);
+    endif
+    return;
+  elseif(text["info"])
+    var acc    := Targ.acct;
+    var Makros := Acc.GetProp("Makros");
+    if(!Makros)
+      Makros := {};
+    endif
+    SendSysMessage(who,"Osobnik z danego konta makrowal "+len(Makros)+" razy. Postacie : ",FONT_NORMAL,COLOR_GREEN);
+    foreach Mak in Makros
+      SendSysMessage(who,_Mak_iter + ". " +Mak,FONT_NORMAL,COLOR_BLUE);
+    endforeach
+    return;
+  endif
+
+  SendSysMessage(who, "Nadac oszusta osobie ["+Targ.name+"] z konta ["+Targ.acctname+"]?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Name[ODesc])
+    SendSysMessage(who,"Ta osoba jest juz oszustem.",FONT_NORMAL,COLOR_RED);
+  else
+    Name := Name + ODesc;
+    SetName(Targ,Name);
+    SendSysMessage(who,"Dodano status Oszusta osobie - "+Targ.name,FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  if(!GetObjProperty(Targ,"Oszust"))
+    SendSysMessage(who,"Zapisywanie licznika czasu.",FONT_NORMAL,COLOR_GREEN);
+    SetOszust(Targ,who,ODesc);
+  endif
+
+  if(GetObjProperty(Targ,"Oszust") and text["up"])
+    SendSysMessage(who,"Update licznika czasu.",FONT_NORMAL,COLOR_GREEN);
+    SetOszust(Targ,who,ODesc);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SetOszust(Targ,who,ODesc)
+
+  var acc    := Targ.acct;
+  var Makros := Acc.GetProp("Makros");
+  if(!Makros)
+    Makros := {};
+  endif
+  var Name := Targ.name;
+  Name[ODesc] := "";
+  var Time := ExtractTimeComponents(PolCore().systime);
+  Makros.append(Name + " " + Time.year + "." + ZeroFill(Time.month,2) + "." + ZeroFill(Time.day,2));
+  Acc.SetProp("Makros",Makros);
+  
+  SetObjProperty(Targ,"Oszust",CInt(GetObjProperty(Targ,"onlinetimer")));
+  
+  SendSysMessage(who,"Osobnik z danego konta makrowal "+len(Makros)+" razy. Postacie : ",FONT_NORMAL,COLOR_GREEN);
+  foreach Mak in Makros
+    SendSysMessage(who,_Mak_iter + ". " +Mak,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------

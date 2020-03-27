@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program UndoModDependant(Parms)
+
+  var who := Parms[1];
+  var ModId := Parms[2];
+  var Depend := Parms[3];
+
+  sleep(2);
+
+  while(Depend and CanMod(who, ModId) == 0 and !who.dead)
+    sleep(1);
+  endwhile
+
+  UndoMod(who, ModId);
+
+endprogram
+
+//-----------------------------------------------------------------------------

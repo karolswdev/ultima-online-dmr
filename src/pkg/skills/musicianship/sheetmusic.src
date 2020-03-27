@@ -1,0 +1,288 @@
+//-----------------------------------------------------------------------------
+
+include "music";
+include "include/checks/objchecks";
+include "include/gumps";
+
+//-----------------------------------------------------------------------------
+
+const MAX_PAGE    := 15;
+const PAGE_COUNT  := 23;
+
+var gSounds, gType, gInsSounds,gMainInstr;
+
+//-----------------------------------------------------------------------------
+
+program SheetMusic(who,Sheet)
+
+  var MusicCfg := ReadConfigFile(MUSIC_CFG);
+  var Res;
+
+  var Instr     := GetInstruments();
+  var Instrums  := {};
+  var WhoMusic  := GetBaseSkill(who,SKILLID_MUSICIANSHIP);
+  
+  gSounds        := GetObjProperty(Sheet,"gSounds");
+  gType          := GetObjProperty(Sheet,"gType");
+  
+  if(!gSounds)
+    gSounds := array;
+  endif
+  
+  if(WhoMusic < 100)
+    SendSysMessage(who,"Nie bardzo wiesz co z tym zrobic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  foreach Item in EnumerateItemsInContainer(who.backpack)
+    if(Item.graphic in Instr)
+      gInsSounds := GetConfigStringArray(MusicCfg[GetInstrType(Item.objtype)],"Sound");
+      if(gInsSounds.size())
+        Instrums.append(Item);
+      endif
+    endif
+  endforeach
+
+  case(Instrums.size())
+    0:       SendSysMessage(who,"Nie masz na czym grac.",FONT_NORMAL,COLOR_RED);
+             return;
+    1:       gMainInstr := Instrums[1];
+    default: gMainInstr := SelectInstr(who,Instrums);
+  endcase
+  
+  if(!StandardItemCheck(who,gMainInstr))
+    return;
+  endif
+
+  gInsSounds := GetConfigStringArray(MusicCfg[GetInstrType(gMainInstr.objtype)],"Sound");
+  
+  if(!gInsSounds.size())
+    SendSysMessage(who,"Z tego instrumentu ciezko bedzie wydobyc jakies szczegolne dzwieki.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!gType)
+    gType   := gInsSounds.size();
+    SetObjProperty(Sheet,"gType",gType);
+  endif
+  
+  if(gType != gInsSounds.size())
+    SendSysMessage(who,"Na tym arkuszu zapisane sa dzwieki na innego rodzaju instrument.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  foreach InsSound in gInsSounds
+    InsSound    := SplitWords(InsSound);
+    InsSound[2] := CInt(InsSound[2]);
+  endforeach
+
+  while(IsLoggedIn(who) and gMainInstr)
+
+    BuildMainGump(Sheet);
+    
+    Res := GSend(who)[0];
+
+    if(!Res)
+      return;
+    endif
+    
+    case(Res)
+      1:      DeleteLast(Sheet);
+      2:      ClearAll(Sheet);
+      3:      ChangeName(who,Sheet);
+      4:      PlaySheetMusic(who);
+      5:      AddSound(who, Sheet, 0);
+    endcase
+    
+    if(Res > 100 and Res < 200)
+      AddSound(who,Sheet,Res-100);
+    elseif(Res > 200)
+      DeleteSelectedSound(Sheet,Res-200);
+    endif
+    
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGump(Sheet)
+
+  GInit(50,50);
+  GAddPageData(28,92,0x8AF,0x8AF,356,92,0x8B0,0x8B0);
+  
+  GGumpPic(0,0,0x4CC);
+  GTextLine(50,4 ,590,Sheet.name);
+  GTextCrop(30,28,340,20,550,"Instrument: " + CutDesc(gMainInstr.desc));
+
+  GGumpPic(35,52,0x980);
+  GGumpPic(200,52,0x982);
+
+  GButton(10,268,2117,2118,1);
+  GTextLine(30,264,550,"Cofnij ostatni");
+
+  GButton(130,268,2117,2118,2);
+  GTextLine(150,264,550,"Wyczysc");
+
+  GButton(220,268,2117,2118,3);
+  GTextLine(240,264,550,"Nazwa");
+
+  GButton(290,268,2117,2118,4);
+  GTextLine(310,264,550,"Graj");
+  
+  GButton(220,32,2117,2118,5);
+  GTextLine(240,28,550,"Dodaj przerwe");
+  
+  var w := 0, h := 0, i := 1;
+  
+  foreach InsSound in gInsSounds
+    GButton(30+w,154+h,0x837,0x838,100+i);
+    GTextLine(46+w,150+h,570,InsSound[1]);
+    h := h + 20;
+    if(h > 80)
+      h := 0;
+      w := w + 70;
+    endif
+    i := i + 1;
+  endforeach
+
+  GPage();
+  
+  i := 1;
+
+  var MP;
+
+  if(gInsSounds.size() == 4)
+    MP := 18;
+  else
+    MP := 3;
+  endif
+
+  var hIndex;
+
+  foreach Sound in gSounds
+    GCheckNextPage(PAGE_COUNT);
+    if(Sound == 0)
+      hIndex := MP*(gInsSounds.size()/2);
+    else
+      hIndex := (Sound*MP);
+    endif
+    GButton(53+(GNPCount()*13),134-hIndex,__IfElse(Sound, 0x93a, 0x938),0x939,200+i);
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectInstr(who,Instrums)
+
+  GInit(50,50);
+  GAddPageData(356,8,0x824,0x824,350,268,0x825,0x825);
+
+  GGumpPic(0,0,0x4CC);
+  GPage();
+
+  var i := 1;
+  
+  GTextLine(110,4,550,"Wybierz instrument");
+  GButton(280,265,0x847,0x848,0);
+  
+  foreach Ins in Instrums
+    GCheckNextPage(15);
+    GButton(30,36+(GNPCount()*20),2117,2118,i);
+    GTextCrop(50,32+(GNPCount()*20),320,20,560,CutDesc(Ins.desc));
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+  
+  if(Res)
+    return Instrums[Res];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteLast(Sheet)
+
+  gSounds.erase(gSounds.size());
+  SetObjProperty(Sheet,"gSounds",gSounds);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearAll(Sheet);
+
+  EraseObjProperty(Sheet,"gSounds");
+  EraseObjProperty(Sheet,"gType");
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddSound(who,Sheet,Nr)
+
+  if(gSounds.size() > MAX_PAGE * PAGE_COUNT)
+    SendSysMessage(who,"Zapisal"+ggm(who,3)+" juz caly arkusz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  gSounds.append(Nr);
+  SetObjProperty(Sheet,"gSounds",gSounds);
+
+  if(Nr)
+    PlaySoundEffect(who,gInsSounds[Nr][2]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlaySheetMusic(who)
+
+  var MusicCfg := ReadConfigFile(MUSIC_CFG);
+  var PlayDelay := GetConfigInt(MusicCfg[GetInstrType(gMainInstr.objtype)],"PlayDelay");
+
+  foreach Sound in gSounds
+    if(Sound) // moze byc break!
+      PlaySoundEffect(who,gInsSounds[Sound][2]);
+    endif
+    sleepms(PlayDelay);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteSelectedSound(Sheet,Nr)
+
+  gSounds.erase(Nr);
+  SetObjProperty(Sheet,"gSounds",gSounds);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeName(who,Sheet)
+
+  var NewName := SendTextEntryGump(who,"Wpisz nowa nazwe",TE_CANCEL_ENABLE);
+
+  if(!NewName)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SetObjProperty(Sheet,"Name",NewName);
+  SetName(Sheet,NewName);
+  
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" nazwe na "+NewName+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------

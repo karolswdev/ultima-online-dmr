@@ -1,0 +1,21 @@
+use uo;
+
+include ":major:major";
+include "include/gumps";
+include "include/gumpboxes";
+
+program DesStone(who)
+
+  SendSysMessage(who,"Wskaz kamien:",FONT_NORMAL,GREEN_COLOR);
+  var Trg := Target(who,TGTOPT_NOCHECK_LOS);
+  
+  if(Trg.objtype == UOBJ_CITYSTONE or Trg.objtype == UOBJ_MAJORSTONE)
+    if(YesNo(who,"Czy na pewno chcesz zniszczyc ten kamien?"))
+      SetObjProperty(Trg,"Destroying",who.serial);
+      DestroyItem(Trg);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram

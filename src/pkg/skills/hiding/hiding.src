@@ -1,0 +1,99 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/mobile/misc";
+include "include/mount";
+include "include/attributes/npcs_cag";
+
+include ":hiding:hiding";
+
+//-----------------------------------------------------------------------------
+
+program Hidding( hider )
+
+  var Points  := GetDefaultPointsValue(SKILLID_HIDING);
+  
+  var canH := CanHide(hider);
+  if(IsBusy(hider,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var Npc := GetFirstGainableEngagingNpc(hider);
+
+  if(Npc)
+    // double gain for stat
+    if(!GetObjProperty(hider, PROP_NO_FIGHT))
+      AwardPoints(hider, SKILLID_HIDING, Points*3);
+    endif
+  endif
+
+  SetBusyTime(hider,GetSkillDelay(SKILLID_HIDING));
+  
+  if (CanH == error)
+    if(!GetObjProperty(hider, PROP_NO_FIGHT) and GetBaseSkill(hider, SKILLID_HIDING) < 30)
+      SendSysMessage(hider, "Twoja umiejetnosc ukrywania wzrasta.", FONT_NORMAL, COLOR_RED);
+      AwardPoints(hider,SKILLID_HIDING,Points); 
+    endif
+    return;
+  endif
+
+  if(!CanH)
+    return;
+  endif
+
+  var WhoBHid     := GetBaseSkill( hider, SKILLID_HIDING );
+  var WhoEfHid    := GetEffectiveSkill( hider, SKILLID_HIDING );
+
+  var Range       := CInt(WhoEfHid / 10) + CInt(ToMin(WhoBHid-101,0)/2);
+  var Mount       := HaveMount(hider);
+  
+  if(Mount)
+    Range := 16 - Range;
+  else
+    Range := 11 - Range;
+  endif
+  
+  if(Range < 0)
+    Range := 0;
+  endif
+
+  var bystanders := ListHostiles( hider, range, LH_FLAG_LOS );
+
+  if( len(bystanders) > 0 )
+    SendSysMessage(hider, "Wrog Cie juz zobaczyl!", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var Diff := -1;
+
+  if(Mount)
+    if(GetBaseSkill(hider,SKILLID_HIDING) < 100)
+      Diff := GetEffectiveSkill(hider,SKILLID_HIDING) + 10;
+    endif
+  endif
+
+  if( CheckSkill( hider , SKILLID_HIDING , Diff , 0 ) )
+    PrintTextAbovePrivate( hider, "*ukryl"+ggm(hider,3)+" sie*" , hider );
+    sleepms(30);
+    var Dur := 60 + CInt(WhoEfHid * 5);
+    if(Mount)
+      Dur := CInt(Dur / 2);
+    endif
+
+    if(!GetObjProperty(hider, PROP_NO_FIGHT))
+      AwardPoints(hider, SKILLID_HIDING, Points);
+    endif
+    
+    foreach Enemy in ListHostiles(hider)
+      CagNpcDamaged(Enemy, hider, 15);
+    endforeach
+
+    TimeHidding(hider, Dur);
+  else
+    SendSysMessage(hider, "Nie udalo Ci sie ukryc.", FONT_NORMAL, COLOR_RED);
+    UnhidePlayer(hider);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

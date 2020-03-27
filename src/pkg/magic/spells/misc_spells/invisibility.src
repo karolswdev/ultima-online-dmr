@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":hiding:hiding";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 44;
+
+//-----------------------------------------------------------------------------
+
+program CastInvisiblity( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(CastOn.isa(POLCLASS_ITEM))
+    Fizzle(Caster, "Przedmiotow nie uda Ci sie schowac.");
+    return;
+  endif
+  
+  if(CastOn.isa(POLCLASS_NPC))
+    if(!IsTamed(CastOn))
+      Fizzle(caster, "Tego nie mozesz schowac!");
+      return;
+    endif
+  elseif(!IsPlayer(CastOn))
+    Fizzle(caster, "Tego nie mozesz schowac!");
+    return;
+  endif
+
+  var Duration := CInt(CalcModDuration( Caster ) / 2);
+  
+  if(CastOn.isa(POLCLASS_MOBILE))
+    if(!GetEquipmentByLayer(CastOn,LAYER_MOUNT))
+      PlaySoundEffect(CastOn, SFX_SPELL_INVISIBILITY);
+      TimeHidding(CastOn,Duration);
+    else
+      Fizzle(caster, "Ciezko Ci bedzie schowac wierzchowca.");
+    endif
+  
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

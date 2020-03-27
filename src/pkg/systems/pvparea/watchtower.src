@@ -1,0 +1,119 @@
+//-----------------------------------------------------------------------------
+// 2013-05-23
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "common";
+include "include/reputation/checks";
+include "include/checks/objchecks";
+include "include/proc";
+include "include/move";
+include "include/events";
+include "include/objects/location";
+include "include/mobile/npcs/properties";
+
+//-----------------------------------------------------------------------------
+
+const WATCHTOWER_RANGE := 150;
+const GUARD_DEPLOY_DELAY := 15; // czas w sekundach na wyslanie straznika do konkretnego gracza
+
+//-----------------------------------------------------------------------------
+
+var g_Delayed := 0, g_Sent := 0;
+
+//-----------------------------------------------------------------------------
+
+program WatchTowerControl(Stone)
+
+  var Pid := GetProc(GetObjProperty(Stone, "#Pid"));
+
+  if(Pid)
+    Pid.kill();
+  endif
+
+  var WorldZ := GetWorldHeight(Stone.x, Stone.y, Stone.realm);
+
+  SetObjProperty(Stone, "#Pid", GetPid());
+  var MethodNpc := GetObjProperty(Stone, "Method") == "npc";
+
+  while(Stone)
+    
+    if(!g_Delayed or g_Delayed < ReadGameClock())
+
+      g_Delayed := 0;
+
+      foreach mobile in ListMobilesNearLocationEx(Stone.x, Stone.y, WorldZ, WATCHTOWER_RANGE, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, Stone.realm)
+        if(MethodNpc)
+          if(mobile.isa(POLCLASS_NPC) and mobile.murderer and CInt(GetObjProperty(mobile, "#GuardDeployed")) < ReadGameClock() - GUARD_DEPLOY_DELAY)
+            DeployGuard(Stone, WorldZ, mobile);
+          endif
+        elseif(IsPlayer(mobile) and IsMurderer(mobile) and CInt(GetObjProperty(mobile, "#GuardDeployed")) < ReadGameClock() - GUARD_DEPLOY_DELAY)
+          DeployGuard(Stone, WorldZ, mobile);
+        endif
+      endforeach
+
+    endif
+
+    sleep(5 + RandomInt(5));
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DeployGuard(Stone, WorldZ, Player)
+
+  foreach Guard in ListMobilesNearLocationEx(Stone.x, Stone.y, WorldZ, 16, LISTEX_FLAG_NORMAL, Stone.realm)
+    if(Guard.isa(POLCLASS_NPC) and IsNpcGuard(Guard) and !Guard.warmode)
+      if(!SendGuardToPlayer(Guard, Player))
+        LogError("WatchTower: DeployGuard:  Straznica: "+GetLocString(Stone)+" osobnik: "+GetLocString(Player)+" Probowano wyslac straznika, ale nie mozna znalezc prawidlowej lokacji!");
+        SetObjProperty(Player, "#GuardDeployed", ReadGameClock());
+      else
+        g_Sent += 1;
+      endif
+      return;
+    endif
+  endforeach
+
+  if(g_Sent == 0)
+    LogError("WatchTower: DeployGuard: Straznica: "+GetLocString(Stone)+" Probowano wyslac straznika, ale nie ma zadnego!");
+    g_Delayed := ReadGameClock() + 60;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendGuardToPlayer(Guard, Player)
+
+  var Dist := GetLocDist(Guard, Player);
+
+  if(Dist > 9)
+    
+    var newLoc := FindStandableLocBetween(GetLocStruct(Player), GetLocStruct(Guard), 9);
+
+    if(newLoc == error)
+      return error;
+    endif
+  
+    NpcAnchorControl(Guard, 0);
+
+    if(MoveObject(Guard, newLoc.x, newLoc.y, newLoc.z, newLoc.realm, MOVEOBJECT_FORCELOCATION))
+      SetObjProperty(Player, "#GuardDeployed", ReadGameClock());
+      SendChEvent(Guard, Player, EVID_ENGAGED, "forced");
+      sleepms(500);
+    endif
+
+    NpcAnchorControl(Guard, 1);
+
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

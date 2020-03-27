@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+
+include "include/bits";
+include "include/items";
+include "include/objtypes/misc";
+include "include/checks/stdchecks";
+include "include/player/young";
+include "include/attack";
+
+include ":party:party";
+
+//-----------------------------------------------------------------------------
+
+program can_remove(who, corpse, item)
+
+  var gMove := GetObjProperty(item, "#CorpseMoveGround");
+  EraseObjProperty(Item, "#CorpseMoveGround");
+
+  if(IsSetFlag(item, ITEMF_NO_LOOT))
+    return 0;
+  endif
+
+  if(IsHairs(Item))
+    return 0;
+  elseif(Item.objtype == UOBJ_MOUNT)
+    return 0;
+  endif
+
+  if(IsPlayer(who) and !gMove and !IsStaff(who))
+
+    if(!StdCanContainerRemove(who, corpse, item))
+      return 0;
+    endif
+
+    if(Distance(who, corpse) > 1 and !IsStaff(who) and !IsOnDMRTest())
+      SendSysMessage(who,"Jestes za daleko by zebrac przedmioty.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+    if(CInt(GetObjProperty(who, "#GrabDelay")) + 400 > ReadMillisecondClock())
+      return 0;
+    endif
+
+    if(!CheckBound(who,Item))
+      SendSysMessage(who, "Ten przedmiot nie nalezy do Ciebie!",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+    SetObjProperty(who, "#GrabDelay", ReadMillisecondClock());
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+

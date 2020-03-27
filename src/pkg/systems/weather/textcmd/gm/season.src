@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program changeseason (who, text)
+
+  text := SplitWords(text);
+ 
+  case (text[1])
+    "summer":   SendPacket(who, "BC0101");
+    "fall":     SendPacket(who, "BC0201");
+    "winter":   SendPacket(who, "BC0301");
+    "felucca":  SendPacket(who, "BC0401");
+    "spring":   SendPacket(who, "BC0501");
+    "test":     SendPacket(who, "BC0801");
+    "light":    if(text[2] and CInt(text[3]))
+                  SendSysMessage(who,"RegLight "+text[2]+" "+CInt(text[3])+" Res: "+SetRegionLightLevel( text[2], CInt(text[3])), FONT_NORMAL, COLOR_BLUE );
+                endif
+
+    default:    SendSysMessage(who, ".season [summer/fall/winter/spring/felucca]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

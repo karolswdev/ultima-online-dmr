@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":magic:fields";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 110;
+
+//-----------------------------------------------------------------------------
+
+program CastFrostField( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var CasterVamp   := GetEffectiveSkill(Caster,SKILLID_VAMPIRE);
+  var CasterSp     := GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK);
+  var Duration     := CInt(10 + CInt(CasterVamp / 4) + CInt(CasterSp / 4));
+
+  CreateField(Caster, CastLoc.x,CastLoc.y,CastLoc.z, MFIELDT_FROST, duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "../../../../scripts/ai/include/ainpcs";
+include "include/player/misc";
+include "../../../../scripts/ai/include/ncdist";
+include "../../../../scripts/ai/main/sleepmode";
+include "../../../../scripts/ai/setup/animalsetup";
+include "../../../../scripts/ai/main/mainloopanimal";
+include "../../../../scripts/ai/combat/defaultcombatevent";
+include "../../../../scripts/ai/combat/fight";
+include "../../../../scripts/ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 6;
+
+//-----------------------------------------------------------------------------
+
+program Animal_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  SetWarMode( 1 );
+  main_AI_loop();
+
+endprogram

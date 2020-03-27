@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseYellowPotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  if(ExPid(GetObjProperty(who, YELLOW_POTION_EFFECT_PID)))
+    SendSysmessage(who, "Wypicie mikstury nie przyniesie efektu.", FONT_NORMAL, COLOR_RED);
+    EraseObjProperty(who,"#Drinking"+potion.graphic);
+    EraseObjProperty(who,"#DrinkingOverall");
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+
+  Strength     := CalcPotStrength(Strength,ExpMod);
+  
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  var Delay := 1000 - (200 * QualMod) - (ExpMod * 20);
+  PlaySoundEffect( who,  SOUND_EFFECT_HEAL );
+
+  start_script(":alchemy:potions/yellowpotioneffect", array{who,Strength,Delay});
+
+
+
+endprogram
+
+//-----------------------------------------------------------------------------

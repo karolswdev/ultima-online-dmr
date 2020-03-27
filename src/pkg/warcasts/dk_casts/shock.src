@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 64;
+
+//-----------------------------------------------------------------------------
+
+program DkShock(Parms)
+
+  WarCast(Parms, DK_WCID, 0, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  var Dmg := CalcWarCastDamage(Caster, DK_WCID);
+  Dmg := CInt(GetIntelligence(Caster) / 10) + dmg;
+  
+  if(Dmg >= GetHp(CastOn))
+    Dmg := GetHp(CastOn) - 2;
+  endif
+
+  PlaySoundEffect(Caster, SFX_LIGHTNING_STRIKE);
+  PlayPcMovEffect(Caster, CastOn, FX_SPARK_EFFECT, 0x5, 0x5, 0x1, 1, 1, 2);
+  DealDamage(CastOn, Dmg, Caster);
+  
+  GainWarcastPoints(Caster, CastOn, DK_WCID, WCGAIN_OFFENSIVE);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

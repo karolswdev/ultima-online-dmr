@@ -1,0 +1,19 @@
+use uo;
+use sql;
+
+include ":webApi:settings";
+include ":webApi:export";
+
+program GlobalControlOnlineExport()
+    var settings := GetSettingsCfgElem( "Settings" );
+    
+    while( 1 )
+        var db := mysql_connect(settings.DBHost,settings.DBUser,password := settings.DBPass);
+        
+        ExportOnline( db, settings );
+        
+        mysql_close(db);
+        
+        Sleep(CInt(settings.OnlineExportDelay) * 60);
+	endwhile
+endprogram

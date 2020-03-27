@@ -1,0 +1,244 @@
+//-----------------------------------------------------------------------------
+// Modified: 2007-11-24
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/client/fonts";
+include "include/player/misc";
+include "include/buffs";
+include "include/clock";
+include "include/gumps";
+include ":banking:gold";
+include "include/gumpboxes";
+include "include/cmds/misc";
+
+include "../../mail";
+include "../../mail_gump";
+
+//-----------------------------------------------------------------------------
+
+var _MailBox, _Mails;
+
+//-----------------------------------------------------------------------------
+
+program MailCmd(who, text)
+
+  var whom := 0;
+
+  if(CInt(text))
+    whom := FindPlayerBySerial(text);
+  elseif(text)
+    whom := FindCharacterByName(text);
+  endif
+
+  if(!whom)
+    whom := Target(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!whom)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsPlayer(whom))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  _MailBox := FindMailBox(whom);
+
+  var Res;
+
+  while(who and whom)
+    GetMails(whom, _Mails);
+    Res := SendMailBoxGump(who, whom);
+
+    if(Res > 100)
+      if(_Mails.exists(Res-100))
+        if(!SendMailPropGump(who, whom, Res-100))
+          break;
+        endif
+      endif
+    endif
+
+    if(!Res)
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendMailBoxGump(who, whom)
+
+  GInit(30, 30);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GMultiHeaderInit();
+
+  GResPic(0,0,BKGND_BLACKSLAB,500,420);
+  GCheckerTrans(15,60,470,345);
+  GTextLine(100, 20, 1024, "Skrzynka Pocztowa osoby "+GetRealName(whom));
+  
+  GGumpPic(10, 45,BKGND_BLACKSLAB+7);
+  GGumpPic(130,45,BKGND_BLACKSLAB+7);
+  GGumpPic(250,45,BKGND_BLACKSLAB+7);
+  GGumpPic(363,45,BKGND_BLACKSLAB+7);
+  GButton(10,12,9004,9005,100);
+
+  GAddPageData(475,55,2650,2651,475,393,2648,2647);
+
+  GMultiPage();
+
+  foreach Mail in _Mails
+    GCheckNextPage(4);
+    BuildMailTitleGump(GNpCount(), _Mail_iter, Mail);
+  endforeach
+
+  return GSend(who).butid;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendMailPropGump(who, whom, Id)
+
+  var  mailProps;
+
+  while(who)
+    GetMails(whom, _Mails);
+    mailProps := _Mails[Id];
+    BuildMailPropGump(mailProps);
+    var Res := GSend(who).butid;
+
+    case(Res)
+      10: if(RequestDeletePost(who, whom, mailProps, Id))
+            return 1;
+          endif
+          
+      16: ShowMailCont(who, mailProps);
+
+      default: return 1;
+    
+    endcase
+
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMailPropGump(byref mailProps)
+
+  var hAdd := 0;
+
+  if(mailProps.attachedItem or mailProps.attachedGold)
+    hAdd := 60;
+  endif
+
+  GInit(30, 30);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,BKGND_BLACKSLAB,500,360+hAdd);
+  GResPic(25, 30, BKGND_PAPER, 450, 58);
+  GResPic(45, 100, BKGND_PAPER, 430, 210);
+  GGumpPic(29, 34, 2002);
+  GTextLine(55, 36, 999, "Tytul: "); 
+  GTextCrop(95, 36, 370, 20, 0, mailProps.title); 
+  GTextLine(55, 59, 999, "Od: "); 
+  GTextCrop(95, 59, 370, 20, 0, mailProps.senderName); 
+  
+  var timeLeft := (mailProps.sendTime - ReadGameClock()) + mailProps.existTime;
+  GTextLine(350, 65, 1000, DescGameTime(timeLeft));
+
+  var i;
+
+  for(i:=1; i<=mailProps.text.size(); i:=i+1)
+    GTextCrop(55, 85+i*20, 410, 20, 0, mailProps.text[i]); 
+  endfor
+
+  if(mailProps.attachedItem)
+    GResPic(25, 340, BKGND_PAPER, 60, 60);
+
+    var Item := FindItemBySerial(mailProps.attachedItem);
+    GTextCrop(30, 315, 400, 20, 1152, Item.desc);
+    GTilePicHue(35, 360, Item.graphic, Item.color);
+
+    if(mailProps.requiredGold)
+      GTextLine(100, 340, 999, "Zaplata:");
+      GTextLine(155, 340, 1121, FormatSize(mailProps.requiredGold, ".")+" gp"); 
+    endif
+    
+    if(Item.isa(POLCLASS_CONTAINER) or Item.isa(POLCLASS_SPELLBOOK))
+      GButton(40, 385,0xFAB,0xFAD, 16);
+    endif
+
+  endif
+
+  if(mailProps.attachedGold)
+    GResPic(260,315,BKGND_PAPER,215, 55);
+
+    GTextLine(270, 320, 999, "Zloto:"); 
+    GTextLine(315, 320, 1121, FormatSize(mailProps.attachedGold, ".")+" gp"); 
+    
+  endif
+
+  GButton(260, 323+hAdd, 2117, 2118, 9);
+  GTextLine(280, 320+hAdd, 999, "Wroc");
+
+  GButton(330, 323+hAdd, 2117, 2118, 10);
+  GTextLine(350, 320+hAdd, 999, "Kasuj");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RequestDeletePost(who, whom, byref mailProps, Id)
+
+  if(!YesNoEx(who, ToUnicode("Czy na pewno chcesz skasowac wiadomosc '")+CutUniWord(mailProps.title, 25)+CAscZ("' ?")))
+    return 0;
+  endif
+
+  if(mailProps.attachedGold)
+    if(!YesNoEx(who, ToUnicode("Wiadomosc zawiera dolaczone "+FormatSize(mailProps.attachedGold, ".")+" gp, czy na pewno chcesz ja skasowac?")))
+      return 0;
+    endif
+  endif
+
+  if(mailProps.attachedItem)
+    var aItem := FindItemBySerial(mailProps.attachedItem);
+
+    if(aItem and aItem.container == _MailBox)
+      if(mailProps.flags & MAILF_RETURNED)
+        SendSysMessage(who, "Wiadomosc zawiera dolaczony przedmiot '"+aItem.desc+"', ktory zostanie zniszczony, jesli ja skasujesz.", FONT_NORMAL, COLOR_ORANGE);
+      else
+        SendSysMessage(who, "Wiadomosc zawiera dolaczony przedmiot '"+aItem.desc+"', ktory zostanie zwrocony do nadawcy, jesli ja skasujesz.", FONT_NORMAL, COLOR_ORANGE);
+      endif
+
+      if(!YesNoEx(who, CAscZ("Wiadomosc zawiera dolaczony przedmiot, czy na pewno chcesz ja skasowac?")))
+        return 0;
+      endif
+    endif
+  endif
+
+  if(DeleteMail(whom, Id))
+    UniSendSysMessage(who, CAscZ("Skasowal"+ggm(who,3)+" wiadomosc '")+mailProps.title+CAscZ("'"), FONT_NORMAL, COLOR_GREEN);
+    return 1;
+  else
+    UniSendSysMessage(who, CAscZ("Nie udalo sie skasowac wiadomosci '")+mailProps.title+CAscZ("'"), FONT_NORMAL, COLOR_ORANGE);
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

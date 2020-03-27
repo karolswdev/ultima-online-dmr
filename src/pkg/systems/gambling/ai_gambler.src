@@ -1,0 +1,197 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include ":gambling:gambling";
+
+include ":banking:common";
+include ":banking:gold";
+include "include/cmds/misc";
+include "ai/include/ainpcs";
+include "ai/include/npch";
+include "ai/include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+var NextCheck  := ReadGameClock();
+var CurItems;
+
+//-----------------------------------------------------------------------------
+
+program Gambler_AI()
+
+  LoadGamblerData();
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdCityNpcHandleEvent(ev);
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(NextWander < ReadGameClock())
+      DefWander();
+      CheckGamble();
+      CityNpcLookAround();
+    endif
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["wita"])
+
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      Say("Witaj "+who.name+", chcesz moze zagrac o jakis przedmiot?");
+    endif
+
+  elseif(text["reset"] and IsAdmin(who))
+
+    ResetGambler();
+    PrintTextAbovePrivate(me, "Przedmioty zresetowane.", who);
+
+  elseif(text["gra"])
+  
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      ShowGambleBoard(who);
+    endif
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LoadGamblerData()
+
+  var LastTime := CInt(GetObjProperty(me, "ResetTime"));
+
+  if(LastTime < ReadGameClock())
+    ResetGambler();
+  else
+    CurItems := GetObjProperty(me, "GambleItems");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResetGambler()
+
+  CurItems := GetRandomGambleItems();
+
+  var gamWaitTime := GAMBLER_RESET_MIN_TIME + RandomInt(GAMBLER_RESET_MAX_TIME - GAMBLER_RESET_MIN_TIME);
+
+  SetObjProperty(me, "GambleItems", CurItems);
+  SetObjProperty(me, "ResetTime", ReadGameClock() + gamWaitTime);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowGambleBoard(who)
+
+  ev := struct;
+  ev.+type   := EVID_NH_GAMBLE_GUMP;
+  ev.+source := who;
+  ev.+items  := CurItems;
+  ev.+npc    := me;
+
+  StdNpcHandleWait(ev);
+
+  if(ev == error)
+    return;
+  endif
+  
+  if(!CanIHearPlayer(who) or !CanNpcSpeakWith(who))
+    SendSysMessage(who, "Jestes niedostepn"+ggm(who,6)+" dla hazardzisty.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(ev.cancel)
+    
+    case(RandomInt(4))
+      0:         Say("Zapraszam innym razem.");
+      1:         Say("To moze kiedy indziej.");
+      2:         Say("Dowidzenia.");
+      default:   Say("Innym razem wiec.");
+    endcase
+
+    return;
+
+  elseif(ev.selitem)
+
+    var ItemDef := CurItems[ev.selitem];
+    var Res := CanPlayerGamble(who);
+
+    if(Res)
+      if(SpendGold(who, ItemDef.price))
+        var Item := CreateGambleItem(who, ItemDef);
+
+        if(Item)
+          Say("Prosze bardzo, o to twoj przedmiot!");
+          IncPlayerGambleCount(who);
+          CurItems.erase(ev.selitem);
+          SetObjProperty(me, "GambleItems", CurItems);
+        else
+          Say("Niestety nie moge teraz Ci go sprzedac. Przyjdz pozniej.");
+        endif
+      else
+        Say("Nie masz wystarczajacej ilosci zlotych monet! Potrzebujesz "+ItemDef.price+" gp.");
+      endif
+    else
+      Say(Res.errortext);
+    endif
+  endif
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckGamble()
+
+  var LastTime := CInt(GetObjProperty(me, "ResetTime"));
+
+  if(LastTime < ReadGameClock())
+    ResetGambler();
+  endif
+
+  if(CurItems.size() and RandomInt(100) < 40)
+    Say("Zapraszam do gry!");
+    Say("Mam do zaoferowania:");
+
+    foreach Item in CurItems
+      Say(Item.desc+" za "+Item.price+" gp!");
+      sleep(1);
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,138 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/effects";
+include "include/objtypes/magic";
+include "include/mobile/npcs/specs";
+include "include/checks/stdchecks";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+const MGTO_COLOR_DARK        := 1345;
+const MGTO_COLOR_LIGHT       := 1337;
+
+//-----------------------------------------------------------------------------
+
+program SummonOrb(who, Orb)
+
+  if(!StandardItemCheck(who, Orb, NO_MOVABLE_CHECK | NO_COMBAT_CHECK | NEW_DIST_CHECK, 1))
+    return;
+  endif
+
+  UniPrintTextAbove(Orb, "*³aduje siê*");
+  SetObjProperty(Orb, "#Charging", ReadGameClock());
+  PlaySoundEffect(Orb, SFX_ARCANE_POWER_UP);
+  Detach();
+  sleepms(100);
+  ChangeOrbColor(Orb, MGTO_COLOR_LIGHT, MGTO_COLOR_DARK);
+
+  PlayStationaryEff(Orb.x, Orb.y, Orb.z, FX_MARK_EFFECT, 0x10, 0x10, 0, Orb.realm);
+  sleepms(700);
+
+  var AnotherOrb := FindSecondOrb(Orb);
+
+  if(AnotherOrb)
+    var Mobs := FindSummoningMobiles(Orb);
+    var bFound := 0;
+
+    if(Mobs)
+      foreach Mob in Mobs
+        if(BreakNpcSpecial(Mob, NSPEC_SUMMONMINIONS, 2))
+          UniPrintTextAbove(Orb, "*orb zaczyna oddzia³ywaæ na "+GetName(Mob)+"*");
+          PlayPcEffect(Mob, FX_MARK_EFFECT, 1321, 16, 16, 3);
+          PlayPcStEffect(Mob.x+1, Mob.y, Mob.z, Mob.realm, FX_MARK_EFFECT, 1321, 16, 16, 2);
+          PlayPcStEffect(Mob.x-1, Mob.y, Mob.z, Mob.realm, FX_MARK_EFFECT, 1321, 16, 16, 2);
+          PlayPcStEffect(Mob.x, Mob.y-1, Mob.z, Mob.realm, FX_MARK_EFFECT, 1321, 16, 16, 2);
+          PlayPcStEffect(Mob.x, Mob.y+1, Mob.z, Mob.realm, FX_MARK_EFFECT, 1321, 16, 16, 2);
+          PlaySoundEffect(Orb, SFX_ARCANECIRCLE);
+          bFound := 1;
+        endif
+        
+      endforeach
+    endif
+
+    if(!bFound)
+      UniPrintTextAbove(Orb, "*bzzzt*");
+      PlaySoundEffect(Orb, SFX_ARCANE_POWER_DOWN);
+    endif
+  else
+    PlaySoundEffect(Orb, SFX_SPELL_FAIL);
+    UniPrintTextAbove(Orb, "*brakuje drugiego do pe³ni si³y*");
+  endif
+
+  ChangeOrbColor(Orb, MGTO_COLOR_DARK, MGTO_COLOR_LIGHT);
+  Orb.color := 0;
+  
+  EraseObjProperty(Orb, "#Charging");
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FindSecondOrb(CurOrb)
+
+  var Mobs := array;
+  var Orbs := ListItemsNearLocationOfType(CurOrb.x, CurOrb.y, LIST_IGNORE_Z, 15, CurOrb.objtype, CurOrb.realm);
+
+  foreach Orb in Orbs
+    if(Orb != CurOrb)
+      if(CInt(GetObjProperty(Orb, "#Charging")) > ReadGameClock() - 10)
+        return Orb;
+      endif
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindSummoningMobiles(Orb)
+
+  var Mobs := array;
+  var FoundMobs := ListMobilesNearLocation(Orb.x, Orb.y, LIST_IGNORE_Z, 15, Orb.realm);
+
+  foreach Mob in FoundMobs
+    if(Mob.isa(POLCLASS_NPC) and IsNpcSpecPerforming(Mob, NSPEC_SUMMONMINIONS))
+      Mobs.append(Mob);
+    endif
+  endforeach
+
+  if(Mobs.size())
+    return Mobs;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeOrbColor(Orb, ClSet, ClEnd)
+
+  var i;
+
+  if(ClSet > ClEnd)
+    for(i:=ClSet; i>=ClEnd; i-=1)
+      sleepms(150);
+      Orb.color := i;
+    endfor
+  else
+    for(i:=ClSet; i<=ClEnd; i+=1)
+      sleepms(150);
+      Orb.color := i;
+    endfor
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

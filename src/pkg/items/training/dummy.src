@@ -1,0 +1,146 @@
+//--------------------------------------------------------------------------------
+
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/tools";
+include "include/objtypes/misc";
+include "include/objects/location";
+include ":combat:combat";
+
+include "train_iterations";
+
+//--------------------------------------------------------------------------------
+
+const DUM_DIFF               := 10;
+const DUM_SK_GAIN            := 30;
+
+//--------------------------------------------------------------------------------
+
+program UseDummy(who, Dummy)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(!StandardItemCheck(who, Dummy, NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  elseif(Distance(who, Dummy) > 1)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(ExPid(GetObjProperty(Dummy, "#swinging")))
+    SendSysMessage(who, "Ten maniekin jest w uzyciu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_TRAIN_DUMMY);
+
+  var Weapon := who.weapon;
+  var SkID   := FindSkillidByIdentifier(ItemCfg[Weapon.objtype].Attribute);
+
+  if(!SkID)
+    SendSysMessage(who, "Uderzyc mozesz tylko bronia lub piescia w manekin.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(SkID == SKILLID_ARCHERY)
+    SendSysMessage(who, "Strzelac z kuszy lub luku mozesz w tarcze strzelecka.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var IterData := DefineTrainIterations(who, SkID);
+  var Res;
+  
+  while(TrainIteration(who, IterData))
+    Res := HitDummy(who, Weapon, SkID, Dummy, IterData);
+    
+    if(Res == error)
+      break;
+    endif
+
+  endwhile
+
+  FinishTrainIteration(who, IterData);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function HitDummy(who, Weapon, SkID, Dummy, byref IterData)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  TrainIterationGump(who, IterData, "Trenujesz na manekinie...");
+
+  TurnCharToward(who, Dummy);
+  
+  if(!CheckToolWear(who, Weapon, SkID, 2))
+    return error;
+  endif
+
+  if(GetBaseSkill(who, SkID) < MAX_ITEMTRAIN_SKVAL and !ItemCfg[Weapon.objtype].NoCombatSkillGain)
+    AwardPoints(who, SkID, DUM_SK_GAIN, NO_STAT_AWARD);
+    if(GetBaseSkill(who, SKILLID_TACTICS) < MAX_ITEMTRAIN_SKVAL)
+      AwardPoints(who, SKILLID_TACTICS, DUM_SK_GAIN, NO_STAT_AWARD);
+    endif
+  endif
+
+  if(CheckSkill(who, SkID, DUM_DIFF, 0))
+    SendSysMessage(who, GetTrainIterDesc(IterData)+" Udalo Ci sie zadac porzadny cios!", FONT_NORMAL, COLOR_GREEN);
+    PlayFightEffect(who, Weapon, Dummy.x, Dummy.y, Dummy.z, Dummy.realm, 1);
+  else
+    SendSysMessage(who, GetTrainIterDesc(IterData)+" Wychodza Ci marne ciosy...", FONT_NORMAL, COLOR_RED);
+    PlayFightEffect(who, Weapon, Dummy.x, Dummy.y, Dummy.z, Dummy.realm, 0);
+  endif
+
+  PrintTextAbove(Dummy, "*"+GetWarriorScore(who)+"*", FONT_NORMAL, COLOR_GREEN_LIGHT);
+
+  return AnimateDummy(who, Dummy);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function AnimateDummy(who, Dummy)
+
+  PlaySoundEffect(who, 0x13C);
+
+  SetObjProperty(Dummy, "#swinging", GetPid());
+
+  if(Dummy.objtype == UOBJ_DUMMYFREEZE_NS)
+    Dummy.graphic := UOBJ_DUMMYSWING_NS;
+    sleepms(3600);
+    Dummy.graphic := UOBJ_DUMMYFREEZE_NS;
+  elseif(Dummy.objtype == UOBJ_DUMMYFREEZE_EW)
+    Dummy.graphic := UOBJ_DUMMYSWING_EW;
+    sleepms(3600);
+    Dummy.graphic := UOBJ_DUMMYFREEZE_EW;
+  else
+    sleep(3);
+  endif
+
+  if(Distance(who, Dummy) > 1)
+    SendSysMessage(who, "Oddalil"+ggm(who, 3)+" sie!", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  EraseObjProperty(Dummy, "#swinging");
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetWarriorScore(who)
+
+  var Str     := GetDexterity(who);
+  var Dex     := GetDexterity(who);
+  var Tactics := GetBaseSkill(who, SKILLID_TACTICS);
+  var Anat    := GetBaseSkill(who, SKILLID_ANATOMY);
+  var Rand    := RandomInt(10);
+  var Skills  := array(GetBaseSkill(who, SKILLID_SWORDSMANSHIP), GetBaseSkill(who, SKILLID_MACEFIGHTING), GetBaseSkill(who, SKILLID_FENCING), GetBaseSkill(who, SKILLID_WRESTLING));
+  Skills.sort();
+
+  return CInt(Str/4 + Dex/8 + Skills[Skills.size()]/5 + Tactics/5 + Anat/5 + Rand);
+
+endfunction
+
+//--------------------------------------------------------------------------------

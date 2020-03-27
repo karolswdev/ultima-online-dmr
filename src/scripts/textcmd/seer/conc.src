@@ -1,0 +1,91 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+include "include/client/fonts";
+include "include/staff";
+include "include/clock";
+include "include/checks/stdchecks";
+include "include/objects/location";
+
+//-----------------------------------------------------------------------------
+
+program ConcealMeCmd(who, text)
+
+  if(IsGm(who) and text == "secret" and who.concealed <= 1)
+    who.concealed := who.cmdlevel;
+    
+   
+
+    var Loc := GetLocStruct(who);
+
+    SetObjProperty(who, "ConcLoc", Loc);
+    SetObjProperty(who, "ConcTime", ReadGameClock());
+    SendSysMessage(who, "Jestes teraz niewidoczny dla cmdlevel < "+who.cmdlevel+"!", FONT_NORMAL, COLOR_ORANGE);
+    SendSysMessage(who, "Lokacja zapisana: "+Loc.x+" "+Loc.y+" "+Loc.z+" "+Loc.realm, FONT_NORMAL, COLOR_ORANGE);
+
+    var Staff := array;
+    var Online := array;
+    var LastLogTime := ReadGameClock() - CInt(GetObjProperty(who, PROP_LASTLOG));
+    foreach Player in EnumerateOnlineCharacters()
+      if(Player.concealed <= who.cmdlevel)
+        Online.append(Player);
+      endif
+    endforeach
+    foreach Player in Online
+      if(IsStaff(Player))
+        Staff.append(Player);
+      endif
+    endforeach
+    foreach Person in Staff
+      if(CanStaffNotify(Person, Person))
+        if(!who.cmdlevel and Person.cmdlevel < 4)
+          SendSysMessage(Person, who.name + " ["+CInt(Online.size()-1)+"] (Osoba z konta: " + who.acctname + ") wylogowala sie. Czas: " + RealTime(LastLogTime), FONT_NORMAL, COLOR_STONE);
+        else
+          SendSysMessage(Person, who.name + " ["+CInt(Online.size()-1)+"] (Osoba z konta: " + who.acctname + ") wylogowala sie. IP: " + who.ip + " Czas: " + RealTime(LastLogTime), FONT_NORMAL, COLOR_STONE);
+        endif
+      endif
+    endforeach
+
+
+  elseif(who.concealed > 1 and IsGm(who))
+
+    who.concealed := 1;
+    SendSysMessage(who, "Jestes teraz widoczny dla cmdlevel < "+who.cmdlevel+".", FONT_NORMAL, COLOR_WHITE);
+    EraseObjProperty(who, "ConcLoc");
+    EraseObjProperty(who, "ConcTime");
+
+    
+    var Staff := array;
+    var Online := array;
+    foreach Player in EnumerateOnlineCharacters()
+      if(Player.concealed <= who.cmdlevel)
+        Online.append(Player);
+      endif
+    endforeach
+    foreach Player in Online
+      if(IsStaff(Player))
+        Staff.append(Player);
+      endif
+    endforeach
+    foreach Person in Staff
+      if(CanStaffNotify(Person, Person))
+        if(!who.cmdlevel and Person.cmdlevel < 4)
+          SendSysMessage(Person, who.name + " ["+Online.size()+"] (Osoba z konta: " + who.acctname + ") zalogowala sie.",FONT_NORMAL,COLOR_STONE);
+        else
+          SendSysMessage(Person, who.name + " ["+Online.size()+"] (Osoba z konta: " + who.acctname + ") zalogowala sie.  IP: " + who.ip,FONT_NORMAL,COLOR_STONE);
+        endif
+      endif
+    endforeach
+    
+  else
+
+    who.concealed := !who.concealed;
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

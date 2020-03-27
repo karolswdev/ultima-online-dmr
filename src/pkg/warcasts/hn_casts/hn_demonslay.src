@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+include "include/packets";
+include "include/gumps";
+include "include/calc";
+include "include/dirs";
+include "include/objects/location";
+
+include ":wearwolf:wearwolf";
+include ":tracking:tracking";
+include ":detecthidden:common";
+
+//-----------------------------------------------------------------------------
+
+const HN_WCID                := 165;
+
+//-----------------------------------------------------------------------------
+
+program HnDaemonSlay(Parms)
+
+  WarCast(Parms, HN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(IsMagicItem(Caster.weapon) or IsArtifact(Caster.weapon))
+    WcFizzleId(Caster, "Tej broni nie naostrzysz na demony.", HN_WCID);
+    return;
+  endif
+
+  var VpSkill  := CalcSkillExponential(Caster, SKILLID_HUNTER, 10);
+  var SpSkill  := CalcSkillExponential(Caster, SKILLID_INSIGHT, 10);
+  var Duration := Max(120, CInt(VpSkill + (SpSkill / 2)) * 20) + RandomInt(20);
+  var bDmg     := CInt((VpSkill) + (SpSkill / 2) + RandomInt(3));
+
+  PlaySoundEffect(Caster,SFX_WILD_FIRE);
+  PlayPcStEffect( Caster.x, Caster.y, Caster.z, Caster.realm, FX_HEAL_EFFECT, 32, 0x1F, 0x1F);
+
+  if(CanMod(Caster, MOD_DAEMON_SLAY))
+    GainWarcastPoints(Caster, Caster, HN_WCID, WCGAIN_NORMAL);
+  endif
+
+  DoMod( Caster, MOD_DAEMON_SLAY, bDmg, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

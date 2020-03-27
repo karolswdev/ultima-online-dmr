@@ -1,0 +1,101 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/dirs";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 67;
+
+//-----------------------------------------------------------------------------
+
+program CastRaiseDead( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_CORPSE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(GetObjProperty(CastOn, PROP_MASTER))
+    Fizzle(Caster, "Nie uda Ci sie wykorzystac tych zwlok!");
+    return;
+  endif
+
+  var Owner := FindPlayerBySerial(GetObjProperty(CastOn, PROP_CORPSE_OWNER));
+
+  if(IsPlayer(Owner) and Owner != Caster)
+    if(!GuildAcp(Caster, Owner))
+      if(GetObjProperty(CastOn, "DeathStatus") == "Order")
+        SetCriminal(Caster, 1, "SpellAction", "Uzycie czaru nekro Raise Dead na "+CastOn.desc+", gdy wlasciciel ["+Owner.serial+"] byl blue.");
+        SendBad(Caster, "Wskrzeszasz zwloki prawej osoby! Za ten niecny wystepek zostaniesz kryminalista!");
+      endif
+    endif
+  endif
+
+  if(GetObjProperty(CastOn, "GuardedBy") and Owner != Caster and !IsInAllyGuild(Caster, Owner))
+    var Npc := FindNpcBySerial(GetObjProperty(CastOn, "GuardedBy"));
+    if(Npc)
+      Fizzle(Caster, "Te zwloki sa strzezone!");
+      if(IsInEnemyGuild(Caster, Owner) or Caster.criminal or Caster.murderer or Owner.criminal or Owner.murderer)
+        SendCorpseLootEvent(CastOn, Caster, Owner);
+      endif
+      return;
+    else
+      EraseObjProperty(CastOn, "GuardedBy");
+    endif
+  endif
+
+  var Duration        := GetNecroSpellDur(Caster);
+  var CasterSk        := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var CasterSp        := GetMindSkillValue(Caster, SpellGlob.Type);
+  var oparms          := array;
+  var CastLoc         := struct;
+  var Templates;
+
+  oparms.+controlable := 1;
+  oparms.+nosleep     := 1;
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+maxamt      := 1 + CInt(CasterSp/25);
+  oparms.+skillsmod   := array(GetMagicSkillId(SpellGlob.Type), GetMindSkillId(SpellGlob.Type));
+
+  CastLoc.+x          := CastOn.x;
+  CastLoc.+y          := CastOn.y;
+  CastLoc.+z          := CastOn.z;
+
+  if(CasterSk >= 95)
+    if(ToMin(CasterSk + CasterSp - 195, 0) * 2 > RandomInt(100))
+      Templates := "liche";
+    elseif(RandomInt(100) < 5)
+      Templates := array("skeleton", "zombie", "skeletonarcher");
+    else
+      Templates := array("boneknight", "flamingskeleton");
+    endif
+  else
+    Templates := array("skeleton", "zombie", "skeletonarcher");
+  endif
+
+  PlaySoundEffect(Caster, SFX_SPELL_RAISEDEAD);
+  PlaySoundEffect(Caster, SFX_SPELL_RESSURECTION);
+  TurnCharTowardLocation(Caster, CastLoc);
+  PlayAction(Caster, ANIM_CAST_AREA);
+  PlayPcStEffect(CastLoc.x, CastLoc.y, CastLoc.z, Caster.realm, FX_FLAMESTRIKE, 1152, 0x10, 0x1F, 4);
+
+  sleepms(500);
+
+  if(DestroyItem(CastOn) or Caster.isa(POLCLASS_NPC))
+    var Summon := SummonCreature(Caster, Templates, CastLoc, Duration, oparms);
+
+    if(Summon)
+      GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+    endif
+  else
+    Fizzle(Caster, "Cos przeszkadza w wykorzystaniu zwlok...");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

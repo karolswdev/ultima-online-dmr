@@ -1,0 +1,462 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/npcs";
+include "include/effects";
+include "include/objtypes/skills";
+include "include/objtypes/magic";
+include "include/std";
+include "include/gumpboxes";
+include "include/player/misc";
+include "../pkg/systems/wearwolf/wearwolf";
+
+include "../../tourney";
+
+//-----------------------------------------------------------------------------
+
+program TourneyOtherCmd(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  Detach();
+  
+  case(text)
+    "food":   CreateTrFood(who);
+    "doors":  LockUnlockTrDoors(who);
+    "rwred":  CreateReward(who,1);
+    "rwblue": CreateReward(who,2);
+    "list":   ListMobsOnIsland(who);
+    "points": ListMobsPoints(who);
+    "all":    ListAllMobs(who);
+    "clear":  ClearTourney(who);
+    "rndteam": SetRandomTeam(who);
+    "skred":  SetCaptain(who,TRLOC_RED_ROOM);
+    "skblue": SetCaptain(who,TRLOC_BLUE_ROOM);
+    "erkap":  EraseCaptain(who);
+    "clb":    ClearPlayerTrPack(who);
+    "t":      GetTeam(who);
+    default:  SendSysMessage(who,".troth [food/doors/rwred/rwblue/list/points/all/clear/rndteam/skred/skblue/erkap/clb/t]",FONT_NORMAL,COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateTrFood(who)
+
+  var Loc := GetTourneyProp(TRLOC_ROOMFOOD);
+  
+  if(!Loc)
+    SendSysMessage(who,"Nie zostala ustalona pozycja jedzenia.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var x,y,Food := 0;
+  
+  for i:= 1 to 6
+    case(i)
+      1:  y := Loc[2];
+      2:  y := y + 5;
+      3:  y := y + 6;
+      4:  y := y + 4;
+      5:  y := y + 6;
+      6:  y := y + 5;
+    endcase
+    
+    for(x:=Loc[1];x<=Loc[1]+15;x:=x+1)
+    
+      foreach Item in ListItemsAtLocation(x,y,Loc[3]+1)
+        if(Item.objtype == UOBJ_COOKEDFISHSTEAK or Item.objtype == UOBJ_VAMP_BLOOD)
+          DestroyItem(Item);
+        endif
+      endforeach
+      
+      if(x >= Loc[1]+10 and i >= 5)
+        if(CreateItemAtLoc(x,y,Loc[3]+1,UOBJ_VAMP_BLOOD,10))
+          Food := Food + 1;
+        endif
+      else
+        if(CreateItemAtLoc(x,y,Loc[3]+1,UOBJ_COOKEDFISHSTEAK,10))
+          Food := Food + 1;
+        endif
+      endif
+      
+      PlayStationaryeff(x,y,Loc[3],FX_HEAL_EFFECT,0xf,0xf);
+      sleepms(100);
+    endfor
+  endfor
+
+  SendSysMessage(who,"Stworzono ["+Food+"] jedzenia.",FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LockUnlockTrDoors(who)
+
+  var Loc := GetTourneyProp(TRLOC_MAIN);
+
+  if(!Loc)
+    SendSysMessage(who,"Nie zostala ustalona pozycja glowna.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Num := 0,Ch := -1;
+  
+  foreach Item in ListObjectsInBox(Loc[1]-20,Loc[2]-20,-127,Loc[1]+20,Loc[2]+20,127)
+    if(Item.isa(POLCLASS_DOOR))
+      if(Ch == -1)
+        if(Item.locked)
+          Ch := 0;
+        else
+          Ch := 1;
+        endif
+      endif
+      Item.locked := Ch;
+      SetObjProperty(Item,"NoFlow",1);
+      Num := Num + 1;
+    endif
+  endforeach
+  
+  if(Ch)
+    SendSysMessage(who,"zamknieto ["+Num+"] drzwi.",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"otwarto ["+Num+"] drzwi.",FONT_NORMAL,COLOR_GREEN);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateReward(who, Class)
+
+  var TrCfg := ReadConfigFile(TR_CFG);
+  var Obj;
+  
+  case(Class)
+    1: Obj    := UOBJ_RED_TC;
+    2: Obj    := UOBJ_BLUE_TC;
+  endcase
+  
+  ClearScriptObjCreator();
+
+  var Bag := CreateItemInPack(who,UOBJ_BAG);
+  
+  CreateItemInCont(Bag, Obj);
+  CreateItemInCont(Bag, UOBJ_GOLDCOIN, TrCfg[TRCFG_GLOBAL].RewardAmt);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListMobsOnIsland(who)
+
+  var Loc   := GetTourneyProp(TRLOC_ISLAND);
+  var TrCfg := ReadConfigFile(TR_CFG);
+  
+  if(!Loc)
+    SendSysMessage(who,"Pozycja wyspy nie zostala ustalona.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Rn := {},Bn := {};
+  
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob))
+      case(GetTrTeam(Mob))
+        TRLOC_RED_ROOM:   Rn.append(Mob);
+        TRLOC_BLUE_ROOM:  Bn.append(Mob);
+      endcase
+    endif
+  endforeach
+  
+  foreach Mob in Rn
+    SendSysMessage(who,Mob.name,FONT_NORMAL,COLOR_RED);
+  endforeach
+  
+  foreach Mob in Bn
+    SendSysMessage(who,Mob.name,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+
+  SendSysMessage(who,"["+Rn.size()+"] "+TrCfg[TRCFG_GLOBAL].RedName,FONT_NORMAL,COLOR_RED);
+  SendSysMessage(who,"["+Bn.size()+"] "+TrCfg[TRCFG_GLOBAL].BlueName,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListAllMobs(who)
+
+  var Loc   := GetTourneyProp(TRLOC_EVERYTHING);
+  var TrCfg := ReadConfigFile(TR_CFG);
+  
+  if(!Loc)
+    SendSysMessage(who,"Pozycja wyspy nie zostala ustalona.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Rn := {},Bn := {};
+  
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob) and !Mob.cmdlevel)
+      case(GetTrTeam(Mob))
+        TRLOC_RED_ROOM:   Rn.append(Mob);
+        TRLOC_BLUE_ROOM:  Bn.append(Mob);
+      endcase
+    endif
+  endforeach
+  
+  foreach Mob in Rn
+    SendSysMessage(who,Mob.name,FONT_NORMAL,COLOR_RED);
+  endforeach
+  
+  foreach Mob in Bn
+    SendSysMessage(who,Mob.name,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+
+  SendSysMessage(who,"["+Rn.size()+"] "+TrCfg[TRCFG_GLOBAL].RedName,FONT_NORMAL,COLOR_RED);
+  SendSysMessage(who,"["+Bn.size()+"] "+TrCfg[TRCFG_GLOBAL].BlueName,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ListMobsPoints(who)
+
+  var Loc   := GetTourneyProp(TRLOC_EVERYTHING);
+  var TrCfg := ReadConfigFile(TR_CFG);
+  
+  if(!Loc)
+    SendSysMessage(who,"Pozycja wyspy nie zostala ustalona.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Rn := dictionary, Bn := dictionary;
+  
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob) and !Mob.cmdlevel)
+      var Points := CInt(GetObjProperty(Mob, "TourneyPoints"));
+      case(GetTrTeam(Mob))
+        TRLOC_RED_ROOM:   Rn[ZeroFill(Points, 6)+"_"+Mob.serial] := Mob;
+        TRLOC_BLUE_ROOM:  Bn[ZeroFill(Points, 6)+"_"+Mob.serial] := Mob;
+      endcase
+    endif
+  endforeach
+
+  var c := 0;
+  var aRn := array;
+  var aBn := array;
+
+  foreach Mob in Rn
+    aRn.append(Mob);
+  endforeach
+
+  foreach Mob in Bn
+    aBn.append(Mob);
+  endforeach
+
+  aRn.reverse();
+  aBn.reverse();
+  
+  foreach Mob in aRn
+
+    SendSysMessage(who,"["+CInt(GetObjProperty(Mob, "TourneyPoints"))+"] "+Mob.name,FONT_NORMAL,COLOR_RED);
+    c := c + 1;
+  endforeach
+
+  c := 0;
+  
+  foreach Mob in aBn
+
+    SendSysMessage(who,"["+CInt(GetObjProperty(Mob, "TourneyPoints"))+"] "+Mob.name,FONT_NORMAL,COLOR_BLUE);
+    c := c + 1;
+  endforeach
+
+  SendSysMessage(who,"["+Rn.size()+"] "+TrCfg[TRCFG_GLOBAL].RedName,FONT_NORMAL,COLOR_RED);
+  SendSysMessage(who,"["+Bn.size()+"] "+TrCfg[TRCFG_GLOBAL].BlueName,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetRandomTeam(who)
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Loc   := GetTourneyProp(TRLOC_MAINROOMS);
+  var TrCfg := ReadConfigFile(TR_CFG);
+  
+  if(!Loc)
+    SendSysMessage(who,"Pozycja wyspy nie zostala ustalona.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Rn := {},Bn := {};
+  var Team := 0;
+  
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob) and !Mob.cmdlevel)
+      Team := !Team;
+
+      if(Team)
+        SetMobTeam(Mob, TRLOC_RED_ROOM, 1);
+        Rn.append(Mob);
+      else
+        SetMobTeam(Mob, TRLOC_BLUE_ROOM, 1);
+        Bn.append(Mob);
+      endif
+    endif
+  endforeach
+  
+  foreach Mob in Rn
+    SendSysMessage(who,Mob.name,FONT_NORMAL,COLOR_RED);
+  endforeach
+  
+  foreach Mob in Bn
+    SendSysMessage(who,Mob.name,FONT_NORMAL,COLOR_BLUE);
+  endforeach
+
+  SendSysMessage(who,"["+Rn.size()+"] "+TrCfg[TRCFG_GLOBAL].RedName,FONT_NORMAL,COLOR_RED);
+  SendSysMessage(who,"["+Bn.size()+"] "+TrCfg[TRCFG_GLOBAL].BlueName,FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearTourney(who)
+
+  SetScriptController(0);
+
+  var Loc1 := GetTourneyProp(TRLOC_MAINROOMS);
+  var Loc2 := GetTourneyProp(TRLOC_ISLAND);
+  
+  if(!Loc1 or !Loc2)
+    SendSysMessage(who,"Pozycje nie zostaly ustalone.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var n1 := 0,n2 := 0,npc1 := 0,npc2 := 0;
+  
+  foreach Item in ListObjectsInBox(Loc1[1],Loc1[2],-127,Loc1[3],Loc1[4],127)
+    if((Item.isa(POLCLASS_ITEM) and Item.movable) or Item.isa(POLCLASS_CORPSE))
+      DestroyItem(Item);
+      n1 := n1 + 1;
+    elseif(Item.isa(POLCLASS_NPC))
+      if(!Item.script["tourney"])
+        KillNpc(Item);
+        npc1 := npc1 + 1;
+      endif
+    endif
+  endforeach
+
+  foreach Item in ListObjectsInBox(Loc2[1],Loc2[2],-127,Loc2[3],Loc2[4],127)
+    if((Item.isa(POLCLASS_ITEM) and Item.movable) or Item.isa(POLCLASS_CORPSE))
+      DestroyItem(Item);
+      n2 := n2 + 1;
+    elseif(Item.objtype == 0xA246)
+      DestroyItem(Item);
+    elseif(Item.isa(POLCLASS_NPC))
+      if(!Item.script["tourney"])
+        KillNpc(Item);
+        npc2 := npc2 + 1;
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,"Zniszczono ["+n1+"] przedmiotow w pokojach glownych.",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Zniszczono ["+n2+"] przedmiotow na wyspie.",FONT_NORMAL,COLOR_GREEN);
+
+  SendSysMessage(who,"Zabito ["+npc1+"] npecow w pokojach glownych.",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Zabito ["+npc2+"] npecow na wyspie.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetCaptain(who,Team)
+
+  var TrCfg := ReadConfigFile(TR_CFG);
+
+  case(Team)
+    TRLOC_RED_ROOM:  SendSysMessage(who,"Wybierz kapitana "+TrCfg[TRCFG_GLOBAL].RedName+".",FONT_NORMAL,COLOR_RED);
+    TRLOC_BLUE_ROOM: SendSysMessage(who,"Wybierz kapitana "+TrCfg[TRCFG_GLOBAL].BlueName+".",FONT_NORMAL,COLOR_BLUE);
+  endcase
+  
+  var Targ := ObjTarget(who);
+  
+  if(!IsPlayer(Targ))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  case(Team)
+    TRLOC_RED_ROOM:   SendSysMessage(who,Targ.name + " jest kapitanem "+TrCfg[TRCFG_GLOBAL].RedName+".",FONT_NORMAL,COLOR_RED);
+                      SetObjProperty(Targ,"TrTeam",TRLOC_RED_ROOM);
+    TRLOC_BLUE_ROOM:  SendSysMessage(who,Targ.name + " jest kapitanem "+TrCfg[TRCFG_GLOBAL].BlueName+".",FONT_NORMAL,COLOR_BLUE);
+                      SetObjProperty(Targ,"TrTeam",TRLOC_BLUE_ROOM);
+  endcase
+  
+  SetObjProperty(Targ,"TrCaptain",Team);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseCaptain(who)
+
+  var Targ := ObjTarget(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!GetObjProperty(Targ,"TrCaptain"))
+    SendSysMessage(who,Targ.name+" nie byl kapitanem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,Targ.name+" nie jest juz kapitanem.",FONT_NORMAL,COLOR_GREEN);
+  EraseObjProperty(Targ,"TrCaptain");
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTeam(who)
+
+  var TrCfg := ReadConfigFile(TR_CFG);
+  var Targ  := ObjTarget(who);
+  
+  if(IsPlayer(Targ))
+    case(GetTrTeam(Targ))
+      TRLOC_RED_ROOM:   SendSysMessage(who,Targ.name+" - druzyna "+TrCfg[TRCFG_GLOBAL].RedName,FONT_NORMAL,COLOR_RED);
+      TRLOC_BLUE_ROOM:  SendSysMessage(who,Targ.name+" - druzyna "+TrCfg[TRCFG_GLOBAL].BlueName,FONT_NORMAL,COLOR_BLUE);
+      default:          SendSysMessage(who,Targ.name+" nie jest w zadnej druzynie.",FONT_NORMAL,COLOR_GREEN);
+    endcase
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearPlayerTrPack(who)
+
+  var Targ  := ObjTarget(who);
+
+  if(IsPlayer(Targ))
+    var Num := ClearTrEqp(Targ);
+    SendSysMessage(who, "Wyczyszczono gracza "+Targ.name+", Num: "+Num, FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":magic:fields";
+include "include/buildings";
+include "include/mobile/npcs/city_funcs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 50;
+
+//-----------------------------------------------------------------------------
+
+program CastEnergyField( nSpellParms )
+
+  if(!CheckCityWallSpell(nSpellParms[1], nSpellParms[1]))
+    return;
+  endif
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  if(!CheckCityWallSpell(Caster, CastLoc))
+    return;
+  endif
+  
+  if(IsInBuilding(CastLoc.x,CastLoc.y,Caster.realm))/* __NONPVP__ DELETED OR IsInNonPvPArea(CastLoc.x,CastLoc.y,Caster.realm))*/
+    Fizzle(Caster,"Nie uda ci sie postawic w tym miejscu sciany.");
+    return;
+  endif
+
+  var CasterMagery := GetEffectiveSkill(Caster,SKILLID_MAGERY);
+  var CasterEi     := GetEffectiveSkill(Caster,SKILLID_EVALINT);
+  var Duration     := CInt(1 + CInt(CasterEi / 30) + CInt(CasterMagery / 30)) * 20;
+
+  CreateField(Caster, CastLoc.x,CastLoc.y,CastLoc.z, MFIELDT_ENERGY, Duration, DIR_NONE, 0);
+
+endfunction
+
+//-----------------------------------------------------------------------------

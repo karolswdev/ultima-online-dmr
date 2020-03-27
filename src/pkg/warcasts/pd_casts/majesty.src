@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 35;
+
+//-----------------------------------------------------------------------------
+
+program PdMajesty(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Mod      := CInt(GetEffectiveSkill(Caster, SKILLID_PALADINISM) * 2.50) + CInt(GetEffectiveSkill(Caster, SKILLID_ZEAL) * 2.50);
+  var Duration := GetWarCastDuration(Caster, WCT_PALADIN);
+
+  if(CanMod(Caster, MOD_UNTOUCHABLE))
+    GainWarcastPoints(Caster, Caster, PD_WCID, WCGAIN_DEFENSIVE);
+  endif
+
+  PlaySoundEffect(Caster, SFX_ARCANECIRCLE);
+  PlayPcMovEffect(Caster, FX_HEAL_EFFECT, 90, 0xF, 0xFF, 4);
+  DoMod(Caster, MOD_UNTOUCHABLE, array(Mod, array), Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

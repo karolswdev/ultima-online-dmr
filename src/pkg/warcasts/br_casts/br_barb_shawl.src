@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+const BR_WCID                := 145;
+
+//-----------------------------------------------------------------------------
+
+program BrBarbShawl(Parms)
+
+  WarCast(Parms, BR_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  PerformAction(Caster, ANIM_CAST_AREA);
+  PlaySoundEffect(Caster, 0x44B);
+
+  var SkBarb   := GetEffectiveSkill(Caster, SKILLID_BARBARIAN);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var Range    := CInt(SkBarb / 50) + CInt(SkTact / 25);
+  var Duration := 1 + CInt(SkBarb / 100) + CInt(SkTact / 100) + RandomInt(2);
+  var Gained   := 0;
+
+  foreach Mob in ListMobilesNearLocation(Caster.x,Caster.y,Caster.z,Range,Caster.realm)
+    if(CanDamage(Caster, Mob))
+      PlaySoundEffect(Mob, SFX_SPELL_PARALYZE);
+      PlayPcEffect(Mob, FX_MARK_EFFECT, 1010, 0xF, 0xF);
+      DoMod(Mob, MOD_PARA, 1, Duration);
+
+      if(Gained < 3)
+        Gained += GainWarcastPoints(Caster, Mob, BR_WCID, WCGAIN_OFFENSIVE);
+      endif
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,56 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 106;
+
+//-----------------------------------------------------------------------------
+
+program CastBloodBolt( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  SetScriptController ( caster );
+  Detach ();
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle,Caster,CastOn,SpellGlob.Type);
+
+  SetScriptController (Caster);
+  PlayPcMovEffect( Caster, CastOn, FX_FIREBALL, 1151, 0x5, 0x1, 0x1);
+  PlaySoundEffect( CastOn, SFX_SPELL_ICE_BOLT );
+
+  if(Reflected(CastOn, Caster))
+    PlayPcMovEffect( CastOn, Caster, FX_FIREBALL, 1151, 0x5, 0x1, 0x1);
+    PlaySoundEffect( Caster, SFX_SPELL_ICE_BOLT );
+    CastOn := Caster;
+  endif
+
+  var ManaDmg := CInt(2 + CalcSkillExponential(Caster, SKILLID_VAMPIRE, 6) + RandomInt(4));
+  
+  if(IsPlayer(CastOn))
+    DealManaDamage(CastOn, ManaDmg, Caster);
+  else
+    DealManaDamage(CastOn, CInt(ManaDmg/2), Caster);
+  endif
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

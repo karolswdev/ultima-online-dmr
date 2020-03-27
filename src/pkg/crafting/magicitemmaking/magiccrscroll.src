@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "crystals";
+
+//-----------------------------------------------------------------------------
+
+program MagicCrystalScroll(who,CrScroll)
+
+  if(!(CrScroll.objtype in GetAllCrystalsScrolls()))
+    return;
+  endif
+  
+  if(!StandardItemCheck(who,CrScroll))
+    return;
+  endif
+
+  SendSysMessage(who,"Wybierz magiczna ksiege krysztalow.",FONT_NORMAL,COLOR_GREEN);
+  var CrBook := ObjTarget(who);
+  
+  if(!StandardItemCheck(who,CrBook))
+    return;
+  endif
+  
+  if(CrBook.objtype != UOBJ_MAGIC_CRYSTALS_BOOK)
+    SendSysMessage(who,"To nie ksiega magicznych krysztalow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(IsInCrBook(CrBook,CrScroll.objtype))
+    SendSysMessage(who,"Tajniki tego krysztalu zostaly juz wpisane do tej ksiegi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(AddScrollToCrBook(CrBook,CrScroll.objtype))
+    SendSysMessage(who,"Wpisal"+ggm(who,3)+" tajniki do magicznej ksiegi.",FONT_NORMAL,COLOR_GREEN);
+    DestroyItem(CrScroll);
+  else
+    SendSysMessage(who,"Nie udalo Ci sie wpisac tajnikow.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

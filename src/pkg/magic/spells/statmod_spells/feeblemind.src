@@ -1,0 +1,69 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 3;
+
+//-----------------------------------------------------------------------------
+
+program CastFeeblemind( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!CanGetMagicStatMod(CastOn))
+    Fizzle(Caster, "Czar nie daje efektu na tej osobie.");
+    return;
+  endif
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+  
+  if(!CheckCurseDelay(CastOn))
+    Fizzle(Caster, "Ta osoba jest chwilowo niewrazliwa na ten czar.");
+    return;
+  endif
+  
+  PlaySoundEffect(CastOn, SFX_SPELL_FEEBLEMIND);
+
+  if (!CanMod(CastOn, MOD_INT))
+    Fizzle(Caster,"Cel jest juz pod wplywem czaru!");
+    return;
+  endif
+
+  if(CanMod(CastOn, MOD_DEFENSE) == 0)
+    var Mod := GetTempModAmount(CastOn, MOD_DEFENSE);
+    if(RandomInt(100) < Mod)
+      PlayPcEffect(CastOn, FX_HEAL_EFFECT, 50,0xF, 0x10, 3);
+      return;
+    endif
+  endif
+  
+  PlayObjectCenteredEffect( CastOn, FX_CURSE_EFFECT, 7, 7 );
+  
+  var ResVal    := ResistedExtended(CastOn, Caster, CalcModAmount( Caster, SpellGlob.Circle ), SpellGlob.Circle, SpellGlob.Type);
+  var ModAmount := ResVal.value;
+  var Duration  := CalcDecModDuration( Caster, SpellGlob.Circle );
+  if( ResVal.resisted )
+    Duration := CInt(Duration / 3);
+  endif
+  
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+  DoMod(CastOn, MOD_INT, 0 - ModAmount, Duration);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

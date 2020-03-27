@@ -1,0 +1,98 @@
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/checks/objchecks";
+
+include ":farming:farming";
+include ":carpentry:deeds";
+include ":herding:beeheeve";
+
+
+//-----------------------------------------------------------------------------
+
+program DestroyItemFromDeed(who)
+
+  SendSysMessage(who, "Ktory przedmiot chcesz zniszczyc?",FONT_NORMAL,COLOR_GREEN);
+
+  var Item := ObjTarget(who);
+  if(!StandardItemCheck(who,Item,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+  
+  if(IsFlower(item))
+    DestroyFlower(who,item);
+    return;
+  else
+    case(Item.objtype)
+      0x91a:           DestroyBeeheeve(Item,who);
+                       return;
+      UOBJ_SCONCE_ST:
+      UOBJ_SCONCE_SC:
+      UOBJ_SCONCE_ET:
+      UOBJ_SCONCE_EC:  DestroySconce(who,Item);
+                       return;
+    endcase
+  endif
+  
+  DestroyDeedItem(Item,who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DestroySconce(who, Sconce)
+
+  var Multi := GetHouse(Sconce);
+  
+  if(!Multi)
+    Multi := Sconce.multi;
+  endif
+
+  if(!Multi)
+    Multi := GetNearestHouseOf(Sconce.x, Sconce.y, Sconce.z, Sconce.realm, 15, GNHOF_OWNER | GNHOF_COOWNER, who);
+  endif
+  
+  if(!IsGm(who))
+    if(!IsHouseOwner(who,Multi) and !IsHouseCoOwner(who,Multi))
+      SendSysMessage(who,"To nie twoj dom!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+  
+  if(Distance(who,Sconce) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  
+  if(ItemCfg[Sconce.graphic].PartNeeded)
+    Sconce.movable := 1;
+    if(MoveItemToContainer(Sconce,who.backpack))
+      EraseHouseItem(Sconce);
+      SendSysMessage(who,"Zdjal"+ggm(who,3)+" "+Sconce.desc+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie udalo Ci sie tego zdjac.",FONT_NORMAL,COLOR_RED);
+      Sconce.movable := 0;
+    endif
+  else
+    var ChGrap := CInt(ItemCfg[Sconce.graphic].changeorig);
+    if(!ChGrap)
+      SendSysMessage(who,"Nie udalo Ci sie tego zdjac.",FONT_NORMAL,COLOR_RED);
+    else
+      var Part := CInt(ItemCfg[ChGrap].PartNeeded);
+      if(Part)
+        Part := CreateItemInPack(who,Part);
+        if(!Part)
+          SendSysMessage(who,"Nie udalo Ci sie tego zdjac.",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+      endif
+      Sconce.graphic := ChGrap;
+      SendSysMessage(who,"Zdjal"+ggm(who,3)+" przedmiot.",FONT_NORMAL,COLOR_GREEN);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

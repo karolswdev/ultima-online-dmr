@@ -1,0 +1,246 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/noto";
+
+//-----------------------------------------------------------------------------
+
+const MINKARMA    := 500;
+const MINFAME     := 500;
+const BEG_PLEASE  := 1;
+const BEG_FAILS   := 2;
+const BEG_BROKE   := 3;
+const BEG_EMPTY   := 4;
+const BEG_NONE    := 5;
+const BEG_LOWK    := 6;
+
+//-----------------------------------------------------------------------------
+
+program Begging( who )
+
+  if(IsBusy(who))
+    return;
+  endif
+
+  var points := Cint(GetDefaultPointsValue(SKILLID_BEGGING));
+
+  SendSysMessage( who, "Wybierz ofiare.",FONT_NORMAL,COLOR_GREEN );
+  
+  var tgt := ObjTarget( who );
+
+  if(!StandardMobCheck(who,tgt))
+    SetBusyTime(who,GetSkillDelay(SKILLID_BEGGING));
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_BEGGING));
+  
+  if(tgt == who)
+    return;
+  endif
+  
+  if(Distance(who,tgt) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Msg := "patrzy na";
+
+  case(RandomInt(4)+1)
+    1: Msg := "spoglada na";
+    2: Msg := "mierzy wzrokiem";
+  endcase
+  
+  if (tgt.isa(POLCLASS_MOBILE))
+    PrintTextAbove(who, "*"+Msg+" " + tgt.name + "*" );
+  else
+    PrintTextAbove( who, "*"+Msg+" " + tgt.desc + "*" );
+    return;
+  endif
+  
+  sleep(2);
+  PrintRandomMessage( who, tgt, BEG_PLEASE );
+
+  sleep(3);
+
+  if(GetObjProperty(tgt,"Sleeping"))
+    PrintTextAbove(tgt,"*hrrrrrr*");
+    return;
+  endif
+
+  if (GetKarma(who) < 0)
+    PrintRandomMessage( tgt, who, BEG_LOWK );
+    return;
+  endif
+  
+  var lb     := 0;
+  var gold   := 0;
+  var wealth := 0;
+  
+  if(Distance(who,tgt) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(tgt.isa(POLCLASS_NPC))
+    wealth := GetNpcConfig(tgt).wealth;
+    if (!wealth)
+      Sendsysmessage(who, "To stworzenie nie da Ci zlota!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(tgt.isa(POLCLASS_NPC))
+    if(!CheckSkill( who, SKILLID_BEGGING, -1, points ))
+      PrintRandomMessage( tgt, who, BEG_FAILS );
+      return;
+    endif
+    
+    var BegSkill := GetEffectiveSkill(who, SKILLID_BEGGING);
+
+    lb := Cint(GetObjProperty(tgt, "begpurse"));
+    if(!lb)
+      lb := 50;
+      SetObjProperty(tgt, "begpurse", lb);
+    endif
+    
+    if(lb <= 1)
+      PrintRandomMessage( tgt, who, BEG_EMPTY );
+      return;
+    endif
+
+    case (wealth)
+      "upper":
+        gold := RandomDiceRoll("4d"+(1+(BegSkill/15)));
+      "middle":
+        gold := RandomDiceRoll("3d"+(1+(BegSkill/15)));
+      "poor":
+        gold := RandomDiceRoll("2d"+(1+(BegSkill/15)));
+      "none":
+        PrintRandomMessage( tgt, who, BEG_NONE );
+        return;
+      default:
+        PrintRandomMessage( tgt, who, BEG_BROKE );
+        return;
+    endcase
+
+    if (GetKarma(who) >= MINKARMA and GetFame(who) >= MINFAME)
+      gold := CInt(gold*1.3);
+    endif
+
+    if(lb - gold < 1)
+      gold := lb - 1;
+      lb := 1;
+    else
+      lb := lb - gold;
+    endif
+
+    SetObjProperty(tgt, "begpurse", lb);
+    
+  elseif(IsPlayer(tgt))
+    lb   := tgt.gold;
+    if(lb)
+      gold := SendTextEntryGump(tgt,"Ile chcesz podarowac "+who.name+"?",TE_CANCEL_ENABLE,TE_STYLE_NUMERICAL,CInt(lb));
+      gold := CInt(gold);
+      if(!gold)
+        PrintRandomMessage( tgt, who, BEG_FAILS );
+        return;
+      elseif(!tgt.spendgold(gold))
+        PrintRandomMessage( tgt, who, BEG_FAILS );
+        return;
+      endif
+    else
+      PrintRandomMessage( tgt, who, BEG_BROKE );
+      return;
+    endif
+  endif
+  
+  PrintTextAbove( tgt, "*rzucil pare monet do " + who.name + "*" );
+  
+  if(!CreateItemInPack( who, UOBJ_GOLDCOIN, gold))
+    SendSysMessage( who, "Nie zlapal"+ggm(who,3)+" , monety upadly na ziemie i polamaly sie.",FONT_NORMAL,COLOR_RED);
+  else
+    var coin := "monety";
+    if (gold == 1)
+      coin := "monete";
+    endif
+    SendSysMessage( who, "Szybko upychasz " + gold + " " + coin + " w swoim plecaku.",FONT_NORMAL,COLOR_GREEN);
+  endif
+  
+  if (GetKarma(who) > 5)
+    SetKarma(who,GetKarma(who)-1);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrintRandomMessage(me,who,Kind)
+
+  var Arr := array;
+  
+  case(Kind)
+    BEG_PLEASE: Arr := {
+                  "Podzielisz sie drobnymi?",
+                  "Wspomozesz biedn"+ggm(me,12)+"?",
+                  "Pomozesz w potrzebie?",
+                  "Podarujesz troche zlota?",
+                  "Pomozesz mi, prosze?"
+                };
+    BEG_FAILS:  Arr := {
+                  "nie",
+                  "Idz sobie!",
+                  "Idz stad!",
+                  "Nie wygladasz mi na zaufana osobe, zadnego zlota dzis!",
+                  "Przykro mi, ale nie wygladasz na osobe ktorej mozna ufac, nic nie wyciagniesz odemnie!",
+                  "Nie wyciagniesz wiecej zlota odemnie juz dzis",
+                  "Nie daje zlota byle komu!",
+                  "Nie lubie zebractwa! Wynos sie.",
+                  "Nie mam ochoty dawac Ci mego zlota!"
+                };
+    BEG_BROKE:  Arr := {
+                  "Nie mam zadnych pieniedzy!",
+                  "Nie' nic nie mam. Przykro mi.",
+                  "Czy ja wygladam na bank?",
+                  "Moze ty bys sie podzielil"+ggm(who,4)+" moneta ze mna?",
+                  "Nic dzisiaj nie mam.. innym razem.",
+                  "Moja sakwa jest juz pusta, daj mi spokoj!",
+                  "Nie mam zlota, nie mecz mnie.",
+                  "Nic mi nie zostalo, a ty chcesz jeszcze odemnie cos wyzebrac..."
+                };
+    BEG_EMPTY:  Arr := {
+                  "Niestety, oddal"+ggm(me,3)+" cale zloto niedawno.",
+                  "Nie mam nic co mogl"+ggm(me,4)+"bym ci dac!",
+                  "Nie, nic nie mam.",
+                  "Juz mnie ograbil"+ggm(who,3)+" ze wszystkiego!",
+                  "Czego jeszcze chcesz.. przeciez nie mam zlota juz.",
+                  "Daj mi spokoj, nie widzisz ze juz nie mam zlota?",
+                  "Odczep sie, w mej sakwie juz nic nie ma.",
+                  "Odejdz prosze, zlota nie mam juz.",
+                  "Niestety nie mam zlota, przyjdz kiedy indziej."
+                };
+    BEG_NONE:   Arr := {
+                  "Przykro mi, nie moge Ci nic dac.",
+                  "Czy wygladam jakbym mial kieszenie w zbroi?",
+                  "Nic nie dostaniesz poki jestem na sluzbie.",
+                  "Nawet jakbym chcial to Ci teraz nic nie dam...",
+                  "Popatrz na mnie, czy ja wygladam jak skarbonka?",
+                  "Odejdz poki mam dobry humor...",
+                  "Odczep sie odemnie, mam juz dosc."
+                };
+    BEG_LOWK:   Arr := {
+                  "Nie dam zlota takiemu jak ty!",
+                  "Odczep sie!",
+                  "Zle ci z oczu patrzy, nic Ci nie dam.",
+                  "Wygladasz jakbys przed chwila kogos zabil"+ggm(who,4)+", nic Ci nie dam.",
+                  "Nie wspomagam takich osob jak ty!",
+                  "Nie lubie kryminalist"+ggm(who,18)+"... odejdz.",
+                  "Nie wygladasz na osobe ktorej mozna ufac, zadnego zlota dzis!"
+                };
+  endcase
+  
+  PrintTextAbove(me,Arr[RandomInt(Arr.size())+1]);
+
+endfunction
+
+//-----------------------------------------------------------------------------

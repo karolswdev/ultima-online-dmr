@@ -1,0 +1,379 @@
+//-----------------------------------------------------------------------------
+
+include "msgboard";
+
+include "include/clock";
+include "include/tempmods";
+include "include/checks/objchecks";
+include "include/gumps";
+
+//-----------------------------------------------------------------------------
+
+var _ViewPids  := dictionary;
+var cpPageId  := 1;
+var cspPageId := 1;
+
+var Posts, Board, who, PostPid, ExpandId;
+
+//-----------------------------------------------------------------------------
+
+program MessageBoard(_who, _Board)
+
+  who   := _who;
+  Board := _Board;
+
+  if(!StandardItemCheck(who, Board, NO_MOVABLE_CHECK | NO_BUSY_CHECK))
+    return;
+  endif
+
+  if(GetProc(GetObjProperty(who, PROP_BOARD_VIEWING+Board.serial)))
+    return;
+  endif
+
+  SetObjProperty(who, PROP_BOARD_VIEWING+Board.serial, GetPid());
+
+  Detach();
+  NoLongerBusy(who);
+  ReleaseItem(Board);
+
+  Posts    := GetObjProperty(Board, PROP_POSTS);
+  ExpandId := 0;
+
+  AddBoardViewer(Board);
+
+  var Res;
+
+  while(IsLoggedIn(who) and Board)
+    BuildMainBoardGump();
+
+    if(ExpandId)
+      SetCurMultiPage(cspPageId);
+    else
+      SetCurMultiPage(cpPageId);
+    endif
+
+    Res := BoardWaitForRespond(who);
+
+    if(!Res)
+      break;
+    endif
+
+    if(ExpandId)
+      cspPageId := GetCurMultiPage();
+    else
+      cpPageId  := GetCurMultiPage();
+    endif
+
+    if(Res.type)
+      continue;
+    endif
+
+    case(Res.butid)
+      5:        PostMessage();
+                ExpandId := 0;
+                continue;
+    endcase
+
+    if(Res.butid > 10000 and Res.butid < 30000)
+      ViewMessage(Res.butid-10000);
+    elseif(Res.butid > 50000 and Res.butid < 70000)
+      if(ExpandId == Res.butid - 50000)
+        ExpandId := 0;
+      elseif(Posts.exists(Res.butid - 50000))
+        ExpandId  := Res.butid - 50000;
+        cspPageId := 0;
+      endif
+    elseif(ExpandId and Res.butid > 1000 and Res.butid < 2000)
+      ViewSubMessage(Res.butid-1000);
+    else
+      if(ExpandId)
+        ExpandId := 0;
+      else
+        break;
+      endif
+    endif
+
+  endwhile
+
+  DelBoardViewer(Board);
+  EraseObjProperty(who, PROP_BOARD_VIEWING+Board.serial);
+
+  if(IsLoggedIn(who))
+    DestroyAllGumps();
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BoardWaitForRespond(who)
+
+  GSend(who);
+  var Res := 0;
+
+  while(IsLoggedIn(who) and Board)
+
+    if(Distance(who, Board) > 2)
+      SendSysMessage(who, "Oddalil"+ggm(who,3)+" sie od tablicy.", FONT_NORMAL, COLOR_RED);
+      FullCloseGump(who, GetPid());
+      DestroyAllGumps();
+      return 0;
+    endif
+
+    if(GWaitForResponse(who))
+      Res := GGetResult();
+    endif
+
+    if(Res.type)
+
+      case(Res.type)
+        GMBEVID_RECREATE:     ReCreateMainGump();
+                              return 1;
+        
+        GMBEVID_REPLY:        if(who == Res.who)
+                                ReplyMessage(Res.pId, Res.spId);
+                              endif
+
+                              Res := 0;
+      endcase
+
+    elseif(Res)
+
+      return Res;
+
+    endif
+
+  endwhile
+
+  return Res;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainBoardGump()
+
+  Posts := GetObjProperty(Board, PROP_POSTS);
+
+  GInit(80, 20);
+  GMode(GMODE_MULTIHD, GSMODE_DYNAMIC);
+  GSetUnicode();
+  GGumpPic( 0, 0, 0x087a);
+  GButton( 0, 152, 0x1524, 0x1525, 5);
+  GTextLine(230 - CInt(len(Board.desc)*2.1), 37, 1340, Board.desc);
+  GMultiPage();
+
+  GAddPageData(355, 145, 0x824, 0x824, 355, 320, 0x825, 0x825);
+
+  if(!ExpandId)
+
+    var Keys := dictionary;
+    var Key;
+
+    foreach Post in Posts
+      if(Post[6].size())
+        Key := Post[6][Post[6].size()][3]+"_"+_Post_iter;
+      else
+        Key := Post[3]+"_"+_Post_iter;
+      endif
+      Keys[Key] := _Post_iter;
+    endforeach
+
+    var sKeys := Keys.keys();
+    var pId;
+    sKeys.sort();
+    sKeys.reverse();
+
+    foreach sKey in sKeys
+      GCheckNextPage(4);
+      pId := Keys[sKey];
+      BuildPostTitleGump(110, 160+40*GNPCount(), pId);
+    endforeach
+
+  else
+
+    BuildPostTitleGump(110, 160, ExpandId);
+    GCheckNextPage(8);
+    GCheckNextPage(8);
+
+    var spId;
+
+    for(spId := 1; spId <= Posts[ExpandId][6].size(); spId += 1)
+      GCheckNextPage(8);
+      BuildSubPostTitleGump(110, 160+20*GNPCount(), ExpandId, spId);
+    endfor
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPostTitleGump(x, y, pId)
+
+  var Date := GetDate(Posts[pId][3])+" "+GetTimeOfDay(Posts[pId][3]);
+
+  if(Posts[pId][6].size())
+    if(ExpandId == pId)
+      GButton(x, y+8, 0x38, 0x37, 50000+pId );
+    else
+      GButton(x, y+8, 0x37, 0x38, 50000+pId );
+    endif
+  endif
+
+  GButton( x+20, y+8, 0x1523, 0x1523, 10000+pId );
+  GTextLine(x+40, y, 998, Date);
+  GTextCrop(x+140, y, 100, 20, 1000, Posts[pId][1]);
+  GTextLine(x+40, y+16, 1420, "("+Posts[pId][6].size()+")");
+  GTextCrop(x+70, y+16, 170, 20, 1000, Posts[pId][5]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildSubPostTitleGump(x, y, pId, spId)
+
+  var Date := GetDate(Posts[pId][6][spId][3])+" "+GetTimeOfDay(Posts[pId][6][spId][3]);
+
+  GButton( x+35, y, 0x1523, 0x1523, 1000+spId );
+  GTextLine(x+55, y, 998, Date);
+  GTextCrop(x+155, y, 170, 20, 1000, Posts[pId][6][spId][1]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PostMessage()
+
+  if(GetProc(PostPid))
+    SendSysMessage(who, "Piszesz juz wiadomosc.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Script := start_script(":msgboard:postmsg", array(who, Board, 0, 0));
+
+  if(Script)
+    PostPid := Script.pid;
+  else
+    LogError("[Msgboard] PostMessage: nie udalo sie uruchomic skryptu :msgboard:postmsg ["+Script.errortext+"]", LOGF_SCRIPTS);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ViewMessage(pId)
+
+  if(!Posts.exists(pId))
+    return;
+  endif
+
+  if(IsViewingPost(pId))
+    return;
+  endif
+
+  var Script := start_script(":msgboard:viewmsg", array(who, Board, pId, 0, GetPid()));
+
+  if(Script)
+    SetViewPost(pId, Script.pid);
+  else
+    LogError("[Msgboard] PostMessage: nie udalo sie uruchomic skryptu :msgboard:viewmsg ["+Script.errortext+"]", LOGF_SCRIPTS);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ViewSubMessage(spId)
+
+  if(!Posts.exists(ExpandId))
+    ExpandId := 0;
+    return;
+  endif
+
+  if(IsViewingPost(ExpandId, spId))
+    return;
+  endif
+
+  var Script := start_script(":msgboard:viewmsg", array(who, Board, ExpandId, spId, GetPid()));
+
+  if(Script)
+    SetViewPost(ExpandId, Script.pid, spId);
+  else
+    LogError("[Msgboard] PostMessage: nie udalo sie uruchomic skryptu :msgboard:viewmsg ["+Script.errortext+"]", LOGF_SCRIPTS);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ReplyMessage(pId, spId)
+
+  if(!Posts.exists(pId))
+    if(pId == ExpandId)
+      ExpandId := 0;
+    endif
+    SendSysMessage(who, "Temat nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(GetProc(PostPid))
+    SendSysMessage(who, "Piszesz juz wiadomosc.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Script := start_script(":msgboard:postmsg", array(who, Board, pId, spId));
+
+  if(Script)
+    PostPid := Script.pid;
+  else
+    LogError("[Msgboard] PostMessage: nie udalo sie uruchomic skryptu :msgboard:postmsg ["+Script.errortext+"]", LOGF_SCRIPTS);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyAllGumps()
+
+  CloseGumpEx(who, PostPid);
+
+  foreach Pids in _ViewPids
+    foreach Pid in Pids
+      if(GetProc(Pid))
+        CloseGumpEx(who, Pid);
+      endif
+    endforeach
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ReCreateMainGump()
+
+  FullCloseGump(who, GetPid());
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetViewPost(pId, vId, spId := 0)
+
+  if(!_ViewPids.exists(pId))
+    _ViewPids[pId] := array;
+  endif
+
+  _ViewPids[pId][spId+1] := vId;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsViewingPost(pId, spId := 0)
+
+  return GetProc(_ViewPids[pId][spId+1]);
+
+endfunction
+
+//-----------------------------------------------------------------------------

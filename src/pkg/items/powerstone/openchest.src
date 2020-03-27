@@ -1,0 +1,27 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program OpenPSChest(who,Chest)
+
+  var Monsters := GetObjProperty(Chest,"Monsters");
+
+  foreach Monster in Monsters
+    if(SystemFindObjectBySerial(CInt(Monster)))
+      SendSysMessage(who,"Straznicy pilnuja!",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endforeach
+
+  Chest.usescript := "";
+
+endprogram
+
+//-----------------------------------------------------------------------------

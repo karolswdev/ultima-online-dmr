@@ -1,0 +1,65 @@
+use uo;
+use os;
+use util;
+
+include "include/msgs";
+
+
+
+var rSentences := { "Po cos mnie wywolywal?",
+					"Na co Ci to.. Nie znajdziesz mego domu...",
+					"Wywolales Zimy ducha.. kto cie teraz udobrucha?",
+					"Kiedy mnie juz zaprowadzisz?",
+					"Chce do domu!",
+					"Bo zaraz inaczej pogadamy...",
+					"Prowadzisz juz czy nie?",
+					"Daleko jeszcze?",
+					"No gdzie ty idziesz?",
+					"No jak dlugo jeszcze?",
+					"Grrr.. KIEDY wreszcie?",
+					"I po co ci to bylo?",
+					"Myslisz ze jakas nagrode dostaniesz?",
+					"Juz ja Ci pokaze co to znacza duchy",
+					"Nienawidze zimy!",
+					"Co dostales od Mikolaja?",
+					"Grrr.... NO W KONCU KIEDY?",
+					"SLYSZYSZ MNIE?",
+					"Pojdziemy juz?",
+					"Grrr..... WKURZONYM!",
+					"BO nie bedzie prezentu i basta!",
+					"Co tak malo ludzi na naszym swiecie...",
+					"Bogowie pracuja obficie nad zmianami wiesz?",
+					"No ile MOGE CZEKAC?",
+					"JUZ JESTESMY... JUZ?",
+					"JUZZZZZZZZZZZZ?",
+					"NO ILE JESZCZE??????",
+					"GRRRRRRRRRRRRRRRR!",
+					"Chce do wezowej twierdzy...do domku zimowego."
+					};
+					
+program ghostStalker(who)
+
+	while(GetObjProperty(who, "GhostStalker") && who.ip)
+	
+		sleep(120);
+		PrintTextAbove(who, rSentences[RandomInt(rSentences.size())+1]);
+		
+		if(who.x == 3026 && who.y == 3385)
+			SetObjProperty(who, "#WGhost", 1);
+			EraseObjProperty(who, "GhostStalker");
+			SendSysMessage(who, "Duch znika...", FONT_NORMAL, COLOR_BLUE);
+			PrintTextAbove(who, "MOC ZIMYYYYYYYYYY!");
+			
+		endif
+		
+	endwhile
+		
+endprogram
+			
+	
+	
+	
+	
+	
+	
+					

@@ -1,0 +1,124 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/poison";
+include "include/mobile/age";
+
+//-----------------------------------------------------------------------------
+
+program Anatomy( who )
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var strdesc;
+  var dexdesc;
+  var Diff := -1;
+  var Points := Cint(GetDefaultPointsValue(SKILLID_ANATOMY));
+
+  SendSysMessage( who, "Wybierz cel.",FONT_NORMAL,COLOR_GREEN);
+  var Subject := ObjTarget(who);
+
+  if(!StandardMobCheck(who,Subject,NO_CHECK_SPECLOS | NEW_DIST_CHECK | NO_COMBAT_CHECK | NO_USE_CHECK, 12))
+    return;
+  endif
+  
+  var mallocPointer := Malloc(who);
+  if(mallocPointer)
+	SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+	return;
+  endif
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_ANATOMY));
+
+  if(subject == who)
+    SendSysMessage(who, "Raczej nie masz problemow z ocena siebie.",FONT_NORMAL,COLOR_GREEN);
+    Diff := 0;
+    Points := 0;
+  endif
+
+ if(CheckSkill(who,SKILLID_ANATOMY, Diff, Points))
+
+    var str := GetStrength(Subject);
+    var dex := GetDexterity(Subject);
+    var descr := "";
+
+    if(Subject.isa(POLCLASS_NPC))
+      Str := CInt(Str / 10);
+      Dex := CInt(Dex / 10);
+    endif
+
+    if(str >= 0 and str <= 9)
+      strdesc := "wyglada jakby mial problem z podnoszeniem malych przedmiotow" ;
+    elseif (str >= 10 and str <= 19)
+      strdesc :=  "wyglada na bardzo slabego";
+    elseif (str >= 20 and str <= 29)
+      strdesc :=  "wyglada na slabego";
+    elseif (str >= 30 and str <= 39)
+      strdesc := "wyglada na srednio silnego";
+    elseif (str >= 40 and str <= 49)
+      strdesc := "wyglada na dosc silnego";
+    elseif (str >= 50 and str <= 59)
+      strdesc := "wyglada na silnego";
+    elseif (str >= 60 and str <= 69)
+      strdesc := "wyglada na bardzo silnego";
+    elseif (str >= 70 and str <= 79)
+      strdesc := "wyglada na niezwykle silnego";
+    elseif (str >= 80 and str <= 89)
+      strdesc := "wyglada na nadzwyczajnie silnego";
+    elseif (str >= 90 and str <= 99)
+      strdesc := "wyglada jak najsilniejsze stworzenie jakie widzial"+ggm(who,3);
+    elseif (str >= 100)
+      strdesc := "wyglada na nadludzko silnego";
+    endif
+
+    if(dex >= 0 and dex <= 9)
+      dexdesc := "jakby ledwo mogl prosto ustac";
+    elseif (dex >= 10 and dex <= 19)
+      dexdesc := "na dosc niezrecznego";
+    elseif (dex >= 20 and dex <= 29)
+      dexdesc := "na niezrecznego";
+    elseif (dex >= 30 and dex <= 39)
+      dexdesc := "na raczej zrecznego";
+    elseif (dex >= 40 and dex <= 49)
+      dexdesc := "na dosc zrecznego";
+    elseif (dex >= 50 and dex <= 59)
+      dexdesc := "na zrecznego";
+    elseif (dex >= 60 and dex <= 69)
+      dexdesc := "na bardzo zrecznego";
+    elseif (dex >= 70 and dex <= 79)
+      dexdesc := "na niezwykle zrecznego";
+    elseif (dex >= 80 and dex <= 89)
+      dexdesc := "na nadzwyczajnie zrecznego";
+    elseif (dex >= 90 and dex <= 99)
+      dexdesc := "jak najszybsze stworzenie jakie widzial"+ggm(who,3);
+    elseif (dex >= 100)
+      dexdesc := "na nadludzko zrecznego";
+    endif
+
+    if(GetPoisonLevel(Subject) > 0 )
+      descr := descr + ", i jest zatruty.";
+    else
+      descr := descr + ".";
+    endif
+
+    SendSysmessage (who, "Cel " +strdesc + " i "+dexdesc+ descr,FONT_NORMAL,COLOR_GREEN);
+    if(GetEffectiveSkill(who,SKILLID_ANATOMY) >= 70 and !Subject.cmdlevel)
+      var Age := GetAge(Subject);
+      var AgeDesc := Age+" "+Gam(Age, GAM_LAT);
+
+      SendSysMessage(who,"To stworzenie ma "+AgeDesc,FONT_NORMAL,COLOR_BLUE);
+    endif
+
+  else
+    SendSysmessage (who, "Nie jestes pewn"+ggm(who,6)+"...",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

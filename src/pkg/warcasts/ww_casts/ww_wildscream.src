@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include ":wearwolf:wearwolf";
+include "include/poison";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 10;
+
+//-----------------------------------------------------------------------------
+
+program WwRain(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Range   := CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 3) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 3));
+  var Duration := CInt(1 + CalcSkillExponential(Caster, SKILLID_WEARWOLF, 3));
+  var Gained := 0;
+  
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+  if(IsPlayer(Mobile))  
+    if(!IsFriend(Caster, Mobile) and Caster != Mobile and CanVsAttack(Caster,Mobile))
+      PlaySoundEffect(Mobile, SFX_SPELL_PARALYZE);
+      PlayPcEffect(Mobile, FX_MARK_EFFECT, 1010, 0xF, 0xF);
+      DoMod(Mobile, MOD_PARA, 1, Duration);
+      
+      if(Gained < 3)
+        Gained += GainWarcastPoints(Caster, mobile, WW_WCID, WCGAIN_OFFENSIVE);
+      endif
+    endif
+  endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,81 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/npcs";
+
+
+//-----------------------------------------------------------------------------
+
+program OpenPackCmd( who, text )
+
+  text := SplitWords(text);
+
+  if(IsAdmin(who))
+
+    case(text[1])
+      "merc":    var Temp := text[2];
+                 if(!Temp)
+                   SendSysMessage(who, "Nie podano Template.", FONT_NORMAL, COLOR_RED);
+                 else
+                   var Box := FindRootItemInStorageArea(FindStorageArea(MERC_STORAGE), Temp+MERC_FSBOX);
+                   if(!Box)
+                     SendSysMessage(who, "Nie znaleziono skrzyni dla Temp: "+Temp+".", FONT_NORMAL, COLOR_RED);
+                   else
+                     SendOpenspecialContainer( who, Box );
+                   endif
+                 endif
+
+                 return;
+
+      "mercpb":  var Box := FindRootItemInStorageArea(FindStorageArea(MERC_STORAGE), MERC_PBBOX);
+                 if(!Box)
+                   SendSysMessage(who, "Nie znaleziono skrzyni: "+MERC_PBBOX+".", FONT_NORMAL, COLOR_RED);
+                 else
+                   SendOpenspecialContainer( who, Box );
+                 endif
+
+                 return;
+
+    endcase
+
+  endif
+
+  var me := ObjTarget( who,TGTOPT_NOCHECK_LOS );
+
+  if(IsAdmin(who))
+    if(me.isa(POLCLASS_CONTAINER))
+      SendViewContainer( who, me );
+      return;
+    endif
+  endif
+
+  if(!me.isa(POLCLASS_MOBILE))
+    SendSysMessage(who,"To nie obiekt mobilny.",FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var MyPack := 0;
+
+  if(me.script == "playermerchant" and text[1] != "norm")
+    var Storage := GetMerchantStorage();
+    MyPack := FindItemInStorage( storage, me.serial + " 1C", 0xE7C );
+  else
+    MyPack := me.backpack;
+  endif
+  
+  if(!MyPack)
+    SendSysMessage(who,"Plecak nie istnieje.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendOpenspecialContainer( who, mypack );
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,168 @@
+//--------------------------------------------------------------------------------
+
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/effects";
+include "include/str";
+include "include/misc";
+include "include/client/fonts";
+include "include/gumps";
+include "include/dices";
+
+//--------------------------------------------------------------------------------
+
+var Parms, Res;
+
+//--------------------------------------------------------------------------------
+
+program SoundSourceNode(who, Node)
+
+  if(!who.cmdlevel)
+    return;
+  endif
+
+  Parms := GetObjProperty(Node, PROP_SNDSRC_PARMS);
+  if(!Parms)
+    Parms := array("", 0);
+  endif
+
+  while(IsLoggedIn(who) and Node)
+    BuildMainGump(Node);
+    Res := GSend(who);
+
+    if(!IsLoggedIn(who) or !Node)
+      return;
+    endif
+
+    Parms[1] := CroppedId(Res[5]);
+    Parms[2] := CroppedId(Res[6]);
+
+    if(!CheckDiceRoll(Parms[2]))
+      Parms[2] := "";
+    endif
+
+    case(Res[0])
+      10:        if(Parms[1])
+                   var Indices := SplitWords(Parms[1]);
+                   PlaySoundEffectPrivate(Node, CInt(Indices[RandomInt(Indices.size())+1]), who);
+                 endif
+      11:        SaveParms(who, Node);
+      default:   if(Res[0] > 100000)
+                   PlaySoundEffectPrivate(Node, CInt(Res[0] - 100000), who);
+                 elseif(Res[0] > 100)
+                   AddWord(Parms[1], CInt(Res[0])-100);
+                 else
+                   return;
+                 endif 
+    endcase
+
+    
+
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function SaveParms(who, Node)
+
+  if(!Parms[1])
+    SendSysMessage(who, "Wpisz indeks lub indeksy odglosow.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(!Parms[2])
+    SendSysMessage(who, "Wpisz czas w ms, moze byc DiceRoll, min 1000ms.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(GetDiceMinValue(Parms[2]) < 1000)
+    SendSysMessage(who, "Wpisz czas wiekszy od 1sec!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetObjProperty(Node, PROP_SNDSRC_PARMS, Parms);
+  SetObjProperty(Node, PROP_SNDSRC_REREAD, who.serial);
+
+  SendSysMessage(who, "Zapisano zmiany.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function BuildMainGump(Node)
+
+  GInit(50, 30);
+  GResPic(0, 0, 3600, 400, 540);
+  GTextLine(100, 20, 999, "Zrodlo dzwieku: "+Node.desc);
+  GTextLine(30, 50, 560, "Index:");
+  GResPic(90, 47, BKGND_PAPER, 270, 26);
+  GTextEntry(98, 50, 260, 20, 550, 5, Parms[1]);
+  
+  GTextLine(30, 80, 560, "Czas ms:");
+  GResPic(90, 77, BKGND_PAPER, 120, 26);
+  GTextEntry(98, 80, 110, 20, 550, 6, Parms[2]);
+
+  GButton(220, 83, 2117, 2118, 10);
+  GTextLine(240, 80, 1000, "Odegraj");
+
+  GButton(310, 83, 2117, 2118, 11);
+  GTextLine(330, 80, 1000, "Zapisz");
+
+  var h      := 0;
+  var w      := 0;
+  var Sounds := array(array(0x11,    "Woda 1"),
+                      array(0x12,    "Woda 2"),
+                      array(0x13,    "Fale 1"),
+                      array(0x14,    "Fale 2"),
+                      array(0x15,    "Wiatr 1"),
+                      array(0x16,    "Wiatr 2"),
+                      array(0x17,    "Wiatr 3"),
+                      array(0x1,     "Las 1"),
+                      array(0x2,     "Las 2"),
+                      array(0x3,     "Las 3"),
+                      array(0x4,     "Jungle 1"),
+                      array(0x5,     "Jungle 2"),
+                      array(0x6,     "Jungle 3"),
+                      array(0x2B4,   "Jungle 4"),
+                      array(0x2B5,   "Jungle 5"),
+                      array(0x2B6,   "Jungle 6"),
+                      array(0x7,     "Bagna 1"),
+                      array(0x8,     "Bagna 2"),
+                      array(0x2B7,   "Bagna 3"),
+                      array(0x2B8,   "Bagna 4"),
+                      array(0x244, "Mystery 1"),
+                      array(0x245, "Mystery 2"),
+                      array(0x246, "Mystery 3"),
+                      array(0x220, "Crumble 1"),
+                      array(0x221, "Crumble 2"),
+                      array(0x222, "Crumble 3"),
+                      array(0x223, "Crumble 4"),
+                      array(0x26,  "Splash 1"),
+                      array(0x27,  "Splash 2"),
+                      array(0x28,  "Splash 3"),
+                      array(0xAE,  "JungBird 1"),
+                      array(0xAF,  "JungBird 2"),
+                      array(0xB0,  "JungBird 3"),
+                      array(0xB1,  "JungBird 4"),
+                      array(0xB2,  "JungBird 5"),
+                      array(0x25,  "Drip 1"),
+                      array(0x2DB,   "Drip 2")
+                      
+                      );
+
+  foreach Sfx in Sounds
+    GButton(20+w, 113+h, 2117, 2118, 100+Sfx[1]);
+    GButton(40+w, 113+h, 2117, 2118, 100000+Sfx[1]);
+    GTextLine(60+w, 110+h, 999, hex(Sfx[1]));
+    GTextLine(110+w, 110+h, 1319, Sfx[2]);
+
+    h := h + 20;
+
+    if(h > 380)
+      h := 0;
+      w := w + 180;
+    endif
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------

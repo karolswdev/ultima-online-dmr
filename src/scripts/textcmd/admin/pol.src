@@ -1,0 +1,129 @@
+use uo;
+use os;
+use math;
+use util;
+
+include "include/gumps";
+
+//include ":timeutils:clock";
+
+program textcmd_pol(who, text)
+
+
+	GInit();
+	GNoDispose();
+	GPage();
+	GResPic( 10 , 10 , 9270 , 700 , 500  );
+
+	var core_ref := POLCore();
+	if(text == "rs")
+		var runs := core_ref.running_scripts;
+		var line_cnt := 0;
+		foreach sc in runs
+
+			GTextLine( 30 , 30+(30*line_cnt) , 895 , "IC "+sc.instr_cycles+" CC "+sc.consec_cycles+" PC "+sc.PC+" CD "+sc.call_depth+" NG "+sc.num_globals  );
+			GTextLine( 30 , 45+(30*line_cnt) , 895 , "Name "+sc.name);
+			line_cnt := line_cnt + 1;
+		endforeach
+
+		GTextLine( 30 , 60+(30*line_cnt) , 895 , "IC - instr_cycles   CC - consec_cycles  CD - call_depth   NG - num_globals");
+
+	else
+		GTextLine( 30 , 30, 895 , "POL Version - "+core_ref.verstr);
+		GTextLine( 30 , 45, 895 , "Czas - "+StrFormatTime("%b %d, %Y %I:%M %p", core_ref.systime));
+
+		GTextLine( 30 , 75, 895 , "CombatOpPerMin - "+core_ref.combat_operations_per_min);
+		GTextLine( 30 , 90, 895 , "SkillChkPerMin - "+core_ref.skill_checks_per_min);
+		GTextLine( 30 , 105, 895 , "PriorityDivide - "+core_ref.priority_divide);
+
+		GTextLine( 30 , 135, 895 , "BytesSend - "+FormatBytes(core_ref.bytes_sent));
+		GTextLine( 30 , 150, 895 , "BytesRec - "+FormatBytes(core_ref.bytes_received));
+
+		GTextLine( 30 , 180, 895 , "Items - "+core_ref.itemcount);
+		GTextLine( 30 , 195, 895 , "Mobiles - "+core_ref.mobilecount);
+
+		GTextLine( 30 , 225, 895 , "UpTime - "+FormatSeconds(core_ref.uptime));
+		GTextLine( 30 , 240, 895 , "Sysload - "+core_ref.sysload);
+
+
+	endif
+
+	GSend(who);
+
+
+endprogram
+
+
+function FormatBytes(bytes)
+	CONST BYTES_IN_KILO	:= 1024.0;
+	CONST BYTES_IN_MEG	:= 1048576.0;
+
+	var mb := CDbl(bytes) / BYTES_IN_MEG;
+	var type := "MB";
+
+	if ( mb < 1.0 )
+		mb := CDbl(bytes) / BYTES_IN_KILO;
+		type := "KB";
+
+		if ( mb < 1.0 )
+			mb := bytes;
+			type := "bytes";
+		endif
+	endif
+
+	return CStr(mb)+" "+type;
+endfunction
+
+function FormatSeconds(seconds)
+	CONST SEC_PER_HOUR := 3600.0;
+	CONST SEC_PER_DAY := 86400.0;
+	CONST SEC_PER_WEEK := 604800.0;
+
+	var formatted := "";
+
+	if ( seconds >= SEC_PER_WEEK )
+		var weeks := CInt(seconds/SEC_PER_WEEK);
+		if ( weeks > 1 )
+			formatted := CStr(weeks) + " weeks, ";
+		else
+			formatted := "1 week, ";
+		endif
+
+		seconds := seconds - (weeks * SEC_PER_WEEK);
+	endif
+
+	if ( seconds >= SEC_PER_DAY )
+		var days := CInt(seconds/SEC_PER_DAY);
+		if (days > 1)
+			formatted := formatted + CStr(days) + " days, ";
+		else
+			formatted := formatted + "1 day, ";
+		endif
+		seconds := seconds - (days * SEC_PER_DAY);
+	endif
+
+	if ( seconds >= SEC_PER_HOUR )
+		var hours := CInt(seconds/SEC_PER_HOUR);
+		if (hours > 1)
+			formatted := formatted + CStr(hours) + " hours, ";
+		else
+			formatted := formatted + " 1 hour, ";
+		endif
+		seconds := seconds - (hours * SEC_PER_HOUR);
+	endif
+
+	var minutes := CInt(seconds/60.0);
+	if ( minutes )
+		formatted := formatted + CStr(minutes) + " minutes, ";
+		seconds := seconds - (minutes * 60);
+	endif
+	if ( seconds )
+		if ( seconds == 1 )
+			formatted := formatted + " 1 second";
+		else
+			formatted := formatted + CStr(seconds) + " seconds";
+		endif
+	endif
+
+	return formatted;
+endfunction

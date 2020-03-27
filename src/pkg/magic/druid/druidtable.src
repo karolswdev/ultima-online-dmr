@@ -1,0 +1,258 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/findcity";
+include "include/effects";
+include "include/checks/objchecks";
+include "include/objtypes/magic";
+include "include/objtypes/skills";
+
+//-----------------------------------------------------------------------------
+
+var column;
+var column_array := {};
+
+//-----------------------------------------------------------------------------
+
+program CreateDruidTable(who, druidtable)
+
+  if(!StandardItemCheck(who, druidtable, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  var Res := Usedruidtable (who);
+
+  if (Res == 1)
+    if (GetObjProperty (druidtable, "ruined"))
+      SendSysMessage (who, "Moc kamieni jest za slaba by spelnic twe zadania.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    var reaperwood := FindObjtypeInContainer (who.backpack, 0x706f);
+    if (!reaperwood or reaperwood.amount < 50)
+      SendSysMessage (who, "Krag potrzebuje 50 drzew zniwiarza.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SubtractAmount (reaperwood, 50);
+    
+    PlayStationaryEff(druidtable.x, druidtable.y+1, druidtable.z, FX_SMOKE, 0xA, 0xA );
+    PlaySoundEffect(who, SFX_SPELL_MANA_VAMPIRE);
+    CreateItemAtLoc (druidtable.x, druidtable.y+1, druidtable.z, UOBJ_DRUID_STAFF, 1, druidtable.realm);
+
+  elseif (Res == 2)
+
+    if (GetObjProperty (druidtable, "ruined"))
+      SendSysMessage (who, "Kamienie sa za slaby by spelnic twe zadania.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    var stonehides := FindObjtypeInContainer (who.backpack, UOBJ_STONEHIDE);
+    if (!stonehides or stonehides.amount < 100)
+      SendSysMessage (who, "Krag potrzebuje 100 kamiennych skor.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SubtractAmount (stonehides, 100);
+    
+    PlayStationaryEff (druidtable.x, druidtable.y+1, druidtable.z, FX_SMOKE, 0xA, 0xA );
+    PlaySoundEffect(who, SFX_SPELL_MANA_VAMPIRE);
+    CreateItemAtLoc (druidtable.x, druidtable.y+1, druidtable.z, UOBJ_DRUID_BAG, 1, druidtable.realm);
+
+  elseif (Res == 101)
+
+    if (!YesNo (who, "Zniszczyc?"))
+      SendSysMessage (who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var stone_serial;
+    var stone;
+
+    foreach stone_serial in GetObjProperty (druidtable, "placed_stones")
+      stone := FindItemBySerial (stone_serial);
+      if (stone)
+        DestroyItem (stone);
+      endif
+    endforeach
+
+    DestroyItem(druidtable);
+    CreateItemInPack(who, 0x7080);
+
+  elseif (Res == 102)
+    Toggledruidtable (druidtable);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Usedruidtable (who)
+ 
+  GInit();
+  GResPic(20, 30, 5100, 280, 180);
+
+  GTextLine(100, 50, 0, "Witaj.");
+  GTextLine(80, 80, 0, "Stworz druidyczna laske");
+  GTextLine(80, 110, 0, "Stworz druidyczny worek");
+  GButton(50, 80, 25, 26, 1);
+  GButton(50, 110, 25, 26, 2);
+
+  if (who.cmdlevel)
+    GButton(50, 140, 25, 26, 101);
+    GButton(50, 170, 25, 26, 102);
+    GTextLine(80, 140, 0, "Zniszcz krag");
+    GTextLine(80, 170, 0, "Zruinuj/Odbuduj krag");
+  endif
+
+  var Res := GSend(who);
+  return CInt(Res[0]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Toggledruidtable (druidtable)
+
+  //if its already ruined and just needs to be restored
+  if (GetObjProperty (druidtable, "ruined") )
+    var stone_serial;
+    var stone;
+
+    var item_serial;
+    var item;
+
+    foreach item_serial in GetObjProperty (druidtable, "decay_items")
+      item := FindItemBySerial (item_serial);
+      if (item)
+        DestroyItem (item);
+      endif
+    endforeach
+
+    //play some special effects
+    PlayStationaryEff (druidtable.x-2, druidtable.y-4, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x-2, druidtable.y+10, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x+4, druidtable.y-4, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x+4, druidtable.y+10, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x-6, druidtable.y, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x-6, druidtable.y+6, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x+8, druidtable.y, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+    PlayStationaryEff (druidtable.x+8, druidtable.y+6, druidtable.z+10, 0x3709, 0x0a, 0x1e);
+
+    foreach player in ListMobilesNearLocation (druidtable.x, druidtable.y, druidtable.z, 5);
+      PlaySoundEffect(player, 0x209);
+    endforeach
+
+    sleepms (1500);
+
+    foreach stone_serial in GetObjProperty (druidtable, "placed_stones")
+      stone := FindItemBySerial (stone_serial);
+      if (stone)
+        stone.graphic := stone.objtype;
+        stone.color := 0;
+      endif
+    endforeach
+    EraseObjProperty (druidtable, "ruined");
+  else
+    SetObjProperty (druidtable, "ruined", 1);
+    var stone_serial_array := GetObjProperty (druidtable, "placed_stones");
+    var stone;
+    var i;
+
+    stone := FindItemBySerial (stone_serial_array[1]);
+    stone.graphic := 0x3bf;
+    stone.color := 842;
+    stone := FindItemBySerial (stone_serial_array[2]);
+    stone.graphic := 0x3b8;
+    stone.color := 842;
+    stone := FindItemBySerial (stone_serial_array[3]);
+    stone.graphic := 0x3bf;
+    stone.color := 842;
+    stone := FindItemBySerial (stone_serial_array[4]);
+    stone.graphic := 0x3bf;
+    stone.color := 842;
+
+    stone := FindItemBySerial (stone_serial_array[5]);
+    stone.graphic := 0x3bf;
+    stone.color := 842;
+    stone := FindItemBySerial (stone_serial_array[6]);
+    stone.graphic := 0x3bf;
+    stone.color := 842;
+    stone := FindItemBySerial (stone_serial_array[7]);
+    stone.graphic := 0x3bf;
+    stone.color := 842;
+    stone := FindItemBySerial (stone_serial_array[8]);
+    stone.graphic := 0x3b8;
+    stone.color := 842;
+
+    stone := FindItemBySerial (stone_serial_array[9]);
+    stone.graphic := 0x1;
+    stone := FindItemBySerial (stone_serial_array[10]);
+    stone.graphic := 0x1;
+    stone := FindItemBySerial (stone_serial_array[11]);
+    stone.graphic := 0x1;
+    stone := FindItemBySerial (stone_serial_array[12]);
+    stone.graphic := 0x1;
+
+    stone := FindItemBySerial (stone_serial_array[13]);
+    stone.graphic := 0x1;
+    stone := FindItemBySerial (stone_serial_array[14]);
+    stone.graphic := 0x1;
+    stone := FindItemBySerial (stone_serial_array[15]);
+    stone.graphic := 0x1;
+    stone := FindItemBySerial (stone_serial_array[16]);
+    stone.graphic := 0x1;
+
+    var item;
+    var item_array := {};
+
+    item := CreateItemAtLoc (druidtable.x-3, druidtable.y+10, druidtable.z, 0xceb, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x-2, druidtable.y+9, druidtable.z, 0xcf0, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+8, druidtable.y-1, druidtable.z, 0x788, 1, druidtable.realm);
+    item.movable := 0;
+    item.color := 842;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+9, druidtable.y-1, druidtable.z, 0x788, 1, druidtable.realm);
+    item.movable := 0;
+    item.color := 842;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+10, druidtable.y-1, druidtable.z, 0x788, 1, druidtable.realm);
+    item.movable := 0;
+    item.color := 842;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x-2, druidtable.y-5, druidtable.z, 0xd3f, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+2, druidtable.y+4, druidtable.z, 0xd3f, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x-7, druidtable.y+6, druidtable.z, 0xd3f, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+5, druidtable.y-4, druidtable.z, 0xcd0, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x-6, druidtable.y+12, druidtable.z, 0xcd3, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+8, druidtable.y, druidtable.z, 0xd0c, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+9, druidtable.y, druidtable.z, 0xd0d, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+    item := CreateItemAtLoc (druidtable.x+10, druidtable.y, druidtable.z, 0xd0e, 1, druidtable.realm);
+    item.movable := 0;
+    item_array.append (item.serial);
+
+    SetObjProperty (druidtable, "decay_items", item_array);
+    return;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

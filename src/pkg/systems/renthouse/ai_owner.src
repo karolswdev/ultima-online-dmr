@@ -1,0 +1,104 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/npcspeech";
+include "include/buildings";
+include "../pkg/systems/renthouse/renthouse";
+include "ai/include/npch";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+const NEXT_HR_CHECK := 12;//00;
+
+//-----------------------------------------------------------------------------
+
+var NextCheck  := ReadGameClock();
+
+//-----------------------------------------------------------------------------
+
+program Owner_AI() 
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+
+  while(me)
+
+    if(!ev)
+      ev := os::wait_for_event(waittime);
+    endif
+
+    StdCityNpcHandleEvent(ev);
+    StdCityNpcEventLoop();
+    
+    if(NextCheck < ReadGameClock())
+      NextCheck := ReadGameClock() + NEXT_HR_CHECK;
+      CheckHr();
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who,text)
+
+  text := lower(text);
+
+  if(text["wynaj"])
+
+    TurnToward(who);
+    if(len(text) < 10)
+      Say("Co tam belkoczesz?");
+    elseif(CanNpcSpeakWith(who))
+      Say("*otwiera ksiege*");
+      sleep(1);
+      RentHouse(me,who);
+    endif
+
+  elseif(text["witam"] or text["witaj"])
+
+    TurnToward(who);
+    Say("Witam, chcesz wynajac jakis dom?");
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckHr()
+
+  if(!City)
+    LogError("CheckHr: Wlasciciel "+me.serial+" stoi poza miastem - "+City, LOGF_WORLD);
+    return;
+  endif
+
+  var Houses := GetCityHouses(City);
+
+  if(!Houses.size() or !Houses)
+    LogError("CheckHr: Wlasciciel "+me.serial+" stoi w miescie bez domow - "+City, LOGF_WORLD);
+    return;
+  endif
+
+  foreach House in Houses
+    var Sign := FindHrSign(House);
+    if(!CheckRentHouse(Sign, me))
+      EraseRentHouse(House);
+    endif
+    sleepms(10);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

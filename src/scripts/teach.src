@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/teach";
+include "include/misc";
+include "include/finding";
+include "include/gumpboxes";
+include "include/player/misc";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program Teach(who)
+
+  if(IsLearning(who))
+    SendSysMessage(who,"Juz ktos cie naucza...",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Kogo chcesz nauczac?",FONT_NORMAL,COLOR_GREEN);
+  
+  var Targ := ObjTarget(who);
+  
+  if(Targ.isa(POLCLASS_MOBILE))
+    if(!IsPlayer(Targ))
+      SendSysMessage(who,"Tego nie mozesz nauczac.",FONT_NORMAL,COLOR_RED);
+      return;
+    elseif(Targ.cmdlevel)
+      SendSysMessage(who,"Twe starania sa na marne.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(Targ == who)
+    return;
+  endif
+  
+  if(Distance(who,Targ) > TEACH_DIST)
+    SendSysMessage(who,"Nie widzisz tej osoby.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  AddStudent(who,Targ);
+
+endprogram
+
+//-----------------------------------------------------------------------------

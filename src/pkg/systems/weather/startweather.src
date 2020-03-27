@@ -1,0 +1,341 @@
+//--------------------------------------------------------------------------------
+
+use file;
+
+//--------------------------------------------------------------------------------
+
+include "include/clock";
+include "include/std";
+
+include "weather";
+
+include ":discord:outbound";
+
+//--------------------------------------------------------------------------------
+
+var DCfg      := ReadConfigFile(DAYS_CFG);
+var DayBr     := CInt(DCfg["DayTime"].DayBrightness);
+var NightBr   := CInt(DCfg["DayTime"].NightBrightness);
+var DStart    := SplitWords(DCfg["DayTime"].DayStart);
+var DEnd      := SplitWords(DCfg["DayTime"].DayEnd);
+var NStart    := SplitWords(DCfg["DayTime"].NightStart);
+var NEnd      := SplitWords(DCfg["DayTime"].NightEnd);
+
+var Spring    := SplitWords(DCfg["Seasons"].Spring);
+var Summer    := SplitWords(DCfg["Seasons"].Summer);
+var Fall      := SplitWords(DCfg["Seasons"].Fall);
+var Winter    := SplitWords(DCfg["Seasons"].Winter);
+
+var State     := GetWeatherState();
+
+var Month,MonthDay,Hour,HourDS,HourNS,i;
+
+//--------------------------------------------------------------------------------
+
+DStart[1] := CInt(DStart[1]);
+DStart[2] := CInt(DStart[2]);
+DEnd[1]   := CInt(DEnd[1]);
+DEnd[2]   := CInt(DEnd[2]);
+
+NStart[1] := CInt(NStart[1]);
+NStart[2] := CInt(NStart[2]);
+NEnd[1]   := CInt(NEnd[1]);
+NEnd[2]   := CInt(NEnd[2]);
+
+Spring[1] := CInt(Spring[1]);
+Spring[2] := CInt(Spring[2]);
+Spring[3] := CInt(Spring[3]);
+
+Summer[1] := CInt(Summer[1]);
+Summer[2] := CInt(Summer[2]);
+Summer[3] := CInt(Summer[3]);
+
+Fall[1]   := CInt(Fall[1]);
+Fall[2]   := CInt(Fall[2]);
+Fall[3]   := CInt(Fall[3]);
+
+Winter[1] := CInt(Winter[1]);
+Winter[2] := CInt(Winter[2]);
+Winter[3] := CInt(Winter[3]);
+
+//--------------------------------------------------------------------------------
+
+program Weather(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_CONTROL);
+
+  ModifySeasonLightLvl();
+  SetBackgroundLight(0, State[1][2]);
+  
+  if(State[4][1])
+    SetWeatherRain(State);
+  endif
+
+  while(1)
+    MonthDay    := GetMonthDay();
+    Hour        := GetHour();
+    Month       := GetMonth();
+    
+    ReadHourDS();
+    ReadHourNS();
+
+    if((Month == Spring[1] and MonthDay >= Spring[2]) or (Month == Summer[1] and MonthDay < Summer[2]) or (Month > Spring[1] and Month < Summer[1]))
+      SwitchSeason(SEASON_SPRING);
+    elseif((Month == Summer[1] and MonthDay >= Summer[2]) or (Month == Fall[1] and MonthDay < Fall[2]) or (Month > Summer[1] and Month < Fall[1]))
+      SwitchSeason(SEASON_SUMMER);
+    elseif((Month == Fall[1] and MonthDay >= Fall[2]) or (Month == Winter[1] and MonthDay < Winter[2]) or (Month > Fall[1] and Month < Winter[1]))
+      SwitchSeason(SEASON_FALL);
+    elseif((Month == Winter[1] and MonthDay >= Winter[2]) or (Month == Spring[1] and MonthDay < Spring[2]) or (Month > Winter[1] or Month < Spring[1]))
+      SwitchSeason(SEASON_WINTER);
+    endif
+
+    if(Hour >= HourDS and Hour < HourNS)
+      DuskTransition();
+    else
+      DawnTransition();
+    endif
+    
+    CheckWeatherChange();
+    sleep(15);
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function ReadHourDS()
+
+  if(Month > DStart[1] and Month <= DEnd[1])
+    HourDS   := Abs(DStart[1] - DEnd[1]);
+    HourDS   := DStart[2] + CInt(Abs(DStart[2] - DEnd[2]) * (CInt(((Month - DStart[1]) * 100) / HourDS) * 0.01));
+  else
+    HourDS   := Abs(DEnd[1] - DStart[1]);
+    HourDS   := DEnd[2] -  CInt(Abs(DStart[2] - DEnd[2]) * (CInt((Month * 100) / HourDS) * 0.01));
+  endif
+  
+  if(!State[2])
+    State[2] := {0,0};
+  endif
+  
+  State[2][1] := HourDS;
+  SetWeatherState(State);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ReadHourNS()
+
+  if(Month > NStart[1] and Month <= NEnd[1])
+    HourNS   := Abs(NStart[1] - NEnd[1]);
+    HourNS   := NStart[2] - CInt(Abs(NStart[2] - NEnd[2]) * (CInt(((Month - NStart[1]) * 100) / HourNS) * 0.01));
+  else
+    HourNS   := Abs(NEnd[1] - NStart[1]);
+    HourNS   := NEnd[2] + CInt(Abs(NStart[2] - NEnd[2]) * (CInt((Month * 100) / HourNS) * 0.01));
+  endif
+
+  if(!State[2])
+    State[2] := {0,0};
+  endif
+
+  State[2][2] := HourNS;
+  SetWeatherState(State);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function DuskTransition()
+
+  if(!State[1].size() or !State[1])
+    State[1] := {0,NightBr};
+  endif
+  
+  var St := CInt(State[1][2]);
+
+  if(Hour <= HourDS + 1 and State[1][1] != DAY_STATE)
+    Broadcast ("Slonce powoli wschodzi.",FONT_NORMAL,COLOR_BLUE);
+	PresetDiscordMessage("Slonce powoli wschodzi.");
+	
+    for(i:=St;i>=DayBr;i:=i-1)
+      State[1][2] := i;
+      SetBackgroundLight( 0, i);
+      SetWeatherState(State);
+      sleep(10);
+    endfor
+    State[1][1] := DAY_STATE;
+    SetWeatherState(State);
+  else
+    SetBackgroundLight( 0, DayBr);
+    State[1][1] := DAY_STATE;
+    State[1][2] := DayBr;
+    SetWeatherState(State);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function DawnTransition()
+
+  if(!State[1].size() or !State[1])
+    State[1] := {0,DayBr};
+  endif
+
+  var St := CInt(State[1][2]);
+
+  if(Hour <= HourNS + 1 and State[1][1] != NIGHT_STATE)
+    Broadcast ("Slonce powoli zachodzi.",FONT_NORMAL,COLOR_BLUE);
+	PresetDiscordMessage("Slonce powoli zachodzi.");
+    for(i:=St;i<=NightBr;i:=i+1)
+      State[1][2] := i;
+      SetBackgroundLight( 0, i);
+      SetWeatherState(State);
+      sleep(10);
+    endfor
+    State[1][1] := NIGHT_STATE;
+    SetWeatherState(State);
+  else
+    SetBackgroundLight(0, NightBr);
+    State[1][1] := NIGHT_STATE;
+    State[1][2] := NightBr;
+    SetWeatherState(State);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SwitchSeason(Season)
+
+  if(!State[3])
+    State[3] := {0,0};
+  endif
+  
+  if(State[3][1] != Season)
+    State[3][1] := Season;
+    State[3][2] := GetSeasonPacket(Season);
+    ModifySeasonLightLvl();
+    SetWeatherState(State);
+    SendSeasonPacket();
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ModifySeasonLightLvl()
+
+  case(State[3][1])
+    SEASON_SPRING:  NightBr := CInt(DCfg["DayTime"].NightBrightness) + Spring[3];
+    SEASON_SUMMER:  NightBr := CInt(DCfg["DayTime"].NightBrightness) + Summer[3];
+    SEASON_FALL:    NightBr := CInt(DCfg["DayTime"].NightBrightness) + Fall[3];
+    SEASON_WINTER:  NightBr := CInt(DCfg["DayTime"].NightBrightness) + Winter[3];
+  endcase
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetSeasonPacket(Season)
+
+  case(Season)
+    SEASON_SPRING: return "BC0501";
+    SEASON_SUMMER: return "BC0101";
+    SEASON_FALL:   return "BC0201";
+    SEASON_WINTER: return "BC0301";
+  endcase
+
+  return "BC0501";
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckWeatherChange()
+
+  if(!State[4][1])
+    if(GetGlobalProperty("StartRainStorm"))
+      EraseGlobalProperty("StartRainStorm");
+      StartRainStorm();
+    else
+      if(!State[4][3])
+        State[4] := {};
+        State[4][1] := 0;
+        State[4][2] := 0;
+        State[4][3] := ReadGameClock() - 1;
+      endif
+    
+      if(CInt(State[4][3]) < ReadGameClock())
+        if(RandomInt(1000) < GetConfigInt(DCfg["RainChance"],CStr(State[3][1])))
+          StartRainStorm();
+        else
+          State[4][3] := ReadGameClock() + RandomInt(CInt(WEATHER_CH_BREAK / 2));
+          SetWeatherState(State);
+        endif
+      endif
+    endif
+  endif
+  
+  if(State[4][1])
+    if(State[4][3] <= ReadGameClock() or GetGlobalProperty("StopRainStorm"))
+      State[4][1] := State[4][1] + 1;
+
+      if(State[4][1] > RAIN_MAX_CYCLES or GetGlobalProperty("StopRainStorm"))
+        State[4]    := {};
+        State[4][1] := 0;
+        State[4][2] := 0;
+        State[4][3] := ReadGameClock() + WEATHER_CH_BREAK + RandomInt(CInt(WEATHER_CH_BREAK / 2));
+        SetWeatherType(WTYPE_END, 0);
+        EraseGlobalProperty("StopRainStorm");
+      else
+        if(RandomInt(100) < State[4][1] * 15 and State[4][4] != WTYPE_SNOW)
+          State[4][4] := WTYPE_STORM;
+        endif
+        State[4][3] := ReadGameClock() + State[4][2] + RandomInt(CInt(State[4][2] / 2));
+        SetWeatherRain(State);
+      endif
+
+      SetWeatherState(State);
+    else
+      SendWeatherSound();
+    endif
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StartRainStorm()
+
+  if(!State[4][1])
+
+    State[4]    := array;
+    State[4][1] := 1;
+    State[4][2] := GetConfigInt(DCfg["RainChance"],"CycleTime"+State[3][1]);
+    State[4][3] := ReadGameClock() + State[4][2] + RandomInt(CInt(State[4][2] / 2));
+
+    case(State[3][1])
+      SEASON_SPRING:
+      SEASON_SUMMER:
+      SEASON_FALL:    State[4][4] := WTYPE_RAIN;
+
+      SEASON_WINTER:  if(RandomInt(100) < 5)
+                        State[4][4] := WTYPE_RAIN;
+                      else
+                        State[4][4] := WTYPE_SNOW;
+                      endif
+    endcase
+
+    State[4][5] := {0x15, 0x16, 0x17};
+    SetWeatherRain(State);
+    SetWeatherState(State);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "../pkg/systems/weather/weather";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+program WeatherState(who)
+
+  var DCfg  := ReadConfigFile(DAYS_CFG);
+  var State := GetWeatherState();
+
+  GInit(30, 40);
+  GResPic(0,0,3600,400,300);
+  GTextLine(50,20,500,GetFullDate());
+
+  case(State[1][1])
+    DAY_STATE:    GTextLine(40,50,510,"Dzien");
+    NIGHT_STATE:  GTextLine(40,50,550,"Noc");
+  endcase
+  
+  GTextLine(80,50,570,CInt(State[1][2]));
+  
+  case(State[3][1])
+    SEASON_SPRING: GTextLine(120,50,550,"Wiosna");
+    SEASON_SUMMER: GTextLine(120,50,550,"Lato");
+    SEASON_FALL:   GTextLine(120,50,550,"Jesien");
+    SEASON_WINTER: GTextLine(120,50,550,"Zima");
+  endcase
+
+  GTextLine(40,80,550,"Wschod Slonca - "+State[2][1]+" godz.");
+  GTextLine(40,110,550,"Zachod Slonca - "+State[2][2]+" godz.");
+  
+  if(State[4][1])
+    case(State[4][4])
+      WTYPE_RAIN:          GTextLine(40,150,510,"Deszcz");
+      WTYPE_STORM:         GTextLine(40,150,510,"Burza");
+      WTYPE_FIERCESTORM:   GTextLine(40,150,510,"Gwaltowna Burza");
+      WTYPE_SNOW:          GTextLine(40,150,510,"Snieg");
+    endcase
+    GTextLine(40,180,510,"Cykl "+State[4][1]+"/"+RAIN_MAX_CYCLES);
+    GTextLine(40,210,510,"Czas do nastepnego cyklu: "+RealTime(State[4][3] - ReadGameClock()));
+  else
+    GTextLine(40,150,510,"Czas do nast. szansy na d/s: "+RealTime(State[4][3] - ReadGameClock()));
+  endif
+
+  GTextLine(40,240,510,"Szansa na d/s: "+(GetConfigInt(DCfg["RainChance"],CStr(State[3][1])) * 0.1)+"%  Czas Cyklu: "+RealTime(GetConfigInt(DCfg["RainChance"],"CycleTime"+State[3][1])));
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

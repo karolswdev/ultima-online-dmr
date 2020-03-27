@@ -1,0 +1,601 @@
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/skills/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/traps";
+include "include/poison";
+include "include/repair";
+include "include/regs";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/tools";
+include "ai/include/tamed";
+include "include/move";
+
+include ":lumberjacking:trees";
+include ":alchemy:potion";
+include ":quests:quest_ctrl";
+include ":healing:healing";
+include ":tinkering:common";
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":crafting:mat_groups";
+include ":crafting:exceptional";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+
+const CFG_TINKERING := ":tinkering:tinker";
+
+//-----------------------------------------------------------------------------
+
+program MakeTinkerItems(who, Tool)
+
+  if(!StandardItemCheck(who, Tool))
+    return;
+  endif
+
+  InitSkillGlob(who, CFG_TINKERING, SKILLID_TINKERING);
+  SkillGlob.expPropName := "exchk";
+
+  TriggerTipEvent(who, TEID_CRAFT_TINKERING);
+  var CraftData := TinkerMainGump(who);
+
+  if(CraftData)
+    if(SkillGlob.cfg[CraftData.objtype].Trap)
+      MakeTrap(who, Tool, CraftData.objtype);
+    else
+      start_script(":tinkering:craft_item", array(who, tool, CraftData));
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function TinkerMainGump(who)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_TINKERING);
+   
+  if(!LastCraft.gumpType)
+    LastCraft.+gumpType := 0;
+  endif
+
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, CFG_TINKERING, SKILLID_TINKERING);
+    SkillGlob.expPropName := "exchk";
+
+    BuildMainMetalGump(who, LastCraft.iters);
+
+    case(butRes)
+      2:   BuildToolsGump();
+      3:   BuildSecToolsGump();
+      4:   BuildJewsGump();
+      5:   BuildArmsGump();
+      6:   BuildTrapGump();
+      7:   BuildWoodGump();
+
+      10:  BuildPlatesGump();
+      11:  BuildPlatesGump2();
+      12:  BuildOthersGump();
+      13:  BuildPartsGump();
+      14:  BuildClayGump();
+      15:  BuildGoldShieldGump();
+      16:  BuildGoldArmorGump();
+      17:  BuildGoldOtherGump();
+    endcase
+
+    BuildMainMetalEndGump();
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie robil"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        break;
+        
+      97: 
+        RepairThis(who);
+        doCraft := -1;
+  
+      98:
+        MakeGolem(who);
+        doCraft := -1;
+
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_TINKERING, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainTinkerGump(ProdIters)
+
+  BuildMainGump();
+  GTextLine(200,  90, 1153, "Menu Druciarstwa");
+
+  GTextLine( 90, 380, 900, "To co ostatnio");
+  GButton( 70, 384,   3, 4,   1);
+  GButton(410, 380, 243, 241, 99);
+
+  GTextLine(250, 408, 670, "Powtorz:");
+  BQGAddTextBox(320, 408, 60, 20, 1410, ProdIters, BQG_EDITABLE, 1, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainMetalGump(who, ProdIters)
+
+  BuildMainTinkerGump(ProdIters);
+
+  if(GetBaseSkillBaseValue(who,SKILLID_TINKERING) >= 1000)
+    GTextLine( 240, 380, 900, "Golem");
+    GButton( 220, 384,   3, 4,   98);
+  endif
+
+  GTextLine( 90, 410, 900, "Napraw przedmiot");
+  GButton( 70, 414,   3, 4,   97);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainMetalEndGump()
+
+  var Buttons   := struct;
+  Buttons.+Up   := dictionary;
+  Buttons.+Down := dictionary;
+
+  Buttons.Up[2]    := "Narzedzia";
+  Buttons.Up[3]    := "Narzedzia";
+  Buttons.Up[4]    := "Bizuteria";
+  Buttons.Up[5]    := "Zbrojne";
+  Buttons.Up[6]    := "Pulapki";
+  Buttons.Up[7]    := "Drewniane";
+
+  Buttons.Down[10] := "Kuchenne";
+  Buttons.Down[11] := "Kuchenne";
+  Buttons.Down[12] := "Rozne";
+  Buttons.Down[13] := "Czesci";
+  Buttons.Down[14] := "Glina";
+  Buttons.Down[15] := "Zloto tarcze";
+  Buttons.Down[16] := "Zloto zbroje";
+  Buttons.Down[17] := "Zloto inne";
+
+  BuildSkillMenu(Buttons);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTrapGump()
+
+  AddGumpElem( 4402, 90,  180, 80,  210, 120, 220 , "pulapka" , 7164);
+  AddGumpElem( 4414, 200, 180, 210, 210, 260, 220 , "trujaca pulapka");
+  AddGumpElem( 4345, 330, 180, 340, 120, 400, 220 , "wybuchajaca pulapka" , 14093);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildToolsGump()
+
+  AddGumpElem( 4325, 110,  150, 80,  180, 120, 180 , "pila");
+  AddGumpElem( 0x1022, 170,  150, 170, 172, 220, 180, "tworzenie lukow");
+  AddGumpElem( 4027, 280,  150, 260, 180, 300, 180 , "szczypce" , 4028);
+  AddGumpElem( 3897, 380,  150, 290, 180, 400, 180 , "lopata" , 3898);
+
+  AddGumpElem( 4138, 110,  210, 80,  240, 120, 240 , "mlot");
+  AddGumpElem( 5091, 170,  210, 170, 240, 220, 240);
+  AddGumpElem( 4020, 360,  210, 350, 240, 400, 240);
+
+  AddGumpElem( 4326, 110,  280, 80,  310, 120, 310 , "pila");
+  AddGumpElem( 3717, 200,  280, 170, 310, 220, 310 , "kilof");
+  AddGumpElem(0x9000,290,  280, 260, 310, 300, 310 , "sierp", 0x26BB);
+  AddGumpElem( 5371, 380,  280, 350, 310, 400, 310 , "wytrych");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPartsGump()
+
+  AddGumpElem( 4179, 70,   150, 80,  180, 120, 180 , "zestaw narzedzi");
+  AddGumpElem( 4175, 200,  150, 210, 180, 260, 180 , "czesci do zegara");
+  AddGumpElem( 4100, 350,  150, 360, 180, 400, 180 , "kurek do beczki");
+
+  AddGumpElem( 4189, 100,  210, 80,  240, 120, 240 , "sprezyna");
+  AddGumpElem( 4185, 200,  210, 210, 240, 260, 240 , "czesci sekstantu");
+  AddGumpElem( 4321, 390,  210, 350, 240, 400, 240 , "obrecz");
+
+  AddGumpElem( 4181, 100,  280, 80,  310, 120, 310 , "zawias");
+  AddGumpElem(40961, 230,  280, 220, 310, 260, 310 , 0, 0x1003);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPlatesGump()
+
+  AddGumpElem( 5110, 70,   150, 80,  180, 120, 180 , "noz rzezniczy");
+  AddGumpElem( 2553, 220,  150, 198, 180, 200, 180 , "lyzki");
+  AddGumpElem( 2552, 220,  150, 238, 180, 260, 180 , "None");
+  AddGumpElem( 2519, 370,  150, 350, 180, 400, 180 , "talerz");
+
+  AddGumpElem( 3780, 70,   210, 80,  240, 120, 240 , "noz do skor" , 3781);
+  AddGumpElem( 2549, 220,  210, 208, 240, 200, 240 , "widelce");
+  AddGumpElem( 2548, 220,  210, 223, 240, 260, 240 , "None");
+  AddGumpElem( 2458, 370,  210, 350, 240, 400, 240 , "kielich");
+
+  AddGumpElem( 3778, 70,   280, 80,  310, 120, 310 , "tasak");
+  AddGumpElem( 2551, 220,  280, 205, 310, 200, 310 , "noze");
+  AddGumpElem( 2550, 220,  280, 235, 310, 260, 310 , "None");
+  AddGumpElem( 4096, 350,  280, 355, 310, 400, 310 , "dzbanek cynowy");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPlatesGump2()
+
+  AddGumpElem( 2541,  70,   150, 80,  180, 120, 190 , "garnek");
+  AddGumpElem( 2431,  220,  150, 215, 180, 260, 190 , "patelnia");
+
+  AddGumpElem( 2547,  70,   210, 80,  240, 120, 240 , "rondel");
+  AddGumpElem( 2530, 220,   210, 215, 240, 260, 240 , "patelnia");
+
+  AddGumpElem( 2528,  70,   280, 80,  310, 120, 310 , "garnek");
+  AddGumpElem( 2529,  200,  280, 215, 310, 260,310  , "garnuszek");
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+function BuildJewsGump()
+
+  AddGumpElem( 4234, 100,  150, 80,  180, 120, 180 , "pierscionek");
+  AddGumpElem( 4233, 200,  150, 210, 180, 260, 180 , "zloty naszyjnik");
+  AddGumpElem( 4229, 340,  150, 350, 180, 400, 180 , "srebrny naszyjnik");
+
+  AddGumpElem( 4231, 100,  210, 80,  240, 120, 240 , "kolczyki");
+  AddGumpElem( 4232, 200,  210, 210, 240, 260, 240 , "zloty naszyjnik");
+  AddGumpElem( 4230, 370,  210, 350, 240, 400, 240 , "bransoleta");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildOthersGump()
+
+  AddGumpElem( 4113, 40,   150, 50,  180, 90,  180 , "kolko na klucze");
+  AddGumpElem( 2599, 170,  150, 150, 165, 200, 180 , "swiecznik");
+  AddGumpElem( 6225, 300,  150, 260, 175, 310, 180 , "waga");
+  AddGumpElem( 2561, 390,  150, 360, 175, 410, 180);
+
+  AddGumpElem( 4112, 40,   210, 50,  240, 90,  240 , "zelazny klucz");
+  AddGumpElem( 6217, 170,  210, 150, 240, 200, 240 , "swieczka");
+  AddGumpElem( 5365, 300,  210, 260, 240, 310, 240 , "luneta");
+  AddGumpElem( 2571, 390,  210, 360, 235, 410, 240);
+
+  AddGumpElem( 2597, 70,   280, 40,  305, 90,  310 , "lampa", 2584);
+  AddGumpElem( 9900, 170,  280, 150, 305, 200, 310);
+  AddGumpElem( 5160, 300,  280, 260, 305, 310, 310);
+  AddGumpElem( 2601, 400,  280, 360, 270, 410, 310);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildSecToolsGump()
+
+  AddGumpElem( 3998, 100,  150, 80,  180, 120, 180 , "nozyczki");
+  AddGumpElem( 3739, 230,  150, 210, 180, 260, 180 , "mozdzierz");
+  AddGumpElem( 4327, 370,  150, 350, 180, 400, 180 , "mala pila");
+
+  AddGumpElem( 7865, 30,   210, 80,  240, 120, 240);
+  AddGumpElem( 0x1EBC, 160,210, 175, 240, 220, 240);
+  AddGumpElem( 3907, 300,  210, 260, 240, 310, 240 , "topor");
+  AddGumpElem( 4324, 370,  210, 350, 240, 400, 240 , "dluga pila");
+
+  AddGumpElem( 3997, 70,   280, 75,  310, 120, 310 , "narzedzia szewskie");
+  AddGumpElem( 4149, 220,  280, 175, 310, 220, 310 , "pila");
+  AddGumpElem( 0x12B3, 300,  280, 270, 310, 310, 310 , "dluto");
+  AddGumpElem( 4136, 370,  280, 350, 310, 400, 310 , "mala pila");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildArmsGump()
+
+  AddGumpElem(0xA230,100, 160, 80,  190, 120, 190, 0, 0x1450);
+  AddGumpElem(0x27F6,220, 160, 210, 190, 260, 190);
+  AddGumpElem(0x2D22,330, 160, 290, 190, 360, 190); // ML
+
+  AddGumpElem(0x2777,90,  250, 80,  280, 120, 280);
+  AddGumpElem(0x2781,200, 250, 210, 280, 260, 280);
+  AddGumpElem(0x2B6E,340, 250, 315, 280, 360, 280); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildWoodGump()
+
+  AddGumpElem( 4144, 30,  150, 80,  180, 140, 180 , "narzedzia stolarskie");
+  AddGumpElem( 4140, 180, 150, 210, 180, 260, 180 , "narzedzia stolarskie");
+  AddGumpElem( 4146, 330, 150, 350, 180, 395, 180 , "narzedzia stolarskie");
+  AddGumpElem( 4173, 80,  210, 100,  240, 140, 240 , "rama od zegara");
+  AddGumpElem( 4187, 250, 210, 210, 240, 260, 240 , "os");
+  AddGumpElem( 4167, 380, 210, 350, 240, 395, 240 , "globus");
+  AddGumpElem( 4033, 100, 290, 100, 315, 140, 320);
+  AddGumpElem( 4031, 250, 290, 230, 320, 260, 320);
+  AddGumpElem( 0x6301, 330, 290, 360, 320, 395, 320);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildClayGump()
+
+  AddGumpElem( 2888, 105, 155, 100,  180, 150, 180);
+  AddGumpElem( 2886, 330, 155, 300,  180, 350, 180);
+
+  AddGumpElem( 2887, 105, 250, 100,  275, 150, 275);
+  AddGumpElem( 2885, 300, 250, 300,  275, 350, 275);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildGoldShieldGump()
+
+  AddGumpElem( 5492, 60,  155, 70,   180, 120, 180 ,"mala tarcza");
+  AddGumpElem( 5504, 200, 155, 210,  180, 260, 180 ,"mala tarcza");
+  AddGumpElem( 5500, 335, 155, 350,  180, 400, 180 ,"mala tarcza");
+
+  AddGumpElem( 5488, 60,  250, 70,   275, 120, 275 ,"duza tarcza");
+  AddGumpElem( 5496, 200, 250, 210,  275, 260, 275 ,"duza tarcza");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildGoldArmorGump();
+
+  AddGumpElem( 0x3D87, 50,  200, 70,   220, 110, 250 , "zbroja dekoracyjna");
+  AddGumpElem( 0x3DA9, 335, 200, 350,  220, 400, 250 , "zbroja dekoracyjna");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildGoldOtherGump();
+
+  AddGumpElem( 4111, 60,  155, 70,   180, 120, 180 , "zloty klucz");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RepairThis(who)
+
+  SendSysMessage(who, "Wybierz przedmiot do naprawy.",FONT_NORMAL,COLOR_GREEN);
+  var ItemToRepair := ObjTarget(who);
+  if(!StandardItemCheck(who,ItemToRepair))
+    return;
+  endif
+
+  RepairItem( who, ItemToRepair, SKILLID_TINKERING, GetTinkerMatObj(ItemToRepair),SFX_ANVIL,0x9);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeTrap(who, tool, trap)
+
+  var Cont := GetContForTool(who, tool);
+  var Materials := DefineCraftMaterialsFromCfg(who, SkillGlob.cfg[trap], "material", Cont);
+  
+  if(!Materials)
+    return 0;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_TINKERING, 1, Materials);
+  var ChkSkill := SkillGlob.cfg[trap].skill;
+  var TrapType := SkillGlob.cfg[trap].traptype;
+  var MySkill := GetEffectiveSkill(who, SKILLID_TINKERING);
+  var ProdAmount := 1;
+
+  var TLvl    := CInt(MySkill / 10);
+  var MatDiff := 20;
+
+  if(IsPotion(Materials.mainObj))
+    TLvl    := GetPotionStrength(Materials.mainObj);
+    MatDiff := GetPotionDiff(Materials.mainObj);
+  endif
+  
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  SendSysMessage(who,"Wybierz pojemnik na ktorym chcesz zastawic pulapke.",FONT_NORMAL,COLOR_GREEN);
+  var chest := ObjTarget(who);
+
+  if(!StandardItemCheck(who,chest))
+    return;
+  endif
+
+  if(!CanAccess(who, chest))
+    return;
+  endif
+
+  if(!Accessible(who, chest))
+    SendSysMessage(who, "Ten pojemnik jest niedostepny",FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Distance(who,chest) > 1)
+    SendSysMessage(who, "Jestes za daleko!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!(chest.objtype in GetLockAbleItems()) or !ReserveItem(chest))
+    SendSysMessage(who,"Na tym nie mozesz zastawic pulapki.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Probujesz zastawic pulapke...",FONT_NORMAL,COLOR_GREEN);
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, 0x23E))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, tool, SKILLID_TINKERING, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who, SKILLID_TINKERING, ChkSkill, 0) or !CheckSkill(who, SKILLID_TINKERING, MatDiff, 0))
+    SendSysMessage( who, "Narzedzie przeskoczyly Ci i zniszczyl"+ggm(who, 3)+" troche materialu!",FONT_NORMAL,COLOR_RED);
+    TrapFailureEffect(who,TrapType,MySkill);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, 0x23E))
+    return 0;
+  endif
+
+  if(!chest)
+    SendSysMessage(who,"Pojemnik nie istnieje!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsTrappedItem(chest))
+    SendSysMessage(who, "Na tym pojemniku jest juz zastawiona pulapka.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Ostroznie zastawil"+ggm(who,3)+" pulapke na pojemniku.",FONT_NORMAL,COLOR_GOOD);
+  SetTrap(who,Chest,TrapType,TLvl);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TrapFailureEffect(who,TrapType,MySkill)
+
+  if(RandomInt(9) != 1)
+    SendSysMessage(who, "Nie udalo Ci sie zastawic pulapki.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var Dmg := (RandomInt(19) + 1) + RandomInt(CInt(MySkill / 10));
+
+  case(TrapType)
+    1:  SendSysMessage(who, "Nie udalo Ci sie i uruchomil"+ggm(who,3)+" pulapke!",FONT_NORMAL,COLOR_RED);
+        PlaySoundEffect(who, 0x225);
+        DealDamage(who, Dmg, who);
+    2:  SendSysMessage(who, "Nie udalo Ci sie i zatrul"+ggm(who,3)+" Siebie!",FONT_NORMAL,COLOR_RED);
+        SetPoison(who,CInt(MySkill/20),who);
+    3:  SendSysMessage(who, "Nie udalo Ci sie i uruchomil"+ggm(who,3)+" wybuchajaca pulapke!",FONT_NORMAL,COLOR_RED);
+        PlayObjectCenteredEffect( who,0x36b0,5,0 );
+        PlaySoundEffect( who, 0x0208);
+        DealDamage(who, Dmg, who);
+  endcase
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeGolem(who)
+
+  if(FindNpcBySerial(GetObjProperty(who,"MadeGolem")))
+    SendSysMessage(who,"Masz juz Golema.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!TakeReagents(who, SkillGlob.cfg["golem"]))
+    TellWhatReagents(who, SkillGlob.cfg["golem"]);
+    return;
+  endif
+
+  SendSysMessage(who,"Probujesz zrobic golema...",FONT_NORMAL,COLOR_GREEN);
+
+  if(!MakeNoise(who,0x22C))
+    return;
+  endif
+  if(!MakeNoise(who,0x22C))
+    return;
+  endif
+  if(!MakeNoise(who,0x22C))
+    return;
+  endif
+  if(!MakeNoise(who,0x22C))
+    return;
+  endif
+  if(!MakeNoise(who,0x22C))
+    return;
+  endif
+
+  var Golem := CreateNpc("golem",who.x,who.y,who.z,who.realm);
+
+  if(Golem)
+    Tame(Golem, who);
+    SetPrevTamed(Golem,who.serial);
+    SendSysMessage(who,"Udalo Ci sie zrobic Golema.",FONT_NORMAL,COLOR_GREEN);
+    SetObjProperty(who,"MadeGolem",Golem.serial);
+  else
+    SendSysMessage(who,"Nie udalo Ci sie zrobic Golema.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+

@@ -1,0 +1,92 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":healing:healing";
+include "ai/include/tamed";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID              := 95;
+
+//-----------------------------------------------------------------------------
+
+program CastRessurectAnimal( nSpellParms )
+
+	SpellCast(nSpellParms, SPELL_ID, TRGT_CORPSE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+	var CasterDruid := CInt(GetEffectiveSkill(Caster, SKILLID_DRUID));
+	var CasterAl    := CInt(GetEffectiveSkill(Caster, SKILLID_ANIMALLORE));
+
+	if(CasterAl < GetEffectiveSkill(Caster, SKILLID_EVALINT))
+		CasterAl := GetEffectiveSkill(Caster, SKILLID_EVALINT);
+	endif
+
+	if(CastOn.objtype == UOBJ_CORPSE)
+
+		if(Distance(Caster,CastOn) > 2)
+			Fizzle(Caster,"Stoisz za daleko");
+			return;
+		endif
+
+		var rand := CInt(RandomInt(7)+1);
+		if(rand == 1)
+			Fizzle(Caster,"Czar nie zadzialal");
+			return;
+		endif
+
+		var NpcTemp := GetObjProperty(CastOn, PROP_NPCTEMP);
+		var cfgElem := GetNpcConfig(NpcTemp);
+
+		if(!NpcTemp or !cfgElem.tameskill or cfgElem.NotRessurectAble)
+			SendSysMessage(Caster,"Tego nie mozesz wskrzesic.",FONT_NORMAL,COLOR_RED);
+			return;
+		endif
+
+		var TameVal := CInt(cfgElem.tameskill);
+
+		if(CasterDruid < (TameVal - 15))
+			Fizzle(Caster,"Twa moc jest zbyt slaba zeby wskrzesic to zwierze");
+			return;
+		endif    
+		if(CasterAl < (TameVal - 30))
+			Fizzle(Caster,"Twa moc jest zbyt slaba zeby wskrzesic to zwierze");
+			return;
+		endif
+
+		if(CanResurrectNpc(Caster, CastOn))
+			if(ResurrectNpc(Caster,CastOn))
+				GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE); 
+			endif
+		endif
+	elseif(CastOn.dead)
+		if((CasterDruid >= 85) && (CasterAl >= 85))
+			if(!CastOn.dead)
+				SendSysMessage(caster,"Ta osoba nie umarla.",FONT_NORMAL,RED_COLOR);
+				return;
+			endif
+		
+			if(IsPlayer(CastOn))
+				if(Distance(CastOn,caster) > 1)
+					SendSysMessage(caster, "Jestes za daleko!",FONT_NORMAL,RED_COLOR);
+				else
+					Resurrection(CastOn,1);
+				endif
+			endif
+		else
+			Fizzle(Caster,"Twa moc jest zbyt mala by wskrzesic czlowieka");
+			return;
+		endif
+	else
+		SendSysMessage(Caster,"To nie zwloki!",FONT_NORMAL,RED_COLOR);
+		return;
+	endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+// Altar Regeneration
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "altar";
+
+//-----------------------------------------------------------------------------
+
+program RegenerateAltar(Columns)
+
+  if(!Columns.size() or !Columns)
+    return;
+  endif
+
+  var Time := ReadGameClock() + ALTAR_DELAY;
+  var Level;
+
+  while(Time > ReadGameClock())
+
+    Level := 5 - CInt( CDbl(CDbl(Time - ReadGameClock()) / ALTAR_DELAY) * 5 );
+    
+    foreach Column in Columns
+      case(Level)
+        1:         Column.color := 998;
+        2:         Column.color := 999;
+        3:         Column.color := 1000;
+        4:
+        5:         Column.color := 996;
+
+        default:   Column.color := 997;
+      endcase
+    endforeach
+
+    sleep(10);
+  endwhile
+  
+  foreach Column in Columns
+    Column.color := 0;
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+

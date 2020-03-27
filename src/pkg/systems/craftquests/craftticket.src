@@ -1,0 +1,101 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumps";
+include "craftquests";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+program CraftTicket(who, Ticket)
+
+  if(!StandardItemCheck(who, Ticket, NO_BUSY_CHECK))
+    return;
+  endif
+
+  Detach();
+  NoLongerBusy(who);
+
+  var Order     := GetObjProperty(Ticket, PROP_CRAFT_DATA);
+  var Npc       := FindNpcBySerial(Order.Source);
+  var MaxHeight := Order.Items.size()*50;
+
+  if(!Npc)
+    SendSysMessage(who, "Te zamowienie wydaje sie byc przeterminowane...", FONT_NORMAL, COLOR_RED);
+    DestroyItem(Ticket);
+    return;
+  endif
+
+  if(!Order)
+    SendSysMessage(who, "Te zamowienie wydaje sie byc nieprawidlowe...", FONT_NORMAL, COLOR_RED);
+    LogError("CraftTicket: bilet nie posiada danych! ["+Ticket.serial+"] who ["+who.serial+"]", LOGF_SCRIPTS);
+    return;
+  endif
+
+  GInit(80, 100);
+  GResPic(20,20,3600,460,170+MaxHeight);
+  GCheckerTrans(35,35,430,140+MaxHeight);
+  GTextLine(50, 40, 600, "Zamowienie u "+Npc.name);
+
+  if(Order.SkillId != error)
+    GTextLine(300, 40, 999, "Umiejetnosc:");
+    GTextLine(380, 40, 1420, ClStr(GetSkillConfigElem(Order.SkillId).Name));
+  endif
+
+  GGumpPic(35, 60, 0xBB9);
+  GGumpPic(135, 60, 0xBB9);
+  GGumpPic(225, 60, 0xBB9);
+
+  var Desc, i := 1;
+
+  GTextLine(140, 70, 999, "Nazwa");
+  GTextLine(350, 70, 999, "Zlozono");
+  GTextLine(420, 70, 999, "Ilosc");
+
+  foreach Item in (Order.Items)
+    Desc := GetMatDescForItem(Item.ObjType, Item.MatObjType);
+    Desc := CutWord(Desc, 40);
+
+    var craftCfg := GetCraftDataForItem(Order.SkillId, Item.ObjType);
+
+    GResPic(65, 50+i*50, 0xBB8, 70, 46);
+    GTilePicHue(75+CInt(craftCfg.GumpX), 60+i*50+CInt(craftCfg.GumpY), GetGraphicForItem(Item.ObjType), GetColorForItem(__IfElse(Item.MatObjType, Item.MatObjType, Item.ObjType)));
+
+    GTextLine(47, 60+i*50,  670, i+".");
+    GTextLine(140, 60+i*50,  550, Desc);
+
+    GTextLine(350, 60+i*50, 1320, Item.GotAmt);
+    GTextLine(420, 60+i*50, 1024, Item.Amount);
+
+    i := i + 1;
+  endforeach
+
+  if(who.cmdlevel)
+    GTextLine(300, 90+MaxHeight, 999, "Cena:");
+    GTextLine(350, 90+MaxHeight, 1000, Order.Price);
+  endif
+
+  var ExpTime := Order.ExpTime;
+
+  if(!ExpTime)
+    ExpTime := CQ_DEF_EXP_TIME;
+  endif
+ 
+  if(Order.Comp)
+    GTextLine(210, 130+MaxHeight, 1000, "Wykonane");
+  else
+    GTextLine(50,  130+MaxHeight, 550, "Data podjecia sie:");
+    GTextLine(170, 130+MaxHeight, 1420,GetFullDate(Order.aTime));
+    GTextLine(50,  150+MaxHeight, 550, "Czas na wykonanie:");
+    GTextLine(170, 150+MaxHeight, 1420,DescGameTime(ExpTime));
+  endif
+
+  if(IsStaff(who))
+    GTextLine(410, 155+MaxHeight, 999, "ID: "+Order.Id);
+  endif
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

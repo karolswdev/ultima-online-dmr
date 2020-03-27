@@ -1,0 +1,69 @@
+//-----------------------------------------------------------------------------
+
+include ":crafting:alchemy/potion";
+include "include/dirs";
+
+//-----------------------------------------------------------------------------
+
+program UseDfPoisonPotion(who, potion)
+
+  var cfg        := ReadConfigFile(ITEMS_CFG);
+  var Range      := cfg[potion.objtype].Range;
+  var ThrowRange := cfg[potion.objtype].ThrowRange;
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(CInt(GetObjProperty(who,"#ThrowTime")) > ReadGameClock())
+    SendSysMessage(who,"Musisz chwile odczekac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Loc := LocTarget( who );
+
+  if(Loc.item.isa(POLCLASS_ITEM))
+    var Dir := GetDirFromObjToObj(who, Loc.item);
+    var Mods := GetDirLocMods(Dir);
+    var Item := Loc.item;
+    Loc := BuildLocStruct(item.x-Mods[1], item.y-Mods[2], item.z, who.realm);
+  endif
+
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK | NEW_DIST_CHECK, ThrowRange))
+    return;
+  endif
+
+  SetObjProperty(who,"#ThrowTime",ReadGameClock() + 7);
+
+  var Mx       := Loc.x;
+  var My       := Loc.y;
+  var Mz       := Loc.z;
+  var MRlm     := who.realm;
+
+  if(!ThrowPotion(who,Loc,Potion))
+    return;
+  endif
+
+  var x,y;
+
+  for(x:=mx-1;x<=mx+1;x+=1)
+    for(y:=my-1;y<=my+1;y+=1)
+      PlayPcStEffect(x, y, GetStandZ(x, y, mRlm, mz)+1, mRlm, FX_SMOKE, 1152, 16, 16, 3);
+    endfor
+  endfor
+
+  foreach Mob in ListMobilesNearLocationEx(Mx, My, Mz, Range, LISTEX_FLAG_NORMAL + LISTEX_FLAG_HIDDEN, MRlm)
+
+    if(!CheckLosAt(Mob, Mx, My, Mz))
+      continue;
+    endif
+    
+    PlaySoundEffect(Mob, SOUND_EFFECT_EXPLOSION);
+
+    TemporarySlowdown(Mob, 5);
+
+  endforeach
+  
+endprogram
+
+//-----------------------------------------------------------------------------

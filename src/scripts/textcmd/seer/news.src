@@ -1,0 +1,405 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/clock";
+include "include/const/props";
+include "include/const/misc";
+include "include/bits";
+include "include/client/fonts";
+include "include/finding";
+
+//-----------------------------------------------------------------------------
+
+const NW_MAX_LINES           := 10;
+
+//-----------------------------------------------------------------------------
+
+var who, News, cnIdx, Colors, EditPage, PrevPage;
+
+//-----------------------------------------------------------------------------
+
+program NewsCmd(_who, text)
+
+  __ParamUnused(text);
+
+  var Res;
+
+  News := GetGlobalProperty(PROP_NPCNEWS);
+
+  if(!News or !News.size())
+    News  := array;
+    cnIdx := 0;
+  else
+    cnIdx := 1;
+  endif
+
+  EditPage := 0;
+
+  who  := _who;
+  DefineColors();
+
+  BuildMainNewsGump();
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+
+    if(Res[0] != 8)
+      SaveNewsData(Res);
+    endif
+
+    News := GetGlobalProperty(PROP_NPCNEWS);
+    if(!News or !News.size())
+      News := array;
+    endif
+
+    case(Res[0])
+      5:         AddNewsPage();
+
+      6:         DelCurPage();
+
+      7:         if(EditPage)
+                   SaveNews();
+                 else
+                   EditPage := News[cnIdx];
+                   PrevPage := EditPage;
+                 endif
+
+      8:         EditPage := 0;
+
+      9:         ;
+
+      10:        cnIdx := ToMin(cnIdx-1, 1);
+
+      11:        cnIdx := ToMax(cnIdx+1, News.size());
+
+      12:        EditPage.Color := ChooseNewsColor();
+
+      default:   return;
+    endcase
+
+    BuildMainNewsGump();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddNewsPage()
+
+  EditPage          := struct;
+  EditPage.+Id      := 0;
+  EditPage.+Lines   := array;
+  EditPage.+Date    := PolCore().systime;
+  EditPage.+Time    := ReadGameClock();
+  EditPage.+ExpTime := 0;
+  EditPage.+Color   := 0;
+  EditPage.+Adder   := 0;
+  EditPage.+Changer := 0;
+  EditPage.+Flags   := 0;
+
+  PrevPage := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainNewsGump()
+
+  GInit(50, 50);
+  GResPic(0, 0, BKGND_BLACKSLAB, 500, 370);
+
+  GTextLine(230, 16, 999, "Newsy");
+
+  GTextLine(400, 16, 999, cnIdx+"/"+News.size());
+
+  if(!EditPage)
+    GButton(20, 330, 2117, 2118, 5);
+    GTextLine(40, 327, 560, "Dodaj nowy");
+  endif
+
+  if(cnIdx or EditPage)
+    BuildNews();
+    GButton(220, 330, 2117, 2118, 7);
+    if(EditPage)
+      if(PrevPage)
+        GTextLine(240, 327, 560, "Zapisz");
+      else
+        GTextLine(240, 327, 560, "Dodaj");
+      endif
+
+      GButton(320, 330, 2117, 2118, 8);
+      GTextLine(340, 327, 560, "Anuluj");
+    else
+      GTextLine(240, 327, 560, "Zmien");
+
+      GButton(140, 330, 2117, 2118, 6);
+      GTextLine(160, 327, 560, "Kasuj");
+      GButton(320, 330, 2117, 2118, 9);
+      GTextLine(340, 327, 560, "Odswiez");
+    endif
+  endif
+
+  if(!EditPage and News.size() > 1)
+    if(cnIdx > 1)
+      GButton(18,  17, 0xFAF, 0xFB0, 10);
+    endif
+
+    if(cnIdx < News.size())
+      GButton(453, 17, 0xFA6, 0xFA7, 11);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveNewsData(Res)
+
+  if(!EditPage)
+    return;
+  endif
+
+  var i;
+  EditPage.Lines := array;
+  for(i:=1;i<=NW_MAX_LINES;i:=i+1)
+    EditPage.Lines.append(CroppedId(Res[100+i]));
+  endfor
+
+  var Time  := CroppedId(Res[99]);
+  var cTime := CInt(Time);
+
+  case(Time[len(Time)])
+    "m":   cTime := cTime * 60;
+    "h":   cTime := cTime * 3600;
+    "d":   cTime := cTime * DAY_LENGTH;
+  endcase
+
+  EditPage.ExpTime := cTime;
+
+  if(EditPage.Flags == error)
+    EditPage.+Flags;
+    EditPage.Flags := 0;
+  endif
+
+  SwitchBit(EditPage.Flags, CNF_ORDER, Res[50]);
+  SwitchBit(EditPage.Flags, CNF_CHAOS, Res[51]);
+  SwitchBit(EditPage.Flags, CNF_BRIT_ALT, Res[52]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveNews()
+
+  if(PrevPage)
+    if(News[cnIdx] != PrevPage.Id)
+      var i;
+      cnIdx := 0;
+      for(i:=1;i<=News.size();i:=i+1)
+        if(News[i].Id == PrevPage.Id)
+          cnIdx := i;
+          break;
+        endif
+      endfor
+
+      if(!cnIdx)
+        PrevPage := 0;
+        cnIdx    := ToMax(1, News.size());
+      endif
+    endif
+
+    if(!PrevPage)
+      SendSysMessage(who, "News edytowany przez Ciebie juz nie istnieje!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(EditPage.Adder)
+    EditPage.Changer := who.serial;
+  else
+    EditPage.Adder   := who.serial;
+  endif
+
+  EditPage.Time      := ReadGameClock();
+  EditPage.Date      := PolCore().systime;
+
+  if(PrevPage)
+    News[cnIdx] := EditPage;
+  else
+    EditPage.Id := CInt(GetGlobalProperty(PROP_NPCNEWSID))+1;
+    SetGlobalProperty(PROP_NPCNEWSID, EditPage.Id);
+    News.append(EditPage);
+    cnIdx := News.size();
+  endif
+
+  SetGlobalProperty(PROP_NPCNEWS, News);
+
+  EditPage := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildNews()
+
+  if(!cnIdx and !EditPage)
+    return;
+  endif
+
+  GResPic(20, 40, BKGND_GOLDTRIM,  460, 220);
+
+  var i;
+
+  var DispPage := EditPage;
+
+  if(!DispPage)
+    DispPage := News[cnIdx];
+  endif
+
+  if(DispPage.Id)
+    GTextLine(60, 18, 999, "Id:");
+    GTextLine(80, 18, 1424, DispPage.Id);
+  endif
+
+  for(i:=1;i<=NW_MAX_LINES;i:=i+1)
+    if(EditPage)
+      GTextEntry(30, 50+(i-1)*20, 400, 20, 550, 100+i, ClStr(DispPage.Lines[i]));
+    elseif(i > DispPage.Lines.size())
+      break;
+    else
+      GTextCrop(30, 50+(i-1)*20, 400, 20, 550, DispPage.Lines[i]);
+    endif
+  endfor
+
+  GTextLine(40, 280, 999, "Czas wygasniecia:");
+  GTextLine(40, 260, 999, "Kolor:");
+  if(DispPage.Color)
+    GTextLine(90, 260, DispPage.Color-1, hex(DispPage.Color));
+  endif
+  GTextLine(150, 260, 550, Colors[DispPage.Color]);
+
+  if(EditPage)
+    GButton(20, 263, 2117, 2118, 12);
+    GTextEntry(150, 280, 100, 20, 550, 99, DispPage.ExpTime);
+  else
+    if(DispPage.ExpTime)
+      GTextLine(150, 280, 550, RealTime(DispPage.ExpTime));
+    else
+      GTextLine(150, 280, 1204, "None");
+    endif
+
+    if(DispPage.Adder)
+      GTextLine(250, 260, 999, "Dodal:");
+      GTextLine(300, 260, 550, ClStr(FindPlayerBySerial(DispPage.Adder).name));
+    endif
+
+    if(DispPage.Changer)
+      GTextLine(250, 280, 999, "Zmienil:");
+      GTextLine(300, 280, 550, ClStr(FindPlayerBySerial(DispPage.Changer).name));
+    endif
+    
+    GTextLine(250, 300, 999, "Data:");
+    GTextLine(300, 300, 550, CUnixTime(DispPage.Date));
+
+    GTextLine(40, 300, 999, "Czas istnienia:");
+    GTextLine(150, 300, 550, RealTime(ReadGameClock() - DispPage.Time));
+  endif
+
+  GResPic(500, 250, BKGND_BLACKSLAB, 200, 150);
+  GTextLine(590, 266, 999, "Flagi:");
+
+  if(EditPage)
+    GCheckBox(520, 290, 0x867, 0x869, 50, EditPage.Flags & CNF_ORDER);
+    GCheckBox(520, 320, 0x867, 0x869, 51, EditPage.Flags & CNF_CHAOS);
+    GCheckBox(520, 350, 0x867, 0x869, 52, EditPage.Flags & CNF_BRIT_ALT);
+  else
+    GGumpPic(520, 290, SwitchGrap(DispPage.Flags & CNF_ORDER, 0x867, 0x869));
+    GGumpPic(520, 320, SwitchGrap(DispPage.Flags & CNF_CHAOS, 0x867, 0x869));
+    GGumpPic(520, 350, SwitchGrap(DispPage.Flags & CNF_BRIT_ALT, 0x867, 0x869));
+  endif
+
+  GTextLine(555, 294, 550, "Order");
+  GTextLine(555, 324, 550, "Chaos");
+  GTextLine(555, 354, 550, "Britannia alt");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SwitchGrap(Flag, Grap1, Grap2)
+
+  if(Flag)
+    return Grap2;
+  else
+    return Grap1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseNewsColor()
+
+  GInit(50, 50);
+
+  var i := 1;
+
+  GResPic(0, 0, 3600, 300, 80+Colors.size()*20);
+  GTextLine(30, 20, 999, "Dostepne kolory:");
+
+  foreach Color in Colors
+    GButton(30, 33+i*20, 2117, 2118, _Color_iter);
+    if(_Color_iter)
+      GTextLine(50, 30+i*20, _Color_iter-1, Color);
+    else
+      GTextLine(50, 30+i*20, 550, Color);
+    endif
+    i := i + 1;
+  endforeach
+
+  return CInt(GSend(who)[0]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelCurPage()
+
+  SendSysMessage(who, "Skasowac strone Idx: "+cnIdx+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(YesNo(who, "Na pewno?"))
+    News.erase(cnIdx);
+    cnIdx := ToMax(cnIdx, News.size());
+    SetGlobalProperty(PROP_NPCNEWS, News);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DefineColors()
+
+  Colors := dictionary;
+
+  Colors[0]                := "Normalny";
+  Colors[COLOR_INDIGO]     := "Indigo";
+  Colors[COLOR_MAGENTA]    := "Magenta";
+  Colors[COLOR_RED]        := "Red";
+  Colors[COLOR_RED_DARK]   := "Red Dark";
+  Colors[COLOR_ORANGE]     := "Orange";
+  Colors[COLOR_YELLOW]     := "Yellow";
+  Colors[COLOR_GREEN]      := "Green";
+  Colors[COLOR_CYAN]       := "Cyan";
+  Colors[COLOR_BLUE]       := "Blue";
+  Colors[COLOR_GRAY_LIGHT] := "GrayLight";
+  Colors[COLOR_GOLDMETAL]  := "GoldMetal";
+  Colors[COLOR_BLACKMETAL] := "BlackMetal";
+  Colors[COLOR_GRAY]       := "Gray";
+  Colors[COLOR_WHITE]      := "White";
+  Colors[COLOR_BSHIMMER]   := "BShimmer";
+  Colors[COLOR_STONE]      := "Stone";
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,20 @@
+//---------------------------------------------------------------------
+// Modified: 2005-05-25
+//---------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/finding";
+
+include ":quests:quest_ctrl";
+
+//---------------------------------------------------------------------
+
+program UseQuestItem(who, Item)
+
+  if(!SendQuestEvent(who, EVQID_ITEM_USE, 0, Item))
+    SendSysMessage(who,"Hm... nie wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//---------------------------------------------------------------------

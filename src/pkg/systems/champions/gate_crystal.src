@@ -1,0 +1,86 @@
+//-----------------------------------------------------------------------------
+// Modified: 2006-11-26
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/misc";
+include "include/gumpboxes";
+include "include/finding";
+include "champions";
+
+//-----------------------------------------------------------------------------
+
+const PROP_OPEN_DELAY        := "OpenDelay";
+const CHG_OPEN_DELAY         := 900;
+
+//-----------------------------------------------------------------------------
+
+program OpenGateCrystal(who, Crystal)
+
+  var Book   := FindItemBySerial(GetObjProperty(Crystal, PROP_BOOKSER));
+
+  if(!Book)
+    SendSysMessage(who, "Ten krysztal jest niekompletny...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var ChampNr := CInt(GetObjProperty(Book, PROP_CHAMPNR));
+
+  if(!ChampNr)
+    SendSysMessage(who, "Ten krysztal jest niekompletny...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(IsAdmin(who))
+    OpenGate(who, Book, 0);
+    return;
+  endif
+
+
+  var Res := GetChampState(ChampNr);
+  
+  if(Res == CHST_BUSY)
+    if(CanOpenGate(who, Crystal))
+      OpenGate(who, Book, Crystal);
+    endif
+  elseif(Res == CHST_OGATE)
+    SendSysMessage(who, "Portal zostal juz otwarty...", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function OpenGate(who, Book, Crystal)
+
+  SendSysMessage(who, "Czy chcesz otworzyc portal?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Otworzyc?"))
+    return;
+  endif
+
+  SendChampOpenGate(Book,who);
+  SendSysMessage(who, "Otwieranie bramy...", FONT_NORMAL, COLOR_GREEN);
+
+  if(Crystal)
+    SetObjProperty(Crystal, PROP_OPEN_DELAY, ReadGameClock());
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanOpenGate(who, Crystal)
+
+  if(CInt(GetObjProperty(Crystal, PROP_OPEN_DELAY)) + CHG_OPEN_DELAY > ReadGameClock())
+    SendSysMessage(who, "Portal nie jest gotowy.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

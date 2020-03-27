@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/effects";
+include "include/checks/stdchecks";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+program WalkOnAcidPool(who,AcidPool)
+
+  if((IsPlayer(who) or IsTamed(who)) and !who.cmdlevel)
+    var AcidDmg := CInt(GetObjProperty(AcidPool,"AcidDmg"));
+  
+    if(AcidDmg)
+      PlaySoundEffect(who, 0x206);
+      PlayObjectCenteredEffect(who, FX_CURSE_EFFECT, 0x0a,0x1e);
+      DealDamage(who,AcidDmg);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

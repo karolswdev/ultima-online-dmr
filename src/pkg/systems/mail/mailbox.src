@@ -1,0 +1,561 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include ":banking:gold";
+include "include/items";
+include "include/finding";
+include "include/tempmods";
+include "include/cmds/misc";
+include "include/clock";
+include "include/packets";
+include "include/move";
+include ":banking:common";
+include "include/gumpboxes";
+include "include/items/containers";
+include "include/checks/objchecks";
+
+include ":auction:auc";
+include "mail";
+include "mail_gump";
+include "post";
+
+//-----------------------------------------------------------------------------
+
+var who, _Mails, _MailBoxItem;
+
+//-----------------------------------------------------------------------------
+
+program UseMailBox(_who, _mBox)
+
+  who := _who;
+  _MailBoxItem := _mBox;
+
+  if(!StandardItemCheck(who, _mbox, NEW_DIST_CHECK | NO_MOVABLE_CHECK, 2))
+    return;
+  endif
+
+  ReleaseItem(_mbox);
+
+  var wmBox := FindMailBox(who);
+
+  if(!wmBox)
+    SendSysMessage(who, "Nie posiadasz skrzynki pocztowej!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  GetMails(who, _Mails);
+
+  while(who)
+    
+    if(Distance(who, _MailBoxItem) > 2)
+      SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    GetMails(who, _Mails);
+
+    var Res := SendMainBoxGump();
+
+    if(Res == 2)
+      if(!SendMailPost(who, _mBox))
+        break;
+      endif
+    elseif(Res == 3)
+      SendHistoryGump(); 
+    elseif(Res > 100)
+      if(_Mails.exists(Res-100))
+        if(!SendMailPropGump(Res-100))
+          break;
+        endif
+      endif
+    endif
+
+    if(!Res)
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+// pasek blue 57-79
+// 1141 back bar
+// 1150 + 1152 X
+// 1153 + 1155 fajka
+function SendMainBoxGump()
+
+  GInit(30, 30);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GMultiHeaderInit();
+
+  GResPic(0,0,BKGND_BLACKSLAB,500,420);
+  GCheckerTrans(15,60,470,345);
+  GTextLine(190, 20, 1024, "Skrzynka Pocztowa");
+  GButton(410, 23, 2117, 2118, 2);
+  GTextLine(430, 20, 999, "Wyslij");
+  GButton(320, 23, 2117, 2118, 3);
+  GTextLine(340, 20, 999, "Historia");
+  
+  GGumpPic(10, 45,BKGND_BLACKSLAB+7);
+  GGumpPic(130,45,BKGND_BLACKSLAB+7);
+  GGumpPic(250,45,BKGND_BLACKSLAB+7);
+  GGumpPic(363,45,BKGND_BLACKSLAB+7);
+  GButton(10,12,9004,9005,100);
+
+  GAddPageData(475,55,2650,2651,475,393,2648,2647);
+
+  GMultiPage();
+
+  foreach Mail in _Mails
+    GCheckNextPage(4);
+    BuildMailTitleGump(GNpCount(), _Mail_iter, Mail);
+  endforeach
+
+  return GSend(who).butid;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMailPropGump(byref mailProps)
+
+  var hAdd := 0;
+
+  if(mailProps.attachedItem or mailProps.attachedGold)
+    hAdd := 60;
+  endif
+
+  GInit(30, 30);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,BKGND_BLACKSLAB,500,360+hAdd);
+  GResPic(25, 30, BKGND_PAPER, 450, 58);
+  GResPic(45, 100, BKGND_PAPER, 430, 210);
+  GGumpPic(29, 34, 2002);
+  GTextLine(55, 36, 999, "Tytul: "); 
+  GTextCrop(95, 36, 370, 20, 0, mailProps.title); 
+  GTextLine(55, 59, 999, "Od: "); 
+  GTextCrop(95, 59, 370, 20, 0, mailProps.senderName); 
+  
+  var timeLeft := (mailProps.sendTime - ReadGameClock()) + mailProps.existTime;
+  GTextLine(300, 65, 1000, DescGameTime(timeLeft));
+
+  var i;
+
+  for(i:=1; i<=mailProps.text.size(); i:=i+1)
+    GTextCrop(55, 85+i*20, 410, 20, 0, mailProps.text[i]); 
+  endfor
+
+  if(mailProps.attachedItem)
+    GResPic(25, 340, BKGND_PAPER, 60, 60);
+
+    var Item := FindItemBySerial(mailProps.attachedItem);
+    GTextCrop(30, 315, 400, 20, 1152, Item.desc);
+    GTilePicHue(35, 360, Item.graphic, Item.color);
+
+    if(mailProps.requiredGold)
+      GTextLine(100, 340, 999, "Zaplata:");
+      GTextLine(155, 340, 1121, FormatSize(mailProps.requiredGold, ".")+" gp"); 
+    endif
+    
+    if(Item.isa(POLCLASS_CONTAINER) or Item.isa(POLCLASS_SPELLBOOK))
+      GButton(40, 385,0xFAB,0xFAD, 16);
+    endif
+
+    GButton(90, 368, 2117, 2118, 14);
+    GTextLine(110, 365, 999, "Odbierz przedmiot");
+
+    GButton(90, 388, 2117, 2118, 15);
+    GTextLine(110, 385, 999, "Zdeponuj w banku");
+  endif
+
+  if(mailProps.attachedGold)
+    GResPic(260,315,BKGND_PAPER,215, 55);
+
+    GTextLine(270, 320, 999, "Zloto:"); 
+    GTextLine(315, 320, 1121, FormatSize(mailProps.attachedGold, ".")+" gp"); 
+    
+    GButton(270, 348, 2117, 2118, 12);
+    GTextLine(290, 345, 999, "Odbierz");
+
+    GButton(340, 348, 2117, 2118, 13);
+    GTextLine(360, 345, 999, "Zdeponuj w banku");
+    
+    if(mailProps.attachedGold > CHEQUE_SIGN_COST)
+      GButton(418, 323, 2117, 2118, 17);
+      GTextLine(438, 320, 999, "Czek");
+    endif
+  endif
+
+  GButton(260, 323+hAdd, 2117, 2118, 9);
+  GTextLine(280, 320+hAdd, 999, "Wroc");
+
+  GButton(330, 323+hAdd, 2117, 2118, 10);
+  GTextLine(350, 320+hAdd, 999, "Kasuj");
+
+  GButton(400, 323+hAdd, 2117, 2118, 11);
+  GTextLine(420, 320+hAdd, 999, "Odpowiedz");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendMailPropGump(Id)
+
+  var  mailProps;
+
+  if(!(mailProps.flags & MAILF_READ))
+    SetMailReadFlag(who, Id);
+  endif
+
+  while(who)
+    if(Distance(who, _MailBoxItem) > 2)
+      SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    GetMails(who, _Mails);
+    mailProps := _Mails[Id];
+    BuildMailPropGump(mailProps);
+    var Res := GSend(who).butid;
+
+    case(Res)
+      10: if(RequestDeletePost(mailProps, Id))
+            return 1;
+          endif
+
+      11: SendMailPost(who, _MailBoxItem, CAscZ("Re: ")+mailProps.title, mailProps.senderName);
+
+      12: DetachGold(Id, who.backpack);
+
+      13: DetachGold(Id, FindBankBox(who));
+
+      14: DetachItem(Id, who.backpack);
+
+      15: DetachItem(Id, FindBankBox(who));
+
+      16: ShowMailCont(who, mailProps);
+
+      17: WriteCheque(who, Id);
+
+      default: return 1;
+    
+    endcase
+
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RequestDeletePost(byref mailProps, Id)
+
+  if(!YesNoEx(who, ToUnicode("Czy na pewno chcesz skasowac wiadomosc '")+CutUniWord(mailProps.title, 25)+ToUnicode("' ?")))
+    return 0;
+  endif
+
+  if(mailProps.attachedGold)
+    if(!YesNoEx(who, ToUnicode("Wiadomosc zawiera dolaczone "+FormatSize(mailProps.attachedGold, ".")+" gp, czy na pewno chcesz ja skasowac?")))
+      return 0;
+    endif
+  endif
+  
+  var wmBox := FindMailBox(who);
+
+  if(mailProps.attachedItem)
+    var aItem := FindItemBySerial(mailProps.attachedItem);
+
+    if(aItem and aItem.container == wmBox)
+      if(mailProps.flags & MAILF_RETURNED)
+        SendSysMessage(who, "Wiadomosc zawiera dolaczony przedmiot '"+aItem.desc+"', ktory zostanie zniszczony, jesli ja skasujesz.", FONT_NORMAL, COLOR_ORANGE);
+      else
+        SendSysMessage(who, "Wiadomosc zawiera dolaczony przedmiot '"+aItem.desc+"', ktory zostanie zwrocony do nadawcy, jesli ja skasujesz.", FONT_NORMAL, COLOR_ORANGE);
+      endif
+
+      if(!YesNoEx(who, CAscZ("Wiadomosc zawiera dolaczony przedmiot, czy na pewno chcesz ja skasowac?")))
+        return 0;
+      endif
+    endif
+  endif
+
+  if(DeleteMail(who, Id))
+    UniSendSysMessage(who, CAscZ("Skasowal"+ggm(who,3)+" wiadomosc '")+mailProps.title+CAscZ("'"), FONT_NORMAL, COLOR_GREEN);
+    return 1;
+  else
+    UniSendSysMessage(who, CAscZ("Nie udalo sie skasowac wiadomosci '")+mailProps.title+CAscZ("'"), FONT_NORMAL, COLOR_ORANGE);
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DetachGold(Id, Cont)
+
+  GetMails(who, _Mails);
+  var mailProps := _Mails[Id];
+
+  mailProps.+hAttachedGold := mailProps.attachedGold;
+
+  if(!mailProps.attachedGold)
+    SendSysMessage(who, "Ta wiadomosc nie ma dolaczonego zlota!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!CreateGold(Cont, mailProps.attachedGold))
+    if(Cont == who.backpack)
+      SendSysMessage(who, "Nie masz wystarczajaco miejsca w plecaku, by odebrac zloto.", FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who, "Nie masz wystarczajaco miejsca w banku, by odebrac zloto.", FONT_NORMAL, COLOR_RED);
+    endif
+    return;
+  endif
+
+  if(Cont == who.backpack)
+    SendSysMessage(who, "Odebral"+ggm(who,3)+" "+FormatSize(mailProps.attachedGold, ".")+" gp.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Zdeponowal"+ggm(who,3)+" "+FormatSize(mailProps.attachedGold, ".")+" gp w banku.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  mailProps.attachedGold := 0;
+  _Mails[Id] := mailProps;
+
+  var wmBox := FindMailBox(who);
+  SetObjProperty(wmBox, PROP_MAILS, _Mails);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WriteCheque(who, Id)
+
+  GetMails(who, _Mails);
+  var mailProps := _Mails[Id];
+
+  mailProps.+hAttachedGold := mailProps.attachedGold;
+
+  if(!mailProps.attachedGold)
+    SendSysMessage(who, "Ta wiadomosc nie ma dolaczonego zlota!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Odebranie zlota w postaci czeku bedzie kosztowac "+CHEQUE_SIGN_COST+"gp. Czy zgadzasz sie na oplate?", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Zgadzasz sie?"))
+    return;
+  endif
+
+  if(!SpendGold(who, CHEQUE_SIGN_COST))
+    SendSysMessage(who, "Potrzebujesz "+CHEQUE_SIGN_COST+" na oplate.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Cheque := CreateChequeInPack(who, mailProps.attachedGold);
+
+  if(!Cheque)
+    SendSysMessage(who, "Nie masz wystarczajaco miejsca w plecaku, aby odebrac czek.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Odebral"+ggm(who,3)+" czek na sume "+FormatSize(mailProps.attachedGold - CHEQUE_SIGN_COST, ".")+" gp.", FONT_NORMAL, COLOR_GREEN);
+  SendSysMessage(who, "Oplata za czek wyniosla "+FormatSize(CHEQUE_SIGN_COST, ".")+" gp.", FONT_NORMAL, COLOR_GREEN);
+
+  mailProps.attachedGold := 0;
+  _Mails[Id] := mailProps;
+
+  var wmBox := FindMailBox(who);
+  SetObjProperty(wmBox, PROP_MAILS, _Mails);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DetachItem(Id, Cont)
+
+  GetMails(who, _Mails);
+  var mailProps := _Mails[Id];
+  var wmBox := FindMailBox(who);
+
+   mailProps.+hAttachedItem := FindItemBySerial(mailProps.attachedItem).desc;
+
+  if(!mailProps.attachedItem)
+    SendSysMessage(who, "Ta wiadomosc nie ma dolaczonego przedmiotu!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var aItem := FindItemBySerial(mailProps.attachedItem);
+
+  if(!aItem or aItem.container != wmBox)
+    mailProps.attachedItem := 0;
+    _Mails[Id] := mailProps;
+    SetObjProperty(wmBox, PROP_MAILS, _Mails);
+
+    SendSysMessage(who, "Ta wiadomosc nie ma dolaczonego przedmiotu!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(mailProps.requiredGold)
+    if(!YesNoEx(who, "Musisz zaplacic "+FormatSize(mailProps.requiredGold, ".")+" gp za odebranie tego przedmiotu, chcesz to zrobic?"))
+      return;
+    endif
+
+    if(!SpendGold(who, mailProps.requiredGold))
+      SendSysMessage(who, "Nie masz wystarczajaco zlota przy sobie, potrzebujesz "+FormatSize(mailProps.requiredGold, ".")+" by moc odebrac przedmiot.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!MoveItemToContainer(aItem, Cont))
+    SendSysMessage(who, "Nie masz wystarczajaco miejsca w plecaku, by odebrac ten przedmiot.", FONT_NORMAL, COLOR_RED);
+    if(mailProps.requiredGold)
+      CreateGold(who.backpack, mailProps.requiredGold);
+    endif
+
+    return;
+  endif
+
+  var rGold := mailProps.requiredGold;
+  mailProps.attachedItem := 0;
+  mailProps.requiredGold := 0;
+  _Mails[Id] := mailProps;
+
+  SetObjProperty(wmBox, PROP_MAILS, _Mails);
+
+  if(rGold)
+    var Sender := FindPlayerBySerial(mailProps.senderSerial);
+    if(Sender)
+      PostGoldMail(Sender, who, "Odbior: "+GetName(aItem), 
+      array("Przedmiot "+GetName(aItem)+",", "wyslany przez Ciebie do "+GetRealName(who)+" zostal pomyslnie odebrany.", "", "Ponizej zalaczona zostala zaplata za odbior w wysokosci "+FormatSize(rGold,".")+" gp."), 
+      rGold);
+    endif
+  endif
+
+  if(Cont == who.backpack)
+    SendSysMessage(who, "Odebral"+ggm(who,3)+" przedmiot "+aItem.desc+".", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Zdeponowal"+ggm(who,3)+" przedmiot "+aItem.desc+" w banku.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+
+function SendHistoryGump()
+  
+  var color;
+  var wmBox := FindMailBox(who);
+  var History := GetMailsHistory(wmBox);
+
+  GInit(30,30);
+  GPage();
+  
+  GMultiHeaderInit();
+
+  GResPic(0,0,BKGND_BLACKSLAB,500,420);
+  GCheckerTrans(15,60,470,345);
+  
+  GGumpPic(10, 45,BKGND_BLACKSLAB+7);
+  GGumpPic(130,45,BKGND_BLACKSLAB+7);
+  GGumpPic(250,45,BKGND_BLACKSLAB+7);
+  GGumpPic(363,45,BKGND_BLACKSLAB+7);
+
+  GTextLine(215,20,1024,"Historia");
+
+  GAddPageData(475,55,2650,2651,475,393,2648,2647);
+
+  GMultiPage();
+
+  GButton(445, 20, 4017, 4019, 101);
+  GTextLine(340,20,1024,"Wyczysc historie");
+
+  foreach Mail in History
+    
+    GCheckNextPage(5);
+    BuildMailHistoryPropGump(Mail, _Mail_iter);
+  endforeach
+
+  var Res := GSend(who)[0];
+  
+  if(Res == 0 or Res == 999)
+    return;
+  elseif(Res < 100)
+    ShowItemsInCont(Res);
+  elseif(Res == 101)
+    CleanMailHistory();
+  endif
+
+endfunction
+
+//------------------------------------------------------------
+
+function BuildMailHistoryPropGump(byref Mail, _Mail_iter)
+  
+
+    GResPic(25, 70+GNpCount()*65, BKGND_PAPER, 450, 58);
+
+    GTextLine(35,(GNpCount()*65)+75,500,"Tytul:");
+    GTextCrop(75,(GNpCount()*65)+75,90,20,1000,Mail.title);
+
+    GTextLine(260,(GNpCount()*65)+100,1000,DescGameTime(readgameclock() - Mail.sendTime)+" temu");
+
+    if(Mail.type == 1)
+      GTextLine(35,(GNpCount()*65)+100,500,"Do: ");
+      GTextCrop(55,(GNpCount()*65)+100,110,20,1000,Mail.receiver);
+    else
+      GTextLine(35,(GNpCount()*65)+100,500,"Od: ");
+      GTextCrop(55,(GNpCount()*65)+100,110,20,1000,Mail.receiver);
+    endif
+    
+    if(Mail.hAttachedGold)
+      //GTextLine(170,(GNpCount()*65)+100,500,"Zloto:");
+      GTextLine(175,(GNpCount()*65)+100,1121,Cstr(Mail.hAttachedGold+" gp"));
+    endif
+
+    var aItem;
+
+    if(Mail.hAttachedItem)             
+      aItem := Mail.hAttachedItem;
+      GTextLine(175,(GNpCount()*65)+75,500,"Przedmiot:");
+      GTextCrop(240,(GNpCount()*65)+75,210,20,1000,aItem);
+      if(aItem.isa(POLCLASS_CONTAINER) or aItem.isa(POLCLASS_SPELLBOOK))
+        print("iter: "+_Mail_iter);
+        GButton(440, (GNpCount()*65)+75,0xFAB,0xFAD, _Mail_iter);
+      endif    
+    endif
+
+
+endfunction
+
+//---------------------------------------------------------------------
+
+function ShowItemsInCont(id)
+
+  var wmBox := FindMailBox(who);
+  var History := GetMailsHistory(wmBox);
+  var mail := History[id];
+
+  ShowMailCont(who,mail);
+
+endfunction
+
+//----------------------------------------------------------------------
+
+function CleanMailHistory()
+
+  var wmbox := FindMailBox(who);
+  var mailsHistory := GetMailsHistory(wmBox);
+
+  if(!mailsHistory or !mailsHistory.size())
+    return;
+  endif
+
+  mailsHistory.shrink(0);
+  SetObjProperty(wmBox, MAILS_HISTORY, mailsHistory);
+
+endfunction

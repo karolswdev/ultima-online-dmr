@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/checks/objchecks";
+include ":banking:common";
+
+//-----------------------------------------------------------------------------
+
+program HarvestSignatureCmd(who)
+
+  SendSysMessage(who, "Z ktorego przedmiotu chcesz usunac podpis?",FONT_NORMAL, COLOR_GREEN);
+
+  var Item := ObjTarget(who);
+  if(!StandardItemCheck(who,Item,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  var TopCont := GetTopCont(Item);
+
+  if(TopCont != who.backpack and FindBankBox(who) != TopCont and FindStoreBox(who) != TopCont and !(TopCont.container.isa(POLCLASS_NPC) and GetMaster(TopCont.container) == who))
+    SendSysMessage(who, "Ten przedmiot nie znajduje sie w Twoim plecaku ani w Twojej skrzyni bankowej/magazynowej.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Data := GetObjProperty(Item, PROP_HARVESTED);
+
+  if(!Data)
+    SendSysMessage(who, "Ten przedmiot nie posiada podpisu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  EraseObjProperty(Item, PROP_HARVESTED);
+  IncRevision(Item);
+  SendSysMessage(who, "Podpis zostal usuniety.", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

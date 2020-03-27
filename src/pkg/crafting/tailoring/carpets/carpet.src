@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+include ":housing:common";
+include "rolls";
+
+//-----------------------------------------------------------------------------
+
+program UseCarpet(who,carpet)
+
+  if(!StandardItemCheck(who,carpet,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+  
+  if(!IsGm(who) and GetHouseOwner(carpet.multi).acctname != who.acctname and !IsOwner(who,carpet))
+    SendSysMessage(who,"To nie nalezy do Ciebie.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(CarpetRollBack(carpet, who.backpack))
+    SendSysMessage(who,"Zwin"+ggm(who,5)+" dywan.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie uda Ci sie zwinac tego dywanu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/basic";
+include "include/finding";
+include "include/checks/geometry";
+
+//-----------------------------------------------------------------------------
+
+program CanDeleteChar(who, way)
+
+  if(way == DELETE_BY_PLAYER and !who.cmdlevel)
+  
+    if(IsInStartLocation(who) and !IsCharCreationFinished(who))
+      return 1;
+    endif
+
+    var Idx     := FindCharIndex(who);
+    var CrTimer := who.acct.GetProp(PROP_CREATION_TIMER);
+
+    if(CrTimer and CrTimer[Idx])
+      if(CrTimer[Idx] + GetCharDeleteDelay(who.acct) >= ReadGameClock())
+        return 0;
+      endif
+    endif
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

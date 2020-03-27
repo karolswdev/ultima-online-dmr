@@ -1,0 +1,117 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-26
+// Modified: 2011-04-26
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/items/utils";
+include "include/objects/location";
+
+include ":itemsets:definition";
+
+include ":wmtools:gmp_defs";
+include ":wmtools:common";
+include ":wmtools:wmstatics";
+include ":wmtools:statics";
+
+//-----------------------------------------------------------------------------
+
+const STATICS_CFG := SHARECFG_PKG + "statics";
+
+//-----------------------------------------------------------------------------
+
+program WMStaticsGeneration(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  UnloadConfigFile(STATICS_CFG);
+
+  var statCfg := ReadConfigFile(STATICS_CFG);
+  var Keys    := GetConfigStringKeys(statCfg);
+
+  if(statCfg and Keys.size())
+    SendSysMessage(who, "Plik "+STATICS_CFG+" zawiera wpisy. Wyczysc go najpierw.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var reqType := 0;
+  var expGroup := 0;
+
+  if(text == "delonly")
+    reqType := WMS_TYPE_DEL;
+  elseif(text == "addonly")
+    reqType := WMS_TYPE_ADD;
+  elseif(text)
+    expGroup := text;
+  endif
+
+  var Groups := GetWmsGroups();
+  var Count := 0;
+
+  foreach wmsName in Groups
+    if(expGroup and wmsName != expGroup)
+      continue;
+    endif
+
+    if(ExportWmsGroup(wmsName, reqType))
+      SendSysMessage(who, "Eksportowanie grupy WMS: "+wmsName+"...", FONT_NORMAL, COLOR_GREEN);
+      Count += 1;
+    endif
+  endforeach
+
+  SendSysMessage(who, "Wyeksportowano "+Count+" grup WMS do "+STATICS_CFG+".", FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ExportWmsGroup(wmsName, reqType)
+
+  var wmsGroup := GetWmsGroup(wmsName);
+
+  if(reqType)
+    if(reqType != wmsGroup.GetProp("Type"))
+      return 0;
+    endif
+  endif
+
+  var Props := array;
+  var Prop  := array;
+  Prop.+pname;
+  Prop.+pvalue;
+
+  Prop.pname  := "Type";
+  Prop.pvalue := wmsGroup.GetProp("Type");
+  Props.append(Prop);
+  
+  Prop.pname  := "Realm";
+  Prop.pvalue := wmsGroup.GetProp("Realm");
+  Props.append(Prop);
+  
+  Prop.pname  := "ItemCount";
+  Prop.pvalue := wmsGroup.GetProp("ItemCount");
+  Props.append(Prop);
+
+  var Items := wmsGroup.GetProp("Items");
+
+  foreach Item in Items
+    Prop.pname  := "Item";
+    Prop.pvalue := Item.x+" "+Item.y+" "+Item.z+" "+Item.objtype+" "+Item.color;
+    Props.append(Prop);
+  endforeach
+  
+  AppendConfigFileElem(STATICS_CFG, "WmsGroup", wmsName, Props);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

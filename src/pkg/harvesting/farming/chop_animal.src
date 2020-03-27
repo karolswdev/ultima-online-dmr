@@ -1,0 +1,71 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+include "include/dirs";
+include "include/attack";
+include "include/effects";
+include "include/tools";
+include ":quests:quest_ctrl";
+
+//--------------------------------------------------------------------------------
+
+program ChopAnimal(who, Stump)
+
+  if(!StandardItemCheck(who, Stump, NO_MOVABLE_CHECK | NEW_DIST_CHECK, 1))
+    return;
+  endif
+
+  if(GetBaseSkill(who, SKILLID_FARMING) < 100)
+    SendSysMessage(who, "Nie bardzo wiesz co z tym zrobic...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var axe := who.weapon;
+
+  if(axe.objtype != UOBJ_HATCHET)
+    SendSysMessage(who, "Nie widac bys mial"+ggm(who,4)+" topor w rece.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(GetEquipmentByLayer(who, LAYER_MOUNT))
+    SendSysMessage(who, "Na wierchowcu ciezko Ci bedzie ubic zwierze.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who, axe))
+    return;
+  endif
+
+  var Animal := ObjTarget(who);
+
+  if(!StandardMobCheck(who, Animal, NEW_DIST_CHECK, 1))
+    return;
+  endif
+
+  if(!Animal.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie zwierze.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(GetMaster(Animal) != who)
+    SendSysMessage(who, "To nie twoje zwierze.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetStrength(Animal) > 200)
+    SendSysMessage(who, "Tak latwo nie uda Ci sie zabic tego zwierza!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  TurnCharToward(who, Animal);
+
+  if(RandomInt(2) == 1)
+    PerformAction(who, ANIM_ATTACK_2HAND_WIDE);
+  else
+    PerformAction(who, ANIM_ATTACK_2HAND_DOWN);
+  endif
+  Sleep(1);
+  DealDamage(Animal, GetMaxHp(Animal) + 1);
+  
+  CheckToolWear(who, axe, SKILLID_FARMING);
+
+endprogram
+
+//--------------------------------------------------------------------------------

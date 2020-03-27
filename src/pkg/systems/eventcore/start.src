@@ -1,0 +1,14 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(":eventcore:event_control", "Kontrola eventow");
+  StartGlobCtrlScript(":eventcore:event_control");
+
+endprogram
+
+//-----------------------------------------------------------------------------

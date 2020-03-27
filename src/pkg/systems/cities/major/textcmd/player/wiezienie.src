@@ -1,0 +1,58 @@
+use polsys;
+use basic;
+use uo;
+
+include ":major:major";
+include ":jail:jail";
+include "include/msgs";
+include "include/findcity";
+include "include/clock";
+include "include/items/creation";
+include "include/names";
+
+program MajorJail(who)
+
+  if(!GetGlobalProperty("CanMajorsJail"))
+    SendSysMessage(who,"Nie masz prawa zamykac ludzi!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var victim := Target(who);
+  if(!victim)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+ 
+  if(victim.cmdlevel)
+    SendSysMessage(who,"Nie mozesz zamknac tej osoby!",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(victim,"Burmistrz "+who.name+" probowal Cie zamknac w wiezieniu!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(!victim.acctname)
+    SendSysMessage(who,"Nie mozesz go zamknac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+ 
+  if(CInt(GetObjProperty(victim,"MajorJailTime")))
+    if(CInt(GetObjProperty(victim,"MajorJailTime")) + MAJOR_JAIL_TIMEOUT > ReadGameClock())
+      SendSysMessage(who,"Musisz chwile odczekac, by moc zamknac ta osobe ponownie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+ 
+  SendSysMessage(who,"Za co chcesz zamknac osobe "+victim.name+" ?",FONT_NORMAL,COLOR_GREEN);
+  var Reason := RequestInput(who,who.backpack,"");
+  if(!Reason)
+    SendSysMessage(who,"Nie wpisal"+ggm(who,3)+" powodu!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsMajor(who) != FindCity(victim))
+    SendSysMessage(who,"Nie jestes na terytorium swojego miasta!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+ 
+  Jail(who,victim,MAJOR_JAIL_TIME,100,Reason);
+  SetObjProperty(victim,"MajorJailTime",ReadGameClock());
+ 
+endprogram

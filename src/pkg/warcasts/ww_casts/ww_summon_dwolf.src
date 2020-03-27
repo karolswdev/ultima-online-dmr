@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 6;
+
+//-----------------------------------------------------------------------------
+
+program WwSummonDireWolf(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastLoc)
+
+  var Duration        := (CInt(GetEffectiveSkill(Caster,SKILLID_WEARWOLF) / 10) + CInt(GetEffectiveSkill(Caster,SKILLID_ANIMALLORE) / 20) * 60);
+  var oparms          := {};
+  var Amount          := (CInt(GetEffectiveSkill(Caster,SKILLID_WEARWOLF) / 50) + CInt(GetEffectiveSkill(Caster,SKILLID_ANIMALLORE) / 100));
+
+  oparms.+controlable := 1;
+  oparms.+nocrim      := 1;
+  oparms.+nosleep     := 1;
+  oparms.+maxamt      := 1 + CInt(GetEffectiveSkill(Caster,SKILLID_WEARWOLF)/20);
+  oparms.+skillsmod   := array(SKILLID_WEARWOLF, SKILLID_ANIMALLORE);
+
+  var Summon := SummonCreatureGroup(Caster, array("direwolf"), Amount, CastLoc, Duration, oparms);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

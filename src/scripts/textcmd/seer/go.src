@@ -1,0 +1,61 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+use cfgfile;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/gumpboxes";
+include "include/log";
+include "include/move";
+include "include/const/cfgs";
+include "include/client/fonts";
+include "include/misc";
+include "include/command_func";
+
+//-----------------------------------------------------------------------------
+
+UnloadConfigFile(GOLOC_CFG);
+var GoLocCfg := ReadConfigFile(GOLOC_CFG);
+
+//-----------------------------------------------------------------------------
+
+program GoToLocationCmd(who,text)
+
+  var LocN;
+
+  if(text)
+    while(text[" "])
+      text[" "] := "_";
+    endwhile
+  endif
+
+  if(GoLocCfg[lower(text)])
+    LocN := text;
+  else
+    if(text)
+      foreach Elem in GetConfigStringKeys(GoLocCfg)
+        if(Elem[text])
+          LocN := Elem;
+          break;
+        endif
+      endforeach
+    endif
+    if(!LocN)
+      LocN := BuildGoLocGump(who);
+    endif
+  endif
+
+  if(LocN)
+    GoToLoc(who,LocN);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+

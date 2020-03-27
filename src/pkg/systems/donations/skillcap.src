@@ -1,0 +1,32 @@
+use uo;
+
+include "include/gumpboxes";
+include "include/packets";
+include "include/effects";
+include "include/checks/objchecks";
+include "include/client/effects";
+include "include/skills/skillwin";
+include ":housing:common";
+
+program soulstone(who, item)
+
+  if(!StandardItemCheck(who,item, NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  if(!YesNo(who,"Na pewno?"))
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(CInt(GetObjProperty(who, "AddSkCapBonus")) > 2000)
+	SendSysMessage(who, "Wiecej dodatku juz nie uda Ci sie zdobyc.", FONT_NORMAL, COLOR_RED);
+	return;
+  endif
+  
+  if(DestroyItem(item))
+	SetObjProperty(who, "AddSkCapBonus", CInt(GetObjProperty(who, "AddSkCapBonus"))+30);
+	PrintTextAbove(who, "*moc*");
+  endif
+
+endprogram

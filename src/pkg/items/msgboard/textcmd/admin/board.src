@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/client/fonts";
+include "include/player/target";
+include "include/proc";
+
+include ":msgboard:msgboard";
+
+//-----------------------------------------------------------------------------
+
+program BoardCmd(who, text)
+ 
+  var Board := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+  if(Board.objtype != UOBJ_MSGBOARD and Board.objtype != UOBJ_MSGBOARD2)
+    SendSysMessage(who, "To nie tablica.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var bProc := GetProc(GetObjProperty(Board, PROP_BOARD_CTRLPID));
+  if(bProc)
+    bProc.kill();
+  endif
+
+  start_script(":msgboard:boardctrl", Board);
+  SendSysMessage(who, "Restart BoardCtrl.", FONT_NORMAL, COLOR_GREEN);
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,240 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "include/npcspeech";
+include "include/buildings";
+include "ai/include/npch";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include "include/player/young";
+
+include ":character:name_check";
+
+//-----------------------------------------------------------------------------
+
+const SEC_NAME_TIME     := AGE_COUNT;  // 3 dni online
+const SEC_NAME_TIME_EP  := AGE_COUNT;  // 3 dni online /Extra Paid - jesli minely, to mozna skorzystac z zmiany za dodatkowa oplata.
+const CHANGE_COST       := 25000;   
+//-----------------------------------------------------------------------------
+
+program Rejent_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+
+  while(me)
+
+    if(!ev)
+      ev := os::wait_for_event(waittime);
+    endif
+
+    StdCityNpcHandleEvent(ev);
+    StdCityNpcEventLoop();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who,text)
+
+  var ltext := lower(text);
+
+  if(ltext["nazwisk"])
+  
+    TurnToward(who);
+    if(len(ltext) < 10)
+      Say("Co tam belkoczesz?");
+    elseif(CanNpcSpeakWith(who))
+     ChangeSecName(who);
+    endif
+
+  elseif(ltext["witam"] or ltext["witaj"])
+
+    TurnToward(who);
+    Say("Witam, moze chcesz zmienic nazwisko?");
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeSecName(who)
+
+  if(Distance(who,me) > 3)
+    Say("Stoisz daleko, slabo cie widze.");
+    return;
+  endif
+
+  if(!CanMod(who, MOD_INCO))
+    Say("Teraz nie moge zmienic Ci imienia.");
+    return;
+  endif
+
+  if(lower(who.name)["oszust"])
+    Say("Wynos sie stad oszuscie!");
+    return;
+  endif
+
+  var NameTime         := CInt(GetObjProperty(who,"NameTime"));
+  var Cost             := CHANGE_COST; 
+  var PlayerOnlineTime := GetObjProperty(who, PROP_ONLINETIMER);
+
+  if(NameTime and PlayerOnlineTime < NameTime + SEC_NAME_TIME)   // Jesli nie minelo 14 dni
+    Say("Jeszcze nie czas na zmiane twego nazwiska "+who.name);
+    if (PlayerOnlineTime >= NameTime + SEC_NAME_TIME_EP)  // Jesli minely 3 dni
+      Sleep ( 1 );
+      Cost := (CInt( ( (NameTime + SEC_NAME_TIME) - PlayerOnlineTime ) / 60 / 60 / 24) + 1)*50000;  //50k za kazde 24h
+      Say("Ale za "+ Cost +" gp moge to zrobic, zgadzasz sie?");
+      if (!NpcYesNo(who))
+        return;
+      endif
+    else
+      return; 
+    endif
+  endif
+
+  var SecName := GetSecName(who.name);
+  
+  if(SecName)
+    Say("Twe nazwisko brzmi "+SecName+".");
+  else
+    Say("Nie masz jeszcze nazwiska.");
+  endif
+  
+  Say("Jakie chcial"+ggm(who,1)+" miec teraz?");
+  
+  ev := SendNpcHandleEvent(EVID_NH_TEGUMP_SELECT,who,me,"Wpisz nazwisko");
+
+  if(ev == error)
+    Say("Widze, ze nie mozesz sie zdecydowac.");
+    return;
+  endif
+  
+  if(Distance(who,me) > 3)
+    Say("Stoisz daleko, slabo cie widze.");
+    return;
+  endif
+
+  var NewName := Ev.tetxt;
+  var NamePlayer  := 0;
+
+  if(NewName)
+    NewName := FixName(NewName);
+  endif
+
+  if(!NewName and !SecName)
+    Say("*wzdycha*");
+    Say("Przeciez nie masz nazwiska.");
+    return;
+  endif
+  
+  if(lower(NewName) == lower(SecName))
+    Say("*wzdycha*");
+    Say("Przeciez masz juz takie nazwisko.");
+    return;
+  endif
+
+  if(NewName) // jak gosc chce zmienic imie, bo moze chce usunac? wtedy newName bedzie puste
+    var Bad := GetSecNameChar(who, NewName);
+    if(Bad.isa(POLCLASS_MOBILE))
+      Say("Nazwisko jakie wybral"+ggm(who,3)+" ma osoba "+Bad.name);
+      NamePlayer := 0;
+      
+      foreach Mob in ListMobilesNearLocation(me.x, me.y, me.z, 2, me.realm)
+        if(IsPlayer(Mob))
+          if(Mob == Bad)
+            NamePlayer := 1;
+            break;
+          elseif(lower(GetSecName(Mob.name)) == lower(NewName))
+            NamePlayer := Mob;
+            break;
+          endif
+        endif
+      endforeach
+      
+      if(NamePlayer.isa(POLCLASS_MOBILE))
+        Say(Bad.name+" nie jest obecn"+ggm(Bad,6)+", lecz widze "+NamePlayer.name+" jest z nami, mysle ze to wystarczy.");
+        Bad        := NamePlayer;
+        NamePlayer := 0;
+        sleepms(300);
+      elseif(!NamePlayer)
+        Say("Nie widze by byla obecna, wiec przyjdz z nia by mogla potwierdzic twe nazwisko.");
+        return;
+      endif
+
+      if(!CheckLineOfSight(me, Bad) or Bad.hidden)
+        Say("Jednakze, osoba ta tak ze jej nie widze, niech wyjdzie z ukrycia.");
+        return;
+      endif
+      
+      Say(Bad.name+", czy zgadzasz sie by osoba "+who.name+" miala twe nazwisko? tak czy nie?");
+      
+      if(!NpcYesNo(Bad))
+        Say("Dobrze, jesli sie nie zgadzasz, osoba ta nie bedzie miala twego nazwiska.");
+        return;
+      else
+        Say("Niech i tak bedzie, jesli sie zgadasz.");
+      endif
+      
+    elseif(Bad)
+      Say(who.name+", nazwisko jakie wybral"+ggm(who,3)+" jest nie prawidlowe, za krotkie lub za dlugie.");
+      return;
+    endif
+  endif
+
+  if(NewName)
+    Say(who.name+", wiec chcesz by twe nazwisko brzmialo "+NewName+", tak?");
+  else
+    Say("Wiec chcesz sie pozbyc nazwiska, tak?");
+    NewName := "";
+  endif
+  
+  if(NpcYesNo(who))
+    if(!CanMod(who, MOD_INCO))
+      Say("Teraz nie moge zmienic Ci imienia.");
+      return;
+    endif
+    
+    if(!SpendGold(who, Cost))
+      Say("Musisz zaplacic "+ Cost +" gp za zmiane nazwiska.");
+      return;
+    endif
+  
+    if(NewName)
+      Say("Dobrze, wiec twe nazwisko brzmi teraz "+NewName);
+    else
+      Say("Dobrze, wiec nie bedziesz mial"+ggm(who,4)+" nazwiska.");
+    endif
+
+    var FullName := who.name;
+    
+    if(!SecName)
+      FullName := who.name + " " + NewName;
+    else
+      FullName[SecName] := NewName;
+    endif
+
+    who.name := FixName(FullName);
+    SetObjProperty(who,"NameTime",GetObjProperty(who,"onlinetimer"));
+  else
+    Say("Innym razem wiec.");
+  endif
+  
+  NameTime := 0;
+  SecName  := "";
+
+endfunction
+
+//-----------------------------------------------------------------------------

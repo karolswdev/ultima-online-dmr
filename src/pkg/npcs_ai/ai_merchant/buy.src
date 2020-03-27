@@ -1,0 +1,54 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":ai_merchant:utils/misc";
+include ":ai_merchant:const";
+include ":ai_merchant:utils/packets";
+
+//-----------------------------------------------------------------------------
+
+program NpcSpeechBuy(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  var MercBox := GetMercBox(Data.npc.npctemplate);
+  var OldBox  := GetMercOldBox();
+
+  var RepLvl  := GetPlayerNpcGuildCityLvl(Data.source, Data._AI_Merchant.City);
+  var sItems := array;
+  var Amt;
+
+  foreach SellItem in (Data._AI_Merchant.SellItems)
+    Amt := Data._AI_Merchant.Amounts[hex(SellItem.objtype)];
+    if(Amt > 0)
+      sItems.append( array(SellItem, Amt, GetItemSellPrice(SellItem, RepLvl)) );
+    endif
+    sleepms(1);
+  endforeach
+
+  if(sItems.size() == 0)
+    NpcSpeechSay(Data.npc, Data.source, AI_SPID_EMPTY_BUY);
+    return;
+  endif
+
+  var Res := SendBuyPacket(Data.source, Data.npc, MercBox, OldBox, sItems);
+
+  if(!Res)
+    LogError("[AI:"+Data.npc.serial+"/"+Data.npc.npctemplate+"]: Wystapil blad podczas wysylania gumpa zakupu: "+Res, LOGF_SCRIPTS);
+  else
+    sleep(2); // aby wydluzyc czas handlera
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

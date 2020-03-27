@@ -1,0 +1,147 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/clock";
+include "include/tempmods";
+include "include/names";
+include "include/gumps";
+include "include/cmds/cmds";
+include ":makrocheck:makro";
+
+//--------------------------------------------------------------------------------
+
+program SGumpTime(who, text)
+
+  if(text == "all")
+    CheckAllWaitingSGump(who);
+  else
+    ClasicSTM(who,text);
+  endif
+
+endprogram                       
+
+//--------------------------------------------------------------------------------
+
+function ClasicSTM(who,text)
+
+  var Targ;
+  
+  if(CInt(text))
+    Targ := FindPlayerBySerial(text);
+  else
+    Targ := ObjTarget(who);
+  endif
+  
+  if(IsPlayer(Targ))
+    if(text == "era" and IsAdmin(Targ))
+      EraseObjProperty(Targ, "#SGumpWait");
+    endif
+
+    var SGWait  := GetSGWait(Targ);
+    var wCount  := 0;
+    var bCount  := 0;
+    var curTime := PolCore().systime;
+    var bMsg;
+
+    foreach Entry in SGWait
+      if(!Entry.size())
+        wCount := wCount + 1;
+      elseif(Entry[2])
+        bCount := bCount + 1;
+      endif
+    endforeach
+
+    if(wCount)
+      SendSysMessage(who, "Osoba "+GetRealName(Targ)+" ma "+wCount+" czekajace okna.", FONT_NORMAL, COLOR_BLUE);
+      foreach Entry in SGWait
+        if(!Entry.size())
+          SendSysMessage(who, "ID: "+_Entry_iter+" Czas: "+CUnixTime(Entry, RLT_MONTH)+", "+RealTime(curTime - Entry)+" temu.", FONT_NORMAL, COLOR_STONE);
+        endif
+        Sleepms(1);
+      endforeach
+    endif
+    
+    if(bCount)
+      SendSysMessage(who, "Blednie potwierdzila "+bCount+" okien.", FONT_NORMAL, COLOR_BLUE);
+      foreach Entry in SGWait
+        if(Entry.size())
+          if(Entry[2].size())
+            bMsg := "Litera ["+Entry[2][1]+"]/["+Upper(Entry[2][2])+"]";
+          elseif(!Entry[2])
+            bMsg := "Brak (logoff)";
+          else
+            bMsg := "Nierozpoznany ("+Entry[2]+").";
+          endif
+          SendSysMessage(who, "ID: "+_Entry_iter+" Czas: "+CUnixTime(Entry[1], RLT_MONTH)+", "+RealTime(curTime - Entry[1])+" temu. Blad: "+bMsg, FONT_NORMAL, COLOR_RED+1);
+        endif
+        Sleepms(1);
+      endforeach
+    endif
+
+    var Last := CInt(GetObjProperty(Targ, "#SGumpLast"));
+    if(Last)
+      SendSysMessage(who, "Ostatnie okno: "+CUnixTime(Last, RLT_MONTH)+", "+RealTime(curTime - Last)+" temu.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Osoba nie miala jeszcze okna do potwierdzenia.", FONT_NORMAL, COLOR_RED);
+    endif
+
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckAllWaitingSGump(who)
+  
+  var SGWait;
+  
+  var players := array();
+  foreach player in EnumerateOnlineCharacters()
+    
+    SGWait := 0;
+    foreach sg in GetSGWait(player)
+      if(!sg.size())
+        SGWait := PolCore().systime-sg[1];
+        break;
+      endif
+    endforeach
+
+    if(SGWait and SGWait > 30)
+      players.append(array(player,SGWait));
+    endif
+    
+  endforeach
+
+  if(len(players) == 0)
+    SendSysMessage(who, "Nie ma graczy z oczekujacymi oknami powyzej 30 sekund", FONT_NORMAL, COLOR_BLUE);
+    return;
+  endif
+  GInit(100,100);
+  GPage();
+  GResPic(0,0,2620,300,380);
+  GTextLine(110,10,650,"Makrownicy:");
+  GAddPageData(275,10,2650,2651,275,350,2648,2647);
+
+  var i:=1;
+  foreach player in players
+    GCheckNextPage(15);
+    GButton(20,(63+(GNPCount()*20)),2117,2118,i);
+    GTextLine(40,(60+(GNPCount()*20)),550,GetName(player[1]));
+    GTextLine(230,(60+(GNPCount()*20)),550,RealTime(player[2]));
+    i:= i+1;  
+  endforeach
+  
+  var res := CInt(GSend(who)[0]);
+
+  if(!res)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  MoveToHimLocation(players[res][1],who);
+
+endfunction
+
+//--------------------------------------------------------------------------------

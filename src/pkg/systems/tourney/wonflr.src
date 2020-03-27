@@ -1,0 +1,186 @@
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/dirs";
+include "include/mobile/age";
+
+include "tourney";
+include "../pkg/systems/wearwolf/wearwolf";
+
+//-----------------------------------------------------------------------------
+
+var ItemsAllowed := ReadConfigFile(TR_ALI_CFG);
+
+//-----------------------------------------------------------------------------
+
+program WalkOnTrFloor(who,Fl,Lx,Ly,Lz)
+
+  if(who.cmdlevel)
+    return 0;
+  endif
+
+  var Pass := 1;
+  
+  case(who.facing)
+    DIR_SW:
+    DIR_SE:
+    DIR_S:   Pass := GoOut(who,Fl);
+    
+    DIR_N:
+    DIR_NE:
+    DIR_NW:  Pass := GoIn(who,Fl);
+  endcase
+  
+  if(!Pass)
+    MoveObject(who,Lx,Ly,Lz,who.realm,MOVECHAR_FORCELOCATION);
+  endif
+  
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GoOut(who,Fl)
+
+  who.cleargottenitem();
+  CloseTradeWindow(who);
+  SendEvToGuard(0, who, "", 1);
+
+  SendEvToGuard(EVID_PLAYER_LOGOFF,who,"");
+  EraseEndProps(who);
+
+  if(IsNaked(who))
+    var Robe  := CreateItemInPack(who, UOBJ_ROBE);
+    var Cloak := CreateItemInPack(who, UOBJ_CLOAK);
+    EquipItem(who, Robe);
+    EquipItem(who, Cloak);
+  endif  
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoIn(who,Fl)
+
+  var TrStat := GetTourneyProp(TR_STATUS);
+  
+  if(TrStat == TR_STAT_END)
+    return 0;
+  endif
+  
+  if(who.dead)
+    SendEvToGuard(EVID_PLAYER_LOGIN,who, "");
+    return 0;
+  endif
+  
+  var Pass := 1,Item, emsg := "";
+
+  who.cleargottenitem();
+  CloseTradeWindow(who);
+  
+  foreach Item in ListRootItemsInContainer(who.backpack)
+    if(!ItemsAllowed[lower(Hex(Item.objtype))] and !Item.newbie)
+      Pass := 0;
+      emsg := who.name+", masz w plecaku rzeczy, ktorych nie mozna wnosic na igrzyska...";
+      break;
+    endif
+  endforeach
+
+  if(!Pass)
+    SendEvToGuard(EVID_PLAYER_LOGIN,who,emsg);
+    return 0;
+  endif
+
+  for i:=1 to 25
+    if(!(i in {LAYER_ROBE,LAYER_CAPE,LAYER_PACK,LAYER_BEARD,LAYER_HAIR}))
+      Item := GetEquipmentByLayer(who,i);
+      if(Item)
+        Pass := 0;
+        emsg := who.name+", nie moge cie wpuscic z twoim ekwipunkiem...";
+        break;
+      endif
+    endif
+  endfor
+
+  if(IsYoung(who))
+    Pass := 0;
+    emsg := who.name+", jestes za mlod"+ggm(who,6)+" na igrzyska.";
+  elseif(IsNaked(who))
+    Pass := 0;
+    emsg := who.name+", nie wpuszcze Cie nago! Ubierz sie w szate.";
+  endif
+
+  if(!Pass)
+    SendEvToGuard(EVID_PLAYER_LOGIN,who,emsg);
+    return 0;
+  endif
+  
+  var Bans := GetTourneyProp(TRLOC_BANS);
+
+  if(Bans)
+    if(who.serial in Bans)
+      Pass := 0;
+      emsg := who.name+", masz zakaz wstepu na igrzyska!";
+     endif
+  endif
+
+  if(!Pass or who.dead)
+    SendEvToGuard(EVID_PLAYER_LOGIN,who, emsg);
+    return 0;
+  endif
+
+  if(!who.spendgold(TR_ENTER_COST))
+    Pass := 0;
+    emsg := who.name+", potrzebujesz "+TR_ENTER_COST+" zlota by wejsc na igrzyska.";
+  endif
+
+  if(!Pass or who.dead)
+    SendEvToGuard(EVID_PLAYER_LOGIN,who, emsg);
+    return 0;
+  endif
+
+  SendEvToGuard(0, who, "", 1);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendEvToGuard(EvID, Src, msg, NoDelay := 0)
+
+  if(!NoDelay and (CInt(GetObjProperty(Src,"#TrGuardSE")) + 10 > ReadGameClock()))
+    return;
+  endif
+  
+  foreach Mob in ListObjectsInBox(Src.x-5,Src.y-5,0,Src.x+5,Src.y+5,127)
+    if(Mob.isa(POLCLASS_NPC))
+      if(Mob.script == ":tourney:guardai")
+        var Ev := array;
+        Ev.+type   := EvID;
+        Ev.+source := Src;
+        ev.+time   := ReadGameClock();
+        ev.+msg    := msg;
+        SendEvent(Mob,Ev);
+        if(!NoDelay)
+          if(Src.dead)
+            SetObjProperty(Src,"#TrGuardSE",ReadGameClock()+105);
+          else
+            SetObjProperty(Src,"#TrGuardSE",ReadGameClock());
+          endif
+        endif
+        return;
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

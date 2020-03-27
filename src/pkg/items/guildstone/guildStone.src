@@ -1,0 +1,1529 @@
+//-----------------------------------------------------------------------------
+
+include "guild";
+include "include/gumpboxes";
+include "include/clock";
+include ":banking:common";
+include "include/tempmods";
+include ":banking:gold";
+include "include/packets";
+include "include/cmds/misc";
+include "include/checks/objchecks"; 
+include "include/mobile/age";
+include "include/player/target";
+include "include/player/young";
+
+include "../pkg/systems/mail/mail";
+include "../pkg/systems/mail/post";
+
+//-----------------------------------------------------------------------------
+
+var _GuildStone,_GuildId,_Guild,_GuildGm,_GuildSeer;
+var IconsCfg := ReadConfigFile("guildicons");
+
+//-----------------------------------------------------------------------------
+
+program GuildStone(who, stone)
+
+  _GuildStone := stone;
+  _GuildId    := GetGuildId(_GuildStone);
+  _Guild      := FindGuild(_GuildId);
+  _GuildGm    := FindGuildGm(_Guild);
+  _GuildSeer        := FindGuildSeer(_Guild);
+
+  if(!GetStoneFromGuild(_Guild))
+    SetGuildStone(_Guild,stone);
+  endif
+  
+  if(!_Guild or !_GuildGm)
+    if(_Guild and _GuildSeer)
+      SetGuildGm(_Guild, _GuildSeer);
+      _GuildGm   := _GuildSeer;
+      _GuildSeer := 0;
+    else
+      DestroyItem(Stone);
+      exit;
+    endif
+  endif
+  
+  _GuildStone.name := "Kamien Gildii na " + GetGuildName(_Guild);
+
+  if(!StandardItemCheck(who,_GuildStone,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  BuildMainGuildGump(who);
+
+  var Res;
+
+  while(stone and who and IsLoggedIn(who))
+    _GuildGm   := FindGuildGm(_Guild);
+    _GuildSeer := FindGuildSeer(_Guild);
+    Res  := GSend(who)[0];
+
+    if(!Res)
+      break;
+    endif
+
+    case(Res)
+      1:  ShowMembers(who);
+          continue;
+      2:
+      3:
+      4:  ToggleTitle(who);
+      5:  ResignGuild(who,_Guild);
+      6:  RecruitToGuild(who);
+      7:  ShowRecruits(who);
+          continue;
+      8:  ShowAllyGuilds(who);
+          continue;
+      9:  ShowEnemyGuilds(who);
+          continue;
+      10: ShowAllyDeclaration(who);
+          continue;
+      11: ShowEnemyDeclaration(who);
+          continue;
+      12: BuildIconGump(who);
+          continue;
+      13: ChangeGuildStoneColor(who);
+      14: MoveGuildStone(who);
+      15: DeclarePeace(who);
+          continue;
+      16: DeclareWar(who);
+          continue;
+      17: ChangeGuildName(who);
+      18: ChangeGuildAbv(who);
+      19: ChangeGM(who);
+      22: ChangeSeer(who);
+      20: DeclareStatus(who);
+          continue;
+      21: ShowEndWarDecs(who);
+          continue;
+      31: SetStatus(who,ORDER_ST);
+      32: SetStatus(who,CHAOS_ST);
+      33: SetStatus(who,NEUTRAL_ST);
+
+      50: GuildSendGlobalMail(who);
+      99: DestroyGuildCmd(who);
+    endcase
+
+    if(Res != 9999)
+      if(Res > 800000)
+        EraseGuildWarDelay(who,Res-800000);
+      elseif(Res > 700000)
+        DeclareGuildWar(who,Res-700000);
+      elseif(Res > 500000)
+        DeclareGuildPeace(who,Res-500000);
+      elseif(Res > 10000)
+        ChangeGuildIcon(_Guild,Res-10000,who);
+      elseif(Res > 1200)
+        DeclineEndWar(who,Res-1200);
+      elseif(Res > 1100)
+        AcceptEndWar(who,Res-1100);
+      elseif(Res > 1000)
+        DeclineWar(who,Res-1000);
+      elseif(Res > 900)
+        AcceptWar(who,Res-900);
+      elseif(Res > 800)
+        DeclinePeace(who,Res-800);
+      elseif(Res > 700)
+        AcceptPeace(who,Res-700);
+      elseif(Res > 600)
+        RemoveEnemyGuild(who,Res-600);
+      elseif(Res > 500)
+        RemoveAllyGuild(who,Res-500);
+      elseif(Res > 400)
+        DismissGuildMember(_Guild,GetGuildRecruit(_Guild,Res-400));
+      elseif(Res > 300)
+        AddGuildMember(_Guild,GetGuildRecruit(_Guild,Res-300),who);
+      elseif(Res > 200)
+        ChangeMemberTitle(who,GetGuildMember(_Guild,Res-200));
+      elseif(Res > 100)
+        ResignGuild(GetGuildMember(_Guild,Res-100),_Guild,who);
+      endif
+    endif
+    
+    BuildMainGuildGump(who);
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MainGump(who)
+
+  GInit(50,50);
+  GPage();
+  GResPic(0,0,BKGND_BLACKSLAB,480,420);
+  GResPic(16,18,BKGND_GOLDTRIM,446,386);
+
+  GTextLine(55,30,560,GetGuildName(_Guild) + "  ["+GetGuildAbv(_Guild)+"]");
+  if((!_Guild.GetProp("DecSt") and who == _GuildGm) or IsAdmin(who))
+    GButton(250,52,2714,2715,20);
+  endif
+  GTextLine(272, 52, 999, "Status:");
+  GTextLine(325, 52, 570, GetGuildStatus(_Guild));
+  GTextLine(35,54,999,"Mistrz:");
+  GTextLine(100,54,550, GetRealName(_GuildGm));
+  if(_GuildSeer)
+    GTextLine(35,72,999,"Zastepca:");
+    GTextLine(100,72,550,GetRealName(_GuildSeer));
+  endif
+  GGumpPic(392,30,GetGuildIcon(_Guild));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGuildGump(who)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var En := 0,Epn := 0;
+
+  if(EnemyDecs.size())
+    var DecKeys := EnemyDecs.keys();
+    foreach Dec in DecKeys
+      if(_Guild.isenemyguild(FindGuild(Dec)))
+        Epn := Epn + 1;
+      else
+        En := En + 1;
+      endif
+    endforeach
+  endif
+
+  MainGump(who);
+  GPage();
+  GTextLine(55,98 ,590,"Pokaz aktualny spis czlonkow.");
+  GButton(32, 98,2714,2715,1);
+  if(IsGuildMember(_Guild,who) or IsAdmin(who))
+    if(GetGuildAbv(who))
+      GTextLine(55,137,590,"Wylacz skrot w tytule");
+    else
+      GTextLine(55,137,590,"Wlacz skrot w tytule");
+    endif
+    GButton(32,137,2714,2715,4);
+    GTextLine(55,157,590,"Zrezygnuj z Gildii");
+    GButton(32,157,2714,2715,5);
+    GTextLine(55,187,590,"Rekrutuj kogos do gildii.");
+    GButton(32,187,2714,2715,6);
+  endif
+
+  GTextLine(55,207,590,"Zobacz liste rekrutow.");
+  GButton(32,207,2714,2715,7);
+
+  var Al := CInt(GetAllyDecs(_Guild).size());
+
+  GTextLine(55,248,590,"Zobacz liste przyjaznych Gildii.");
+  GButton(32,248,2714,2715,8);
+  GTextLine(55,268,590,"Zobacz liste wrogich Gildii.");
+  GButton(32,268,2714,2715,9);
+  GTextLine(55,288,__IfElse(Al,1424,590),"Zobacz propozycje pokoju. ["+Al+"]");
+  GButton(32,288,2714,2715,10);
+  GTextLine(55,308, __IfElse(En, 1211,590),"Zobacz deklaracje wojny. ["+En+"]");
+  GButton(32,308,2714,2715,11);
+  GTextLine(55,328,__IfElse(Epn, 1320, 590),"Zobacz propozycje zakonczenia wojny. ["+Epn+"]");
+  GButton(32,328,2714,2715,21);
+
+  if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+    GTextLine(325,98,590,"Wyslij wiadomosc");
+    GButton(302,98,2714,2715,50);
+  endif
+    
+  if(IsAdmin(who) or _GuildGm == who)
+    GTextLine(55,363,560,"Funkcje Mistrza Gildii.");
+    GButtonPage(32,363,2646,2647,GetNextPage());
+    
+    GPage();
+
+    GTextLine(55,98 ,590,"Zmien ikone Gildii.");
+    GButton(32, 98,2714,2715,12);
+    GTextLine(55,118 ,590,"Zmien kolor kamienia Gildii.");
+    GButton(32, 118,2714,2715,13);
+    GTextLine(55,138,590,"Transportuj kamien Gildii.");
+    GButton(32,138,2714,2715,14);
+
+    GTextLine(55,168,590,"Zaproponuj pokoj Gildii.");
+    GButton(32,168,2714,2715,15);
+    GTextLine(55,188,590,"Zadeklaruj wojne Gildii.");
+    GButton(32,188,2714,2715,16);
+
+    GTextLine(55,228,590,"Zniszcz Gildie.");
+    GButton(32,228,2714,2715,99);
+    
+    GTextLine(55,248,590,"Przekaz Gildie.");
+    GButton(32,248,2714,2715,19);
+
+    GTextLine(55,268,590,"Ustaw zastepce Gildii.");
+    GButton(32,268,2714,2715,22);
+
+    if(IsAdmin(who))
+      GTextLine(55,288,590,"Zmien nazwe Gildii.");
+      GButton(32,288,2714,2715,17);
+      GTextLine(55,308,590,"Zmien skrot Gildii.");
+      GButton(32,308,2714,2715,18);
+      GTextLine(55,338,590,"Pozostaly czas przymusowego istnienia :");
+      GTextLine(305,338,560,RealTime(GetGuildCreateTime(_Guild) + GUILD_TIME - ReadGameClock()));
+    endif
+
+    GTextLine(55,363,560,"Glowne funkcje.");
+    GButtonPage(32,363,2650,2651,GetPrevPage());
+
+  elseif(_GuildSeer == who)
+
+    GTextLine(55,363,560,"Funkcje zastepcy Mistrza Gildii.");
+    GButtonPage(32,363,2646,2647,GetNextPage());
+    
+    GPage();
+
+    GTextLine(55,98 ,590,"Zmien kolor kamienia Gildii.");
+    GButton(32, 98,2714,2715,13);
+    
+    GTextLine(55,148,590,"Zaproponuj pokoj Gildii.");
+    GButton(32,148,2714,2715,15);
+    GTextLine(55,168,590,"Zadeklaruj wojne Gildii.");
+    GButton(32,168,2714,2715,16);
+    
+    GTextLine(55,363,560,"Glowne funkcje.");
+    GButtonPage(32,363,2650,2651,GetPrevPage());
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowMembers(who)
+
+  var Members := _Guild.members;
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Czlonkowie :");
+  if(IsAdmin(who) or _GuildGm == who)
+    GTextLine(35,115,999,"Zwolnij");
+    GTextLine(400,115,999,"Tytul");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach Memb in Members
+    GCheckNextPage(10);
+    GTextLine(65,135+(GNPCount() * 20),590,i + ". " + GetRealName(Memb) + " ["+GetMemberTitle(Memb)+"]");
+    if((IsAdmin(who) or _GuildGm == who) and Memb != who)
+      GButton(37, 135+(GNPCount() * 20),2714,2715,100+i);
+    endif
+    if(IsAdmin(who) or _GuildGm == who)
+      GButton(410,135+(GNPCount() * 20),2714,2715,200+i);
+    endif
+    i := i + 1;
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowRecruits(who)
+
+  var Recruits := GetGuildRecruits(_Guild);
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Rekruci :");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and Recruits.size())
+    GTextLine(35,115,999,"Przylacz");
+    GTextLine(410,115,999,"Usun");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach Rec in Recruits
+    Rec := FindPlayerBySerial(Rec);
+    if(Rec)
+      GCheckNextPage(10);
+      GTextLine(65,135+(GNPCount() * 20),590,i + ". " + GetRealName(Rec));
+      if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and Rec != who)
+        GButton(37, 135+(GNPCount() * 20),2714,2715,300+i);
+        GButton(410,135+(GNPCount() * 20),2714,2715,400+i);
+      endif
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ToggleTitle(who)
+
+  if(GetGuildAbv(who))
+    SetGuildAbv(who,0);
+  else
+    SetGuildAbv(who,1);
+  endif
+  RefreshGuildTitle(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RecruitToGuild(who)
+
+  SendSysMessage(who,"Wybierz osobe do rekturacji.",FONT_NORMAL,COLOR_GREEN);
+  var Recruit := ObjTarget(who,TGTOPT_CHECK_LOS + TGTOPT_NEUTRAL);
+
+  if(!StandardMobCheck(who,Recruit))
+    return;
+  endif
+
+  if(!IsPlayer(Recruit) or Recruit == who)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+/*  if(IsYoung(Recruit))// or GetAge(Recruit) < ADULT_AGE)
+    SendSysMessage(who,"Ta osoba jest za mloda, aby mogla dolaczyc do gildii.",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(Recruit,"Jestes jeszcze za mlody, by moc dolaczyc do gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif*/
+
+  if(GetGuildId(Recruit))
+    SendSysMessage(who, "Ta osoba przynalezy juz do Gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  case(GetGuildStatus(_Guild))
+    CHAOS_ST:   if(!Recruit.murderer)
+                  SendSysMessage(who,"Ta osoba nie jest morderca.",FONT_NORMAL,COLOR_RED);
+                  return 0;
+                endif
+    ORDER_ST:
+    NEUTRAL_ST: if(Recruit.murderer)
+                  SendSysMessage(who,"Ta osoba jest morderca.",FONT_NORMAL,COLOR_RED);
+                  return 0;
+                endif
+  endcase
+
+   if(!CanMod(Recruit, MOD_INCO)) // Osoba na inco/poli/wilk itd. nie moze zostac dodana do gildii
+    SendSysMessage(who,"Ta osoba jest pod wplywem czaru uniemozliwiajacego rozpoznanie jej.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(Recruit, "Czy chcial"+ggm(Recruit,1)+" przylaczyc sie do Gildii " + GetGuildName(_Guild) + ".",FONT_NORMAL,COLOR_BLUE);
+
+  if(!YesNo(Recruit,"Przylaczyc?"))
+    SendSysMessage(Recruit,"Odmowil"+ggm(Recruit,3)+".",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,Recruit.name+" zdecydowal"+ggm(Recruit,4)+" ze nie dolaczy do twej Gildii.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var aRes := AddGuildRecruit(_Guild,Recruit);
+  
+  if(aRes == error)
+    SendSysMessage(who,Recruit.name+" jest juz czlonkiem Gildii.",FONT_NORMAL,COLOR_RED);
+  elseif(aRes)
+    SendSysMessage(who,Recruit.name+" zostal"+ggm(Recruit,4)+" rekrut"+ggm(Recruit,9)+" Gildii.",FONT_NORMAL,COLOR_GREEN);
+    SendSysMessage(Recruit, "Zostal"+ggm(Recruit,3)+" rektut"+ggm(Recruit,9)+" Gildii "+GetGuildName(_Guild)+ ".",FONT_NORMAL,COLOR_GREEN);
+  endif
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeMemberTitle(who,Memb)
+
+  var NewTitle := SendTextEntryGump(who,"Jaki tytul dla "+Memb.name+"?",TE_CANCEL_ENABLE);
+  if(!NewTitle)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(IsGuildGm(_Guild,Memb))
+    if(len(NewTitle) > MAX_GM_TITLE_SIZE)
+      SendSysMessage(who,"Za dlugi tytul.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  else
+    if(len(NewTitle) > MAX_GUILD_TITLE_SIZE)
+      SendSysMessage(who,"Za dlugi tytul.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+  
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" tytul osobie "+Memb.name+" na "+NewTitle+".",FONT_NORMAL,COLOR_GREEN);
+  SetMemberTitle(Memb,NewTitle);
+  RefreshGuildTitle(Memb);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeGuildName(who)
+
+  var NewName := SendTextEntryGump(who,"Jaka nowa nazwa ?",TE_CANCEL_ENABLE);
+  if(!NewName)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" tytul Gildii "+GetGuildName(_Guild)+" na "+NewName+".",FONT_NORMAL,COLOR_GREEN);
+  SetGuildName(_Guild,NewName);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeGuildAbv(who)
+
+  var NewAbv := SendTextEntryGump(who,"Jaki nowy skrot ?",TE_CANCEL_ENABLE);
+  if(!NewAbv)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" tytul Gildii "+GetGuildAbv(_Guild)+" na "+NewAbv+".",FONT_NORMAL,COLOR_GREEN);
+  SetGuildAbv(_Guild,NewAbv);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildIconGump(who)
+
+  var Icons := GetConfigStringKeys(IconsCfg);
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Ikony:");
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  foreach Icon in Icons
+    Icon := CInt(Icon);
+    GCheckNextPage(3);
+    GButton(  100,140+(GNPCount()*80),Icon,Icon+1,10000+Icon);
+    GTextLine(170,160+(GNPCount()*80),590,CLStr(IconsCfg[Icon].Name));
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeGuildIcon(_Guild,Icon,who)
+
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" ikone Gildii na "+CLStr(IconsCfg[Icon].Name)+".",FONT_NORMAL,COLOR_GREEN);
+  SetGuildIcon(_Guild,Icon);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAllyGuilds(who)
+
+  var AllyGuilds := _Guild.allyguilds;
+  var CSt,Timer := GetGuildStat(_Guild);
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Przyjazne Gildie:");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and AllyGuilds.size())
+    GTextLine(72,115,999,"Usun");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach AGuild in AllyGuilds
+    if(!Timer[AGuild.guildid])
+      RefreshGuildsStat(_Guild);
+      Timer := GetGuildStat(_Guild);
+    endif
+    
+    var Icon := GetGuildIcon(AGuild);
+    CSt  := GetGuildStatus(AGuild);
+    GCheckNextPage(3);
+    GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+    GTextLine(125,140+(GNPCount()*80),590,GetGuildName(AGuild) + " ["+GetGuildAbv(AGuild)+"]" );
+    GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(AGuild)) );
+    GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+    
+    GTextLine(350,160+(GNPCount()*80),550,"Data zawarcia:" );
+    GTextLine(350,180+(GNPCount()*80),560,GetDate(Timer[AGuild.guildid]) );
+      
+    if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+      GButton(60,140+(GNPCount()*80),Icon,Icon+1,500+i);
+    endif
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEnemyGuilds(who)
+
+  var EnemyGuilds := _Guild.enemyguilds;
+  var Cst,Timer := GetGuildStat(_Guild);
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Wrogie Gildie:");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and EnemyGuilds.size())
+    GTextLine(62,115,999,"Propozycja");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach EGuild in EnemyGuilds
+    if(!Timer[EGuild.guildid])
+      RefreshGuildsStat(_Guild);
+      Timer := GetGuildStat(_Guild);
+    endif
+    
+    var Icon := GetGuildIcon(EGuild);
+    CSt  := GetGuildStatus(EGuild);
+    GCheckNextPage(3);
+    GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+    GTextLine(125,140+(GNPCount()*80),590,GetGuildName(EGuild) + " ["+GetGuildAbv(EGuild)+"]" );
+    GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(EGuild)) );
+    GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+
+    GTextLine(350,160+(GNPCount()*80),550,"Data zawarcia:" );
+    GTextLine(350,180+(GNPCount()*80),560,GetDate(Timer[EGuild.guildid]) );
+    
+    if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+      GButton(60,140+(GNPCount()*80),Icon,Icon+1,600+i);
+    endif
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RemoveAllyGuild(who,Nr)
+
+  if(!YesNo(who,"Napewno?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var AllyGuild := _Guild.allyguilds;
+  AllyGuild     := AllyGuild[Nr];
+  _Guild.removeallyguild(AllyGuild);
+  RefreshGuildsStat(_Guild);
+  RefreshGuildsStat(AllyGuild);
+  
+  SendSysMessage(who,"Zerwano rozejm z Gildia "+GetGuildName(AllyGuild)+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RemoveEnemyGuild(who,Nr)
+
+  var EnemyGuild := _Guild.enemyguilds;
+  EnemyGuild     := EnemyGuild[Nr];
+
+  var Timer      := GetGuildStat(_Guild);
+  
+  if(!IsAdmin(who))
+    if(Timer[EnemyGuild.guildid] + GUILD_DECEXPIRE > ReadGameClock())
+      SendSysMessage(who,"Nie minelo dosc czasu na zakonczenie wojny z ta gildia.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var EGDecs    := GetEnemyDecs(EnemyGuild);
+  
+  if(EGDecs[_Guild.guildid])
+    SendSysMessage(who,"Wyslano juz propozycje zakonczenia wojny.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(EnemyDecs[EnemyGuild.guildid])
+    SendSysMessage(who,"Ta gildia wyslala juz propozycje zakonczenia wojny.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!YesNoEx(who, ToUnicode("Czy na pewno chcesz wys³aæ propozycje|zakoñczenia wojny z gildia '"+GetGuildName(EnemyGuild)+"' ?")))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  EGDecs[_Guild.guildid] := ReadGameClock();
+  
+  SetEnemyDecs(EnemyGuild,EGDecs);
+  
+  SendSysMessage(who,"Wyslano propozycje zakonczenia wojny.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AcceptEndWar(who,DecId)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var DecKeys   := EnemyDecs.keys();
+
+  DecId := DecKeys[DecId];
+
+  var DAGuild   := FindGuild(DecId);
+  
+  if(DAGuild)
+    if(!YesNoEx(who, ToUnicode("Czy chcesz zaakceptowaæ propozycje|zakoñczenia wojny z gildia '"+GetGuildName(DAGuild)+"' ?")))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  
+    _Guild.removeenemyguild(DAGuild);
+    RefreshGuildsStat(_Guild);
+    RefreshGuildsStat(DAGuild);
+    EnemyDecs.erase(DecId);
+    SetEnemyDecs(_Guild,EnemyDecs);
+    
+    var Text := array;
+    Text.append(ToUnicode("Twoja gildia zakoñczy³a wojnê"));
+    Text.append(ToUnicode("z gildi¹ '"+GetGuildName(_Guild)+"'"));
+    Text.append("");
+    Text.append(ToUnicode("Zakoñczenie wojny zosta³o zaakceptowane."));
+
+    foreach Memb in (DAGuild.members)
+      PostTextMail(Memb, who, "Wojna zakoñczona!", Text);
+    endforeach
+
+    AlarmMembers(_Guild,"Wojna zakonczona z Gildia "+GetGuildName(DAGuild)+".",COLOR_GREEN);
+    AlarmMembers(DAGuild,"Wojna zakonczona z Gildia "+GetGuildName(_Guild)+".",COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclineEndWar(who,DecId)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var DecKeys   := EnemyDecs.keys();
+
+  DecId := DecKeys[DecId];
+
+  var DAGuild   := FindGuild(DecId);
+
+  if(DAGuild)
+    if(!YesNoEx(who, ToUnicode("Czy chcesz odrzuciæ propozycje|zakoñczenia wojny z gildia '"+GetGuildName(DAGuild)+"' ?")))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    EnemyDecs.erase(DecId);
+
+    SetEnemyDecs(_Guild,EnemyDecs);
+    
+    var Text := array;
+    Text.append(ToUnicode("Twoja gildia odrzuci³a propozycjê zakoñczenia wojny"));
+    Text.append(ToUnicode("z gildi¹ '"+GetGuildName(_Guild)+"'"));
+    Text.append("");
+    Text.append(ToUnicode("Wojna nadal trwa!"));
+
+    foreach Memb in (DAGuild.members)
+      PostTextMail(Memb, who, "Odrzucono propozycje zakoñczenia wojny!", Text);
+    endforeach
+
+    AlarmMembers(_Guild,GetGuildName(_Guild)+" odrzucila zakonczenie wojny z gildia "+GetGuildName(DAGuild)+".");
+    AlarmMembers(DAGuild,GetGuildName(_Guild)+" odrzucila zakonczenie wojny z gildia "+GetGuildName(DAGuild)+".");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAllyDeclaration(who)
+
+  var AllyDecs := GetAllyDecs(_Guild);
+  var CSt,ADGuild;
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Propozycje pokoju :");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and AllyDecs.size())
+    GTextLine(59,115,999,"Przyjmij");
+    GTextLine(390,115,999,"Odrzuc");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach Timer in AllyDecs
+    ADGuild := FindGuild(CInt(_Timer_iter));
+    if(ADGuild)
+      var Icon := GetGuildIcon(ADGuild);
+      CSt := GetGuildStatus(ADGuild);
+      GCheckNextPage(3);
+      GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+      GTextLine(125,140+(GNPCount()*80),590,GetGuildName(ADGuild) + " ["+GetGuildAbv(ADGuild)+"]" );
+      GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(ADGuild)) );
+      GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+      
+      GTextLine(350,160+(GNPCount()*80),550,"Data:" );
+      GTextLine(350,180+(GNPCount()*80),560,GetDate(Timer) );
+      
+      if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+        GButton(60, 140+(GNPCount()*80),Icon,Icon+1,700+i);
+        GButton(410,150+(GNPCount()*80),2714,2715,800+i);
+      endif
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEnemyDeclaration(who)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var CSt,EdGuild;
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Deklaracje wojny :");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and EnemyDecs.size())
+    GTextLine(59,115,999,"Przyjmij");
+    GTextLine(410,115,999,"Zaplac");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach Timer in EnemyDecs
+    EDGuild := FindGuild(CInt(_Timer_iter));
+    if(EDGuild and !_Guild.isenemyguild(EDGuild))
+      var Icon := GetGuildIcon(EDGuild);
+      CSt  := GetGuildStatus(EDGuild);
+      GCheckNextPage(3);
+      GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+      GTextLine(125,140+(GNPCount()*80),590,GetGuildName(EDGuild) + " ["+GetGuildAbv(EDGuild)+"]" );
+      GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(EDGuild)) );
+      GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+
+      GTextLine(350,140+(GNPCount()*80),560,(DECWAR_GOLD * _Guild.members.size())+" gp");
+      GTextLine(350,160+(GNPCount()*80),550,"Data:" );
+      GTextLine(350,180+(GNPCount()*80),560,GetDate(Timer) );
+      
+      if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+        GButton(60, 140+(GNPCount()*80),Icon,Icon+1,900+i);
+        GButton(420,160+(GNPCount()*80),2714,2715,1000+i);
+      endif
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEndWarDecs(who)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var CSt,EdGuild;
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Propozycje zakonczenia wojny :");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and EnemyDecs.size())
+    GTextLine(59,115,999,"Zakoncz");
+    GTextLine(410,115,999,"Odrzuc");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach Timer in EnemyDecs
+    EDGuild := FindGuild(CInt(_Timer_iter));
+    if(EDGuild and _Guild.isenemyguild(EDGuild))
+      var Icon := GetGuildIcon(EDGuild);
+      CSt  := GetGuildStatus(EDGuild);
+      GCheckNextPage(3);
+      GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+      GTextLine(125,140+(GNPCount()*80),590,GetGuildName(EDGuild) + " ["+GetGuildAbv(EDGuild)+"]" );
+      GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(EDGuild)) );
+      GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+
+      GTextLine(350,160+(GNPCount()*80),550,"Data:" );
+      GTextLine(350,180+(GNPCount()*80),560,GetDate(Timer) );
+
+      if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+        GButton(60, 140+(GNPCount()*80),Icon,Icon+1,1100+i);
+        GButton(420,160+(GNPCount()*80),2714,2715,1200+i);
+      endif
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclarePeace(who)
+
+  var Guilds    := ListGuilds();
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var AllyDecs  := GetAllyDecs(_Guild);
+  var GSt       := GetGuildStatus(_Guild);
+  var CSt, Color, aDecs, eDecs;
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Gildie :");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and Guilds.size() > 1)
+    GTextLine(35,115,999,"Zaproponuj pokoj");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach CGuild in Guilds
+    CSt := GetGuildStatus(CGuild);
+    if(Cguild and CGuild.guildid != _GuildId and !_Guild.isallyguild(CGuild) and !_Guild.isenemyguild(CGuild) and !EnemyDecs[CGuild.guildid] and !AllyDecs[CGuild.guildid] and (GSt == CSt or (Gst == NEUTRAL_ST or CSt == NEUTRAL_ST)))
+      var Icon := GetGuildIcon(CGuild);
+      aDecs := GetAllyDecs(CGuild);
+      eDecs := GetEnemyDecs(CGuild);
+
+      if(aDecs.exists(_GuildId))
+        Color := 1419;
+      elseif(eDecs.exists(_GuildId))
+        Color := 1204;
+      else
+        Color := 590;
+      endif
+
+      GCheckNextPage(3);
+      GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+      GTextLine(125,140+(GNPCount()*80),Color,GetGuildName(CGuild) + " ["+GetGuildAbv(CGuild)+"]" );
+      GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(CGuild)) );
+      GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+      if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+        GButton(60,140+(GNPCount()*80),Icon,Icon+1,500000+CGuild.guildid);
+      endif
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanDeclareWar(who, DGuild)
+
+  if(GetGuildStatus(_Guild) == CHAOS_ST)
+    return 1;
+  endif
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var orderNum  := 0;
+  var neutrNum  := 0;
+  var dgSt      := GetGuildStatus(DGuild);
+  var gdCfg     := ReadConfigFile(GUILDS_CFG);
+  var Guilds    := ListGuilds();
+  var DecKeys   := EnemyDecs.keys();
+
+  foreach eGuild in DecKeys
+    case(GetGuildStatus(FindGuild(eGuild)))
+      ORDER_ST:    orderNum := orderNum + 1;
+      NEUTRAL_ST:  neutrNum := neutrNum + 1;
+    endcase
+  endforeach
+
+  foreach eGuild in (_Guild.enemyguilds)
+    case(GetGuildStatus(eGuild))
+      ORDER_ST:    orderNum := orderNum + 1;
+      NEUTRAL_ST:  neutrNum := neutrNum + 1;
+    endcase
+  endforeach
+
+  foreach aGuild in Guilds
+    EnemyDecs := GetEnemyDecs(aGuild);
+    var Keys := EnemyDecs.keys();
+    foreach eGuild in Keys
+      if(eGuild == _GuildId)
+        case(GetGuildStatus(aGuild))
+          ORDER_ST:    orderNum := orderNum + 1;
+          NEUTRAL_ST:  neutrNum := neutrNum + 1;
+        endcase
+      endif
+    endforeach
+  endforeach
+
+  case(GetGuildStatus(_Guild))
+    ORDER_ST:      if(dgSt == ORDER_ST)
+                     if(orderNum >= CInt(gdCfg["Wars"].Order_Order))
+                       SendSysMessage(who, "Nie mozesz zadeklarowac wiecej wojen Gildii orderowej.", FONT_NORMAL, COLOR_RED);
+                       return 0;
+                     endif
+                   elseif(dgSt == NEUTRAL_ST)
+                     if(neutrNum >= CInt(gdCfg["Wars"].Order_Neutral))
+                       SendSysMessage(who, "Nie mozesz zadeklarowac wiecej wojen Gildii neutralnej.", FONT_NORMAL, COLOR_RED);
+                       return 0;
+                     endif
+                   endif
+
+    NEUTRAL_ST:    if(dgSt == ORDER_ST)
+                     if(orderNum >= CInt(gdCfg["Wars"].Neutral_Order))
+                       SendSysMessage(who, "Nie mozesz zadeklarowac wiecej wojen Gildii orderowej.", FONT_NORMAL, COLOR_RED);
+                       return 0;
+                     endif
+                   elseif(dgSt == NEUTRAL_ST)
+                     if(neutrNum >= CInt(gdCfg["Wars"].Neutral_Neutral))
+                       SendSysMessage(who, "Nie mozesz zadeklarowac wiecej wojen Gildii neutralnej.", FONT_NORMAL, COLOR_RED);
+                       return 0;
+                     endif
+                   endif
+  endcase
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclareWar(who)
+
+  var Guilds    := ListGuilds();
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var AllyDecs  := GetAllyDecs(_Guild);
+  var Cst, Color, aDecs, eDecs;
+
+  MainGump(who);
+  GAddPageData(437,115,2650,2651,437,374,2646,2647);
+
+  GTextLine(50,95,570,"Gildie :");
+  if((IsAdmin(who) or _GuildGm == who or _GuildSeer == who) and Guilds.size() > 1)
+    GTextLine(35,115,999,"Zadeklaruj wojne");
+  endif
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  var i := 1;
+
+  foreach CGuild in Guilds
+    CSt := GetGuildStatus(CGuild);
+    if(Cguild and CGuild.guildid != _GuildId and !_Guild.isallyguild(CGuild) and !_Guild.isenemyguild(CGuild) and !EnemyDecs[CGuild.guildid] and !AllyDecs[CGuild.guildid])
+      var Icon  := GetGuildIcon(CGuild);
+      aDecs := GetAllyDecs(CGuild);
+      eDecs := GetEnemyDecs(CGuild);
+
+      if(aDecs.exists(_GuildId))
+        Color := 1419;
+      elseif(eDecs.exists(_GuildId))
+        Color := 1204;
+      else
+        Color := 590;
+      endif
+
+      GCheckNextPage(3);
+      GTextLine(35 ,160+(GNPCount()*80),590,i+".");
+      GTextLine(125,140+(GNPCount()*80),Color,GetGuildName(CGuild) + " ["+GetGuildAbv(CGuild)+"]" );
+      GTextLine(125,160+(GNPCount()*80),550,"Mistrz: "+GetRealName(FindGuildGm(CGuild)) );
+      GTextLine(125,180+(GNPCount()*80),560,"Status: "+CSt );
+      
+      var Delay := CGuild.GetProp("WarDelay_"+_GuildId);
+      if(Delay and Delay + GUILD_WAR_DELAY > ReadGameClock())
+        GTextLine(280,160+(GNPCount()*80),999,"Deklaracja wojny niemozliwa.");
+        if(IsAdmin(who))
+          GButton(260,160+(GNPCount()*80),2714,2715,800000+CGuild.guildid);
+        endif
+      endif
+
+      GTextLine(280,180+(GNPCount()*80),550,"Odrzucila wojne "+GetDecCn(CGuild)+" razy");
+      if(IsAdmin(who) or _GuildGm == who or _GuildSeer == who)
+        GButton(60,140+(GNPCount()*80),Icon,Icon+1,700000+CGuild.guildid);
+      endif
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclareGuildPeace(who,GuildId)
+
+  var DGuild := FindGuild(GuildID);
+  
+  if(DGuild)
+    var AllyDecs  := GetAllyDecs(DGuild);
+    var EnemyDecs := GetEnemyDecs(DGuild);
+    
+    if(AllyDecs[_GuildId])
+      SendSysMessage(who,"Juz zaproponowano pokoj tej Gildii.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+    
+    if(EnemyDecs[_GuildId])
+      SendSysMessage(who,"Juz zadeklarowano wojne tej Gildii.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+    
+    if(!IsAdmin(who))
+      if(GetGuildDecDelay(_Guild) + GUILD_DECDELAY > ReadGameClock())
+        SendSysMessage(who,"Musisz odczekac pewien czas.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      elseif(GetGuildDecDelay(_Guild,GuildId) + GUILD_ONE_DECDELAY > ReadGameClock())
+        SendSysMessage(who,"Musisz odczekac pewien czas.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+    endif
+    
+    AllyDecs[_GuildId] := ReadGameClock();
+    SendSysMessage(who,"Zaproponowal"+ggm(who,3)+" pokoj Gildii "+GetGuildName(DGuild)+".",FONT_NORMAL,COLOR_GREEN);
+    SetAllyDecs(DGuild,AllyDecs);
+    SetGuildDecDelay(_Guild,GuildId);
+  endif
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseGuildWarDelay(who, GuildId)
+
+  if(!IsAdmin(who))
+    return;
+  endif
+  
+  var DGuild := FindGuild(GuildID);
+  DGuild.EraseProp("WarDelay_"+_GuildId);
+
+  SendSysMessage(who, "Usunieto delay na wojne.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclareGuildWar(who,GuildId)
+
+  var DGuild := FindGuild(GuildID);
+
+  if(DGuild)
+    var AllyDecs  := GetAllyDecs(DGuild);
+    var EnemyDecs := GetEnemyDecs(DGuild);
+    
+    if(AllyDecs[_GuildId])
+      SendSysMessage(who,"Juz zaproponowano pokoj tej Gildii.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+    
+    if(EnemyDecs[_GuildId])
+      SendSysMessage(who,"Juz zadeklarowano wojne tej Gildii.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+
+    var Delay := CInt(DGuild.GetProp("WarDelay_"+_GuildId));
+
+    if(Delay and (Delay + GUILD_WAR_DELAY) > ReadGameClock())
+      SendSysMessage(who,"Niedawno ta gildia odrzucila deklaracje wojny.",FONT_NORMAL,COLOR_RED);
+      SendSysMessage(who,"Musisz odczekac jeszcze "+DescGameTime((Delay + GUILD_WAR_DELAY) - ReadGameClock())+".",FONT_NORMAL,COLOR_ORANGE);
+      return 0;
+    endif
+    
+    if(!IsAdmin(who))
+      if(GetGuildDecDelay(_Guild) + GUILD_DECDELAY > ReadGameClock())
+        SendSysMessage(who,"Musisz odczekac pewien czas.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      elseif(GetGuildDecDelay(_Guild,GuildId) + GUILD_ONE_DECDELAY > ReadGameClock())
+        SendSysMessage(who,"Musisz odczekac pewien czas.",FONT_NORMAL,COLOR_RED);
+        return 0;
+      endif
+    endif
+
+    if(!CanDeclareWar(who, DGuild))
+      return;
+    endif
+    
+    EnemyDecs[_GuildId] := ReadGameClock();
+    SendSysMessage(who,"Zadeklarowal"+ggm(who,3)+" wojne Gildii "+GetGuildName(DGuild)+".",FONT_NORMAL,COLOR_GREEN);
+    SetEnemyDecs(DGuild,EnemyDecs);
+    AlarmMembers(DGuild,"Gildia "+GetGuildName(_Guild)+" zadeklarowala twej gildii wojne!");
+    SetGuildDecDelay(_Guild,GuildId);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AcceptPeace(who,DecId)
+
+  var AllyDecs := GetAllyDecs(_Guild);
+  var DecKeys   := AllyDecs.keys();
+
+  DecId := DecKeys[DecId];
+  AllyDecs.erase(DecId);
+
+  var DAGuild  := FindGuild(DecId);
+  if(DAGuild)
+    SendSysMessage(who,"Zawarl"+ggm(who,3)+" pokoj z Gildia "+GetGuildName(DAGuild)+".",FONT_NORMAL,COLOR_GREEN);
+    _Guild.addallyguild(DAGuild);
+    RefreshGuildsStat(_Guild);
+    RefreshGuildsStat(DAGuild);
+  endif
+  
+  SetAllyDecs(_Guild,AllyDecs);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclinePeace(who,DecId)
+
+  var AllyDecs := GetAllyDecs(_Guild);
+  var DecKeys   := AllyDecs.keys();
+
+  DecId := DecKeys[DecId];
+  AllyDecs.erase(DecId);
+
+  var DAGuild  := FindGuild(DecId);
+  if(DAGuild)
+    SendSysMessage(who,"Odrzucil"+ggm(who,3)+" pokoj z Gildia "+GetGuildName(DAGuild)+".",FONT_NORMAL,COLOR_RED);
+  endif
+  
+  SetAllyDecs(_Guild,AllyDecs);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AcceptWar(who,DecId)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var DecKeys   := EnemyDecs.keys();
+
+  DecId := DecKeys[DecId];
+  EnemyDecs.erase(DecId);
+
+  var DAGuild   := FindGuild(DecId);
+  
+  if(DAGuild)
+    SendSysMessage(who,"Rozpoczal"+ggm(who,3)+" wojne z Gildia "+GetGuildName(DAGuild)+".",FONT_NORMAL,COLOR_GREEN);
+    _Guild.addenemyguild(DAGuild);
+    RefreshGuildsStat(_Guild);
+    RefreshGuildsStat(DAGuild);
+    
+    var Text := array;
+    Text.append(ToUnicode("Twoja gildia zadeklarowa³a wojnê"));
+    Text.append(ToUnicode("gildii '"+GetGuildName(_Guild)+"'"));
+    Text.append("");
+    Text.append(ToUnicode("Mistrz wrogiej gildii postanowi³ podj¹æ wyzwanie."));
+    Text.append(ToUnicode("Deklaracja wojny zosta³a przyjêta i teraz trwa!"));
+
+    foreach Memb in (DAGuild.members)
+      PostTextMail(Memb, who, ToUnicode("Wyzwanie wojny podjête"), Text);
+    endforeach
+    
+    AlarmMembers(_Guild,"Wojna z Gildia "+GetGuildName(DAGuild)+" rozpoczeta!",COLOR_ORANGE);
+    AlarmMembers(DAGuild,"Wojna z Gildia "+GetGuildName(_Guild)+" rozpoczeta!",COLOR_ORANGE);
+  endif
+  
+  SetEnemyDecs(_Guild,EnemyDecs);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclineWar(who,DecId)
+
+  var EnemyDecs := GetEnemyDecs(_Guild);
+  var DecKeys   := EnemyDecs.keys();
+
+  DecId := DecKeys[DecId];
+  EnemyDecs.erase(DecId);
+
+  var DAGuild   := FindGuild(DecId);
+
+  if(DAGuild)
+    if(!SetDeclinePunisment(who,_Guild,DAGuild))
+      SendSysMessage(who,"Nie masz dosc zlota by odrzucic wojne.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    _Guild.SetProp("WarDelay_"+DecId, ReadGameClock());
+    SendSysMessage(who,"Odmowil"+ggm(who,3)+" wojny z Gildia "+GetGuildName(DAGuild)+".",FONT_NORMAL,COLOR_RED);
+    
+    var Text := array;
+    Text.append(ToUnicode("Twoja gildia zadeklarowa³a wojnê"));
+    Text.append(ToUnicode("gildii '"+GetGuildName(_Guild)+"'"));
+    Text.append("");
+    Text.append(ToUnicode("Mistrz wrogiej gildii nie chce prowadziæ wojny,"));
+    Text.append(ToUnicode("w zwi¹zku z tym wola³ zap³aciæ kwotê w wysokoœci"));
+    Text.append(ToUnicode((DECWAR_GOLD * _Guild.members.size())+" gp."));
+    Text.append(ToUnicode("Zloto zosta³o zdeponowane w Twojej skrzyni bankowej."));
+
+    foreach Memb in (DAGuild.members)
+      PostTextMail(Memb, who, "Odmowa przyjecia wojny", Text);
+    endforeach
+    
+    AlarmMembers(_Guild,"Wojna z Gildia "+GetGuildName(DAGuild)+" odrzucona!",COLOR_WHITE);
+    AlarmMembers(DAGuild,"Wojna z Gildia "+GetGuildName(_Guild)+" odrzucona!",COLOR_WHITE);
+  endif
+  
+  SetEnemyDecs(_Guild,EnemyDecs);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeGuildStoneColor(who)
+
+  var Color := SelectColor(who,_GuildStone);
+  if(Color > 1 and Color < 1001)
+    _GuildStone.color := Color;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveGuildStone(who)
+
+  if(ReadGameClock() < _Guild.GetProp("movetime"))
+    SendSysMessage(who, "Kamien Gildii moze byc przenoszony raz na 3 dni.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  _Guild.SetProp("movetime",ReadGameClock()+ GUILD_MOVE_TIME);
+  _GuildStone.movable := 1;
+  _GuildStone.newbie  := 1;
+  MoveItemToContainer(_GuildStone,who.backpack);
+  _GuildStone.graphic := UOBJ_PACKED_GUIDSTONE_GRAPHIC;
+  _GuildStone.movable := 0;
+  _GuildStone.usescript := ":guildstone:guildmove";
+  SendSysMessage(who, "Aby postawic Kamien Gildii z powrotem, uzyj go.",FONT_NORMAL,COLOR_GREEN);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeGM(who)
+
+  var newGm;
+
+  if(IsAdmin(who))
+    var GmSer := SendTextEntryGump(who,"Wpisz serial nowego GMa",TE_CANCEL_ENABLE);
+    newGm := FindPlayerBySerial(GmSer);
+  else
+    SendSysMessage(who, "Wskaz nowego mistrza Gildii.", FONT_NORMAL, COLOR_GREEN);
+    newGm := Target(who);
+  endif
+  
+  if(!newGm or newGm == who)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!IsPlayer(newGm))
+    SendSysMessage(who, "To nie jest osoba.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsGuildMember(_Guild, newGm))
+    SendSysMessage(who, "Ta osoba nie jest czlonkiem Gildii.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsAdmin(who))
+  
+    if(!CheckLineOfSight(who, newGm) or Distance(who, newGm) > 4)
+      SendSysMessage(who, "Nie widzisz tej osoby.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who, "Oczekiwanie na potwierdzenie checi zostania nowym mistrzem Gildii...", FONT_NORMAL, COLOR_GREEN);
+    Detach();
+
+    SendSysMessage(newGm, "Czy chcesz zostac nowym mistrzem Gildii "+GetGuildName(_Guild)+" ?", FONT_NORMAL, COLOR_BLUE);
+
+    if(!YesNo(newGm, "Na pewno?"))
+      SendSysMessage(who, "Osoba "+newGm.name+" odmowila, nie chce zostac mistrzem Gildii.", FONT_NORMAL, COLOR_RED);
+      exit;
+    endif
+  endif
+  
+  SetGuildGm(_Guild,newGm);
+  SendSysMessage(who,"Nowym mistrzem Gildii "+GetGuildName(_Guild)+" zostal "+newGm.name,FONT_NORMAL, COLOR_BLUE);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeSeer(who)
+
+  var newSeer;
+
+  if(IsAdmin(who))
+    var Ser := SendTextEntryGump(who,"Wpisz serial nowego Seera",TE_CANCEL_ENABLE);
+    newSeer := FindPlayerBySerial(Ser);
+  else
+    SendSysMessage(who, "Wskaz nowego zastepce Gildii.", FONT_NORMAL, COLOR_GREEN);
+    newSeer := Target(who);
+  endif
+  
+  if(!newSeer or newSeer == who)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!IsPlayer(newSeer))
+    SendSysMessage(who, "To nie jest osoba.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsGuildMember(_Guild, newSeer))
+    SendSysMessage(who, "Ta osoba nie jest czlonkiem Gildii.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsAdmin(who))
+    
+    if(!CheckLineOfSight(who, newSeer) or Distance(who, newSeer) > 4)
+      SendSysMessage(who, "Nie widzisz tej osoby.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who, "Oczekiwanie na potwierdzenie checi zostania nowym zastepca Gildii...", FONT_NORMAL, COLOR_GREEN);
+    Detach();
+
+    SendSysMessage(newSeer, "Czy chcesz zostac nowym zastepca Gildii "+GetGuildName(_Guild)+" ?", FONT_NORMAL, COLOR_BLUE);
+
+    if(!YesNo(newSeer, "Na pewno?"))
+      SendSysMessage(who, "Osoba "+newSeer.name+" odmowila, nie chce zostac zastepca Gildii.", FONT_NORMAL, COLOR_RED);
+      exit;
+    endif
+  endif
+  
+  SetGuildSeer(_Guild,newSeer);
+  SendSysMessage(who,"Nowym zastepca Gildii "+GetGuildName(_Guild)+" zostal "+newSeer.name,FONT_NORMAL, COLOR_BLUE);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeclareStatus(who)
+
+  MainGump(who);
+
+  GTextLine(50,75,570,"Deklaracja Statusu:");
+  
+  GTextLine(400,365,560,"Wroc");
+  GButton(377,365,2714,2715,9999);
+
+  GButton(40,130,2714,2715,31);
+  GTextLine(65,130,590,ORDER_ST);
+
+  GButton(40,160,2714,2715,32);
+  GTextLine(65,160,590,CHAOS_ST);
+
+  GButton(40,190,2714,2715,33);
+  GTextLine(65,190,590,NEUTRAL_ST);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetStatus(who,St)
+
+  var Rec     := GetGuildRecruits(_Guild);
+  var Members := {};
+  
+  foreach Memb in Rec
+    Members.append(Memb);
+  endforeach
+
+  foreach Memb in (_Guild.members)
+    Members.append(Memb);
+  endforeach
+
+  case(St)
+    CHAOS_ST:   foreach Memb in Members
+                  if(!Memb.murderer)
+                    SendSysMessage(who,"Osoba "+Memb.name+" nie jest morderca, By byc Gildia Chaosu wszyscy czlonkowie musza byc mordercami.",FONT_NORMAL,COLOR_RED);
+                    return 0;
+                  endif
+                endforeach
+    NEUTRAL_ST:
+    ORDER_ST:   foreach Memb in Members
+                  if(Memb.murderer)
+                    SendSysMessage(who,"Osoba "+Memb.name+" jest morderca, By byc Gildia "+St+" zaden czlonek nie moze byc morderca.",FONT_NORMAL,COLOR_RED);
+                    return 0;
+                  endif
+                endforeach
+  endcase
+  
+  SetGuildStatus(_Guild,St);
+  _Guild.SetProp("DecSt",ReadGameClock());
+  SendSysMessage(who,"Zadeklarowal"+ggm(who,3)+" Gildie jako "+St,FONT_NORMAL,COLOR_GREEN);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyGuildCmd(who)
+
+  if(!IsAdmin(who) and _GuildGm != who)
+    return;
+  endif
+
+  if(!IsAdmin(who))
+    if(GetGuildCreateTime(_Guild) + GUILD_TIME > ReadGameClock())
+      SendSysMessage(who,"Nie mozesz zniszczyc Gildii tak wczesnie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  SendSysMessage(who, "Chcesz zniszczyc Gildie?", FONT_NORMAL, COLOR_STONE);
+
+  if(YesNo(who, "Na pewno?"))
+    SendSysMessage(who, "Zniszczyl"+ggm(who,3)+" Gildie.", FONT_NORMAL, COLOR_GREEN);
+    DestroyItem(_GuildStone);
+    exit;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GuildSendGlobalMail(who)
+
+  var Members := _Guild.members;
+  var mobArr := array;
+
+  foreach Mob in Members
+    if(Mob != who)
+      mobArr.append(Mob.serial);
+    endif
+  endforeach
+
+  SendGlobalMail(who, mobArr, _GuildStone);
+
+endfunction
+
+//-----------------------------------------------------------------------------

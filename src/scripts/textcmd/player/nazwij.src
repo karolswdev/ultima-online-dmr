@@ -1,0 +1,66 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/magic";
+include "include/speech";
+include "include/items/containers";
+
+include ":banking:common";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program NameItemCmd(who, Name)
+
+   // Allocate the heap for better multicore handling
+   var memoryPointer := Malloc(who);
+   SendSysMessage(who, "Pointer: " + memoryPointer);
+   
+   
+
+  if(!Name)
+    SendSysMessage(who, "Nie wpisal"+ggm(who, 3)+" nazwy przedmiotu.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(who, ".nazwij [nazwa]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!CenCheckLine(who, Name))
+    return;
+  elseif(len(Name) > 25)
+    SendSysMessage(who,"Za dluga nazwa, maksymalnie 25 znakow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Ktory przedmiot chcial"+ggm(who,1)+" nazwac?", FONT_NORMAL, COLOR_GREEN);
+  var Item := ObjTarget(who);
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+
+  if((!Item.isa(POLCLASS_CONTAINER) or ItemCfg[Item.objtype].Script) and !ItemCfg[Item.objtype].CanChangeName)
+    SendSysMessage(who, "Tego przedmiotu nie mozesz nazwac.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var topCont := GetTopCont(Item);
+  var Bank := FindBankBox(who);
+
+  if(topCont != who.backpack and topCont != Bank and who.backpack != Item)
+    SendSysMessage(who, "Ten przedmiot nie znajduje sie w twoim plecaku.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SetName(Item, Name);
+  SendSysMessage(who, "Nazwal"+ggm(who,3)+" przedmiot: '"+Name+"'.", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

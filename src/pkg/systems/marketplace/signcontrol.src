@@ -1,0 +1,41 @@
+use uo;
+use os;
+include ":marketplace:common";
+include "include/names";
+include ":banking:common";
+include ":housing:housing";
+include ":fences:fences";
+include ":carpentry:deeds";
+include ":carpets:rolls";
+include ":mail:mail";
+
+var sign;
+program SignControl(_sign)
+  
+  sign := _sign;
+
+  var renttime, time, sendtime, owner; 
+  var Stall := GetDataFile(MP_FILE).FindElement(sign.serial);
+  
+  while(sign)
+
+    renttime := Stall.GetProp(MP_STALL_RENTED);
+
+    if(CInt(renttime))
+      sendtime := renttime - MP_TIME_TO_RERENT;
+      time := ReadGameClock();
+      if(renttime < time)
+        DestroyStall(sign.serial);
+      elseif(sendtime < time)
+
+        if(!CInt(Stall.GetProp(MP_STALL_NOTICE)))
+          Stall.SetProp(MP_STALL_NOTICE, 1);
+          owner := FindPlayerBySerial(Stall.GetProp(MP_STALL_OWNER));
+          PostTextMail(owner, "Stragan", "Stragan", {"Twoj stragan nie zostal jeszcze oplacony, zrob to czym szybciej!"});
+        endif
+
+      endif
+    endif
+    sleep(1);
+  endwhile
+endprogram

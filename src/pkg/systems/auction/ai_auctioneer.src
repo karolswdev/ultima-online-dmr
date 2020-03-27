@@ -1,0 +1,296 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include ":auction:auc";
+
+include ":banking:common";
+include ":banking:gold";
+include "include/cmds/misc";
+include "ai/include/ainpcs";
+include "ai/include/npch";
+include "ai/include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+var NextCheck  := ReadGameClock();
+var AucItems   := array;
+var AllItems   := array;
+var AucBoard, Aucs;
+var ItemListingDelay := 0;
+
+//-----------------------------------------------------------------------------
+
+GetAucItems(AucItems,me);
+
+//-----------------------------------------------------------------------------
+
+program Auctioneer_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  AucBoard := FindItemBySerial(GetObjProperty(me,"AucBoard"));
+  Aucs     := GetObjProperty(AucBoard,"AucSerial");
+  
+  foreach Auc in Aucs
+    Auc := FindNpcBySerial(Auc);
+  endforeach
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdCityNpcHandleEvent(ev);
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(NextWander < ReadGameClock())
+      DefWander();
+      CityNpcLookAround();
+      CheckAucItems();
+    endif
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["wita"])
+
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      Say("Witaj "+who.name+", chcesz wystawic jakis przedmiot na aukcje?");
+    endif
+
+  elseif(text["wystaw"])
+
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      PutOut(who);
+    endif
+
+  elseif(text["aukcj"] or text["pokaz"] or text["kupi"])
+  
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      Say("Zajrzyj na tablice aukcyjna jesli chcesz cos kupic.");
+    endif
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PutOut(who)
+
+  GetAllAucItems(AllItems,Aucs);
+
+  if(AllItems.size() >= MAX_AUC_ITEMS)
+    Say("Nie mam juz miejsca na aukcji.");
+  elseif(!CanPut(AllItems,who))
+    Say("Juz wystawil"+ggm(who,3)+" wystarczajaca ilosc przedmiotow.");
+  else
+    Say("Jaki przedmiot chcesz wystawic?");
+    
+    ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+    if(!CanIHearPlayer(who) or !CanNpcSpeakWith(who))
+      SendSysMessage(who, "Jestes niedostepn"+ggm(who,6)+" dla aukcjonera.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(ev)
+      var Item := Ev.item;
+      
+      if(!Item)
+        return;
+      endif
+    
+      if(Item.container != who.backpack)
+        Say("Przedmiot musi znajdowac sie w twoim plecaku.");
+        return;
+      elseif(Item.objtype == UOBJ_GOLDCOIN or Item.objtype == UOBJ_CHEQUE)
+        Say("wrr..");
+        return;
+      endif
+
+      if(!ReserveItem(Item))
+        Say("Nie mozesz wystawic tego przedmiotu teraz.");
+        return;
+      endif
+
+      ev := struct;
+      ev.+type   := EVID_NH_AUCTION_GUMP;
+      ev.+source := who;
+      ev.+item   := Item;
+      ev.+npc    := me;
+
+      StdNpcHandleWait(ev);
+
+      if(ev == error)
+        ReleaseItem(Item);
+        return;
+      endif
+
+      if(ev.cancel)
+        ReleaseItem(Item);
+        case(RandomInt(4))
+          0:         Say("Zapraszam innym razem.");
+          1:         Say("To moze kiedy indziej.");
+          2:         Say("Dowidzenia.");
+          default:   Say("Innym razem wiec.");
+        endcase
+        return;
+      endif
+
+      var bPack := me.backpack;
+
+      if(Item.newbie)
+        bPack := GetNewbiePack(me);
+      endif
+
+      var Res := MoveItemToContainer(Item, bPack);
+
+      if(Res)
+      
+        var MyPerc := CInt(ev.price * AUC_PRICE_PERC);
+
+        if(MyPerc < AUC_MIN_PRICE)
+          MyPerc := AUC_MIN_PRICE;
+        endif
+
+        if(!Spendgold(who,MyPerc))
+          Say("Potrzebujesz "+MyPerc+" gp by wystawic ten przedmiot.");
+          MoveToPack(Item, who);
+          ReleaseItem(Item);
+          return;
+        else
+          Say("Zaplacil"+ggm(who,3)+" mi "+MyPerc+" za wystawienie tego przedmiotu.");
+        endif
+
+        SetObjProperty(Item,"SellPrice",ev.price);
+        SetObjProperty(Item,"SellBuyout",ev.buyout);
+        SetObjProperty(Item,"SellOwner",who.serial);
+        SetObjProperty(Item,"SellDesc",ev.desc);
+        SetObjProperty(Item,"SellStartTime",ReadGameClock());
+
+        if(ev.duration)
+          SetObjProperty(Item,"SellDuration", ev.duration);
+        elseif(IsGM(who))
+          SetObjProperty(Item,"SellDuration", AUC_GM_TIME);
+        else
+          SetObjProperty(Item,"SellDuration", AUC_TIME);
+        endif
+
+        Say("Dobrze, wystawil"+ggm(me,8)+" przedmiot na aukcje.");
+        GetAucItems(AucItems,me);
+        
+        if(ev.buyout)
+          SendSysMessage(who, "Wystawil"+ggm(who,3)+" przedmiot "+ev.item.desc+" za "+FormatSize(ev.price, ".")+" gp, z mozliwoscia wykupu za "+FormatSize(ev.buyout, ".")+" gp.", FONT_NORMAL, COLOR_GREEN);
+        else
+          SendSysMessage(who, "Wystawil"+ggm(who,3)+" przedmiot "+ev.item.desc+" za "+FormatSize(ev.price, ".")+", bez mozliwosci wykupu.", FONT_NORMAL, COLOR_GREEN);
+        endif
+
+      else
+        Say("Nie moge przyjac tego przedmiotu.");
+      endif
+
+      ReleaseItem(Item);
+      ItemListingDelay := ReadGameClock() + 30;
+
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanPut(byref AllItems,who)
+
+  var Num := 0;
+  
+  foreach Item in AllItems
+    if(GetObjProperty(Item,"SellOwner") == who.serial)
+      Num := Num + 1;
+    endif
+  endforeach
+  
+  if(Num >= MAX_AUC_PERSON_PUTS)
+    return 0;
+  endif
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckAucItems()
+
+  GetAucItems(AucItems,me);
+
+  foreach Item in AucItems
+    if(Item)
+      if(GetAucStartTime(Item) + AUC_END_DELAY_TIME + GetAutDuration(Item) < ReadGameClock())
+        EndAucForItem(Item);
+      endif
+    endif
+  endforeach
+
+  GetAllAucItems(AllItems,Aucs);
+  
+  if(AllItems.size() and (ItemListingDelay < ReadGameClock()))
+    Say("Licytacja! Licytacja!");
+    var Cnt := 0;
+
+    foreach Item in AllItems
+      Say(Item.desc+" za "+GetItemAuctionPrice(Item)+" gp");
+      sleep(1);
+      Cnt += 1;
+      
+      if(Cnt > 10)
+        break;
+      endif
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetNewbiePack(me)
+
+  var nPack := FindItemBySerial(GetObjProperty(me, "NewbiePackSerial"));
+
+  if(!nPack)
+    nPack := CreateItemInCont(me.backpack, UOBJ_BACKPACK);
+    if(nPack)
+      SetObjProperty(me, "NewbiePackSerial", nPack.serial);
+    endif
+  endif
+
+  return nPack;
+
+endfunction
+
+//-----------------------------------------------------------------------------

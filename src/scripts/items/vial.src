@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/checks/objchecks";
+include "include/objtypes/magic";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program UseVial(who, Vial)
+
+  if(!StandardItemCheck(who, Vial))
+    return;
+  endif
+
+  SendSysMessage(who, "Czym chcesz napelnic fiolke?", FONT_NORMAL, COLOR_GREEN);
+
+  var Item := ObjTarget(who);
+
+  if(!StandardItemCheck(who, Item, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(Item.objtype == UOBJ_PD_ALTAR)
+    if(CreateProduct(who, Vial, UOBJ_HOLYWATER))
+      SendSysMessage(who, "Napelnil"+ggm(who,3)+" fiolki woda swiecona.", FONT_NORMAL, COLOR_GREEN);
+    endif
+  elseif(Item.objtype == UOBJ_DK_ALTAR)
+    if(CreateProduct(who, Vial, UOBJ_VAMP_BLOOD))
+      SendSysMessage(who, "Napelnil"+ggm(who,3)+" fiolki krwia.", FONT_NORMAL, COLOR_GREEN);
+    endif
+  else
+    SendSysMessage(who, "Nie uda Ci sie napelnic tym fiolek.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateProduct(who, Vial, Obj)
+
+  var Amt := Vial.amount;
+
+  if(DestroyItem(Vial))
+    var Prod := CreateItemInPack(who, Obj, Amt);
+    if(Prod)
+      return Prod;
+    else
+      SendSysMessage(who, "Masz za malo miejsca w plecaku.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "Nie masz fiolek.", FONT_NORMAL, COLOR_RED);
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

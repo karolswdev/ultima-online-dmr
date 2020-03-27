@@ -1,0 +1,276 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/sounds";
+include "include/client/effects";
+include "include/finding";
+include "include/tempmods";
+include "include/packets";
+
+include ":vampire:common";
+
+//-----------------------------------------------------------------------------
+
+program UndoModChecker(Parms)
+
+  var who := Parms.source;
+
+  if(!who)
+    return;
+  endif
+
+  if(Parms.stkItem.isa(POLCLASS_ITEM))
+    ReserveItem(Parms.stkItem);
+  endif
+
+  var curTime := 0, prevTime := 0;
+  var CurMod, PrevMod, ev;
+  var lForceBreak := 0;
+
+  repeat
+    if(!who)
+      who := FindPlayerBySerial(Parms.serial);
+    endif
+    
+    if(!who)
+      return;
+    endif
+
+    if(!CurMod)
+      RefreshMods(who, Parms, CurMod, PrevMod);
+    endif
+    
+    MeanwhileActions(who, curTime, Parms.modtype);
+
+    ev := wait_for_event(1);
+
+    if(ev)
+      if(ev.refresh)
+        RefreshMods(who, Parms, CurMod, PrevMod);
+      endif
+    endif
+
+    if(IsBitOn(Parms.Flags, MODF_CHECK_VAMPIRE))
+      lForceBreak := !IsVampireModTimePlace(who);
+
+      if(lForceBreak)
+        sleepms(RandomInt(500)+5); // co by watki nie robily w jednym czasie tego samego.. takie slabe rozwiazanie, najlepsze to eventcore. No ale tutaj, to szkoda czasu.
+        if(GetHp(who) > GetMaxHp(who)/2 and CInt(GetObjProperty(who, "#ModDropped")) < ReadGameClock())
+          DealDamage(who, GetHp(who)/3, who);
+          PlayObjectCenteredEffect(who,FX_CURSE_EFFECT,0xF,0xF);
+          SendBad(who, "Czujesz, ze nagle oslabl"+ggm(who,3)+"...");
+          SetObjProperty(who, "#ModDropped", ReadGameClock()+3);
+        endif
+      endif
+    endif
+
+    if(PrevMod)
+      prevTime := ReadGameClock() - PrevMod[3];
+
+      if(prevTime >= PrevMod[2] or lForceBreak)
+        DoUndoMod(who, Parms, UMDF_PREVIOUS);
+        RefreshMods(who, Parms, CurMod, PrevMod);
+        lForceBreak := 0;
+      endif
+    endif
+
+    if(CurMod)
+      curTime := ReadGameClock() - CurMod[3];
+
+      if(curTime >= CurMod[2] or lForceBreak)
+        DoUndoMod(who, Parms, 0);
+        RefreshMods(who, Parms, CurMod, PrevMod);
+        lForceBreak := 0;
+      endif
+    endif
+
+  until(!CurMod and !PrevMod);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function RefreshMods(who, byref Parms, byref CurMod, byref PrevMod)
+
+  if(Parms.type == EVID_MOD)
+    PrevMod := GetObjProperty(who, PROP_TEMP_PREVMOD + Parms.modtype);
+    CurMod := GetObjProperty(who, PROP_TEMP_MOD + Parms.modtype);
+  elseif(Parms.type == EVID_SKMOD)
+    PrevMod := 0;
+    CurMod := GetObjProperty(who, PROP_TEMP_SKMOD + Parms.skid);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoUndoMod(who, Parms, Flags)
+
+  if(!who)
+    who := FindPlayerBySerial(CInt(Parms.serial));
+  endif
+
+  if(!who)
+    return;
+  endif
+
+  if(Parms.type == EVID_MOD)
+    if(CanMod(who,Parms.modtype) != 0)
+      return;
+    endif
+  elseif(Parms.type == EVID_SKMOD)
+    if(CanSkillMod(who,Parms.skid) != 0)
+      return;
+    endif
+  endif
+
+  case(Parms.type)
+    EVID_MOD:          PlayUnModEffect(who, Parms.modtype);
+                       UndoMod(who, Parms.modtype, UMDF_WAIT | Flags);
+
+    EVID_SKMOD:        UndoSkillMod(who, Parms.skid);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MeanwhileActions(who, curTime, ModId)
+
+  // co 5 sekund wystarczy
+  if((curTime % 5) == 0)
+
+    case(ModId)
+      MOD_SLOWDOWN:    if(who.isa(POLCLASS_NPC))
+                         if(RandomInt(100) < 80)
+                           if(RandomInt(100) < 60)
+                             PrintTextAbove(who, "*oslepion"+ggm(who,6)+"*");
+                           else
+                             PrintTextAbove(who, "*grrrr*");
+                           endif
+                         endif 
+                       endif
+    endcase
+ endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayUnModEffect(who, ModId)
+
+  case(ModId)
+    MOD_STR:            ;
+    MOD_DEX:            ;
+    MOD_INT:            ;
+    MOD_AR:             PlayPcEffect(who, FX_GLOW_SPIKE, 16, 8, 3);
+                        PlaySoundEffect(who, 494);
+    MOD_PARA:           PlaySoundEffect(who, SFX_SPELL_PARALYZE);
+    MOD_INCO:           ;
+    MOD_GRAPHIC:        PlaySoundEffect(who, 0x210);
+    MOD_COLOR:          ;
+    MOD_HGHOSTS:        PlaySoundEffect(who, SFX_SKILL_SPIRITSPEAK);
+    MOD_RA:             ;
+    MOD_TPREFIX:        ;
+    MOD_TSUFFIX:        ;
+    MOD_TGUILD:         ;
+    MOD_TRACE:          ;
+    MOD_LIGHT:          ;
+    MOD_POISON_PROT:    ;
+    MOD_LIFE:           ;
+    MOD_MANA:           ;
+    MOD_STAMINA:        ;
+    MOD_CASTSIGHT:      ;
+    MOD_DMG_REDUCE:     ;
+    MOD_FIRERESIST:     PlayPcEffect(who, FX_MARK_EFFECT, 542, 0x10, 0xA, 3);
+    MOD_COLDRESIST:     PlayPcEffect(who, FX_MARK_EFFECT, 1151, 0x10, 0xA, 0);
+    MOD_LIGHTRESIST:    PlayPcEffect(who, FX_MARK_EFFECT, 94, 0x10, 0xA, 3);
+    MOD_HAIRS:          ;
+    MOD_STATUS:         ;
+    MOD_HP_REGEN:       PlayPcEffect(who, FX_HEAL_EFFECT, 1153, 16, 16, 2);
+                        PlaySoundEffect(who, 491);
+                        PlaySoundEffect(who, 487);
+    MOD_MANA_REGEN:     PlayPcEffect(who, FX_HEAL_EFFECT, 16, 16, 16, 2);
+                        PlaySoundEffect(who, 491);
+                        PlaySoundEffect(who, 488);
+    MOD_STAM_REGEN:     PlayPcEffect(who, FX_HEAL_EFFECT, 37, 16, 16, 0);
+                        PlaySoundEffect(who, 491);
+                        PlaySoundEffect(who, 489);
+    MOD_CTH:            PlayPcEffect(who, FX_MARK_EFFECT, 67, 16, 16, 2);
+                        PlaySoundEffect(who, 514);
+    MOD_LOWER_RC:       PlayPcEffect(who, FX_MARK_EFFECT, 22, 16, 16, 3);
+                        PlaySoundEffect(who, 1482);
+    MOD_FASTER_CAST:    PlayPcEffect(who, FX_HEAL_EFFECT, 52, 16, 16, 2);
+                        PlaySoundEffect(who, 519);
+    MOD_MANA_COST:      PlayPcEffect(who, FX_BLESS_EFFECT, 82, 16, 16, 2);
+                        PlaySoundEffect(who, 507);
+                        PlaySoundEffect(who, 522);
+    MOD_SPELL_DMG:      PlayPcEffect(who, FX_MARK_EFFECT, 16, 16, 16, 2);
+                        PlaySoundEffect(who, 491);
+                        PlaySoundEffect(who, 509);
+
+    MOD_POISON_DMG:     PlayPcEffect(who, FX_MARK_EFFECT, 76, 16, 16, 2);
+                        PlaySoundEffect(who, 1141);
+    MOD_FIRE_DMG:       PlayPcEffect(who, FX_MARK_EFFECT, 31, 16, 16, 5);
+                        PlaySoundEffect(who, 840);
+    MOD_COLD_DMG:       PlayPcEffect(who, FX_MARK_EFFECT, 90, 16, 16, 0);
+                        PlaySoundEffect(who, 268);
+    MOD_LIGHT_DMG:      PlayPcEffect(who, FX_MARK_EFFECT, 95, 16, 16, 0);
+                        PlaySoundEffect(who, 519);
+
+    MOD_MOUNT:          ;
+    MOD_PENETRATE:      PlayPcEffect(who, FX_GLOW, 56, 16, 16, 2);
+                        PlaySoundEffect(who, 502);
+                        PlaySoundEffect(who, 532);
+    MOD_UNTOUCHABLE:    PlayPcEffect(who, FX_BLESS_EFFECT, 90, 16, 8, 5);
+                        PlaySoundEffect(who, 0x5C3);
+    MOD_UNDEAD_SLAY:    PlayPcEffect(who, FX_SPARK_EFFECT, 11, 16, 16, 1);
+                        PlaySoundEffect(who, 894);
+                        PlaySoundEffect(who, 897);
+    MOD_DAEMON_SLAY:    PlayPcEffect(who, FX_SPARK_EFFECT, 37, 16, 16, 7);
+                        PlaySoundEffect(who, 359);
+                        PlaySoundEffect(who, 701);
+    MOD_ORDER_SLAY:     PlayPcEffect(who, FX_SPARK_EFFECT, 10, 16, 16, 7);
+                        PlaySoundEffect(who, 582);
+    MOD_DEFENSE:        PlayPcEffect(who, FX_MARK_EFFECT, 42, 16, 16, 5);
+                        PlaySoundEffect(who, 238);
+    MOD_TREE_SUPPORT:   ;
+    MOD_BLOCK_CAST:     ;
+    MOD_BLOCK_FIGHT:    ; 
+    MOD_BLOCK_SELFHEAL: ;
+    MOD_MONSTER_AR:     ;
+    MOD_SILVER_AR:      ;
+    MOD_FIRE_BLOOD:     PlayPcEffect(who, FX_GLOW, 32, 16, 16, 5);
+                        PlaySoundEffect(who, 840);
+                        PlaySoundEffect(who, 843);
+    MOD_ONHIT_AR:       ;
+    MOD_LIFE_STOLEN:    PlayPcEffect(who, FX_CURSE_EFFECT, 37,  0x10, 0x10, 2);
+                        PlaySoundEffect(who, 494);
+                        PlaySoundEffect(who, 505);
+                        
+    MOD_MANA_STOLEN:    PlayPcEffect(who, FX_CURSE_EFFECT, 86,  0x10, 0x10, 2);
+                        PlaySoundEffect(who, 494);
+                        PlaySoundEffect(who, 505);
+                        
+    MOD_EXPLO_DMG:      PlayPcEffect(who, FX_SPARK_EFFECT, 46,  0x10, 0x10, 2);
+                        PlaySoundEffect(who, 494);
+                        
+    MOD_MULTI_SHOT:     PlayPcEffect(who, FX_SPARK_EFFECT, 1109,  0x1F, 0x1F, 2);
+                        PlaySoundEffect(who, 505);
+
+    MOD_RETORT:         PlayPcEffect(who, FX_SPARK_EFFECT, 999,  0x10, 0x10, 32);
+                        PlaySoundEffect(who, SFX_KIATTACK);
+    MOD_CRIT_HIT:       PlayPcEffect(who, FX_SPARK_EFFECT, 1000, 0x1F, 0x10, 0x2);
+                        PlaySoundEffect(who, SFX_KIATTACK);
+    MOD_STAM_DMG:       PlayPcEffect(who, FX_SPARK_EFFECT, 1324, 0x10, 0x10, 0);
+                        PlaySoundEffect(who, SFX_KIATTACK);
+    MOD_DISARM:         PlayPcEffect(who, FX_SPARK_EFFECT, 1340, 0x10, 0x10, 0);
+                        PlaySoundEffect(who, SFX_KIATTACK);
+    MOD_STUPOR:         PlayPcEffect(who, FX_SPARK_EFFECT, 65, 16, 16, 3);
+                        PlaySoundEffect(who, SFX_KIATTACK);
+    MOD_2H_DMG:         PlayPcEffect(who, FX_SPARK_EFFECT, 1152, 0x10, 0x10, 64);
+                        PlaySoundEffect(who, SFX_KIATTACK);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

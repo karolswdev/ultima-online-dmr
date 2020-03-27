@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/misc";
+include "include/msgs";
+
+include ":housing:housing";
+include ":housing:payments";
+
+//-----------------------------------------------------------------------------
+
+program UseSecureContener(who, item)
+
+  if(CanAccessSecureCont(who, Item))
+    SendViewContainer( who, item );
+    SendSysMessage( who, "Otworzyl"+ggm(who,3)+" bezpieczny pojemnik dostepny dla wlascicieli oraz przyjaciol domu.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage( who, "Nie mozesz tego otworzyc.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

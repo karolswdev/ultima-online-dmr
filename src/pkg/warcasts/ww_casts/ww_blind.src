@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 18;
+
+//-----------------------------------------------------------------------------
+
+program WwBlind(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  var Range    := CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 4) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 4));
+  var Duration := CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 10) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 10));
+  var Gained   := 0;
+  var SlowAmt  := CInt(5 + CalcSkillExponential(Caster, SKILLID_WEARWOLF, 10) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 10));
+  var Num := 0;
+
+  foreach mobile in ListMobilesNearLocation(CastOn.x, CastOn.y, CastOn.z, Range, Caster.realm)
+    if(CanDamage(Caster, mobile, 0, CastOn))
+      PlaySoundEffect (mobile, SFX_SPELL_NIGHT_SIGHT);
+      PlaySoundEffect (mobile, SFX_SPELL_WEAKEN);
+      
+      if(Gained < 2)
+        Gained += GainWarcastPoints(Caster, Mobile, WW_WCID, WCGAIN_OFFENSIVE);
+      endif
+
+      if(IsPlayer(Mobile))
+        DoMod(Mobile, MOD_LIGHT, 30, Duration);
+      else
+        PrintTextAbove(Mobile, "*oslepion"+ggm(Mobile,6)+"*");
+        DoMod(Mobile, MOD_SLOWDOWN, SlowAmt, CInt(Duration / 2));
+      endif
+      PlayPcEffect(Mobile, FX_SPARK_EFFECT, 999, 0xF, 0xF, 5);
+
+      if(Num == 3)
+        break;
+      endif
+
+      Num += 1;
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

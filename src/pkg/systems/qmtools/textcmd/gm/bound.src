@@ -1,0 +1,83 @@
+use uo;
+
+include "include/client/fonts";
+include "include/cmds/cancmd";
+include "include/player/target";
+include "include/checks/stdchecks";
+include "include/tempmods";
+
+program BoundCmd(who, text)
+
+  if(!CanUseCmd(who, "bound"))
+    return;
+  endif
+  
+  text := SplitWords(text);
+  
+  case(text[1])
+    "add":
+    "rem":
+    "unique":
+    "status": break;
+    default:  SendSysMessage(who, ".bound add [serial]/rem/status", FONT_NORMAL, COLOR_RED); 
+              return;
+  endcase
+
+  SendSysMessage(who, "Wskaz przedmiot:", FONT_NORMAL, COLOR_GREEN);
+  var Item := LocTarget(who).item;
+  if(!Item.isa(POLCLASS_ITEM))
+    SendSysMessage(who, "To nie jest przedmiot", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  
+  var bounded;
+  case(text[1])
+    "add":  
+            if(CanModifyItem(who,Item))
+              if(text[2])
+                bounded := FindPlayerBySerial(text[2]);
+                if(bounded and IsPlayer(bounded))
+                  SetItemBound(item,bounded);
+                  SendSysMessage(who, "Nalozyles ograniczenie na item: " + GetName(item) + " dla " + GetName(bounded), FONT_NORMAL, COLOR_BLUE);
+                else
+                  SendSysMessage(who, "Nie ma gracza o serialu: " + text[2], FONT_NORMAL, COLOR_RED);
+                endif
+                return;
+              endif
+              SendSysMessage(who, "Wskaz osobe:", FONT_NORMAL, COLOR_GREEN);
+              bounded := ObjTarget(who);
+              if(!IsPlayer(bounded))
+                SendSysMessage(who, "To nie jest gracz.", FONT_NORMAL, COLOR_RED);
+              else
+                SetItemBound(item,bounded);
+                SendSysMessage(who, "Nalozyles ograniczenie na item: " + GetName(item) + " dla " + GetName(bounded), FONT_NORMAL, COLOR_BLUE);
+              endif;
+            else
+              SendSysMessage(who, "Nie mozesz nalozyc ograniczen na ten przedmiot.", FONT_NORMAL, COLOR_RED);
+            endif
+    "rem":  
+            if(CanModifyItem(who,Item))
+              EraseItemBound(item);
+              SendSysMessage(who, "Ograniczenie na przedmiot: " +GetName(item)+ " sciagniete.", FONT_NORMAL, COLOR_GREEN);
+            else
+              SendSysMessage(who, "Nie mozesz edytowac tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+            endif
+    "status": 
+            bounded := GetItemBound(item);
+            if(bounded)
+              bounded := FindPlayerBySerial(bounded);
+              SendSysMessage(who, "Przedmiot ograniczony dla gracza " + GetName(bounded) + " o serialu: " + GetItemBound(item), FONT_NORMAL, COLOR_GREEN); 
+            else
+              SendSysMessage(who, "Ten przedmiot nie ma ograniczenia.", FONT_NORMAL, COLOR_GREEN);
+            endif
+
+    "unique": 
+             if(CanUseCmd(who, "bound unique"))
+               SetObjProperty(item, "UnRepairAble", 1);
+               SetObjProperty(item, "CanBeSecured", 1);
+               SendGood(who, "Zmieniles przedmiot na unikatowy. Nie mozna go reperowac, ale mozna go zabezpieczac.");
+             endif
+             break;
+  endcase
+
+endprogram

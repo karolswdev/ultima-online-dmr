@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-08
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/clock";
+include "include/move";
+
+include ":eventcore:event_data";
+include ":eventcore:event_gump";
+include ":eventcore:common";
+
+//-----------------------------------------------------------------------------
+
+program EventInfoBoard(who, board)
+
+  var Data := GetEventsData();
+
+  var Key := GetObjProperty(board, "EventId");
+  var Event := Data.FindElement(EVENT_TITLE+Key);
+
+  if(!Key or !Event)
+    SendBad(who, "Wydarzenie nie zostalo jescze przypisane!");
+    return;
+  endif
+
+  ShowInfoEventGump(who, Event);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ShowInfoEventGump(who, Event)
+
+  BQGInit("Wydarzenie:", 600, 460, error, 0, 80, 50);
+  GTextLine(110, 20, 1320, Event.GetProp("Name"));
+
+  GButton(500, 20, 2714, 2715, 1);
+  GTextLine(520, 20, 560, "Zamknij");
+
+  var Info := Event.GetProp("Text");
+  BQGAddTextBox(40, 60, 520, 20, FCLR_TEBOX, Info, 0, 18);
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

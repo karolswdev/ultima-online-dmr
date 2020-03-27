@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "../../weather";
+
+//-----------------------------------------------------------------------------
+
+program StartRainStorm(who, text)
+
+  if(text == "stop")
+    if(IsRaining())
+      SendSysMessage(who,"Stopowanie deszczu.",FONT_NORMAL,COLOR_GREEN);
+      SetGlobalProperty("StopRainStorm",who.serial);
+    else
+      SendSysMessage(who, "Nie pada deszcz.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    if(!IsRaining())
+      SendSysMessage(who,"Startowanie deszczu.",FONT_NORMAL,COLOR_GREEN);
+      SetGlobalProperty("StartRainStorm",who.serial);
+    else
+      SendSysMessage(who, "Pada juz deszcz.", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

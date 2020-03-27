@@ -1,0 +1,402 @@
+//-----------------------------------------------------------------------------
+
+include "../../spawnchest";
+include "../../spawnnet";
+include "include/gumpboxes";
+include "include/finding";
+include "include/std";
+include "include/items";
+include "include/npcs";
+include "include/cmds/cancmd";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+var who,Chest,ChestNr;
+
+//-----------------------------------------------------------------------------
+
+program SpawnChest(who1)
+
+  SetLogRunCycles(LST_CMD);
+
+  who := who1;
+
+  if(!CanUseCmd(who, "sch"))
+    return 0;
+  endif
+
+  SendSysMessage(who,"Wybierz Skrzynie.",FONT_NORMAL,COLOR_GREEN);
+  Chest := ObjTarget(who);
+  if(Chest.objtype != UOBJ_SCHEST)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  ChestNr := GetChestNr(Chest);
+  if(!ChestNr)
+    SendSysMessage(who,"Skrzynia nie posiada numeru!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!who.cmdlevel)
+    HideRune(Chest);
+    PlaySoundEffect(who, CLICK_SOUND);
+    return;
+  endif
+
+  MainChestGump();
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MainChestGump()
+
+  BuildMainChestGump();
+  
+  var res;
+
+  while(who)
+
+    if(!Chest)
+      SendSysMessage(who, "Skrzynia nie istnieje.",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+
+    res := GSend(who);
+    if(IsSpawning(Chest) and res[0] != 47 and res[0])
+      SendSysMessage(who,"Skrzynia teraz respawnuje!",FONT_NORMAL,COLOR_BAD);
+      continue;
+    endif
+
+    if(IsRunning(Chest) and ((res[0] > 0 and res[0] < 40) or res[0] == 46))
+      SendSysMessage(who, "Nie mozna robic zmian kiedy spawn jest wlaczony!",FONT_NORMAL,COLOR_BAD);
+    else
+      case(res[0])
+        1:        ChangeData(who,Chest,PROP_RESTIME);
+        10:       ShowChestTemplates();
+        11:       ChangeLevel();
+        40:       SaveLastChestData();
+        41:       ChangeNote(who,Chest);
+        42:       RunSpawn(Chest,who);
+        43:       ResetTime(Chest,who);
+        44:       DestroyChestSpawns(Chest);
+        46:       LoadChestSpawnData(who,Chest);
+        48:       if(YesNo(who,"Zniszczyc?"))
+                    SetStopped(Chest);
+                    Destroyitem(Chest);
+                  endif
+        49:       case(Chest.invisible)
+                    0:HideRune(Chest);
+                    1:ShowRune(Chest);
+                  endcase
+        50:       SpawnRuneConnect(who, CHest);
+        51:       GoToSpawnRune(who, CHest);
+        61:       ForceSpawn(Chest,who);
+      endcase
+    endif
+
+    BuildMainChestGump();
+
+    if(!res[0])
+      break;
+    endif
+    
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainChestGump()
+
+  var ChestCfg      := ReadConfigFile(SCHEST_CFG);
+  var TimeToRespawn := (GetSpawnTime(Chest) + GetRuneRespawnTime(Chest) * 60) - ReadGameClock();
+  var TempName      := ChestCfg[GetRuneTemplate(Chest)].name;
+  var Status        := "Start";
+  if(IsRunning(Chest))
+    Status := "Stop";
+  endif
+  if(TimeToRespawn <= 0)
+    TimeToRespawn := "End";
+  else
+    TimeToRespawn := RealTime(TimeToRespawn);
+  endif
+  if(!IsRunning(Chest))
+    TimeToRespawn := "Stopped";
+  endif
+  if(!TempName)
+    TempName := "";
+  endif
+  
+  GInit(0,0);
+  GResPic(30,100,5120,270,151);
+  GTextLine(100,105,270,"Skrzynia ID "+GetChestNr(Chest));
+
+  GTextLine(40, 125,590,"Czas Respawnu");
+  GTextLine(180,125,550,RealTime(GetRuneRespawnTime(Chest)*60));
+  GButton(264,128,2117,2118,1);
+
+  GTextLine(40, 145,590,"Czas do Respawnu");
+  GTextLine(180,145,550,TimeToRespawn);
+
+  GResPic(302,100,5120,300,151);
+  GTextLine(390,105,270,"Opcje Spawnu");
+
+  GTextLine(320,125,590,"Grupa");
+  GTextLine(430,125,550,GetRuneTemplate(Chest));
+  GButton(564,128,2117,2118,10);
+
+  GTextLine(320,145,590,"Nazwa");
+  GTextLine(430,145,550,TempName);
+  
+  GTextLine(320,175,590,"Level");
+  GTextLine(430,175,550, CInt(GetObjProperty(Chest, PROP_CHEST_LVL)));
+  GButton(564,178,2117,2118,11);
+  
+  GResPic(30,253,5120,572,85);
+
+  GTextLine(40, 260,590,"Notatka");
+  GTextLine(40, 280,550,GetRuneNote(Chest));
+
+  GTextLine(40, 300,270,Status);
+  GTextLine(120,300,270,"Resetuj Czas");
+
+  GTextLine(255,300,270,"Zniszcz spawny");
+  GTextLine(399,300,270,"Odswiez");
+  GTextLine(505,300,270,"Load");
+  GTextLine(320,260,270,"Kasuj");
+  GTextLine(505,260,270,"Last");
+  GTextLine(245,260,270,"Spawn");
+  GTextLine(245,280,270,"RuneLink");
+  GButton(220,283,2117,2118,50);
+
+  var Rune := GetChestRuneFromLink(Chest);
+
+  if(Rune)
+    GButton(305,283,2117,2118,51);
+    GTextLine(325,280,560, hex(Rune.serial)+" "+GetLocString(Rune));
+  else
+    GTextLine(305,280,999,"Brak");
+  endif
+
+  case(Chest.invisible)
+    0:   GTextLine(404,260,270,"Ukryj");
+    1:   GTextLine(404,260,270,"Odkryj");
+  endcase
+
+  GButton(91,263,2117,2118,41);
+  GButton(370,263,2117,2118,48);
+  GButton(460,263,2117,2118,49);
+  GButton(545,263,2117,2118,40);
+  GButton(220,263,2117,2118,61);
+
+  GButton(85 ,303,2117,2118,42);
+  GButton(220,303,2117,2118,43);
+  GButton(370,303,2117,2118,44);
+  GButton(460,303,2117,2118,47);
+  GButton(545,303,2117,2118,46);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowChestTemplates()
+
+  UnloadConfigFile(SCHEST_CFG);
+  var ChestCfg := ReadConfigFile(SCHEST_CFG);
+
+  if(!ChestCfg)
+    SendSysMessage(who, "Konfig nie istnieje!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var AllKeys := {}, i, Name, Key;
+
+  foreach CKey in GetConfigStringKeys(ChestCfg)
+    if(CInt(Ckey))
+      AllKeys.append(ZeroFill(CKey, 3));
+    endif
+  endforeach
+
+  AllKeys.sort();
+
+  GInit(0,50);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(100,10,5120,400,400);
+  GTextLine(120,12,1000,"Ilosc Templatow: "+AllKeys.size());
+  GAddPageData(480,20,2435,2436,480,380,2437,2438);
+  GMultiPage();
+
+  for(i:=1;i<=AllKeys.size();i:=i+1)
+    Key := UnZeroFill(AllKeys[i]);
+    GCheckNextPage(20);
+    GButton(120,(34+(18*GNPCount())),2117,2118,i);
+    GButton(450,(34+(18*GNPCount())),2117,2118, 1000+CInt(Key));
+    Name := ChestCfg[Key].name;
+    if(!Name)
+      Name := "";
+    endif
+    GTextLine(150,(30+(18*GNPCount())),1419,AllKeys[i]);
+    GTextLine(200,(30+(18*GNPCount())),1000,Name);
+  endfor
+
+  var Show := GSend(who);
+
+  if(Show[0] >= 1000 and Show[0] <= (1000 + len(AllKeys)))
+    ShowTempGroup(CInt(Show[0] - 1000));
+    return;
+  endif
+
+  if(Show[0]>=0 and Show[0]<=len(AllKeys) and AlLKeys[Show[0]])
+    var GId := UnZeroFill(AllKeys[Show[0]]);
+    if(CheckChestSpawn(who,Chest, GId))
+      SendSysMessage(who, "Ustawil"+ggm(who,3)+" grupe na "+GId,FONT_NORMAL,COLOR_GOOD);
+      SetRuneTemplate(Chest, GId);
+    endif
+  else
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTempGroup(Group)
+
+  var ChestCfg := ReadConfigFile(SCHEST_CFG);
+
+  if(!ChestCfg)
+    SendSysMessage(who, "Konfig nie istnieje!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  GInit(0,50);
+  GPage();
+  GResPic(100,10,5120,350,400);
+  GTextLine(120,12,1000,"Grupa: "+ChestCfg[Group].name);
+  GButton(420,20,2117,2118,1);
+
+  var Name,c := 0;
+
+  foreach Temp in GetConfigStringArray(ChestCfg[Group],"spawn")
+    Temp := SplitWords(temp);
+    Name := GetDescForItem(Temp[2]);
+    GTextLine(120,(48+(18*c)),550, "Item:");
+    GTextLine(160,(48+(18*c)),1000,Name+"/"+CInt(GetObjTypeByName(Temp[2])));
+    GTextLine(320,(48+(18*c)),550, "A:");
+    GTextLine(340,(48+(18*c)),1000,Temp[1]);
+    c := c + 1;
+  endforeach
+
+  foreach Temp in GetConfigStringArray(ChestCfg[Group],"Item")
+    Temp := SplitWords(Temp);
+    GTextLine(120,(48+(18*c)),550, "Item:");
+    GTextLine(160,(48+(18*c)),1000,Temp[2]);
+    GTextLine(300,(48+(18*c)),550, "A:");
+    GTextLine(320,(48+(18*c)),1000,Temp[1]);
+    GTextLine(370,(48+(18*c)),550,"CH:");
+    GTextLine(400,(48+(18*c)),1000,Temp[3]);
+    c := c + 1;
+  endforeach
+
+  foreach Temp in GetConfigStringArray(ChestCfg[Group],"Stack")
+    Temp := SplitWords(Temp);
+    GTextLine(120,(48+(18*c)),550, "Stack:");
+    GTextLine(160,(48+(18*c)),1000,Temp[2]);
+    GTextLine(300,(48+(18*c)),550, "A:");
+    GTextLine(320,(48+(18*c)),1000,Temp[1]);
+    c := c + 1;
+  endforeach
+
+  foreach Temp in GetConfigStringArray(ChestCfg[Group],"Random")
+    Temp := SplitWords(Temp);
+    GTextLine(120,(48+(18*c)),550, "Rand:");
+    GTextLine(160,(48+(18*c)),1000,Temp[2]);
+    GTextLine(300,(48+(18*c)),550, "A:");
+    GTextLine(320,(48+(18*c)),1000,Temp[1]);
+    GTextLine(370,(48+(18*c)),550,"CH:");
+    GTextLine(400,(48+(18*c)),1000,Temp[3]);
+    c := c + 1;
+  endforeach
+
+  GSend(who);
+  ShowChestTemplates();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveLastChestData()
+
+  var SpawnProps := {};
+
+  SpawnProps[1] := GetRuneRespawnTime(Chest);
+  SpawnProps[2] := GetRuneTemplate(Chest);
+  SpawnProps[3] := IsRunning(Chest);
+  SpawnProps[4] := IsStopped(Chest);
+
+  SetObjProperty(who, "SpawnChestProps",SpawnProps);
+
+  SendSysMessage(who, "Ostatnie dane zapisane.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeLevel()
+
+  var Value := SendTextEntryGump( who, "Wprowadz nowa wartosc",TE_CANCEL_ENABLE);
+  if(!Value)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return 0;
+  endif
+
+  Value := CInt(Value);
+  
+  if(Value < 0)
+    Value := 0;
+  elseif(Value > MAX_CHEST_LEVEL)
+    Value := MAX_CHEST_LEVEL;
+  endif
+
+  SetObjProperty(Chest, PROP_CHEST_LVL, Value);
+
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" Level na "+Value+".", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SpawnRuneConnect(who, CHest)
+
+  SendGood(Who, "Wskaz runo.");
+  var Rune := ObjTarget(who);
+
+  if(!Rune or Rune.objtype != UOBJ_SRUNE)
+    SendBad(who, "To nie runo.");
+    return;
+  elseif(Distance(Rune, Chest) > 20)
+    SendBad(who, "Czemu tak daleko?! Runo powinno byc obok, straznicy obok!");
+    return;
+  endif
+
+  SetChestRuneLink(Chest,Rune);
+  SendGood(who,"Polaczono skrzynie z runem.");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToSpawnRune(who, CHest)
+
+  var Rune := GetChestRuneFromLink(Chest);
+
+  if(Rune)
+    MoveObject(who, Rune.x, Rune.y,Rune.z, Rune.realm, MOVEOBJECT_FORCELOCATION);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

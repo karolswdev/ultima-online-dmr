@@ -1,0 +1,55 @@
+use uo;
+use os;
+use util;
+include "include/client/effects";
+include "include/client/sounds";
+
+var Effects := {FX_EXPLODE_1,FX_EXPLODE_2,FX_EXPLODE_3,FX_FLAMESTRIKE };
+var Effect := Effects[4];
+
+program bombuse (who, item)
+  var location := struct;
+      location.+x := who.x;
+      location.+y := who.y;
+      location.+z := who.z;
+      location.+realm := who.realm;
+  MoveObjectToLocation( item, location.x, location.y, location.z, location.realm,MOVEITEM_IGNOREMOVABLE);
+  var Range := GetObjProperty(item,"range");
+  if (!Range)
+    Range := 5;
+  endif;
+  var colors := {1206,1206,1206,1206,1206,1153,
+                 1207,1207,1207,1207,1153,
+                 1208,1208,1208,1153,
+                 1209,1209,1153,
+                 1210,1153,
+                 1211
+                  };
+  var WaitTime := CInt(3000 /colors.size()); 
+  var flame := CreateItemAtLocation( location.x, location.y, location.z+7, 0xBB02, 1, location.realm );
+  foreach color in colors 
+    item.color := color;
+  //  PrintTextAbove( item, CStr(item.color));
+    sleepms(WaitTime);
+  endforeach
+  DestroyItem(flame);
+  
+  HotSpot (location.x,location.y,location.z,location.realm);
+  PlaySoundEffect( item, SFX_TRAP_EXPLOSION );
+  item.movable := 1;
+  MoveItemToContainer( item, who.backpack);
+  item.movable := 0;
+  var i;
+  for ( i:=1; i<= Range ; i:= i+1)
+     HotSpot (location.x-i,location.y,location.z,location.realm);
+     HotSpot (location.x+i,location.y,location.z,location.realm);
+     HotSpot (location.x,location.y-i,location.z,location.realm);
+     HotSpot (location.x,location.y+i,location.z,location.realm);
+    sleepms(50);
+  endfor;
+endprogram
+
+
+function HotSpot (x,y,z,realm)
+    PlayStationaryEffect(x,y,z,Effect,0xf,0xf);
+endfunction;

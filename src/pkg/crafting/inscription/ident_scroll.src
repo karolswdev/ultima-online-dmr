@@ -1,0 +1,243 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/poison";
+
+include ":magicitems:magicitems";
+include ":alchemy:potion";
+
+//-----------------------------------------------------------------------------
+
+program UseIdentScroll( who, scroll )
+
+  if(!StandardItemCheck(who, scroll))
+    return;
+  endif
+
+  SendSysMessage( who, "Wybierz przedmiot do identyfikacji.",FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+
+  if(!StandardItemCheck(who,item,NO_MOVABLE_CHECK))
+    return;
+  elseif(IsStaff(who) and !IsGmCreated(Item))
+    SendSysMessage(who, "Nie mozesz tego identyfikowac. Proba ta zostala zalogowana.", FONT_NORMAL, COLOR_RED);
+    LogNotice(GetRealName(who)+"/"+who.acctname+" probowal identyfikowac przedmiot nie stworzony przez gma "+GetName(Item)+"/"+Item.serial+".", LOGF_FORCE_SYSLOG | LOGF_SCRIPTS);
+    return;
+  endif
+  
+  
+  
+  if(item.IsA(POLCLASS_CONTAINER))
+  
+	if(item.container != who.backpack)
+		SendSysMessage(who, "Nie mozesz identyfikowac pojemnikow nie bedacych w Twoim plecaku.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	var maximumIterations := scroll.amount;
+	var itemsToProcess := EnumerateItemsInContainer(item);
+	var numberToProcess := itemsToProcess.size();
+	
+		var innerItem;
+		foreach innerItem in itemsToProcess
+			  
+			  var WhoID := CInt(GetObjProperty(scroll, "ItemLevel"));
+
+			  if(IsArtifact(InnerItem))
+				if(WhoID < 5)
+				  SendSysMessage(who, "Ten zwoj jest za slaby na identyfikacje artefaktu.",FONT_NORMAL,COLOR_RED);
+				  continue;
+				endif
+			  endif
+
+			  if(!SubtractAmount(scroll, 1) || !scroll)
+				SendSysMessage(who,"Z niewyjasnionych powodow nie mozesz uzyc teraz tego zwoja...",FONT_NORMAL,COLOR_RED);
+				break;
+			  endif
+
+			  if(IsArtifact(InnerItem))
+				SendSysMessage(who,  CStr(GetArtChargesDesc(InnerItem)),FONT_NORMAL,COLOR_BLUE);
+				break;
+			  endif
+
+			  SendSysMessage(who,"Udalo Ci sie zidentyfikowac przedmiot.",FONT_NORMAL,COLOR_GREEN);
+			  innerItem := IdentifyMagicItem(who,innerItem, WhoID);
+
+			  SendDurabilityMessage(who,InnerItem,GetMagicMods(InnerItem));
+			  
+			  var desc  := InnerItem.desc;
+			  var PLvl  := GetItemPoisonLvl(InnerItem);
+			  var PPLvl := GetItemProtPoisonLvl(InnerItem);
+
+			  if(desc[1] == "a")
+				desc[1,2] := "";
+			  elseif(desc[1,2] == "an")
+				desc[1,3] := "";
+			  endif
+
+			  if(IsPotion(InnerItem.objtype) and WhoID == 5)
+				Desc := GetPotionName(InnerItem.objtype);
+				if(GetExpPotionMod(InnerItem))
+				  Desc := "wyjatkowa " + Desc;
+				endif
+			  endif
+
+			  if(desc)
+				SendSysMessage(who,"Wyglada on na "+desc+".",FONT_NORMAL,COLOR_GREEN);
+			  endif
+			  
+			  if(WhoID >= 3)
+				if(PLvl)
+				  var MCh      := GetItemPoisonMaxCharges(InnerItem);
+				  var Ch       := GetItemPoisonCharges(InnerItem);
+				  var Poisoner := GetItemPoisoner(InnerItem);
+				  var Perc     := CInt((Ch * 100) / MCh);
+
+				  SendSysMessage(who,"Ten przedmiot zostal zatruty "+GetPoisonPotionDesc(PLvl)+".",FONT_NORMAL,COLOR_GREEN_DARK);
+				  if(WhoID >= 4)
+					SendSysMessage(who,GetChargesDesc(Perc),FONT_NORMAL,COLOR_BLUE);
+				  endif
+				  if(WhoID >= 5)
+					Poisoner := Poisoner.name;
+					if(!Poisoner)
+					  Poisoner := "nieznana osobe";
+					endif
+					SendSysMessage(who,"Ten przedmiot zostal zatruty przez "+Poisoner+".",FONT_NORMAL,COLOR_GREEN);
+				  endif
+				elseif(PPLvl)
+				  var MCh      := GetItemProtPoisonMaxCharges(InnerItem);
+				  var Ch       := GetItemProtPoisonCharges(InnerItem);
+				  var Poisoner := GetItemProtPoisoner(InnerItem);
+				  var Perc     := CInt((Ch * 100) / MCh);
+
+				  SendSysMessage(who,"Ten przedmiot chroni przed "+GetPoisonPotionDesc(PPLvl)+".",FONT_NORMAL,COLOR_ORANGE_LIGHT);
+				  if(WhoID >= 4)
+					SendSysMessage(who,GetChargesDesc(Perc),FONT_NORMAL,COLOR_BLUE);
+				  endif
+				  if(WhoID >= 5)
+					Poisoner := Poisoner.name;
+					if(!Poisoner)
+					  Poisoner := "nieznana osobe";
+					endif
+					SendSysMessage(who,"Ten przedmiot zostal ochroniony przez "+Poisoner+".",FONT_NORMAL,COLOR_GREEN);
+				  endif
+				endif
+			  endif
+					
+			  if(WhoID >= 4)
+				var ToolTipDesc := GetMagicModsChargesDesc(InnerItem);
+				if(ToolTipDesc)
+				  SetToolTipProp(InnerItem, "Moc", ToolTipDesc);
+				endif
+			  endif
+		
+		
+		endforeach
+	
+		
+  else
+  
+  
+  
+
+	  if(IsMagicItem(Item))
+		if(!Item.movable)
+		  SendSysMessage(who,"Nie mozesz tego zidentyfikowac.",FONT_NORMAL,COLOR_RED);
+		  return;
+		endif
+	  endif
+	  
+	  var WhoID := CInt(GetObjProperty(scroll, "ItemLevel"));
+
+	  if(IsArtifact(Item))
+		if(WhoID < 5)
+		  SendSysMessage(who, "Ten zwoj jest za slaby na identyfikacje artefaktu.",FONT_NORMAL,COLOR_RED);
+		  return;
+		endif
+	  endif
+
+	  if(!SubtractAmount(Scroll, 1))
+		SendSysMessage(who,"Z niewyjasnionych powodow nie mozesz uzyc teraz tego zwoja...",FONT_NORMAL,COLOR_RED);
+		return;
+	  endif
+
+	  if(IsArtifact(Item))
+		SendSysMessage(who,  CStr(GetArtChargesDesc(item)),FONT_NORMAL,COLOR_BLUE);
+		return;
+	  endif
+
+	  SendSysMessage(who,"Udalo Ci sie zidentyfikowac przedmiot.",FONT_NORMAL,COLOR_GREEN);
+	  item := IdentifyMagicItem(who,item, WhoID);
+
+	  SendDurabilityMessage(who,item,GetMagicMods(item));
+	  
+	  var desc  := item.desc;
+	  var PLvl  := GetItemPoisonLvl(item);
+	  var PPLvl := GetItemProtPoisonLvl(Item);
+
+	  if(desc[1] == "a")
+		desc[1,2] := "";
+	  elseif(desc[1,2] == "an")
+		desc[1,3] := "";
+	  endif
+
+	  if(IsPotion(item.objtype) and WhoID == 5)
+		Desc := GetPotionName(item.objtype);
+		if(GetExpPotionMod(item))
+		  Desc := "wyjatkowa " + Desc;
+		endif
+	  endif
+
+	  if(desc)
+		SendSysMessage(who,"Wyglada on na "+desc+".",FONT_NORMAL,COLOR_GREEN);
+	  endif
+	  
+	  if(WhoID >= 3)
+		if(PLvl)
+		  var MCh      := GetItemPoisonMaxCharges(item);
+		  var Ch       := GetItemPoisonCharges(item);
+		  var Poisoner := GetItemPoisoner(item);
+		  var Perc     := CInt((Ch * 100) / MCh);
+
+		  SendSysMessage(who,"Ten przedmiot zostal zatruty "+GetPoisonPotionDesc(PLvl)+".",FONT_NORMAL,COLOR_GREEN_DARK);
+		  if(WhoID >= 4)
+			SendSysMessage(who,GetChargesDesc(Perc),FONT_NORMAL,COLOR_BLUE);
+		  endif
+		  if(WhoID >= 5)
+			Poisoner := Poisoner.name;
+			if(!Poisoner)
+			  Poisoner := "nieznana osobe";
+			endif
+			SendSysMessage(who,"Ten przedmiot zostal zatruty przez "+Poisoner+".",FONT_NORMAL,COLOR_GREEN);
+		  endif
+		elseif(PPLvl)
+		  var MCh      := GetItemProtPoisonMaxCharges(item);
+		  var Ch       := GetItemProtPoisonCharges(item);
+		  var Poisoner := GetItemProtPoisoner(item);
+		  var Perc     := CInt((Ch * 100) / MCh);
+
+		  SendSysMessage(who,"Ten przedmiot chroni przed "+GetPoisonPotionDesc(PPLvl)+".",FONT_NORMAL,COLOR_ORANGE_LIGHT);
+		  if(WhoID >= 4)
+			SendSysMessage(who,GetChargesDesc(Perc),FONT_NORMAL,COLOR_BLUE);
+		  endif
+		  if(WhoID >= 5)
+			Poisoner := Poisoner.name;
+			if(!Poisoner)
+			  Poisoner := "nieznana osobe";
+			endif
+			SendSysMessage(who,"Ten przedmiot zostal ochroniony przez "+Poisoner+".",FONT_NORMAL,COLOR_GREEN);
+		  endif
+		endif
+	  endif
+			
+	  if(WhoID >= 4)
+		var ToolTipDesc := GetMagicModsChargesDesc(item);
+		if(ToolTipDesc)
+		  SetToolTipProp(item, "Moc", ToolTipDesc);
+		endif
+	  endif
+	endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

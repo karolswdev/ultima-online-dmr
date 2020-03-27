@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 122;
+
+//-----------------------------------------------------------------------------
+
+program KnFuriousDefence(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!CanMod(Caster, MOD_CTH) or !CanMod(Caster, MOD_PENETRATE))
+    WcFizzleId(Caster, "Jestes juz pod wplywem eliksiru!", KN_WCID);
+    return 0;
+  endif
+
+  if(!CanSkillMod(Caster, SKILLID_SWORDSMANSHIP) or !CanSkillMod(Caster, SKILLID_FENCING))
+    WcFizzleId(Caster, "Nie mozesz w tej chwili wypic tego eliksiru!", KN_WCID);
+    return 0;
+  endif
+
+  GainWarcastPoints(Caster, Caster, KN_WCID, WCGAIN_DEFENSIVE);
+
+  var Duration := GetWarCastDuration(Caster, WCT_KENSAI);
+  var ModAmt   := CInt(5 + CalcSkillExponential(Caster, SKILLID_KENSAI, 25) + CalcSkillExponential(Caster, SKILLID_TACTICS, 20) + RandomInt(5));
+
+  DoMod(Caster, MOD_CTH, 0 - ModAmt, Duration);
+  DoMod(Caster, MOD_PENETRATE, 0 - ModAmt, Duration);
+
+  PlayPcEffect(Caster, FX_MARK_EFFECT, 454, 0x10, 0x10, 2);
+  PlaySoundEffect(Caster, SFX_SPELL_AGILITY);
+  PlaySoundEffect(Caster, SFX_SPELL_CLUMSY);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

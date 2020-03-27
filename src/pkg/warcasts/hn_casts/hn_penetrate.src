@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "include/packets";
+include "include/gumps";
+include "include/calc";
+include "include/dirs";
+include "include/objects/location";
+
+include ":wearwolf:wearwolf";
+include ":tracking:tracking";
+include ":detecthidden:common";
+
+//-----------------------------------------------------------------------------
+
+const HN_WCID                := 167;
+
+//-----------------------------------------------------------------------------
+
+program HnPenetrate(Parms)
+
+  WarCast(Parms, HN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var VpSkill  := CalcSkillExponential(Caster, SKILLID_HUNTER, 10);
+  var SpSkill  := CalcSkillExponential(Caster, SKILLID_INSIGHT, 10);
+  var Duration := Max(5, CInt(VpSkill + (SpSkill / 2))); // 5s do 15s
+  var lCthDec  := (VpSkill + SpSkill) * 6; // max 120, czyli 12%
+
+  PlaySoundEffect(Caster,SFX_BLADEWEAVE);
+  PlayPcStEffect( Caster.x, Caster.y, Caster.z, Caster.realm, FX_CURSE_EFFECT, 70, 0x10, 0x10, 2);
+
+  if(CanMod(Caster, MOD_CTH))
+    GainWarcastPoints(Caster, Caster, HN_WCID, WCGAIN_NORMAL);
+  endif
+
+  DoMod( Caster, MOD_CTH, lCthDec, Duration);
+  DoMod( Caster, MOD_PENETRATE, lCthDec, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

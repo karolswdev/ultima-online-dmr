@@ -1,0 +1,12 @@
+use uo;
+
+include "include/misc";
+include "include/reputation/pvparea";
+
+program EnterArea(who, region)
+  
+  __ParamUnused(region);
+
+  HandleEnterPvpArea(who);
+
+endprogram

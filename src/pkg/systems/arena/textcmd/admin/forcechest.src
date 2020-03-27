@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//--------------------------------------------------------------------------------
+
+include "../../arena";
+
+//--------------------------------------------------------------------------------
+
+program ForceMoveItemsToBanksFromArenaChest(who)
+
+  SendSysMessage(who,"Wybierz skrzynke Areny.",FONT_NORMAL,COLOR_GREEN);
+  var Chest := ObjTarget(who);
+  if(Chest.objtype != UOBJ_ARENACHEST)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  var n := 0,p := 0;
+  
+  foreach item in ListRootItemsInContainer(Chest)
+    if(item.objtype == UOBJ_ARENAPACK)
+      foreach packitem in ListRootItemsInContainer(item)
+        SetObjProperty(packitem,"DropTime",ReadGameClock() - CHEST_DROP_TIME);
+        n := n + 1;
+      endforeach
+      p := p + 1;
+    endif
+  endforeach
+  SendSysMessage(who,"Zaznaczono "+n+" przedmiotow w "+p+" plecakach graczy, do przeniesienia w docelowe miejsca.",FONT_NORMAL,COLOR_GREEN);
+  
+endprogram
+
+//--------------------------------------------------------------------------------

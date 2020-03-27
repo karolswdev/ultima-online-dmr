@@ -1,0 +1,134 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/clock";
+include "include/gumpboxes";
+include "include/std";
+include "include/clock";
+include "include/cmds/cancmd";
+
+include ":statics:statics";
+
+//-----------------------------------------------------------------------------
+
+program StaticsExport(who,text)
+
+  if(!CanUseCmd(who, "statexp"))
+    return;
+  endif
+ 
+  SetLogRunCycles(LST_CMD);
+
+  if(text == "?")
+    SendSysMessage(who,".statexp Realm sX eX All[1/0(def)] Del[1/0(def)/2 - NoAdd].",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  text := SplitWords(text);
+
+  var Realm := text[1];
+  var Stx   := CInt(text[2]);
+  var Edx   := Cint(text[3]);
+  var All   := CInt(text[4]);
+  var Del   := CInt(text[5]);
+  var Time  := ReadGameClock();
+
+  if(!Realms()[Realm])
+    SendSysMessage(who, "Realm '"+Realm+"' nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var RlmID := GetRealmId(Realm);
+  
+  var Width  := Realms()[Realm].width;
+  var Height := Realms()[Realm].height;
+
+  UnloadConfigFile(SHARECFG_PKG+"stat"+RlmID);
+  var Cfg := ReadConfigFile(SHARECFG_PKG+"stat"+RlmID);
+
+  if(!Edx)
+    Edx := Width;
+  endif
+
+  if(Del)
+
+    if(!IsAdmin(who))
+      SendSysMessage(who, "Nie masz dostêpu do czyszczenia statików.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage("Czy na pewno chcesz skasowaæ wszystkie przedmioty zapisane jako statiki z mapy?", FONT_NORMAL, COLOR_BLUE);
+    if(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+  endif
+  
+  SendSysMessage(who,"Realm: "+Realm+" XS: "+Stx+" XE: "+Edx+" All: "+All+" Del: "+Del+".",FONT_NORMAL,COLOR_GREEN);
+  
+  if(Cfg)
+    if(GetConfigMaxIntKey(Cfg) and Del != 2)
+      SendSysMessage(who,"Konfig 'stat"+RlmID+".cfg' musi byc pusty. Usun go przez interfejs POLa.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+  
+  var Elem,x,y,Id := 0,ItemStr,n := 0,na := 0,Elems,dn := 0,b := 0,h := 0;
+  
+  Elem := {};
+  Elem.+pname := "Item";
+  Elem.+pvalue;
+  
+  Elems := {};
+
+  Id := CInt(Stx / 8) * (Height / 8);
+  
+  for(x:=Stx;x<Edx;x:=x+8)
+    for(y:=0;y<Height;y:=y+8)
+      ItemStr := "";
+      foreach Item in ListObjectsInBox(x,y,-127,x+7,y+7,127,Realm)
+        if(Item.isa(POLCLASS_ITEM))
+          na := na + 1;
+          if(!All)
+            if(!IsStc(Item))
+              continue;
+            endif
+          endif
+
+          if(Item.objtype != UOBJ_WAYGATE and Item.objtype != UOBJ_TELE and Item.graphic != UOBJ_BLUEGATE and Item.graphic != UOBJ_REDGATE and Item.graphic != UOBJ_BLACKGATE and Item.graphic != UOBJ_WHITEGATE)
+            if(Del != 2)
+              ItemStr := ItemStr + CInt(Item.graphic)+"_"+(Item.x-x)+"_"+(Item.y-y)+"_"+Item.z+"_"+Item.color+" ";
+            endif
+          
+            if(Del and !All)
+              if(DestroyItem(Item))
+                dn := dn + 1;
+              endif
+            endif
+          else
+            b := b + 1;
+          endif
+          n  := n  + 1;
+        endif
+      endforeach
+      
+      if(ItemStr != "")
+        Elem.pvalue := ItemStr;
+        Elems := {Elem};
+        AppendConfigFileElem(SHARECFG_PKG+"stat"+RlmID,"Elem",Id,Elems);
+      endif
+
+      Id := Id + 1;
+    endfor
+    if(!(x % 512))
+      SendSysMessage(who,"X: "+x+" ID: "+Id+" Added: "+n+" All: "+na+" Bad: "+b+" HighObj: "+h+" Del: "+dn+" Pid: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+    endif
+  endfor
+
+  SendSysMessage(who,"Added: "+n+" All: "+na+" Bad: "+b+" HighObj: "+h+" Del: "+dn,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Zakonczono eksportowanie, czas trwania: "+RealTime(ReadGameClock() - Time),FONT_NORMAL,COLOR_BLUE);
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

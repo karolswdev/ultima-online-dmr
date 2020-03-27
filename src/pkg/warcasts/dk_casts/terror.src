@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/packets";
+
+include "../pkg/warcasts/warcasts";
+include "../pkg/systems/weather/weather";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 71;
+
+//-----------------------------------------------------------------------------
+
+program DkTerror(Parms)
+
+  WarCast(Parms, DK_WCID, 0, TRGT_PLAYER, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  if(Distance(Caster, CastOn) > 4)
+    WcFizzleId(Caster, "Jestes za daleko by przestraszyc przeciwnika!", DK_WCID);
+    return 0;
+  endif
+
+  var Duration := CInt(GetEffectiveSkill(Caster, SKILLID_FANATICISM)/40);
+
+  GainWarcastPoints(Caster, CastOn, DK_WCID, WCGAIN_OFFENSIVE);
+  
+  DoMod(CastOn, MOD_PARA, 1, Duration);
+  PlaySoundEffect(CastOn, SFX_SPELL_PARALYZE);
+  PlayPcEffect(CastOn, FX_MARK_EFFECT, 43, 0xF, 0x10, 3);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

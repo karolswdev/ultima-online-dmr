@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include ":musicianship:music";
+
+//-----------------------------------------------------------------------------
+
+program Bard(who,text)
+  
+  if(GetEffectiveSkill(who,SKILLID_MUSICIANSHIP) >= 60)
+  
+    if(text == "pomoc")
+      SendSysMessage(who,".bard normalnie/spokojnie/dramatycznie/walecznie",FONT_NORMAL,COLOR_RED);
+    elseif(text == "normalnie")
+      SaveBardSound(who,S_SUCCESS_ID);
+      SendSysMessage(who,"Bedziesz teraz gral"+ggm(who,4)+" normalnie.",FONT_NORMAL,COLOR_GREEN);
+    elseif(text == "spokojnie")
+      SaveBardSound(who,S_PEACE_ID);
+      SendSysMessage(who,"Bedziesz teraz gral"+ggm(who,4)+" spokojnie.",FONT_NORMAL,COLOR_GREEN);
+    elseif(text == "dramatycznie")
+      SaveBardSound(who,S_DRAMA_ID);
+      SendSysMessage(who,"Bedziesz teraz gral"+ggm(who,4)+" dramatycznie.",FONT_NORMAL,COLOR_GREEN);
+    elseif(text == "walecznie")
+      SaveBardSound(who,S_BATTLE_ID);
+      SendSysMessage(who,"Bedziesz teraz gral"+ggm(who,4)+" walecznie.",FONT_NORMAL,COLOR_GREEN);
+    endif
+  
+  else
+    SendSysMessage(who,"Nie jestes bardem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

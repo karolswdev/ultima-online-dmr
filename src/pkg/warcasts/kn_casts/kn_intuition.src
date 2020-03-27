@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 126;
+
+//-----------------------------------------------------------------------------
+
+program KnIntuition(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(!CanMod(Caster, MOD_CRIT_HIT))
+    WcFizzleId(Caster, "Jestes juz pod wplywem eliksiru!", KN_WCID);
+    return 0;
+  endif
+
+  var Duration := CInt(GetWarCastDuration(Caster, WCT_KENSAI) / 1.666);
+  var SkKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var ModAmt   := CInt((SkKensai + SkTact) / 4);
+
+  DoMod(Caster, MOD_CRIT_HIT, ModAmt, Duration);
+
+  PlayPcEffect(Caster, FX_MARK_EFFECT, 1000, 0x1F, 0x10, 0x2);
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 1000, 0x10, 0x1A, 0x2);
+  PlaySoundEffect(Caster, SFX_FREN_WHIRLWIND);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "../pkg/systems/weather/weather";
+include "include/clock";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 30;
+
+//-----------------------------------------------------------------------------
+
+program VwFireBlood(Parms)
+
+  VampireRuneCast(Parms, VW_WCID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(IsMagicItem(Caster.weapon) or IsArtifact(Caster.weapon) or IsItemPoisoned(Caster.weapon) )  
+    WcFizzleId(Caster, "Tej broni nie pokryjesz ognista krwia.", VW_WCID);
+    return;
+  endif
+
+  if( !GetEquipmentByLayer(Caster,LAYER_HAND1) )  
+    WcFizzleId(Caster, "Nie masz broni w rekach!", VW_WCID);
+    return;
+  endif
+
+  if(IsItemPoisoned(Caster.weapon) )
+    WcFizzleId(Caster, "Nie uda Ci sie pokryc zatrutej broni ognista krwia.", VW_WCID);
+    return;
+  endif
+
+  var Duration  := GetVampireWarSpDur(Caster);
+  var ModAmount := 1 + CInt(GetEffectiveSkill(Caster, SKILLID_VAMPIRE) / 50);
+  var ModFlags  := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  PlaySoundEffect(Caster, SFX_SPELL_FIREBALL);
+  PlaySoundEffect(Caster, SFX_FEINT);
+  PlayPcEffect(Caster, FX_BLESS_EFFECT, 132, 0x10, 0x10, 1);
+
+  if(CanMod(Caster, MOD_FIRE_BLOOD))
+    GainWarcastPoints(Caster, Caster, VW_WCID, WCGAIN_NORMAL);
+  endif
+
+  UndoMod(Caster, MOD_COLD_DMG);
+  DoMod(Caster, MOD_FIRE_BLOOD, ModAmount, Duration, 0, ModFlags);
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

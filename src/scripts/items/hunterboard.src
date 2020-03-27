@@ -1,0 +1,272 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/finding";
+include "include/move";
+include ":banking:gold";
+include "include/clock";
+include "include/tempmods";
+include ":banking:common";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const HUNT_TIME      := 259200;
+const MIN_BET        := 20000;
+const HUNTED_DISTIME := 43200;
+const MAX_HUNT_SIZE  := 18;
+const MAX_HPP        := 4;
+
+//-----------------------------------------------------------------------------
+
+program HunterBoard(who, Board)
+
+  __ParamUnused(Board);
+
+  GInit(50,50);
+  GPage();
+  GResPic(0,0,0xA3C,533,440);
+  GResPic(6,7,0x13BE,522,425);
+  GCheckerTrans(6,7,522,425);
+  
+  GTextLine(120,10,560,"Glowa");
+  GTextLine(275,10,560,"Nagroda");
+  GTextLine(405,10,560,"Pozostaly Czas");
+
+  GGumpPic(7,40,0xA8C);
+  GGumpPic(7,400,0xA8C);
+
+  var Heads := GetGlobalProperty("HunterBoardHeads");
+  var Head,i,Hunter;
+
+  GGumpPic(40,11,0xA8D);
+  GGumpPic(365,11,0xA8D);
+  GGumpPic(250,11,0xA8D);
+
+  GButton(130,407,0xFA9,0xFAA,1);
+  GTextLine(170,407,550,"Zloz oferte");
+
+  GButton(310,407,0xFA9,0xFAA,2);
+  GTextLine(350,407,550,"Zloz glowe");
+  
+  GAddPageData(10,407,0xFA6,0xFA7,495,407,0xFAF,0xFB0);
+
+  if(Heads.size())
+    for(i:=1;i<=Heads.size();i:=i+1)
+      GCheckNextPage(6);
+      Head := Heads[i];
+      if(Head)
+        Hunter := FindPlayerBySerial(Head[3]);
+        if(Head[4] < ReadGameClock())
+          Heads.erase(i);
+          i := i - 1;
+          SetGlobalProperty("HunterBoardHeads",Heads);
+          if(!Head[5])
+            CreateGold(FindBankBox(Hunter),CInt(Head[2]));
+          endif
+          continue;
+        endif
+        GTextLine(15 , 45+(GNPCount()*60),560,i);
+        GTextLine(50 , 45+(GNPCount()*60),570,Head[1]);
+        GTextLine(50 , 75+(GNPCount()*60),550,"Zlecil: "+CLStr(GetRealName(Hunter)));
+        GTextLine(270, 45+(GNPCount()*60),570,Head[2] + " gp");
+        if(Head[5])
+          var WhoHunted := FindPlayerBySerial(Head[5]);
+          GTextLine(375,45+(GNPCount()*60),560,"Wykonal: "+CLStr(GetRealName(WhoHunted)));
+        else
+          GTextLine(375,45+(GNPCount()*60),570,RealTime(Head[4] - ReadGameClock()));
+        endif
+        GGumpPic(7,100+(GNPCount()*60),0xA8C);
+      endif
+    endfor
+  endif
+
+  var Res := GSend(who)[0];
+  
+  case(Res)
+    1:  MakeOffer(who);
+    2:  GetReward(who);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MakeOffer(who)
+
+  GInit(50,50);
+  GResPic(0,0,0xA3C,333,170);
+  GResPic(6,7,0x13BE,322,155);
+  GCheckerTrans(6,7,322,155);
+
+  GTextLine(30,33,550,"Imie");
+  GResPic(70,30,0xA3C,200,30);
+  GTextLine(30,83,550,"Cena");
+  GResPic(70,80,0xA3C,200,30);
+  
+  GTextEntry(75,35,186,30,550,2,"");
+  GTextEntry(75,85,186,30,550,3,"");
+
+  GButton(130,120,0xFB8,0xFB9,2);
+  GButton(180,120,0xFB5,0xFB6,1);
+
+  var Res := GSend(who);
+
+  if(Res[0] == 2)
+    var Name  := CroppedId(Res[2]);
+    var Price := CInt(CroppedId(Res[3]));
+  
+    Name := ChkHuntName(lower(Name));
+
+    if(Name)
+      Name := SplitWords(Name);
+  
+      foreach Nam in Name
+        Nam    := lower(Nam);
+        Nam[1] := Upper(Nam[1]);
+      endforeach
+  
+      Name := CombineWords(Name);
+    endif
+  
+    if(Name and Price)
+      var WhoName := lower(who.name);
+      if(WhoName[lower(Name)])
+        SendSysMessage(who,"Chcesz zlecic sciecie swojej glowy?!",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      if(Price < MIN_BET)
+        SendSysMessage(who,"Najnizsza stawka to "+MIN_BET+" gp.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      if(len(Name) < 2 or len(Name) > 30)
+        SendSysMessage(who,"Za dlugie lub za krotkie imie.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      var Head  := {Name,Price,who.serial,ReadGameClock() + HUNT_TIME};
+      var Heads := GetGlobalProperty("HunterBoardHeads");
+      if(!Heads.size() or !Heads)
+        Heads := {};
+      endif
+      
+      var WhoNr := 0;
+      
+      foreach BHead in Heads
+        if(lower(BHead[1]) == lower(Name))
+          SendSysMessage(who,"Wystawiono juz nagrode za ta glowe.",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+        
+        if(BHead[3] == who.serial)
+          WhoNr := WhoNr + 1;
+        endif
+      endforeach
+      
+      if(WhoNr >= MAX_HPP)
+        SendSysMessage(who,"Nie mozesz zlecic wiecej.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      if(Heads.size() >= MAX_HUNT_SIZE)
+        SendSysMessage(who,"Tablica jest pelna.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+
+      if(!SpendGold(who, Price))
+        SendSysMessage(who,"Nie masz tyle zlota przy sobie.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+
+      Heads.append(Head);
+      SetGlobalProperty("HunterBoardHeads",Heads);
+      SendSysMessage(who,"Wystawil"+ggm(who,3)+" nagrode za glowe "+Name+" w wysokosci "+Price+" gp.",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Bledne dane.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetReward(who)
+
+  SendSysMessage(who,"Wskaz glowe.",FONT_NORMAL,COLOR_GREEN);
+  var Head := ObjTarget(who);
+  
+  if(!Head or !Head.isa(POLCLASS_ITEM))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(Head.objtype == UOBJ_HEAD and ReserveItem(Head))
+    if(Head.container != who.backpack)
+      SendSysMessage(who,"Ta glowa nie jest w twoim plecaku!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    var Heads := GetGlobalProperty("HunterBoardHeads");
+    var HName := lower(Head.name);
+    HName["glowa "] := "";
+    HName[" zyl "] := "";
+    HName[" lat"] := "";
+    HName[len(HName)-1,len(HName)] := "";
+    
+    var BHName;
+    var WhoName := lower(who.name);
+    
+    foreach BHead in Heads
+    
+      if(BHead[5] or BHead[3] == who.serial)
+        continue;
+      endif
+      
+      BHName := lower(BHead[1]);
+
+      if(HName[BHName] and !WhoName[HName])
+        BHead[5] := who.serial;
+        BHead[4] := ReadGameClock() + HUNTED_DISTIME;
+        SetGlobalProperty("HunterBoardHeads",Heads);
+        CreateGold(who.backpack,CInt(BHead[2]));
+        var Hunter := FindPlayerBySerial(BHead[3]);
+        
+        MoveObject(Head,who.x,who.y,who.z,who.realm,MOVEITEM_FORCELOCATION);
+        if(!MoveItemToContainer(Head,FindBankBox(Hunter)))
+          DestroyItem(Head);
+        endif
+        
+        SendSysMessage(who,"Gratulacje!",FONT_NORMAL,COLOR_GREEN);
+        SendSysMessage(who,"Wykonal"+ggm(who,3)+" zlecenie.",FONT_NORMAL,COLOR_GREEN);
+        return;
+      endif
+    endforeach
+    
+    SendSysMessage(who,"Nie ma zlecenia na ta glowe.",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"To nie glowa.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChkHuntName(Name)
+
+  var WBads := {"0","1","2","3","4","5","6","7","8","9","!","@","#","$","%","^","&","*","(",")","_","-","+","=",",",".","<",">","/","?",":",";","[","]","{","}","`","~","\\","|","meph","xeno","lemirl","agroe","caed","kurw","spier","dup","huj","cip","kuta","jeba","zajeb","pierd"};
+  
+  foreach WBad in WBads
+    if(Name[WBad])
+      return 0;
+    endif
+  endforeach
+
+  return Name;
+
+endfunction
+
+//-----------------------------------------------------------------------------

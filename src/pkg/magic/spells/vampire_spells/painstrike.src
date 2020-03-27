@@ -1,0 +1,66 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/reputation/murderer";
+include "include/packets";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 111;
+
+//-----------------------------------------------------------------------------
+
+program CastPainStrike( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  SetScriptController ( caster );
+  Detach ();
+
+  var Dmg, Num := 0;
+  var Range := CInt(GetEffectiveSkill(Caster,SKILLID_VAMPIRE) / 20) + CInt(GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK) / 20);
+  var Gained := 0;
+
+  PlaySoundEffect (Caster, SFX_SPELL_POISON);
+
+  foreach Mobile in ListMobilesNearLocation(CastOn.x,CastOn.y,CastOn.z,Range, Caster.realm)
+    if(CanDamage(Caster,Mobile,0, CastOn))
+
+      if(Dispersed(Caster, Mobile))
+        continue;
+      endif
+
+      Dmg := CInt(CalcSpellDamage(SpellGlob.Circle,Caster,Mobile,SpellGlob.Type) * 0.6);
+      PlaySoundEffect (Caster, SFX_SPELL_POISON);
+      PlayPcEffect(Mobile, FX_MARK_EFFECT, 38, 0xf, 0xf, 7);
+      var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type, NO_RESIST_GAIN);
+      AddMurdReport(mobile, Caster);
+      start_script(":combat:dechealth",{Mobile,Dmg});
+
+      Num := Num + 1;
+      
+      if(DmgRes > 0 and Gained < 3 and !IsNpcElemental(mobile, array(NPCELEM_ELEMENTAL, NPCELEM_UNDEAD)))
+        Gained += GainSpellPoints(Caster, Mobile, MAGICGAIN_OFFENSIVE);
+      endif
+
+      if(Num >= 5)
+        break;
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

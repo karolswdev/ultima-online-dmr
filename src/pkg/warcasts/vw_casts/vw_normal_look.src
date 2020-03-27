@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 21;
+
+//-----------------------------------------------------------------------------
+
+program VwNormalLook(Parms)
+
+  VampireRuneCast(Parms, VW_WCID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var OldColor := GetColorBefVamp(Caster);
+  var Duration := CalcVampWarModDur(Caster);
+  var ModFlags := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  PlaySoundEffect(Caster, SFX_SPELL_INVISIBILITY);
+
+  if(Caster.color == OldColor and CanMod(Caster, MOD_COLOR) == 0 and GetEffectiveSkill(Caster, SKILLID_VAMPIRE) > 60)
+    UndoMod(Caster, MOD_COLOR);
+  else
+    DoMod(Caster, MOD_COLOR,  OldColor, Duration, 0, ModFlags);
+  endif
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

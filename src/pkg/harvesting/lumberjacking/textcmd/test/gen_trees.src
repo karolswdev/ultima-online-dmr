@@ -1,0 +1,63 @@
+use cfgfile;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/const/cfgs";
+include "include/client/fonts";
+include "include/getobj";
+include "include/misc";
+
+include ":lumberjacking:trees";
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program GenerateTrees(who, text)
+
+  __ParamUnused(text);
+
+  var Elem := {};
+  Elem.+pname;
+  Elem.+pvalue;
+
+  var i;
+  var Nr:=1;
+  var Logs := GetLogObjTypes();
+  var Boards := GetBoardObjTypes();
+  var ItemsCfg := ReadConfigFile(ITEMS_CFG);
+
+  var Trees := array;
+  // tutaj dodaj zakresy drzew, jakie chcesz dodac. 1 do 8 to LogMod, nastepnie array zakresow.
+  Trees[1] := array( array(0, 0), 
+                     array(0, 0) );
+
+  foreach Tree in Trees
+    foreach x in Tree
+      for(i:=x[1]; i<=x[2]; i+=1)
+
+        var Elems := array;
+
+        Elem.pname := "LogMod";
+        Elem.pvalue := Nr;
+        Elems.append(Elem);
+        
+        Elem.pname := "Log";
+        Elem.pvalue := ItemsCfg[Logs[Nr]].Name;
+        Elems.append(Elem);
+        
+        Elem.pname := "Board";
+        Elem.pvalue := ItemsCfg[Boards[Nr]].Name;
+        Elems.append(Elem);
+        
+        AppendConfigFileElem(":lumberjacking:trees", "Tree", hex(CInt(i)), Elems);
+        
+      endfor
+      SendSysMessage(who, "Dodawanie "+i+"...", FONT_NORMAL, COLOR_GREEN);
+    endforeach
+    Nr := Nr + 1;
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

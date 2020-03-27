@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 65;
+
+//-----------------------------------------------------------------------------
+
+program CastDarkness( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  var Duration := GetNecroSpellDur( Caster );
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  PlaySoundEffect(Caster, SFX_SPELL_NIGHT_SIGHT );
+  PlayPcEffect( CastOn, FX_BLESS_EFFECT, 999, 10, 10, 1);
+
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+
+  CagNpcDamaged(CastOn, 12, Caster);
+  DoMod( CastOn, MOD_LIGHT, 30, Duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

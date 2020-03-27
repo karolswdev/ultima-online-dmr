@@ -1,0 +1,287 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/effects";
+include "include/buildings";
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program useshipdeed(character, deed)
+
+  if(!StandardItemCheck(character,deed))
+    return;
+  endif
+
+  if(DeedAlreadyBuiltFrom(deed))
+    PrintTextAbovePrivate(deed, "Ten statek jest juz na wodzie.", character);
+    return;
+  endif
+
+  BuildShip(character, deed);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildShip(character, deed)
+
+  var shiptype := GetShipObjtype(deed);
+  if(!shiptype)
+    SendSysMessage(character, "Ten statek wydaje sie zepsuty.", FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var flags := ShipFacingFlags(character.facing);
+  var where := TargetMultiPlacement(character, shiptype, flags);
+  if(!where)
+    if(deed.graphic == 5363)
+      deed.graphic := 5364;
+    elseif(deed.graphic == 5364)
+      deed.graphic := 5363;
+    endif
+    return;
+  endif
+
+  if((where.x == deed.x) and (where.y == deed.y))
+    if(deed.graphic == 5363)
+      deed.graphic := 5364;
+    elseif(deed.graphic == 5364)
+      deed.graphic := 5363;
+    endif
+    return;
+  endif
+
+  if((where.x < character.x-10) ||(where.y < character.y-10) ||(where.x > character.x+10) ||(where.y > character.y+10))
+    if(deed.graphic == 5363)
+      deed.graphic := 5364;
+    elseif(deed.graphic == 5364)
+      deed.graphic := 5363;
+    endif
+    return;
+  endif
+  
+  if(NoTeleportZone( where.x, where.y, -150, character.realm ))
+    SendSysMessage(character,"Tutaj nie mozesz rozlozyc lodki.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  set_critical(1);
+  if(!character.cmdlevel)
+    if(!TestCreateLocation(where.x, where.y, where.z, shiptype, flags, character))
+      return;
+    endif
+
+	/*
+    if(IsInShipPort(character))
+      if(!NormalBuildShipEffect(character))
+        return;
+      endif
+    else
+      if(!LongBuildShipEffect(character))
+        return;
+      endif
+    endif
+	 */
+  endif
+ 
+  if(!NormalBuildShipEffect(character))
+	return;
+  endif
+
+  var created := CreateShipKeysAndBuiltDeed(character, shiptype, where.x, where.y, where.z, flags);
+  if(!created)
+    if(deed.graphic == 5363)
+      deed.graphic := 5364;
+    elseif(deed.graphic == 5364)
+      deed.graphic := 5363;
+    endif
+    return;
+  endif
+
+  if(lower(deed.name) != "statek" and !deed.name["deed"])
+    created.ship.tillerman.name := deed.name;
+  endif
+
+  if(DestroyItem(deed))
+    created.ship.starboardplank.locked := 1;
+    created.ship.portplank.locked := 1;
+    created.ship.hold.locked := 1;
+    var lockid := AllocLockId();
+    SetObjProperty(created.ship.starboardplank,    "lockid",      lockid);
+    SetObjProperty(created.ship.portplank,         "lockid",      lockid);
+    SetObjProperty(created.ship.starboardplank,    "owner",       character.serial);
+    SetObjProperty(created.ship.portplank,         "owner",       character.serial);
+    SetObjProperty(created.ship.starboardplank,    "tillermanid", created.ship.tillerman.serial);
+    SetObjProperty(created.ship.portplank,         "tillermanid", created.ship.tillerman.serial);
+    SetObjProperty(created.ship.hold,              "lockid",      lockid);
+    SetObjProperty(created.ship.hold,              "owner",       character.serial);
+    SetObjProperty(created.ship.tillerman,         "owner",       character.serial);
+    SetObjProperty(created.ship.tillerman,         "shipserial",  created.ship.serial);
+    SetObjProperty(created.ship.tillerman,         "lockid",      lockid);
+    SetObjProperty(created.packkey,                "lockid",      lockid);
+    SetObjProperty(created.packkey,                "shipserial",  created.ship.serial);
+    SetObjProperty(created.ship.tillerman,         "decay",       (ReadGameClock()+ 864000));
+    created.ship.tillerman.usescript := ":boat:tillerman";
+  else
+    DestroyMulti(created.ship);
+    DestroyItem(created.packkey);
+    SendSysMessage(character,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShipFacingFlags(facing)
+  var flags := 0;
+  case (facing)
+    DIR_N:  flags := CRMULTI_FACING_NORTH;
+    DIR_NE: flags := CRMULTI_FACING_NORTH;
+    DIR_E:  flags := CRMULTI_FACING_EAST;
+    DIR_SE: flags := CRMULTI_FACING_SOUTH;
+    DIR_S:  flags := CRMULTI_FACING_SOUTH;
+    DIR_SW: flags := CRMULTI_FACING_SOUTH;
+    DIR_W:  flags := CRMULTI_FACING_WEST;
+    DIR_NW: flags := CRMULTI_FACING_NORTH;
+  endcase
+  return flags;
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateShipKeysAndBuiltDeed(character, shiptype, x, y, z, flags)
+
+  var packkey := CreateItemInPack(character, UOBJ_COPPER_KEY);
+
+  if(!packkey)
+    Sendsysmessage(character, "Twoja skrzynka bankowa jest pelna!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var ship := CreateMultiAtLocation(x, y, z, shiptype, flags, character.realm);
+
+  if(!ship)
+    Sendsysmessage(character, "Nie mozesz postawic tam statku!",FONT_NORMAL,COLOR_RED);
+    DestroyItem(packkey);
+    return 0;
+  endif
+
+  SetObjProperty(ship.hold,"owner", character.serial);
+
+  if(!GetObjProperty(ship.hold,"owner"))
+    Sendsysmessage(character, "Nie mozesz postawic tam statku.",FONT_NORMAL,COLOR_RED);
+    DestroyItem(packkey);
+    return 0;
+  endif
+
+  var result := {};
+  result .+ packkey := packkey;
+  result .+ ship := ship;
+  SendSysMessage(character,"Statek jest w pelnej gotowosci!",FONT_NORMAL,COLOR_GREEN);
+  return result;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeedAlreadyBuiltFrom(deed)
+  if(GetObjProperty(deed, "builtserial"))
+    return 1;
+  else
+    return 0;
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetShipObjtype(deed)
+
+  var id := ReadConfigFile(ITEMS_CFG);
+  var elem := id[deed.objtype];
+  var ot := GetObjtypeByName(elem.ShipObjType);
+  return ot;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function NormalBuildShipEffect(who)
+
+  SendSysMessage(who,"Rozkladasz lodz...",FONT_NORMAL,COLOR_GREEN);
+
+  if(!MakeNoise(who, SFX_NATURE_WAVE2))
+    return 0;
+  endif
+  
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LongBuildShipEffect(who)
+
+  var i, Sound;
+
+  for(i:=1;i<=10;i:=i+1)
+    if(i < 8)
+      Sound := SFX_NATURE_WAVE1;
+      SendSysMessage(who,"Rozkladasz lodz...",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"W niedlugi czas lodz bedzie gotowa!",FONT_NORMAL,COLOR_GREEN);
+      Sound := SFX_NATURE_WAVE2;
+    endif
+
+    if(!MakeNoise(who, Sound))
+      return 0;
+    endif
+  endfor
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TestCreateLocation(x, y, z, shiptype, flags, who)
+
+  var tempship := CreateMultiAtLocation(x, y, z, shiptype, flags, who.realm);
+
+  if(!tempship)
+    SendSysMessage(who, "Nie mozesz postawic tam statku.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  else
+    SetObjProperty(tempship, "TempShip", 1);
+    tempship.invisible := 1;
+    tempship.tillerman.invisible := 1;
+    tempship.portplank.invisible := 1;
+    tempship.starboardplank.invisible := 1;
+    tempship.hold.invisible := 1;
+
+    var ms := ReadMillisecondClock() + 700;
+    while(tempship and ms > ReadMillisecondClock())
+      Sleepms(20);
+    endwhile
+
+    if(tempship)
+      var res := DestroyMulti(tempship);
+      if(!res)
+        LogNotice("TestCreateLocation: Nie udalo sie zniszczyc tempship: "+tempship.serial+" Loc: "+tempship.x+", "+tempship.y+", "+tempship.z+" "+tempship.realm+" Err: "+res, LOGF_WORLD);
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return 0;
+      endif
+    endif
+
+    return 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

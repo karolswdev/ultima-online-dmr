@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "spawnrune";
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+program OnRemoveFromSpawnChest(who,Chest,item)
+
+  __ParamUnused(who);
+
+  if(CInt(GetObjProperty(Chest, "#InsertTime")) < ReadGameClock())
+    DelaySpawn(Chest);
+    SetObjProperty(Chest, "#InsertTime", ReadGameClock() + 180);
+  endif
+
+  EraseObjProperty(Item, "Spawnnet");
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

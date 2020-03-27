@@ -1,0 +1,58 @@
+// Warrior glyphs
+
+ -> Major glyphs
+ 
+ - Glyph of critical strike -> + 2 % additional critical strike chance -> add to newCombat (?Mae?)
+ 
+ - Glyph of improved healing -> +5% faster healing -> add to :healing:heal
+ 
+ - Glyph of life leech -> 2% chance of leeching hit's worth -> add to newCombat (?Mae?)
+ 
+ - Glyph of mana leech -> 2% chance of leeching target's mana for stamina -> add to newCombat (?Mae?)
+ 
+ -> Minor glyphs
+ 
+ - Glyph of increased health -> +3 total health -> add to pkg/foundations/hooks
+ 
+ - Glyph of increased healing -> +3 healing points healed -> add to :healing:heal
+ 
+ - Glyph of improved minor striking -> +1 dmg on every hit -> add to newCombat (?Mae?)
+ 
+ - Glyph of increased anatomy -> anatomy gives 0.5 health every 20% -> add to pkg/foundations/hooks/
+ 
+ - Glyph of increased tactics -> +1% hit chance -> add to newCombat (?Mae?)
+ 
+ - Glyph of beastslaying -> 10% chance of full hp regen after monster kill -> add to /sciprts/misc/death.src
+ 
+ - Glyph of longer running -> .bieg command lasts 5 seconds longer -> add to /scripts/textcmd/player/bieg.src
+ 
+ - Glyph of improved bless -> warrior takes more benefit of the bless spell +3 -> add to pkg/magic/spells/statmod/bless.src
+ 
+ - Glyph of improved resurrection -> warrior's health and stamina are set to 50% after resurrection -> add to .. dunno?
+ 
+// Mage glyphs
+
+    -> Major glyphs
+    
+    Glyph of spell critical strike -> +2% of spell critical strike -> add to include/magic.inc
+    
+    Glyph of improved healing -> Healing spells heals 10% better -> add to pkg/magic/spells/statmod/gheal.src
+    
+    Glyph of return mana -> 2% chance of returning the spell mana's worth -> add to pkg/magic/spells/somewhere
+    
+    Glyph of better dodge -> 1% more chance of dodging an attack -> add to newCombat (?Mae?)
+    
+    -> Minor glyphs
+    
+    - Glyph of increased mana -> +3 total mana -> add to pkg/foundations/hooks
+    
+    - Glyph of increased meditation -> +3 total starting mana -> add to :meditation:meditation
+    
+    - Glyph of improved magic -> +1 dmg on every spell -> add to pkg/magic/somewhere
+    
+    - Glyph of increased evalint -> evalint gives 0.5 mana every 20% -> add to pkg/foundations/hooks
+    
+    - Glyph of magical beastslaying -> 10% chance of regaining 50% of mana after monster kill -> add /scripts/misc/death.src
+ 
+ 
+ 

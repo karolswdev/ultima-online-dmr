@@ -1,0 +1,85 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/poison";
+include "include/mobile/age";
+
+//-----------------------------------------------------------------------------
+
+program Insight( who )
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var Diff := -1;
+  var Points := Cint(GetDefaultPointsValue(SKILLID_INSIGHT));
+
+  SendSysMessage( who, "Wybierz cel.",FONT_NORMAL,COLOR_GREEN);
+  var Subject := ObjTarget(who);
+
+  if(!StandardMobCheck(who,Subject,NO_CHECK_SPECLOS | NEW_DIST_CHECK | NO_COMBAT_CHECK | NO_USE_CHECK, 12))
+    return;
+  endif
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_INSIGHT));
+
+  if(subject == who)
+    SendSysMessage(who, "Raczej nie masz problemow z ocena siebie.",FONT_NORMAL,COLOR_GREEN);
+    Diff := 0;
+    Points := 0;
+  endif
+
+ if(CheckSkill(who,SKILLID_INSIGHT, Diff, Points))
+    
+    var ardesc := "";
+    var Ar := Subject.ar;
+
+    if(Subject.isa(POLCLASS_NPC))
+      Ar := Ar*2;
+    endif
+
+    if(Ar >= 0 and Ar <= 9)
+      ardesc := "nie wyglada na to, aby byl w stanie sie obronic przed czymkolwiek";
+    elseif (Ar >= 10 and Ar <= 19)
+      Ardesc :=  "wyglada jakby byl calkiem bezbronny";
+    elseif (Ar >= 20 and Ar <= 29)
+      Ardesc :=  "wyglada bezbronnie";
+    elseif (Ar >= 30 and Ar <= 39)
+      Ardesc := "wyglada jakby jego obrona byla bardzo slabo wzmocniona";
+    elseif (Ar >= 40 and Ar <= 49)
+      Ardesc := "wyglada jakby jego obrona byla lekko wzmocniona";
+    elseif (Ar >= 50 and Ar <= 59)
+      Ardesc := "wyglada jakby jego obrona byla wzmocniona";
+    elseif (Ar >= 60 and Ar <= 69)
+      Ardesc := "wyglada jakby jego obrona byla silnie wzmocniona";
+    elseif (Ar >= 70 and Ar <= 79)
+      Ardesc := "wyglada na opancerzony";
+    elseif (Ar >= 80 and Ar <= 89)
+      Ardesc := "wyglada na mocno opancerzony";
+    elseif (Ar >= 90 and Ar <= 99)
+      Ardesc := "wyglada na bardzo mocno opancerzony";
+    elseif (Ar >= 100)
+      Ardesc := "wyglada na nadzwyczajnie mocno opancerzony";
+    endif
+
+    SendSysmessage (who, "Cel " +Ardesc,FONT_NORMAL,COLOR_GREEN);
+
+    if(GetEffectiveSkill(who,SKILLID_INSIGHT) >= 70 and !Subject.cmdlevel)
+      var Age := GetAge(Subject);
+      var AgeDesc := Age+" "+Gam(Age, GAM_LAT);
+
+      SendSysMessage(who,"To stworzenie ma "+AgeDesc,FONT_NORMAL,COLOR_BLUE);
+    endif
+
+  else
+    SendSysmessage (who, "Nie jestes pewn"+ggm(who,6)+"...",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

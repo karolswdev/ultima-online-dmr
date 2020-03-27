@@ -1,0 +1,7 @@
+use os;
+
+program logon(who)
+
+	return;
+	start_script(":motd:textcmd/player/motd", who);
+endprogram

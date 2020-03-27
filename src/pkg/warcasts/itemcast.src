@@ -1,0 +1,25 @@
+//--------------------------------------------------------------------------------
+
+include "warcasts";
+
+//--------------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//--------------------------------------------------------------------------------
+
+program ItemWarCast(who, Item)
+
+  var wcId := CInt(ItemCfg[Item.objtype].wcId);
+
+  if(!wcId)
+    LogError("ItemWarCast: brak wcId who: ["+who.serial+"] ItemObj: ["+Item.objtype+"]");
+  else
+    StartWarCast(who, wcId, Item);
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+

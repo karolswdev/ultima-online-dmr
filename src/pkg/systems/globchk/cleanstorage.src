@@ -1,0 +1,181 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/misc";
+include "include/start";
+include "include/finding";
+include "include/names";
+include "include/const/misc";
+include "include/mobile/npcs/utils";
+
+//-----------------------------------------------------------------------------
+
+var Cleaned  := dictionary;
+var UnIdent  := dictionary;
+var Found    := dictionary;
+
+//-----------------------------------------------------------------------------
+
+program CleanStorage(Parms)
+
+  if(!FillGlobChk(Parms))
+    return 0;
+  endif
+
+  var Storages := StorageAreas();
+  var BoxName, Temp, Serial;
+
+  print("GlobalCheck: ["+MERC_STORAGE+"]: Cleaning");
+  Cleaned[MERC_STORAGE] := array;
+  UnIdent[MERC_STORAGE] := 0;
+  Found[MERC_STORAGE]   := 0;
+
+  foreach Box in (Storages[ MERC_STORAGE ])
+    BoxName := GetName(Box);
+    Found[MERC_STORAGE] := Found[MERC_STORAGE] + 1;
+
+    if(BoxName[MERC_FSBOX])
+      if(BoxName[MERC_PBBOX])
+        continue;
+      endif
+
+      Temp := BoxName;
+      Temp[MERC_FSBOX] := "";
+
+      if(!GetNpcConfig(Temp))
+        Cleaned[MERC_STORAGE].append(BoxName);
+      endif
+    else
+      UnIdent[MERC_STORAGE] := UnIdent[MERC_STORAGE] + 1;
+    endif
+
+    sleepms(20);
+
+  endforeach
+
+  CleanResults(MERC_STORAGE);
+  PrintResult(MERC_STORAGE);
+
+
+  print("GlobalCheck: ["+VENDOR_STORAGE+"]: Cleaning");
+  Cleaned[VENDOR_STORAGE] := array;
+  UnIdent[VENDOR_STORAGE] := 0;
+  Found[VENDOR_STORAGE]   := 0;
+
+  foreach Box in (Storages[ VENDOR_STORAGE ])
+    BoxName := GetName(Box);
+    Serial  := 0;
+    Found[VENDOR_STORAGE] := Found[VENDOR_STORAGE] + 1;
+
+    if(BoxName[VENDOR_FS_CONTNAME])
+      Serial := BoxName;
+      Serial[VENDOR_FS_CONTNAME] := "";
+    elseif(BoxName[VENDOR_PB_CONTNAME])
+      Serial := BoxName;
+      Serial[VENDOR_FS_CONTNAME] := "";
+    elseif(BoxName[VENDOR_1C_CONTNAME])
+      Serial := BoxName;
+      Serial[VENDOR_FS_CONTNAME] := "";
+    endif
+
+    Serial := CInt(Serial);
+
+    if(!Serial)
+      UnIdent[VENDOR_STORAGE] := UnIdent[VENDOR_STORAGE] + 1;
+    else
+      if(!FindNpcBySerial(Serial))
+        Cleaned[VENDOR_STORAGE].append(BoxName);
+      endif
+    endif
+
+    sleepms(20);
+
+  endforeach
+
+  CleanResults(VENDOR_STORAGE);
+  PrintResult(VENDOR_STORAGE);
+  
+
+  print("GlobalCheck: ["+BANK_STORAGE+"]: Cleaning");
+  Cleaned[BANK_STORAGE] := array;
+  UnIdent[BANK_STORAGE] := 0;
+  Found[BANK_STORAGE]   := 0;
+
+  foreach Box in (Storages[ BANK_STORAGE ])
+    BoxName := GetName(Box);
+    Serial  := 0;
+    Found[BANK_STORAGE] := Found[BANK_STORAGE] + 1;
+
+    if(BoxName[BANKBOX_PREFIX])
+      Serial := BoxName;
+      Serial[BANKBOX_PREFIX] := "";
+    elseif(BoxName[STOREBOX_PREFIX])
+      Serial := BoxName;
+      Serial[STOREBOX_PREFIX] := "";
+    endif
+
+    Serial := CInt(Serial);
+
+    if(!Serial)
+      UnIdent[BANK_STORAGE] := UnIdent[BANK_STORAGE] + 1;
+    else
+      if(!FindPlayerBySerial(Serial))
+        Cleaned[BANK_STORAGE].append(BoxName);
+      endif
+    endif
+
+    sleepms(20);
+
+  endforeach
+
+  CleanResults(BANK_STORAGE);
+  PrintResult(BANK_STORAGE);
+  
+  
+  print("GlobalCheck: ["+GITEMS_STORAGE+"]: Cleaning");
+  Cleaned[GITEMS_STORAGE] := array;
+  UnIdent[GITEMS_STORAGE] := 0;
+  Found[GITEMS_STORAGE]   := 0;
+
+  Found[GITEMS_STORAGE] += Storages[GITEMS_STORAGE].size();
+
+  CleanResults(GITEMS_STORAGE);
+  PrintResult(GITEMS_STORAGE);
+  
+  var Keys := Storages.keys();
+
+  foreach StorName in Keys
+    if(StorName != MERC_STORAGE and StorName != VENDOR_STORAGE and StorName != BANK_STORAGE and StorName != GITEMS_STORAGE)
+      print("GlobalCheck: ["+StorName+"]: UnIdent Storage");
+    endif
+  endforeach
+
+  print("GlobalCheck: Storage Cleaned");
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CleanResults(StorName)
+
+  var Storage := FindStorageArea(StorName);
+
+  foreach BoxName in (Cleaned[StorName])
+    DestroyRootItemInStorageArea(Storage, BoxName);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PrintResult(StorName)
+
+  print("GlobalCheck: ["+StorName+"]: F:["+Found[StorName]+"] C:["+Cleaned[StorName].size()+"] U:["+UnIdent[StorName]+"]");
+
+endfunction
+
+//-----------------------------------------------------------------------------

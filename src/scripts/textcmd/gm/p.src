@@ -1,0 +1,135 @@
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/gumps";
+include "include/misc";
+
+
+//-----------------------------------------------------------------------------
+
+program MoveToLoc(who,text)
+
+  text := SplitWords(text);
+
+  if(text[1] == "g")
+    MoveGump(who,CInt(text[2]));
+    return;
+  endif
+
+  if(!(lower(text[1]) in {"x","y","z","g"})  or !CInt(text[2]))
+    SendSysMessage(who,".p [x/y/z/g] [dist]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Dist := CInt(text[2]);
+  var Targ;
+  
+  if(text[3] == "me")
+    Targ := who;
+  else
+    Targ := LocTarget(who);
+    if(Targ.mobile)
+      Targ := Targ.mobile;
+    elseif(Targ.item)
+      Targ := Targ.item;
+    endif
+  endif
+  
+  if(Targ.isa(POLCLASS_MOBILE) or Targ.isa(POLCLASS_ITEM))
+    var pX := Targ.x;
+    var pY := Targ.y;
+    var pZ := Targ.z;
+    var msg := "";
+
+    case(text[1])
+      "x": pX := pX + Dist;
+           msg := "sX: "+Targ.x+" pX: "+pX;
+      "y": pY := pY + Dist;
+           msg := "sY: "+Targ.y+" pY: "+pY;
+      "z": pZ := pZ + Dist;
+           msg := "sZ: "+Targ.z+" pZ: "+pZ;
+    endcase
+    
+    if(Targ.isa(POLCLASS_MOBILE))
+      MoveObject(Targ, pX, pY, pZ, Targ.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    elseif(Targ.isa(POLCLASS_ITEM))
+      MoveObject(Targ, pX, pY, pZ, Targ.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE, MOVETYPE_CMD);
+    endif
+    SendSysMessage(who,msg,FONT_NORMAL,COLOR_GREEN);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MoveGump(who,Ser)
+
+  var Item,Res := 1,Mx,My,Mz;
+
+  if(CInt(Ser))
+    Item := FindItemBySerial(CInt(Ser));
+  else
+    SendSysMessage(who,"Wybierz cel.",FONT_NORMAL,COLOR_GREEN);
+    Item := LocTarget(who);
+    if(Item.item)
+      Item := Item.item;
+    elseif(Item.mobile)
+      Item := Item.mobile;
+    endif
+  endif
+
+  if(Item and !Item.container)
+
+    while(Res and Item)
+      Res := BuildGump(who,Item);
+      case(Res)
+        1: Mx := -1;My := -1;Mz :=  0;
+        2: Mx :=  0;My := -1;Mz :=  0;
+        3: Mx :=  1;My := -1;Mz :=  0;
+        4: Mx :=  1;My :=  0;Mz :=  0;
+        5: Mx :=  1;My :=  1;Mz :=  0;
+        6: Mx :=  0;My :=  1;Mz :=  0;
+        7: Mx := -1;My :=  1;Mz :=  0;
+        8: Mx := -1;My :=  0;Mz :=  0;
+        9: Mx :=  0;My :=  0;Mz :=  1;
+        10:Mx :=  0;My :=  0;Mz := -1;
+      endcase
+
+      if(Res and Item)
+        MoveObject(Item,Item.x+Mx,Item.y+My,Item.z+Mz,Item.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE, MOVETYPE_CMD);
+      endif
+    endwhile
+
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildGump(who,Item)
+
+  GInit();
+  GResPic(0,0,3600,300,260);
+  GCheckerTrans(16,16,270,230);
+  GTextLine(20,150,560,GetName(Item));
+  GButton(110,20,0x1194,0x1194,1);
+  GButton(140,20,0x1195,0x1195,2);
+  GButton(140,50,0x1196,0x1196,3);
+  GButton(140,80,0x1197,0x1197,4);
+  GButton(110,80,0x1198,0x1198,5);
+  GButton(80,80,0x1199,0x1199,6);
+  GButton(80,50,0x119A,0x119A,7);
+  GButton(80,20,0x119B,0x119B,8);
+
+  GTextLine(30,200,560,"Z:");
+  GButton(90,180,0x1194,0x1194,9);
+  GButton(140,180,0x1198,0x1198,10);
+
+  return GSend(who)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------

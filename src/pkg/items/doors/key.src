@@ -1,0 +1,249 @@
+//-----------------------------------------------------------------------------
+
+use boat;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/key";
+include "include/checks/objchecks";
+include "include/player/misc";
+
+include ":housing:common";
+include ":renthouse:common";
+
+//-----------------------------------------------------------------------------
+
+program UseKey(who, key)
+
+  if(!StandardItemCheck(who,key))
+    return;
+  endif
+
+  if(key.objtype == UOBJ_KEYRING)
+    SendSysMessage(who, "Wskaz klucz lub same kolko aby wyjac wszystkie klucze.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Wskaz obiekt, ktory chcesz otworzyc tym kluczem, lub sam klucz jesli chcesz zmienic jego nazwe.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+  var Targ := ObjTarget(who);
+
+  if(!StandardItemCheck(who,Targ,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(key.objtype == UOBJ_KEYRING)
+    Use_KeyRing(who,key,Targ);
+    return;
+
+  elseif(Targ == Key)
+
+    RenameKey( who, Key );
+    return;
+
+  endif
+  
+  var KeyLockId   := GetItemLockID(Key);
+  var TargLockId  := GetItemLockID(Targ);
+  
+  if(!TargLockId)
+    Sendsysmessage( who, "To nie posiada zamka.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!KeyLockId)
+    if(GetObjProperty(Targ,PROP_GM_KEY))
+      SendSysMessage(who, "Klucz wydaje sie zbyt skomplikowany, aby go skopiowac.", FONT_NORMAL,COLOR_RED);
+    else  
+      CopyKey( who, Key, Targ );
+    endif
+    return;
+  endif
+  
+  if(KeyLockId != TargLockId )
+    SendSysMessage(who , "To zly klucz!",FONT_NORMAL,COLOR_RED);
+  else
+    if(Targ.objtype >= UOBJ_KEYSTART and Targ.objtype <= UOBJ_KEYEND)
+      SendSysMessage( who, "Te klucze sa takie same.",FONT_NORMAL,COLOR_RED);
+    elseif(key.container.serial == Targ.serial)
+      SendSysMessage( who, "Ciezko Ci bedzie zamknac to od srodka.",FONT_NORMAL,COLOR_RED);
+    else
+      UnLockIt(Targ,who);
+    endif
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function UnLockIt(door,who)
+
+  if(door.graphic in { GID_PLANK_EXTENDED_FACING_EAST, GID_PLANK_EXTENDED_FACING_WEST, GID_PLANK_EXTENDED_FACING_NORTH, GID_PLANK_EXTENDED_FACING_SOUTH } )
+  
+    Sendsysmessage( who, "Nie mozesz tego zamknac kiedy jest otwarte.",FONT_NORMAL,COLOR_RED);
+    
+  elseif(door.locked == 0)
+  
+    if(CInt(GetObjProperty(door, "#LockDelay")) > ReadGameClock() )
+      SendSysMessage(who, "Nie mozesz teraz tego zamknac! Zamek jest zepsuty!",FONT_NORMAL,COLOR_ORANGE);
+    elseif(IsPublicHouse(door))
+      SendSysMessage(who, "Nie mozesz tego zamknac poki dom jest publiczny.",FONT_NORMAL,COLOR_RED);
+    elseif(!CanLockHrDoors(Door))
+      SendSysMessage(who, "Nie mozesz tego zamknac poki w domu jest kupiec.",FONT_NORMAL,COLOR_RED);
+    elseif(GetObjProperty(Door, PROP_NO_UNLOCK))
+      SendSysMessage(who, "Tych drzwi nie uda ci sie trwal otworzyc.", FONT_NORMAL, COLOR_RED);
+    else
+      door.locked := 1;
+      PrintTextAbovePrivate(door, "*zamkniete*", who , FONT_NORMAL , COLOR_RED);
+    endif
+    
+  else
+
+    door.locked := 0;
+    PrintTextAbovePrivate(door, "*otwarte*", who,FONT_NORMAL,COLOR_GREEN);
+
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Use_KeyRing(who, KeyRing, Key)
+
+  if(!KeyRing.newbie)
+	SendSysMessage(who, "Twoje klucze od teraz sa poblogoslawione.", FONT_NORMAL, COLOR_BLUE);
+	KeyRing.newbie := 1;
+  endif
+
+  var Lockid       := GetItemLockID( key );
+  var KeysInside   := GetObjProperty( KeyRing,"KeysInside");
+  var KeyIn        := 0;
+  
+  if(!KeysInside or !KeysInside.size())
+    KeysInside := {};
+    SetObjProperty(KeyRing,"KeysInside",KeysInside);
+  endif
+  
+  if(Key == KeyRing)
+  
+    if(KeysInside.size())
+      var KeyProps := KeysInside[1];
+
+      KeyIn := CreateItemInPack(who, KeyProps[1], 1);
+      if(!KeyIn)
+        SendSysMessage(who,"Nie masz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+
+      SetItemLockID(KeyIn, KeyProps[2]);
+      KeysInside.erase(1);
+
+      if(KeyProps[3])
+        SetName(KeyIn, KeyProps[3]);
+      endif
+    
+      if(KeyIn)
+        SendSysMessage( who, "Wyj"+ggm(who,5)+" "+GetName(KeyIn)+" z kolka.",FONT_NORMAL,COLOR_GREEN);
+      else
+        return;
+      endif
+    else
+      SendSysMessage( who, "Na kolku nie ma kluczy.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+  elseif(!LockId)
+  
+    SendSysMessage( who, "Tym kluczem niczego sie nie zamyka.",FONT_NORMAL,COLOR_RED);
+    return;
+    
+  elseif(Key.objtype >= UOBJ_KEYSTART and Key.objtype <= UOBJ_KEYEND and Key.objtype != UOBJ_KEYRING)
+    
+    if(GetObjProperty(key, PROP_GM_KEY))
+      Sendsysmessage( who, "Tego klucza nie mozesz przypiac do kolka.",FONT_NORMAL,COLOR_RED);
+    elseif(KeysInside.size() >= 5)
+      SendSysMessage(who,"Nie uda Ci sie zalozyc wiecej kluczy na kolko.",FONT_NORMAL,COLOR_RED);
+    else
+    
+      foreach KeyProps in KeysInside
+        if(LockId == KeyProps[2])
+          SendSysMessage(who,"Klucz otwierajacy te same drzwi juz jest na kolku.",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+      endforeach
+
+      var KeyOt   := Key.objtype;
+      var KeyName := GetName(Key);
+
+      if(DestroyItem(Key))
+        SendSysMessage( who, "Zalozyl"+ggm(who,3)+" "+KeyName+" na kolko.",FONT_NORMAL,COLOR_GREEN);
+        KeysInside.append({KeyOt, LockId, KeyName});
+    
+      else
+        SendSysMessage( who, "Nie mozesz zalozyc klucza na kolko.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endif
+    
+  else
+
+    foreach KeyProps in KeysInside
+      if(LockId == KeyProps[2])
+        UnLockIt(Key,who);
+        return;
+      endif
+    endforeach
+    
+    SendSysMessage( who, "Zaden z kluczy na kolku nie pasuje do tego zamka.",FONT_NORMAL,COLOR_RED);
+    return;
+
+  endif
+
+  case(KeysInside.size())
+    0:       KeyRing.graphic := 4113;
+    1:       KeyRing.graphic := 5993;
+    2:       KeyRing.graphic := 5994;
+    default: KeyRing.graphic := 5995;
+  endcase
+
+  SetObjProperty(KeyRing,"KeysInside",KeysInside);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RenameKey( who, key )
+
+  var KeyDesc := RequestInput( who, key, "Jak ma sie nazywac klucz? (maksymalnie 20 znakow)" );
+  if(KeyDesc)
+    if(len(KeyDesc) <= 20)
+      key.name := "klucz: " + KeyDesc;
+      SendSysMessage( who, "Nazwa zostala zmieniona na "+KeyDesc+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage( who, "Za dluga nazwa.",FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CopyKey( who, key, tgt)
+
+  var TgtLockId := GetItemLockID( tgt );
+
+  if((Tgt.objtype >= UOBJ_KEYSTART) and (Tgt.objtype <= UOBJ_KEYEND) )
+    if(CheckSkill(who, SKILLID_TINKERING, 50, 5))
+      SetItemLockID(key, TgtLockId);
+      SendSysMessage(who, "Zrobil"+ggm(who,3)+" kopie klucza.",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who, "Nie udalo Ci sie zrobic kopii klucza, twe umiejetnosci druciarstwa sa za slabe.",FONT_NORMAL,COLOR_RED);
+      DestroyItem(key);
+    endif
+  else
+    SendSysMessage( who, "To nie posiada zamka.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

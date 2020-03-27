@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/misc";
+include "include/msgs";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program KickCmd( who )
+
+  SendSysMessage( who, "Kogo chcesz wykopac ?", FONT_NORMAL, COLOR_GREEN);
+
+  var victim := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  if(IsPlayer(victim))
+    SetObjProperty(victim,"SafeLogoff",1);
+    DisconnectClient( victim );
+    SendSysMessage(who, "Wykopal"+ggm(who,3)+" osobe "+victim.name, FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

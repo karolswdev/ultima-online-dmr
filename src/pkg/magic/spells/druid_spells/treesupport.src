@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include ":wearwolf:common";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 89;
+
+//-----------------------------------------------------------------------------
+
+program CastTreeSupport( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(IsWearWolfMorphed(Caster))
+    Fizzle(Caster, "Nie mozesz w tej formie otrzymac wsparcia drzew...");
+    return;
+  endif
+
+  var CasterDruid := GetEffectiveSkill(Caster,SKILLID_DRUID);
+  var CasterAl    := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var CasterMed   := GetEffectiveSkill(Caster,SKILLID_MEDITATION);
+
+  var Duration    := GetDruidSpellDur(Caster);
+  var ModMana     := CInt(CasterDruid / 10) + CInt(CasterAl / 11) + CInt(CasterMed / 20) + RandomInt(8 - (CasterMed / 20));
+
+  var CasterSk  := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var CasterSp  := GetMindSkillValue(Caster, SpellGlob.Type);
+  var Mod       := CInt((CasterSk + CasterSp) / 2);
+
+  if(CanMod(Caster, MOD_TREE_SUPPORT) or CanMod(Caster, MOD_MANA))
+    GainSpellPoints(Caster, Caster, MAGICGAIN_DEFENSIVE);
+  endif
+  
+  DoMod(Caster, MOD_TREE_SUPPORT, Mod, Duration);
+  DoMod(Caster, MOD_MANA, (ModMana * 0.60), Duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

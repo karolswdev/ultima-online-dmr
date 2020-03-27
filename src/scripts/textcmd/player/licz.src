@@ -1,0 +1,161 @@
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/magic";
+include "include/gumps";
+include "include/std";
+include ":banking:common";
+include ":housing:common";
+include ":housing:payments";
+include "include/names";
+include "include/coords";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program CountItems(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  SendSysMessage(who,"Wybierz pojemnik lub ksiazke.",FONT_NORMAL,88);
+  var box     := ObjTarget(who);
+  if(!box)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,44);
+    return;
+  endif
+
+  if(box.objtype == UOBJ_CORPSE)
+    return;
+  endif
+
+  if(box.objtype == UOBJ_SPELLBOOK)
+    CountSpells(who,box);
+    return;
+  endif
+
+  var lRes := CanAccessContainer(who, box);
+
+  if(!lRes)
+    if(lRes.errortext)
+      SendSysMessage(who, lRes.errortext, FONT_NORMAL,COLOR_RED);
+    endif
+    return;
+  endif
+
+  var startLoc := GetLocStruct(who);
+
+  while(IsLoggedIn(who))
+
+    var Data := CreateItemsDict(who, box);
+
+    if(!Data)
+      break;
+    endif
+
+    GInit(50,50);
+    GResPic(0,0,BKGND_BLACKSLAB,480,400);
+    GResPic(16,18,BKGND_GOLDTRIM,446,366);
+    GButton(370, 38,  2708, 2709, 1);
+    GTextLine(395, 38, 680, "Odswiez");
+    GTextLine(65,38 ,590,Data.items.size() + " przedmiotow, ilosc : "+Data.amount+".");
+    if(Data.gold)
+      GTextLine(65,58 ,580,"W pojemniku jest "+Data.gold+ " zlota.");
+    endif
+    GAddPageData(437,29,2650,2651,437,354,2646,2647);
+
+    GPage();
+
+    foreach Memb in (Data.Dict)
+      GCheckNextPage(14);
+      GTextLine(35,85+(GNPCount() * 20),560,CInt(Memb)+ ". " + ClStr(_Memb_iter));
+    endforeach
+
+    var Res := GSend(who);
+
+    if(!Res[0])
+      break;
+    endif
+
+    var topCont := GetTopCont(box);
+
+    if(topCont != who.backpack)
+      if(GetLocDist(who, startLoc) > 1)
+        SendBad(who, "Oddalil"+ggm(who,3)+" sie.");
+        break;
+      endif
+    endif
+
+    var lRes := CanAccessContainer(who, box);
+
+    if(!lRes)
+      if(lRes.errortext)
+        SendSysMessage(who, lRes.errortext, FONT_NORMAL,COLOR_RED);
+      endif
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateItemsDict(who, box)
+
+  var Data := struct;
+  Data.+Items  := EnumerateItemsInContainer(box);
+
+  if(!Data.Items.size())
+    SendSysMessage(who,"Ten pojemnik jest pusty.",FONT_NORMAL, COLOR_GREEN);
+    return 0;
+  endif
+  
+  Data.+gold := 0;
+  Data.+amount := 0;
+  Data.+Dict := dictionary;
+
+  foreach item in (Data.items)
+    if(item.container.objtype != UOBJ_SPELLBOOK)
+      if(item.objtype == UOBJ_GOLDCOIN)
+        Data.gold += item.amount;
+      else
+        Data.Dict[CutDesc(item.desc)] := CInt(Data.Dict[CutDesc(item.desc)]) + item.amount;
+        Data.amount += item.amount;
+      endif
+    endif
+
+  endforeach
+
+  return Data;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CountSpells(who,box)
+
+  if(box.container != who.backpack)
+    SendSysMessage(who,"Ta ksiazka nie jest w twoim plecaku!",FONT_NORMAL,40);
+    return;
+  endif
+
+  var items := EnumerateItemsInContainer(box);
+  if(items.errortext or items == error)
+    SendSysMessage(who, "To nie ksiazka!",FONT_NORMAL,40);
+    return;
+  endif
+
+  if(len(items) == 0)
+    SendSysMessage(who,"Ta ksiazka nie jest zapisana.",FONT_NORMAL,88);
+  else
+    case(len(items))
+      1: Sendsysmessage(who,"W ksiazce jest 1 czar.",FONT_NORMAL,88);
+      2:
+      3:
+      4: Sendsysmessage(who,"W ksiazce sa "+len(items)+" czary.",FONT_NORMAL,88);
+      default: Sendsysmessage(who,"W ksiazce jest "+cint(len(items))+" czarow.",FONT_NORMAL,88);
+    endcase
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

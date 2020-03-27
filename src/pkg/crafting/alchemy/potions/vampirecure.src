@@ -1,0 +1,61 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "../pkg/systems/vampire/common";
+
+//-----------------------------------------------------------------------------
+
+program UseCursePotion(who,potion)
+
+  var Skill := GetBaseSkillBaseValue(who,SKILLID_VAMPIRE);
+
+  if(!IsVampire(who) and !Skill)
+    SendSysMessage(who,"Nie jestes wampirem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(GetEffectiveSkill(who,SKILLID_VAMPIRE) >= VPSK_MINCURE)
+    SendSysMessage(who,"Jest juz dla Ciebie za pozno.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who,potion))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+  
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+  
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  if(RandomInt(100) < 50 * QualMod + (ExpMod * 4))
+    if(IsVampire(who))
+      EraseObjProperty(who,"IsVampire");
+      UndoMod(who,MOD_STR);
+      UndoMod(who,MOD_DEX);
+      UndoMod(who,MOD_INT);
+      UndoMod(who,MOD_GRAPHIC);
+      UndoMod(who,MOD_COLOR);
+      UndoMod(who,MOD_LIGHT);
+      var OldColor  := GetColorBefVamp(who);
+      who.color     := OldColor;
+      who.truecolor := OldColor;
+      EraseObjProperty(who,"ColorBeforeVamp");
+      EraseObjProperty(who, "EndedVampire");
+      EraseObjProperty(who, "CanBeVampire");
+    endif
+    SendSysMessage(who,"Udalo Ci sie wyleczyc! Nie jestes juz wampirem.",FONT_NORMAL,COLOR_GREEN);
+    SetBaseSkill(who,SKILLID_VAMPIRE,0);
+  else
+    SendSysMessage(who,"Nie udalo Ci sie wyleczyc!",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

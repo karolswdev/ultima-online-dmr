@@ -1,0 +1,14 @@
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program ShowFullDate(who)
+
+  SendSysMessage(who,GetFullDate(),FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

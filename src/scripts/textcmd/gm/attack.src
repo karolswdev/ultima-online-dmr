@@ -1,0 +1,76 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/client/fonts";
+include "include/player/target";
+
+include "include/buffs";
+
+//-----------------------------------------------------------------------------
+
+program AttackCmd(who, text)
+
+  if(text == "peace")
+
+    SendSysMessage(who, "Wskaz stworzenie do uspokojenia.", FONT_NORMAL, COLOR_GREEN);
+    var thetarg := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+    if(!thetarg.isa(POLCLASS_NPC))
+      SendSysMessage(who, "To nie npc.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    Detach();
+    sleepms(100);
+
+    var ev := array;
+    ev.+ type;
+    ev.type := EVID_PEACEMADE;
+    ev.+ others := -1;
+    SendEvent(thetarg, ev);
+
+  else
+
+    SendSysMessage(who, "Wskaz stworzenie do sprowokowania.", FONT_NORMAL, COLOR_GREEN);
+    var thetarg := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+    if(!thetarg.isa(POLCLASS_NPC))
+      SendSysMessage(who, "To nie npc.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who, "Kogo ma zaatakowac?", FONT_NORMAL, COLOR_GREEN);
+    var newtarg := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+    if (!newtarg.isa(POLCLASS_MOBILE))
+      SendSysMessage(who, "To nie mob.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var ev := array;
+    ev.+ type;
+    ev.+ source;
+
+    if(text != "normal")
+      SendSysMessage(who, "Wysylanie uspokojenia w celu natychmiastowego przelaczenia wroga...", FONT_NORMAL, COLOR_GREEN);
+      ev.type := EVID_PEACEMADE;
+      ev.source := newtarg;
+      SendEvent(thetarg, ev);
+      ev.source := thetarg;
+      SendEvent(newtarg, ev);
+    endif
+
+    ev.type := EVID_ENGAGED;
+    ev.source := newtarg;
+    SendEvent(thetarg, ev);
+    ev.source := thetarg;
+    SendEvent(newtarg, ev);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

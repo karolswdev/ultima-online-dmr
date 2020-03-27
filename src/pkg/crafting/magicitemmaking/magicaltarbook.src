@@ -1,0 +1,155 @@
+//-----------------------------------------------------------------------------
+
+include "crystals";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+var ablayout := {};
+var abdata   := {};
+
+//-----------------------------------------------------------------------------
+
+program MagicAltarBook(who,book)
+
+  if(!StandardItemCheck(who,book))
+    return;
+  endif
+  
+  ablayout.append("gumppic 100 100 2201");
+
+  ablayout.append("page 1");
+  ablayout.append("button 395 105 2206 2206 0 2");
+
+  ablayout.append("text    165 160 650 "+(len(abdata)));
+  ablayout.append("text    150 190 650 "+(len(abdata)+1));
+  ablayout.append("text    165 220 650 "+(len(abdata)+2));
+  abdata.append("Tajniki");
+  abdata.append("Magicznego");
+  abdata.append("Oltarza");
+
+  FillLayoutInText(285,9);
+  abdata.append("Magiczny oltarz");
+  abdata.append("kryje w sobie prze-");
+  abdata.append("rozne   tajemnice.");
+  abdata.append("Mozna  za  jego");
+  abdata.append("pomoca   umagicznic");
+  abdata.append("przedmiot,  lecz do");
+  abdata.append("tego sa potrzebne");
+  abdata.append("magiczne krysztaly.");
+  abdata.append("Krysztaly te, mozna");
+
+  ablayout.append("page 2");
+  ablayout.append("button 125 105 2205 2205 0 1");
+  ablayout.append("button 395 105 2206 2206 0 3");
+  
+  FillLayoutInText(130,9);
+  abdata.append("   wykonac, znajac");
+  abdata.append("odpowiednie tajniki");
+  abdata.append("ktore zapisac mozna");
+  abdata.append("tylko w magicznej");
+  abdata.append("ksiedze krysztalow.");
+  abdata.append("Wszystkie te taj-");
+  abdata.append("niki kryje w sobie");
+  abdata.append("magiczny ow oltarz.");
+  abdata.append("Tajniki te zapisy-");
+  
+  FillLayoutInText(285,9);
+  abdata.append("wane sa w zwojach.");
+  abdata.append("Ukladajac odpowie-");
+  abdata.append("dnie skladniki na");
+  abdata.append("oltarzu, na dwoch");
+  abdata.append("ciemniejszych");
+  abdata.append("symbolach, kladac");
+  abdata.append("czysty zwoj na");
+  abdata.append("srodku oltarza,");
+  abdata.append("rozpoczynajac");
+  
+  ablayout.append("page 3");
+  ablayout.append("button 125 105 2205 2205 0 2");
+  ablayout.append("button 395 105 2206 2206 0 4");
+
+  FillLayoutInText(130,9);
+  abdata.append("   rytual, oltarz");
+  abdata.append("umagiczni zwoj");
+  abdata.append("wpisujac w niego");
+  abdata.append("tajniki wykonania");
+  abdata.append("krysztalu. Oltarz");
+  abdata.append("czerpie swa moc z");
+  abdata.append("czlowieka ktory");
+  abdata.append("rozpoczal rytual.");
+  abdata.append("");
+
+  FillLayoutInText(285,9);
+  abdata.append("Znajac tajniki");
+  abdata.append("krysztalu, mozna");
+  abdata.append("go wykonac, i ");
+  abdata.append("probowac umagicznic");
+  abdata.append("przedmiot. Do takiej");
+  abdata.append("proby potrzebne sa");
+  abdata.append("dwa krysztaly.");
+  abdata.append("Pierwszego rzedu i");
+  abdata.append("drugiego.");
+
+
+
+  ablayout.append("page 4");
+  ablayout.append("button 125 105 2205 2205 0 3");
+  ablayout.append("button 395 105 2206 2206 0 5");
+  ablayout.append("text    160 160 650 "+(len(abdata)));
+  ablayout.append("text    170 190 650 "+(len(abdata)+1));
+  abdata.append("Magiczne");
+  abdata.append("Zwoje");
+
+  var MagicCrystalsScrolls := GetAllCrystalsScrolls();
+  var i := 0,p := 5,s := 2,w := 0,desc := "",reagents;
+  var MainCfg := ReadConfigFile("crystals");
+
+  foreach Scroll in MagicCrystalsScrolls
+    if(s >= 2)
+      ablayout.append("page "+p);
+      ablayout.append("button 125 105 2205 2205 0 "+(p-1));
+      if(i < (len(MagicCrystalsScrolls)-1))
+        ablayout.append("button 395 105 2206 2206 0 "+(p+1));
+      endif
+      s := 0;
+      p := p + 1;
+    endif
+    s := s + 1;
+    i := i + 1;
+    case(s)
+      1: w := 0;
+      2: w := 160;
+    endcase
+    ablayout.append("text        "+(135+w)+" 140 660 "+(len(abdata)));
+    ablayout.append("croppedtext "+(125+w)+" 170 146 20 650 "+(len(abdata)+1));
+    abdata.append("Zwoj krysztalu");
+    desc := GetDescForItem(Cint(Scroll));
+    desc["tajniki magicznego krysztalu "] := "";
+    abdata.append(desc);
+    ablayout.append("croppedtext "+(125+w)+" 220 143 20 640 "+(len(abdata)));
+    ablayout.append("croppedtext "+(125+w)+" 240 143 20 640 "+(len(abdata)+1));
+    reagents := SplitWords(MainCfg[Scroll].firstreg);
+    abdata.append("I.  "+Cint(reagents[2])+ " "+GetDescForItem(Cint(reagents[1])));
+    reagents := SplitWords(MainCfg[Scroll].secreg);
+    abdata.append("II. "+Cint(reagents[2])+ " "+GetDescForItem(Cint(reagents[1])));
+    sleepms(5);
+
+  endforeach
+  Detach();
+  NoLongerBusy(who);
+  SendDialogGump(who,ablayout,abdata);
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FillLayoutInText(width,lines)
+
+  var i;
+  for(i:=1;i<=Cint(lines);i:=i+1)
+    ablayout.append("text  "+width+" "+(100+(i*20))+" 560 "+(len(abdata)+i-1));
+  endfor
+  
+endfunction
+
+//-----------------------------------------------------------------------------

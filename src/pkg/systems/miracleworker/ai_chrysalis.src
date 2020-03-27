@@ -1,0 +1,98 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include ":banking:common";
+include ":banking:gold";
+include "include/cmds/misc";
+include "ai/include/ainpcs";
+include "ai/include/npch";
+include "ai/include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+include ":miracleworker:miracles";
+
+//-----------------------------------------------------------------------------
+
+var NextCheck  := ReadGameClock();
+var CurItems;
+
+//-----------------------------------------------------------------------------
+
+program Chrysalis_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+    if(ev.type==EV_GOTO)
+      GoToLocation(ev.dest);
+      ev := 0;
+    endif
+    StdCityNpcHandleEvent(ev);
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(NextWander < ReadGameClock())
+      DefWander();
+      CityNpcLookAround();
+    endif
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["wita"])
+
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      Say(GetNpcName(me)+" tez witac witac");
+      Say("Ty pewnie chciec do Pana!");
+    endif
+
+  elseif(text["lecz"])
+  
+    TurnToward(who);
+    Say("Tu Pan leczyc leczyc");
+    
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToLocation(dest)
+  
+  say("IDE!");
+  var path := FindPath( me.x, me.y, me.z, dest.x, dest.y, dest.z, me.realm);
+  if(path)
+    
+    var WaitTime := ReadGameClock()+30;
+    while(Distance(dest,me)>1 and WaitTime> ReadGameClock())
+      WalkTowardLocation( dest.x, dest.y );
+    endwhile
+    
+  else
+    MoveObject(me, dest.x, dest.y, dest.z, me.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+  endif
+  
+endfunction

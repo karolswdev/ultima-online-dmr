@@ -1,0 +1,420 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-21
+// Modified: 2011-04-21
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/coords";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/objects/location";
+
+include ":itemsets:sets";
+include ":itemsets:global_sets";
+include ":itemsets:sets_ctrl";
+include ":itemsets:gmp_defs";
+
+//-----------------------------------------------------------------------------
+
+program GlobalItemSetsCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+
+    "add":       AddContainerSet(who, text[2], text[3]);
+                 return;
+                 
+    "addloc":    AddLocationSet(who, text[2], text[3]);
+                 return;
+
+    "c":         CmdCreateItemFromSet(who, text[2], 0, CISF_LOC);
+                 return;
+                 
+    "t":         CmdCreateItemFromSet(who, text[2], 0, CISF_CONTAINER);
+                 return;
+    
+    "b":         CmdCreateItemFromSet(who, text[2], who.backpack, CISF_CONTAINER);
+                 return;
+
+    "ga":        CmdGroupAdd(who, text[2]);
+                 return;
+    
+    "q":         if(IsQuestMaster(who))
+                   CmdCreateItemFromSet(who, text[2], who.backpack, CISF_CONTAINER | CISF_PLAYER_ITEMS);
+                 else
+                   SendSysMessage(who, "Tylko QM moze tworzyc przedmoty oznaczone jako questowe.", FONT_NORMAL, COLOR_RED);
+                 endif
+                 return;
+                 
+    "cq":        if(IsQuestMaster(who))
+                   CmdCreateItemFromSet(who, text[2], who.backpack, CISF_CONTAINER | CISF_QUEST_ITEMS);
+                 else
+                   SendSysMessage(who, "Tylko QM moze tworzyc przedmoty oznaczone jako questowe.", FONT_NORMAL, COLOR_RED);
+                 endif
+                 return;
+
+    "?":         SendSysMessage(who, ".is [add/addloc/ga/c/b/t/q/cq]", FONT_NORMAL, COLOR_RED);
+                 return;
+
+  endcase
+
+  var Groups, Group;
+
+  while(IsLoggedIn(who))
+
+    Groups := GetIsgGroups();
+    Group  := SelectItemSetGroup(who, Groups);
+
+    if(Group == 0)
+      break;
+    elseif(!Group)
+      continue;
+    endif
+
+    if(!SelectItemSetFromGroup(who, Group))
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SelectItemSetFromGroup(who, gName)
+
+  var Sets, SelSet;
+  
+  while(IsLoggedIn(who))
+
+    Sets := GetIsgs(gName);
+    SelSet := SelectItemSet(who, Sets, gName);
+
+    if(SelSet == 0)
+      return 1;
+    elseif(!SelSet)
+      continue;
+    endif
+
+    var Set := GetIsg(SelSet);
+    ShowItemDefinitionDetails(who, SelSet, Set.GetProp("Items"));
+
+  endwhile
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectItemSetGroup(who, Groups)
+
+  BQGInit("Grupy globalnych setow: "+Groups.size(), 650, 500, 0, 1);
+  GAddPageData(615,18,2650,2651,615,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Nazwa");
+  GTextLine(200, 40, 999, "Dodal");
+  GTextLine(300, 40, 999, "Czas");
+  GMultiPage();
+
+  var i := 1;
+
+  foreach gName in Groups
+
+    var Group := GetIsgGroup(gName);
+
+    GCheckNextPage(20);
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GTextLine(100,60+GNPCount()*20, 550, Group.GetProp("Name"));
+    GTextLine(200,60+GNPCount()*20, 550, Group.GetProp("Creator"));
+    GTextLine(300,60+GNPCount()*20, 1321, CUnixTime(Group.GetProp("AddTime")));
+//    GTextLine(440,60+GNPCount()*20, COLOR_YELLOW, Set.Count);
+
+    GButton(550, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(567,60+GNPCount()*20, 990, "Rm");
+
+    i := i + 1;
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(Res.butid > 10000)
+    CmdGroupDel(who, Groups[Res.butid-10000]);
+  elseif(Res.butid)
+    return Groups[Res.butid];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectItemSet(who, Sets, gName)
+
+  BQGInit("Sety w grupie: "+gName+" Ilosc: "+Sets.size(), 650, 500, 0, 1);
+  GAddPageData(615,18,2650,2651,615,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Nazwa");
+  GTextLine(200, 40, 999, "Dodal");
+  GTextLine(300, 40, 999, "Czas");
+  GTextLine(440, 40, 999, "Przedmiotow");
+  GMultiPage();
+
+  var i := 1;
+
+  foreach NameSet in Sets
+
+    var Set := GetIsg(NameSet);
+    GCheckNextPage(20);
+    GTextLine(25,  60+GNPCount()*20, 560, Set.GetProp("Type"));
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GTextLine(100,60+GNPCount()*20, 550, Set.GetProp("Name"));
+    GTextLine(200,60+GNPCount()*20, 550, Set.GetProp("Creator"));
+    GTextLine(300,60+GNPCount()*20, 1321, CUnixTime(Set.GetProp("AddTime")));
+    GTextLine(440,60+GNPCount()*20, COLOR_YELLOW, Set.GetProp("ItemCount"));
+
+    GButton(510, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(527,60+GNPCount()*20, 990, "Cr");
+
+    GButton(550, 63+GNPCount()*20, 2117, 2118, 20000+i);
+    GTextLine(567,60+GNPCount()*20, 990, "Rm");
+
+    i := i + 1;
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(Res.butid > 20000)
+    CmdRemoveItemSet(who, Sets[Res.butid-20000]);
+    return error;
+  elseif(Res.butid > 10000)
+    var Set := GetIsg(Sets[Res.butid-10000]);
+
+    if(Set.GetProp("Type") == IST_LOCATION)
+      CmdCreateItemFromSet(who, Sets[Res.butid-10000], 0, CISF_LOC);
+    else
+      CmdCreateItemFromSet(who, Sets[Res.butid-10000], who.backpack, CISF_CONTAINER);
+    endif
+  elseif(Res.butid)
+    return Sets[Res.butid];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdCreateItemFromSet(who, Name, Dest := 0, Flags := 0)
+
+  if(!Name)
+    SendSysMessage(who, "Nie podales nazwy seta!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var SetData := GetIsgDataStruct(Name);
+
+  if(!SetData)
+    SendSysMessage(who, SetData.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  CreateItemFromSet(who, SetData, Dest, Flags);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectIsgGroup(who, gName)
+
+  var exGroup := GetIsgGroup(gName);
+
+  if(exGroup)
+    return gName;
+  endif
+
+  var Groups := GetIsgGroups();
+
+  var gIdx := BQSelectEntry(who, Groups);
+
+  if(gIdx)
+    return Groups[gIdx];
+  else
+    SendSysMessage(who, "Nie wybrano grupy.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddContainerSet(who, Name, gName)
+
+  if(!Name)
+    SendSysMessage(who, "Nie wpisales nazwy seta.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetIsg(Name))
+
+    SendSysMessage(who, "Set o nazwie "+Name+" juz istnieje. Nadpisac?", FONT_NORMAL, COLOR_GREEN);
+
+    if(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+
+  endif
+
+  var Targ := Target(who);
+
+  if(!Targ.isa(POLCLASS_ITEM))
+    SendSysMessage(who, "To nie przedmiot.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  gName := SelectIsgGroup(who, gName);
+
+  if(!gName)
+    return;
+  endif
+
+  var Data := GetItemSetDefinitionFromItem(who, Name, Targ);
+
+  AddGlobalSet(Name, Data, gName);
+  SendSysMessage(who, "Dodano nowy set: "+Name+" do grupy: "+gName, FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddLocationSet(who, Name, gName)
+
+  if(!Name)
+    SendSysMessage(who, "Nie wpisales nazwy seta.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetIsg(Name))
+
+    SendSysMessage(who, "Set o nazwie "+Name+" juz istnieje. Nadpisac?", FONT_NORMAL, COLOR_GREEN);
+
+    if(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+
+  endif
+
+  var nwLoc, seLoc, midLoc;
+
+  SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog NW?"))
+    return;
+  endif
+
+  nwLoc := GetLocStruct(who);
+  SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+  
+  SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog SE?"))
+    return;
+  endif
+
+  seLoc := GetLocStruct(who);
+  SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  SendSysMessage(who, "Stan na srodku (podczas tworzenia set stworzy sie we wskazanek lokacji jakby to byl srodek).", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Srodek?"))
+    return;
+  endif
+
+  midLoc := GetLocStruct(who);
+  SendSysMessage(who, "Mid: "+midLoc.x+","+midLoc.y+","+midLoc.z+" "+midLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  var Data := GetItemSetDefinitionFromLoc(who, Name, nwLoc, seLoc, midLoc);
+
+  if(Data)
+  
+    gName := SelectIsgGroup(who, gName);
+
+    if(!gName)
+      return;
+    endif
+
+    AddGlobalSet(Name, Data, gName);
+    SendSysMessage(who, "Dodano nowy set: "+Name+" do grupy: "+gName, FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Blad: "+Data.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveItemSet(who, Name)
+
+  SendSysMessage(who, "Chcesz usunac set o nazwie "+Name+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  if(!DelGlobalSet(Name))
+    SendSysMessage(who, "Set "+Name+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Usunieto set "+Name+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGroupAdd(who, gName)
+
+  var Res := AddIsgGroup(who, gName);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Dodano nowa grupe setow: "+gName+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGroupDel(who, gName)
+
+  SendSysMessage(who, "Chcesz usunac grupe setow o nazwie "+gName+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Res := DelIsgGroup(gName);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Usunieto grupe setow: "+gName+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

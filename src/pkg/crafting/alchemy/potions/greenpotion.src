@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+program UseGreenPotion(who, potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var QualMod  := GetPotionQualMod(Potion, 0.5);
+
+  if(GetExpPotionMod(Potion))
+    Strength := Strength + 1;
+  endif
+
+  Strength := CInt(Strength * QualMod);
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+  
+  SetPoison(who,Cint(Strength));
+
+endprogram
+
+//-----------------------------------------------------------------------------

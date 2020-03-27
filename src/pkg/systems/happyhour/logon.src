@@ -1,0 +1,50 @@
+use uo;
+use os;
+
+include "include/gumps";
+
+program HappyHour_Logon(who)
+
+	// No LogOffTime? No problem.
+	
+	if(!GetObjProperty(who, "LogoffTime"))
+		return 0;
+	endif
+	
+	var logoffTime := CInt(GetObjProperty(who, "LogoffTime"));
+	
+	var diff := ReadGameClock() - LogOffTime;
+	
+	
+	// Less than an hour logoff time? Then nothing will happen.
+	
+	if(diff < 3600)
+		return 0;
+	endif
+	
+	var Minutes := 1;
+	
+	while(diff > 3600)
+		Minutes += 1;
+		diff -= 3600;
+	endwhile
+	
+	// Capping at 20 minutes...
+	
+	if(Minutes > 25)
+		Minutes := 25;
+	endif
+	
+	//SetObjProperty(who, "OfflineGain", ReadGameClock() + (Minutes * 60));
+	
+	start_script(":happyhour:offlinegain", array{who, Minutes, logoffTime});
+	
+	start_script(":happyhour:happygump", array{who, Minutes});
+	
+
+
+endprogram
+	
+	
+	
+	

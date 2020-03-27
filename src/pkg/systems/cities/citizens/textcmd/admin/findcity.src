@@ -1,0 +1,10 @@
+use uo;
+use os;
+
+include "include/findcity";
+
+program textcmd_findcity(who)
+
+	SendSysMessage(who, "FindCity: " + FindCity(who));
+	
+endprogram

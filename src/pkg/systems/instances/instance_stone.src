@@ -1,0 +1,344 @@
+use uo;
+
+
+include ":instances:instances";
+include ":spawnnet:spawnnet";
+include "include/effects";
+include "include/gumps";
+
+program use_instanceStone(who, stone)
+
+	if(stone.container)
+		SendSysMessage(who, "Nie mozesz uzyc tego kamienia jesli jest w Twoim plecaku...", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	if(who.cmdlevel)
+		ManageStone(who, stone);
+	else
+		UseStone(who, stone);
+	endif
+	
+endprogram
+
+function UseStone(who, stone)
+
+    GInit(0, 0);
+    GPage(1);
+    GResPic(74, 17, 9270, 443, 442);
+    GGumpPic(475, 31, 113, 0); 
+    GGumpPic(473, 414, 113, 0); 
+    GGumpPic(88, 412, 113, 0); 
+    GGumpPic(88, 27, 113, 0); 
+    GTextLine(185, 36, 55, "W I T A J  W E D R O W C Z E");
+    GCheckerTrans( 75, 11, 449, 448); 
+    GTextLine(108, 75, 50, "Przybyl" + GGm(who, 3));
+    GTextLine(165, 75, 50, "na teren lochu o nazwie");
+    GTextLine(312, 75, 32, GetInstanceName(stone));
+	
+	if(GetInstanceStatus(stone) == INSTANCE_STATUS_READY)
+		GTextLine(108, 101, 64, "Obecnie loch jest otwarty na smialkow");
+	else
+		GTextLine(108, 126, 33, "Obecnie loch nie jest otwarty na smialkow");
+	endif
+	
+	
+	if(IsLeader(stone, who))
+		GButton(107, 165, 1209, 1209, 10);
+		GTextLine(126, 163, 88, "Rozpocznij wyprawe (loch bedzie aktywny przez 24h)");
+	endif
+ 
+	
+	if(GetParticipants(stone).size() < 1)
+		GButton(107, 195, 1209, 1209, 15);
+		GTextLine(126, 193, 81, "Stan sie liderem wyprawy");
+	endif
+	
+	if(IsLeader(stone, who))
+		GButton(107, 225, 1209, 1209, 20);
+		GTextLine(126, 223, 33, "Dodaj czlonka wyprawy");
+	endif
+	
+	if(IsLeader(stone, who))
+		GButton(107, 245, 1209, 1209, 666);
+		GTextLine(126, 243, 33, "Rezygnuj z wyprawy");
+	endif
+	
+    GTextLine(107, 364, 88, "Nagroda:");
+	
+	var points := GetBasePoints(stone);
+	var difficulty := GetInstanceDifficulty(stone);
+	var multiplier := 1;
+	
+	if(difficulty == INSTANCE_DIFFICULTY_HEROIC)
+		multiplier := 2;
+	elseif(difficulty == INSTANCE_DIFFICULTY_EPIC)
+		multiplier := 5;
+	endif
+	
+	
+    GTextLine(158, 364, 55, points * multiplier);
+    GTextLine(180, 364, 88, "punkty/ow");
+	
+	var status := GetInstanceStatus(stone);
+	
+	if(status != INSTANCE_STATUS_RUNNING)
+	
+		if(IsLeader(stone, who))
+			GButton(107, 315, 1209, 248, 40);
+		endif
+			GTextLine(128, 313, 36, "Ustaw trudnosc");
+
+	endif
+	
+	var difficultyText := "normalna";
+	
+	if(difficulty == INSTANCE_DIFFICULTY_HEROIC)
+		difficultyText := "heroiczna";
+	endif
+	
+	if(difficulty == INSTANCE_DIFFICULTY_EPIC)
+		difficultyText := "epicka";
+	endif
+	
+    GTextLine(231, 313, 88, difficultyText);
+	
+
+	
+	if(status == INSTANCE_STATUS_RUNNING || status == INSTANCE_STATUS_READY)
+		GButton(107, 283, 1209, 248, 30);
+		GTextLine(127, 281, 5, "Pokaz uczestnikow wyprawy");
+	endif
+	
+    var res := GSend(who)[0];
+	
+	if(res == 10)
+		DoStart(stone);
+		SendSysMessage(who, "Przygoda rozpoczeta!", FONT_NORMAL, COLOR_GREEN);
+	endif
+	
+	// participant
+	if(res == 15)
+		AddParticipant(stone, who, who);
+	endif
+	
+	if(res == 20)
+		var targ := Target(who);
+		if(!targ.ip)
+			SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+			return;
+		endif
+		
+		AddParticipant(stone, who, targ);
+		
+	endif
+	
+	// difficulty.
+	if(res == 40)
+		
+		if(difficulty == INSTANCE_DIFFICULTY_NORMAL)
+			SetInstanceDifficulty(stone, INSTANCE_DIFFICULTY_HEROIC);
+		elseif(difficulty == INSTANCE_DIFFICULTY_HEROIC)
+			SetInstanceDifficulty(stone, INSTANCE_DIFFICULTY_EPIC);
+		elseif(difficulty == INSTANCE_DIFFICULTY_EPIC)
+			SetInstanceDifficulty(stone, INSTANCE_DIFFICULTY_NORMAL);
+		endif
+		
+		SendSysMessage(who, "Zmieniono.", FONT_NORMAL, COLOR_GREEN);
+		
+	endif
+	
+	// really too lazy to make a gump for it
+	if(res == 30)
+	
+		foreach person in GetParticipants(stone)
+			var personObject := SystemFindObjectBySerial(person, 1);
+			SendSysMessage(who, personObject.name + " jest uczestnikiem wyprawy.", FONT_NORMAL, GREEN_COLOR);
+		endforeach	
+	endif
+	
+	if(res == 666)
+		ForceStop(who, stone);
+		SendSysMessage(who, "Zrezygnowal" + GGm(who, 3) + " z tej instancji.", FONT_NORMAL, GREEN_COLOR);
+	endif
+	
+		
+	
+endfunction
+
+function ManageStone(who, stone)
+	
+	var linkedRuneNumber := 0;
+
+	
+	var runes := GetObjProperty(stone, "LinkedRunes");
+	if(runes != error)
+		linkedRuneNumber := runes.size();
+	endif
+	
+	var status := GetInstanceStatus(stone);
+	var statusString := "Nieznany";
+	
+
+	case(status)
+		INSTANCE_STATUS_RUNNING: statusString := "W trakcie"; break;
+		INSTANCE_STATUS_READY: statusString := "Gotowy"; break;
+		INSTANCE_STATUS_COOLDOWN: statusString := "Cooldown"; break;
+		INSTANCE_STATUS_UNKNOWN: break;
+	endcase
+	
+	var currentMobs := GetCurrentNumberOfSpawns(stone);
+	//var currentMobs := 0;
+	var maxMobs := GetMaxNumberOfSpawns(stone);
+	
+	var instanceTimeout := GetInstanceTimeout(stone) + " h";
+
+	GInit(0, 0);
+    GPage(1);
+    GResPic(19, 19, 5170, 500, 377);
+    GTextLine(253, 58, 32, GetInstanceName(stone));
+    GButton(76, 175, 1209, 1209, 1);
+    GTextLine(96, 172, 0, "Linkuj spawn rune");
+    GButton(76, 215, 1210, 1209, 2);
+    GTextLine(96, 212, 0, "Zmien nazwe dungeona");
+    GButton(76, 255, 1210, 1209, 3);
+    GTextLine(96, 252, 0, "Zmien ilosc godzin na reset");
+	GButton(76, 295, 1210, 1209, 4);
+    GTextLine(96, 292, 0, "Dodaj teleportery");
+	
+	GButton(76, 295, 1210, 1209, 4);
+    GTextLine(96, 292, 0, "Dodaj teleportery");
+	
+	GButton(76, 335, 1210, 1209, 5);
+    GTextLine(96, 332, 0, "Force start");
+	
+	GButton(76, 355, 1210, 1209, 6);
+    GTextLine(96, 352, 0, "Force stop");
+	
+    GTextLine(71, 90, 0, linkedRuneNumber);
+    GTextLine(99, 90, 0, "run");
+    GTextLine(148, 90, 101, statusString);
+    GTextLine(241, 90, 0, currentMobs);
+    GTextLine(275, 90, 0, "z");
+    GTextLine(299, 90, 0, maxMobs);
+    GTextLine(71, 129, 0, "Czas do nowego respawnu:");
+    GTextLine(262, 129, 0, instanceTimeout);
+	
+    var res := GSend(who)[0];
+	
+	if(res == 1)
+		LinkRune(who, stone);
+	elseif(res == 2)
+		ChangeName(who, stone);
+	elseif(res == 3)
+		ChangeHours(who, stone);
+	elseif(res == 4)
+		LinkTeleporter(who, stone);
+	elseif(res == 5)
+		ForceStart(who, stone);
+	elseif(res == 6)
+		ForceStop(who, stone);
+	endif
+
+    SendSysMessage(who, res);
+	
+	
+endfunction
+
+function LinkRune(who, stone)
+
+	SendSysMessage(who, "Dodawaj rune. Esc = koniec.", FONT_NORMAL, GREEN_COLOR);
+	
+	var trg := Target(who);
+	
+	while(trg)
+	
+		if(trg.isA(POLCLASS_ITEM))
+			if(AddInstanceRune(stone, trg))
+				SendSysMessage(who, "Dodano.", FONT_NORMAL, GREEN_COLOR);
+			else
+				SendSysMessage(who, "Nie dodano.", FONT_NORMAL, RED_COLOR);
+			endif
+		else
+			SendSysMessage(who, "To nie jest przedmiot.", FONT_NORMAL, RED_COLOR);
+		endif
+		
+		trg := Target(who);
+		
+		if(!trg)
+			break;
+		endif
+		
+	endwhile
+	
+endfunction
+
+function ChangeName(who, stone)
+
+	SendSysMessage(who, "Wpisz nowa nazwe instancji:", FONT_NORMAL, GREEN_COLOR);
+	var name := RequestInput(who, who.backpack, "");
+	
+	if(name)
+		SetInstanceName(stone, name);
+	endif
+	
+endfunction
+
+function ChangeHours(who, stone)
+
+	SendSysMessage(who, "Wpisz nowa ilosc godzin do respawnu:", FONT_NORMAL, GREEN_COLOR);
+	var hours := RequestInput(who, who.backpack, "");
+	
+	if(hours)
+		SetInstanceTimeout(stone, hours);
+		SendSysMessage(who, "Ustawiono " + hours + " godzin miedzy respawnami.", FONT_NORMAL, GREEN_COLOR);
+	endif
+	
+endfunction
+
+function LinkTeleporter(who, stone)
+
+		SendSysMessage(who, "Dodawaj teleport. Esc = koniec.", FONT_NORMAL, GREEN_COLOR);
+	
+	var trg := Target(who);
+	
+	while(trg)
+	
+		if(trg.isA(POLCLASS_ITEM))
+			if(AddTeleporter(stone, trg))
+				SendSysMessage(who, "Dodano.", FONT_NORMAL, GREEN_COLOR);
+			else
+				SendSysMessage(who, "Nie dodano.", FONT_NORMAL, RED_COLOR);
+			endif
+		else
+			SendSysMessage(who, "To nie jest teleporter.", FONT_NORMAL, RED_COLOR);
+		endif
+		
+		trg := Target(who);
+		
+		if(!trg)
+			break;
+		endif
+		
+	endwhile
+
+endfunction
+
+function ForceStart(who, stone);
+
+	DoStop(stone);
+	SetInstanceStatus(stone, INSTANCE_STATUS_READY);
+	DoStart(stone);
+	
+endfunction
+
+function ForceStop(who, stone);
+
+	SetInstanceStatus(stone, INSTANCE_STATUS_RUNNING);
+	DoStop(stone);
+	
+endfunction
+	
+	
+	
+	

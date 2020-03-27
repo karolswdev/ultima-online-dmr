@@ -1,0 +1,92 @@
+//--------------------------------------------------------------------------------
+
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "makro";
+include "include/gumps";
+include "include/finding";
+include "include/clock";
+include "include/msgs";
+include "include/attributes/award";
+
+//--------------------------------------------------------------------------------
+
+program HandlerSendMakroGump(Params)
+
+  var who := Params[1];
+  var bywho := Params[2];
+
+  if(!who or !IsLoggedIn(who))
+    return;
+  endif
+  
+  AddSGWait(who, GetPid());
+
+  EraseObjProperty(who,"PressedMakroGump");
+  
+  if(bywho)
+    SendSysMessage(bywho,"Osoba "+who.name+" otrzymala wiadomosc.",FONT_NORMAL,COLOR_GOOD);
+  endif
+
+  var Clock     := ReadGameClock();
+  var WhoSer    := who.serial;
+  var Res       := ShowMakroLetterGump(who, 0);
+  var Msg;
+
+  if(!who)
+    who := FindPlayerBySerial(WhoSer);
+  endif
+
+  if(!who)
+    return;
+  endif
+
+  if(res.size())
+    ReportMakro(who,Res);
+    SetObjProperty(who,"PressedMakroGump",1);
+    CheckMakroTimers(who, MAKROF_WRONG);
+
+    Msg := "Osoba "+who.name+" potwierdzila blednie swoj znak zycia po "+RealTime(ReadGameClock() - Clock)+", wpisujac ["+Res[1]+"], a miala wpisac ["+Res[2]+"].";
+
+    if(bywho)
+      SendSysMessage(bywho, Msg, FONT_NORMAL,COLOR_RED+1);
+    else
+      AlertSeers(Msg,FONT_NORMAL,COLOR_RED+1);
+    endif
+
+  elseif(Res)
+    Msg := "Osoba "+who.name+" potwierdzila swoj znak zycia po "+RealTime(ReadGameClock() - Clock)+" wpisujac ["+Res+"], Czas odpowiedzi "+RealTime(MAKRO_REST_TIME)+".";
+
+    if(bywho)
+      SendSysMessage(bywho, Msg, FONT_NORMAL, COLOR_BLUE);
+    endif
+
+    if(Clock + MAKRO_REST_TIME > ReadGameClock())
+      SetObjProperty(who,"PressedMakroGump",1);
+      EraseFromMakro(who);
+    else
+      if(!bywho)
+        AlertSeers(Msg, FONT_NORMAL, COLOR_BLUE);
+      endif
+
+      SetObjProperty(who,"MakroGumpPressedAfterTime",{ReadGameClock(),ReadGameClock() - Clock});
+    endif
+  else
+    Msg := "Makro : Osoba "+who.name+" nie potwierdzila swojego istnienia po "+RealTime(ReadGameClock() - Clock)+".";
+
+    if(bywho)
+      SendSysMessage(bywho, Msg, FONT_NORMAL, COLOR_RED);
+    else
+      AlertSeers(Msg, FONT_NORMAL, COLOR_RED);
+    endif
+
+    CheckMakroTimers(who, MAKROF_MISS);
+  endif
+
+  RemSGWait(who, GetPid(), Res);
+
+endprogram
+
+//--------------------------------------------------------------------------------

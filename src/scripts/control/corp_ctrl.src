@@ -1,0 +1,86 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/move";
+include "include/objtypes/misc";
+include "include/bits";
+include "ai/include/tamed";
+
+//-----------------------------------------------------------------------------
+
+const CORPSE_TIME := 1800; // 30min
+
+//-----------------------------------------------------------------------------
+
+program CorpseControl(corpse)
+
+  var Name    := corpse.desc;
+  if(Name["A corpse of"])
+    Name["A corpse of "] := "";
+    SetName(corpse,"Zwloki " + Name);
+  endif
+
+  if(!GetObjProperty(corpse, "NoCorpseDestroy"))
+    corpse.decayat := ReadGameClock() + (CORPSE_TIME * 2);
+  else
+    corpse.decayat := ReadGameClock() + (CORPSE_TIME * 6);
+  endif
+
+  foreach item in EnumerateItemsInContainer(corpse)
+    if(IsSetFlag(item, ITEMF_NO_LOOT))
+      DestroyItem(item);
+    endif
+  endforeach
+
+  var Template := GetObjProperty(corpse, PROP_NPCTEMP);
+  var Master   := FindPlayerBySerial(GetObjProperty(corpse, PROP_MASTER));
+
+  sleepms(500);
+
+  if(!corpse)
+    return;
+  endif
+
+  if(GetObjProperty(corpse, "NoCorpseDestroy"))
+    return;
+  endif
+
+  if(Template and IsPlayer(Master))
+    var addTime    := CInt(GetBaseSpecialAbility(corpse, NPC_ABLID_ENDURANCE) / 10) * 360;
+    corpse.decayat := ReadGameClock() + CORPSE_TIME + addTime;
+    Sleep(CORPSE_TIME + addTime);
+  else
+    Sleep(CORPSE_TIME);
+  endif
+
+  if(!corpse)
+    return;
+  endif
+
+  if(!Template)
+    var Bones := CreateItemAtLoc(corpse.x, corpse.y, corpse.z, UOBJ_BONES_START + RandomInt(8), 1, corpse.realm);
+    var Name;
+
+    if(Bones)
+      Name   := corpse.desc;
+      Name["Zwloki "] := "";
+      SetName(bones, "Wspomnienia " + Name);
+      foreach thing in ListRootItemsInContainer(corpse)
+        MoveItemToContainer(thing, bones);
+      endforeach
+    endif
+   else
+    foreach thing in ListRootItemsInContainer(corpse)
+      MoveObject(thing, corpse.x, corpse.y, corpse.z, corpse.realm, MOVEITEM_FORCELOCATION);
+    endforeach
+  endif
+
+  DestroyItem(corpse);
+
+endprogram
+
+//-----------------------------------------------------------------------------

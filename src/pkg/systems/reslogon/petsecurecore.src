@@ -1,0 +1,54 @@
+use uo;
+use os;
+
+//----------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/logerror";
+include "include/finding";
+include "include/mobile/tamed";
+include ":reslogon:petsecure";
+
+//----------------------------------------------------------
+
+const ACTIVE_TIME := 20;
+
+//----------------------------------------------------------
+
+program PetSecureCore(Parms)
+
+  Set_Critical( 1 );
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+  
+  Print("[PetSecureCore]: On");
+
+  set_event_queue_size(200);
+
+  Set_Critical( 0 );
+
+  var Start_Time := ReadGameClock();
+
+  do
+    
+    var Event := wait_for_event(60);
+    
+    if(Event)
+      Set_Critical( 1 );
+
+      case(Event.type)
+        EVID_PET_SECURE: SaveSecuredPet(Event.pet);
+      endcase
+
+      Set_Critical( 0 );
+    endif
+
+  dowhile(Start_Time + ACTIVE_TIME > ReadGameClock());
+  
+  Print("[PetSecureCore]: Off");
+
+endprogram
+
+//----------------------------------------------------------

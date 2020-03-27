@@ -1,0 +1,122 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/bits";
+include "include/reputation/report";
+include "include/clock";
+include "include/finding";
+include "include/names";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program ShowMurdersCmd(who,text)
+
+  var Targ;
+
+  if(CInt(text))
+    Targ := FindPlayerBySerial(CInt(text));
+    if(!Targ)
+      SendSysMessage(who,"Postac z serialem ["+text+"] nie istnieje.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  else
+    Targ := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Murders := GetObjProperty(Targ,"Murders");
+  var Vic,Time;
+
+  if(!Murders)
+    SendSysMessage(who,"Ta osoba nikogo nie zabila.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var MurdCount := 0,MurdTime := "0 s";
+
+  if(GetMurdersCount(Targ) > 4)
+    MurdCount := CInt(CInt(GetObjProperty(Targ, "decaylongcountat")) - GetObjProperty(Targ, "onlinetimer"));
+    if(MurdCount > 0)
+      MurdTime  := RealTime(MurdCount);
+      MurdCount := GetMurdersCount(Targ);
+    endif
+  elseif(GetShortMurdersCount(Targ) > 0)
+    MurdCount := CInt(CInt(GetObjProperty(Targ, "decayshortcountat")) - GetObjProperty(Targ, "onlinetimer"));
+    if(MurdCount > 0)
+      MurdTime  := RealTime(MurdCount);
+      MurdCount := GetShortMurdersCount(Targ);
+    endif
+  endif
+  
+  Murders.reverse();
+
+  GInit();
+  GMultiHeaderInit();
+  GResPic(0,0,3600,660,500);
+  GTextLine(50, 25,580,Targ.name);
+  GTextLine(40 ,45,590,"C: "+MurdCount);
+  GTextLine(120 ,45,1205,"BC: "+GetBadMurdCount(Targ));
+  GTextLine(200,45,590,"T: "+MurdTime);
+
+  GAddPageData(625,55,2650,2651,625,463,2648,2647);
+  GMultiPage();
+
+  var vName;
+  
+  foreach Murd in Murders
+    GCheckNextPage(20);
+    Vic  := FindPlayerBySerial(CInt(Murd[1]));
+    if(Murd[5])
+      vName := Murd[5];
+    elseif(Vic)
+      vName := GetRealName(Vic);
+    else
+      vName := "";
+    endif
+
+    Time := RealTime(ReadGameClock() - CInt(Murd[3]));
+    GTextLine(30 ,70+(GNPCount() * 20),999,_Murd_iter);
+    GTextLine(60 ,70+(GNPCount() * 20),1204,Murd[2]);
+    if(Vic)
+      GTextLine(90 ,70+(GNPCount() * 20),560, vName);
+    else
+      GTextLine(90 ,70+(GNPCount() * 20),999, vName);
+    endif
+
+    GTextLine(250,70+(GNPCount() * 20),550,Time);
+
+    if(Murd[4])
+      GTextLine(370,70+(GNPCount() * 20),550,Murd[4][1]+","+Murd[4][2]+","+Murd[4][3]+" "+Murd[4][4]);
+    endif
+
+    if(Murd[6])
+      if(Murd[6][1])
+        GTextLine(550,70+(GNPCount() * 20),998,"Kryminalista");
+      elseif(Murd[6][2])
+        GTextLine(550,70+(GNPCount() * 20),1219,"Morderca");
+      else
+        GTextLine(550,70+(GNPCount() * 20),1319,"Niewinny");
+      endif
+
+      if(Murd[6][3] == error)
+        GTextLine(530,70+(GNPCount() * 20),999,"N");
+      elseif(Murd[6][3])
+        GTextLine(530,70+(GNPCount() * 20),1121,"G");
+      endif
+
+    endif
+  endforeach
+
+  GSend(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

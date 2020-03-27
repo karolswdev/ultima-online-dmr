@@ -1,0 +1,33 @@
+use uo;
+
+include "../../major";
+include "include/clock";
+
+program CanMajorsJail(who,text);
+
+case(text)
+ "on":     TurnOn(who);
+ "off":    TurnOff(who);
+ "status": JailStatus(who);
+ default:  SendSysMessage(who,".majorcjail [on/off/status]",FONT_NORMAL,COLOR_RED);
+endcase
+
+endprogram
+
+function TurnOn(who)
+ SetGlobalProperty("CanMajorsJail",1);
+ SendSysMessage(who,"Teraz Burmistrzowie moga zamykac ludzi na "+RealHourTime(MAJOR_JAIL_TIME)+".",FONT_NORMAL,COLOR_RED);
+endfunction
+
+function TurnOff(who)
+ SetGlobalProperty("CanMajorsJail",1);
+ SendSysMessage(who,"Burmistrzowie nie moga zamykac juz ludzi w wiezieniu!",FONT_NORMAL,COLOR_RED);
+endfunction
+
+function JailStatus(who)
+ var status := "Wylaczone";
+ if(GetGlobalProperty("CanMajorsJail"))
+  status := "Wlaczone";
+ endif
+ SendSysMessage(who,"Zamykanie ludzi przez burmistrzow : "+status+".",FONT_NORMAL,COLOR_RED);
+endfunction

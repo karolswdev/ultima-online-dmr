@@ -1,0 +1,467 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumps";
+include ":banking:gold";
+include ":banking:common";
+include "include/clock";
+include "include/gumpboxes";
+
+include ":auction:auc";
+
+//-----------------------------------------------------------------------------
+
+var AucItems := array;
+var Aucs;
+
+//-----------------------------------------------------------------------------
+
+program AucBoard(who,Board)
+
+  Aucs := GetObjProperty(Board,"AucSerial");
+  foreach Auc in Aucs
+    Auc := FindNpcBySerial(Auc);
+  endforeach
+
+  if(Aucs)
+    GetAllAucItems(AucItems,Aucs);
+  endif
+  
+  BuildMainGump();
+
+  var Res := 1;
+
+  while(Res and IsLoggedIn(who))
+    Res   := GSend(who)[0];
+
+    if(Distance(who,Board) > 2)
+      return;
+    endif
+    
+    if(Res > 100 and Res < 200)
+      ShowDetails(who,Res-100);
+      continue;
+    elseif(Res > 200 and Res < 300)
+      Bet(who, Res-200);
+    elseif(Res > 300 and Res < 400)
+      ShowCont(Res-300);
+      continue;
+    elseif(Res > 500 and Res < 600)
+      BuyoutIt(who,Res-500);
+    elseif(Res > 600 and Res < 700)
+      CancelAuction(who,Res-600);
+    endif
+    
+    if(Aucs)
+      GetAllAucItems(AucItems,Aucs);
+    endif
+    BuildMainGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGump()
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,0x2422,650,400);
+  GCheckerTrans(10,10,630,380);
+  GTextLine(230,30,1150,"Aukcja");
+  
+  GGumpPic(10,60,0x2423);
+  GGumpPic(215,60,0x2423);
+  
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var w := 0;
+  var h := 0;
+  var i := 1;
+  
+  GPage();
+  
+  foreach Item in AucItems
+
+    if(h > 1)
+      GButtonPage(612,370,0xFA5,0xFA7,GetNextPage());
+      GPage();
+      GButtonPage(12,370,0xFAE,0xFB0,GetPrevPage());
+      w := 0;
+      h := 0;
+    endif
+
+    GResPic(50+(w*150),100+(h*160),0x2422,100,100);
+    GTilePicHue(65+(w*150),115+(h*160),Item.graphic,Item.color);
+
+    if(GetAucItemTimeLeft(Item) == 0)
+      if(GetObjProperty(Item,"SellLastBet"))
+        GTextLine(62+(w*150),170+(h*160),1430,"Sprzedane");
+      else
+        GTextLine(60+(w*150),170+(h*160),1214,"Nie sprzedane");
+      endif
+    else
+      GTextLine(62+(w*150),152+(h*160),560,FormatSize(GetItemAuctionPrice(Item), ".") + " gp");
+      var Buyout := GetItemBuyoutPrice(Item);
+      if(Buyout)
+        GTextLine(62+(w*150),170+(h*160),560,FormatSize(Buyout, ".") + " gp");
+      endif
+      GButton(122+(w*150),200+(h*160),0xFA9,0xFAA,200+i);
+    endif
+    
+    var Desc := Item.desc;
+
+    if(ItemCfg[Item.objtype].ItemTypeName)
+      Desc := ItemCfg[Item.objtype].ItemTypeName+" "+Desc;
+    endif
+    
+    GTextCrop(50+(w*150),80+(h*160),100,20,100,Desc);
+    GButton(50+(w*150),200+(h*160),0xFA6,0xFA7,100+i);
+    if(Item.isa(POLCLASS_CONTAINER) or Item.isa(POLCLASS_SPELLBOOK))
+      GButton(86+(w*150),200+(h*160),0xFAC,0xFAD,300+i);
+    endif
+    
+    w := w + 1;
+    i := i + 1;
+    if(w > 3)
+      h := h + 1;
+      w := 0;
+    endif
+    
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowDetails(who,Nr)
+
+  var AItem := AucItems[Nr];
+  
+  if(!AItem or !GetObjProperty(AItem,"SellOwner"))
+    GetAllAucItems(AucItems,Aucs);
+    BuildMainGump();
+    return;
+  endif
+  
+  var Putter  := FindPlayerBySerial(GetObjProperty(AItem,"SellOwner"));
+  var LastBet := FindPlayerBySerial(GetObjProperty(AItem,"SellLastBet"));
+  
+  if(LastBet)
+    LastBet     := GetRealName(LastBet);
+  else
+    LastBet     := "-";
+  endif
+
+  var Desc := AItem.desc;
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(ItemCfg[AItem.objtype].ItemTypeName)
+    Desc := ItemCfg[AItem.objtype].ItemTypeName+" "+Desc;
+  endif
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,0x2422,500,440);
+  GCheckerTrans(10,10,480,420);
+  GTextLine(50,30,1150,Desc);
+
+  GGumpPic(10,60,0x2423);
+  GGumpPic(65,60,0x2423);
+
+  GResPic(50,100,0x2422,100,100);
+  GTilePicHue(65,115,AItem.graphic,AItem.color);
+
+  GTextLine(50 ,210,100,"Wystawil: ");
+  GTextLine(185,210,1152,GetRealName(Putter));
+
+  GTextLine(50 ,230,100,"Cena poczatkowa: ");
+  GTextLine(185,230,1152,FormatSize(CInt(GetObjProperty(AItem,"SellPrice")), ".") + " gp");
+
+  if(GetAucItemTimeLeft(AItem) == 0)
+    if(LastBet != "-")
+      GTextLine(50 ,250,100,"Cena koncowa: ");
+      GTextLine(185,250,1152,FormatSize(GetItemAuctionPrice(AItem), ".") + " gp");
+
+      GTextLine(50 ,270,100,"Kupil: ");
+      GTextCrop(185,270,300,20,1152,LastBet);
+      
+      GTextLine(50 ,360,1430,"Sprzedane");
+    else
+      GTextLine(50 ,360,1214,"Nie sprzedane");
+    endif
+  else
+    GTextLine(50 ,250,100,"Cena biezaca: ");
+    GTextLine(185,250,1152,FormatSize(GetItemAuctionPrice(AItem), ".") + " gp");
+
+    GTextLine(50 ,270,100,"Ostatnio podbil: ");
+    GTextCrop(185,270,300,20,1152,LastBet);
+
+    var Buyout := GetItemBuyoutPrice(AItem);
+
+    if(Buyout)
+      GTextLine(50 ,290,100,"Cena wykupu: ");
+      GTextLine(185,290,1424,FormatSize(Buyout, ".") + " gp");
+      GButton(150, 405, 0xFA9, 0xFAA, 500+Nr);
+      GTextLine(185, 405, 999, "Wykup");
+    endif
+
+    GTextLine(50 ,360,100,"Data wystawienia: ");
+    GTextLine(185,360,1152,GetFullDate(GetAucStartTime(AItem)));
+
+    GTextLine(50 ,380,100,"Czas do konca: ");
+    if(who.cmdlevel)
+      GTextLine(325,380,999,RealTime(GetAucItemTimeLeft(AItem)));
+    endif
+    GTextLine(185,380,1152,DescGameTime(GetAucItemTimeLeft(AItem)));
+    
+    GButton(50, 405, 0xFA9, 0xFAA, 200+Nr);
+    GTextLine(85, 405, 999, "Podbij");
+
+    if(Putter == who and GetAucStartTime(AItem) + AUC_CANCEL_TIME > ReadGameClock() or IsGM(who))
+      GButton(250, 405, 0xFA9, 0xFAA, 600+Nr);
+      GTextLine(285, 405, 999, "Anuluj");
+    endif
+  endif
+
+  GTextLine(50,320,100,"Opis: ");
+  GTextCrop(50,340,300,20,1152,CLStr(GetObjProperty(AItem,"SellDesc")));
+
+  GButton(462,410,0xFAF,0xFB0,999);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Bet(who, Nr)
+
+  var AItem := AucItems[Nr];
+  
+  if(GetObjProperty(AItem,"SellOwner") == who.serial)
+    SendSysMessage(who,"Nie mozesz podbic ceny wlasnego przedmiotu!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(GetObjProperty(AItem,"SellLastBet") == who.serial)
+    SendSysMessage(who,"Podbil"+ggm(who,3)+" juz cene tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var NPrice := CInt(SendTextEntryGump(who,"Wpisz cene"));
+
+  if(!NPrice)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  GetAllAucItems(AucItems,Aucs);
+
+  if(!(AItem in AucItems) or !AItem)
+    SendSysMessage(who, "Aukcja na ten przedmiot sie skonczyla.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetAucItemTimeLeft(AItem) == 0)
+    SendSysMessage(who,"Czas dobiegl konca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var MinBet := ToMin(GetItemAuctionPrice(AItem) * MIN_BET_PERC, MIN_BET);
+
+  if(NPrice < GetItemAuctionPrice(AItem) + MinBet)
+    SendSysMessage(who,"Cena musi byc wieksza minimalnie o "+MinBet+" gp od poprzedniej.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var isBuyout := 0;
+  var buyPrice := GetItemBuyoutPrice(AItem);
+
+  if(NPrice >= buyPrice and buyPrice)
+    NPrice := buyPrice;
+    isBuyout := 1;
+  endif
+
+  if(CanAfford(who,NPrice,AItem, isBuyout))
+    
+    if(isBuyout)
+      SendSysMessage(who,"Wykupil"+ggm(who,3)+" przedmiot "+AItem.desc+" za "+FormatSize(NPrice, ".")+"!",FONT_NORMAL,COLOR_WHITE);
+      BuyoutItem(who, AItem);
+      return;
+    endif
+
+    if(!SetItemPrice(AItem,Nprice))
+      SendSysMessage(who,"Nie mozna teraz podbijac ceny, sprobuj pozniej.",FONT_NORMAL,COLOR_RED);
+    else
+      SendSysMessage(who,"Podbil"+ggm(who,3)+" cene na "+FormatSize(NPrice, ".")+" za przedmiot "+AItem.desc+".",FONT_NORMAL,COLOR_GREEN);
+      SetObjProperty(AItem,"SellLastBet",who.serial);
+      SetAucStartTime(AItem, GetAucStartTime(AItem) + AUC_BETTIME_INC);
+    endif
+  else
+    SendSysMessage(who,"Nie masz tyle zlota przy sobie, ani czeku na taka wartosc.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuyoutItem(who, AItem)
+
+  SetObjProperty(AItem, "ActualPrice", GetItemBuyoutPrice(AItem));
+  EndAucForItem(AItem, who);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuyoutIt(who, Nr)
+
+  var AItem := AucItems[Nr];
+
+  if(GetObjProperty(AItem,"SellOwner") == who.serial)
+    SendSysMessage(who,"Nie mozesz wykupic wlasnego przedmiotu!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var NPrice := GetItemBuyoutPrice(AItem);
+
+  if(!NPrice)
+    SendSysMessage(who,"Tego przedmiotu nie da sie wykupic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Czy na pewno chcesz wykupic przedmiot "+AItem.desc+" ?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+  
+  GetAllAucItems(AucItems,Aucs);
+
+  if(!(AItem in AucItems) or !AItem)
+    SendSysMessage(who, "Aukcja na ten przedmiot sie skonczyla.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetAucItemTimeLeft(AItem) == 0)
+    SendSysMessage(who,"Czas dobiegl konca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(CanAfford(who,NPrice,AItem, 1))
+    if(!BuyoutItem(who, AItem))
+      SendSysMessage(who,"Nie mozna teraz wykupic tego przedmiotu, sprobuj pozniej.",FONT_NORMAL,COLOR_RED);
+    else
+      SendSysMessage(who,"Wykupil"+ggm(who,3)+" przedmiot "+AItem.desc+" za "+FormatSize(NPrice, ".")+"!",FONT_NORMAL,COLOR_WHITE);
+    endif
+  else
+    SendSysMessage(who,"Nie masz tyle zlota przy sobie, ani czeku na taka wartosc.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CancelAuction(who, Nr)
+
+  var AItem := AucItems[Nr];
+  
+  if(GetObjProperty(AItem,"SellOwner") != who.serial and !who.cmdlevel)
+    SendSysMessage(who,"Nie mozesz anulowac przedmiotu, ktory nie jest twoj!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Czy na pewno chcesz anulowac aukcje na przedmiot "+AItem.desc+" ?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  GetAllAucItems(AucItems,Aucs);
+
+  if(!(AItem in AucItems) or !AItem)
+    SendSysMessage(who, "Aukcja na ten przedmiot sie skonczyla.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetAucStartTime(AItem) + AUC_CANCEL_TIME <= ReadGameClock() and !IsGM(who))
+    SendSysMessage(who,"Nie mozesz juz anulowac tej aukcji.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  CancelAucForItem(AItem, who);
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowCont(Nr)
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var AItem := AucItems[Nr];
+
+  GInit(30,30);
+  GPage();
+  GResPic(0,0,0x2422,500,400);
+  GCheckerTrans(10,10,480,380);
+  GTextLine(50,30,1150,AItem.desc);
+  
+  GButton(462,10,0xFAF,0xFB0,999);
+  GAddPageData(10,370,0xFAE,0xFB0,462,370,0xFA5,0xFA7);
+
+  GGumpPic(10,60,0x2423);
+  GGumpPic(65,60,0x2423);
+
+  foreach Item in EnumerateItemsInContainer(AItem)
+    GCheckNextPage(10);
+    var Desc := Item.desc;
+
+    if(ItemCfg[Item.objtype].ItemTypeName)
+      Desc := ItemCfg[Item.objtype].ItemTypeName+" "+Desc;
+    endif
+    
+    GTextLine(15,78+(GNPCount()*30),1419,_Item_iter+".");
+    GTilePicHue(45,78+(GNPCount()*30),Item.graphic,Item.color);
+    GTextCrop(100,78+(GNPCount()*30),410,20,1152,Desc);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanAfford(who,NPrice,AItem, isBuyout)
+
+  if(!Aucs)
+    return 0;
+  endif
+
+  if(!SpendGold(who, NPrice))
+    return 0;
+  endif
+
+  var WhoBet := FindPlayerBySerial(GetObjProperty(AItem,"SellLastBet"));
+  
+  if(WhoBet)
+    var Price   := GetItemAuctionPrice(AItem);
+
+    if(isBuyout)
+      SendSysMessage(WhoBet, "Ktos wykupil przedmiot '"+AItem.desc+"' na aukcji, ktory probowal"+ggm(WhoBet,3)+" kupic.", FONT_NORMAL, COLOR_ORANGE);
+    else
+      SendSysMessage(WhoBet, "Ktos podbil cene przedmiotu '"+AItem.desc+"' na aukcji, ktory probowal"+ggm(WhoBet,3)+" kupic.", FONT_NORMAL, COLOR_ORANGE);
+    endif
+    
+    var fromMob := GetAuctioneerFromItem(AItem);
+    if(!PostGoldMail(WhoBet, fromMob, "Stawka zostala podbita.", array("Ktos podbil cene przedmiotu, ktory probowal"+ggm(WhoBet,3)+" kupic:","'"+AItem.desc+"'","","Ponizej zostala dolaczona twoja ostatnia stawka,","w wysokosci "+FormatSize(Price, ".")+" gp."), Price))
+      var wbBox := FindBankBox(WhoBet);
+      if(wbBox)
+        CreateGold(wbBox, Price);
+      endif
+    endif
+  endif
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------

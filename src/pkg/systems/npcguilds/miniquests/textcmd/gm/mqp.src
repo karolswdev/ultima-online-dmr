@@ -1,0 +1,163 @@
+//--------------------------------------------------------------------------
+// Modified: 2005-05-31
+//--------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/finding";
+include "include/move";
+
+include ":quests:bq_gump";
+include ":miniquests:miniquests";
+include ":miniquests:mq_gump";
+
+//--------------------------------------------------------------------------
+
+var MQuestData := GetMQuestData();
+var MQCfg      := ReadConfigFile(MQUESTS_CFG);
+var _Player, who, PlayerData;
+
+//--------------------------------------------------------------------------
+
+program ShowPlayerMQuestInfo(_who, text)
+
+  who    := _who;
+
+  if(CInt(text))
+    _Player := FindPlayerBySerial(text);
+  elseif(text)
+    _Player := FindCharacterByName(text);
+  endif
+
+  if(!_Player)
+    _Player := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!IsPlayer(_Player))
+    SendSysMessage(who,"To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  PlayerData := GetObjProperty(_Player, MQPROP_DATA);
+  BuildMainMQpGump();
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res        := GSend(who);
+    PlayerData := GetObjProperty(_Player, MQPROP_DATA);
+
+    case(Res.butid)
+      10:        var Source := FindNpcBySerial(PlayerData.Source);
+                 if(Source)
+                   MoveObject(who, Source.x, Source.y, Source.z, Source.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+                   SendSysMessage(who, "Przenoszenie do "+Source.name+".", FONT_NORMAL, COLOR_GREEN);
+                 endif
+
+      11:        EraseObjProperty(who, MQPROP_TEMP_WDELAY);
+                 SendSysMessage(who, "Resetowanie tymczasowego opoznienia rozgladania.", FONT_NORMAL, COLOR_GREEN);
+
+      12:        var DstNpc := FindNpcBySerial(PlayerData.Targ.NpcSer);
+                 if(DstNpc)
+                   MoveObject(who, DstNpc.x, DstNpc.y, DstNpc.z, DstNpc.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+                   SendSysMessage(who, "Przenoszenie do "+DstNpc.name+".", FONT_NORMAL, COLOR_GREEN);
+                 endif
+
+      14:        if(IsAdmin(who))
+                   if(YesNo(who, "Zresetowac?"))
+                     EraseObjProperty(_Player, MQPROP_DATA);
+                     PlayerData := 0;
+                     SendSysMessage(who, "Zresetowal"+ggm(who,3)+" dane Gracza.", FONT_NORMAL, COLOR_GREEN);
+                   endif
+                 endif
+
+      default:   return;
+    endcase
+    BuildMainMQpGump();
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------
+
+function BuildMainMQpGump()
+
+  BQGInit("MiniQuest Gracza "+GetRealName(_Player), 600, 410);
+  GResPic(30, 50, 0xa3c, 340, 300);
+
+  var TempWDelay := CInt(GetObjProperty(_Player, MQPROP_TEMP_WDELAY));
+  
+  if(TempWDelay - ReadGameClock() > 0)
+    GTextLine(40,  320, 670, "TempWalkDelay:");
+    GTextLine(130, 320, 550, RealTime(TempWDelay - ReadGameClock()));
+    GButton(24, 323, 2117, 2118, 11);
+  endif
+
+  if(!PlayerData)
+    GTextLine(40,  60, 670, "Nie wykonuje zadania.");
+    return;
+  endif
+
+  var MQuest;
+
+  if(PlayerData.QuestID)
+    MQuest := MQuestData.FindElement(MQUEST_TITLE+PlayerData.QuestID);
+  endif
+
+  var Source := FindNpcBySerial(PlayerData.Source);
+
+  GTextLine(40,  60, 670, "Quest ID:");
+  GTextLine(130, 60, 550, PlayerData.QuestID);
+
+  if(MQuest)
+    GTextLine(40,  80, 670, "Tytul:");
+    GTextLine(130, 80, 550, MQuest.GetProp(MQPROP_TITLE));
+  endif
+
+  GTextLine(40,  100, 670, "Zrodlo:");
+  GTextLine(130, 100, 550, Source.name);
+  GTextLine(280, 100, 580, Source.serial);
+  GButton(24, 103, 2117, 2118, 10);
+
+  GTextLine(40,  180, 670, "Wykonywany:");
+  GTextLine(130, 180, 550, RealTime(ReadGameClock() - PlayerData.StartTime));
+  GTextLine(280, 180, 999, RealTime(MQCfg[MQCFG_GLOBAL].QuestTime));
+
+  GTextLine(40,  220, 670, "Typ:");
+  GTextLine(130, 220, 550, GetMQuestTypeName(PlayerData.Type));
+
+  var DstNpc := FindNpcBySerial(PlayerData.Targ.NpcSer);
+
+  GTextLine(40,  240, 670, "Docelowy Npc:");
+  if(DstNpc)
+    GTextLine(130, 240, 550, DstNpc.name);
+    GTextLine(280, 240, 580, DstNpc.serial);
+    GButton(24, 243, 2117, 2118, 12);
+  else
+    GTextLine(130, 240, 1206, "None");
+  endif
+
+  GTextLine(40,  260, 670, "Lokacja:");
+  GTextLine(130, 260, 550, PlayerData.Loc.x+" "+PlayerData.Loc.y+" "+PlayerData.Loc.z+" "+PlayerData.Loc.realm);
+
+  var Item := FindItemBySerial(PlayerData.Targ.ItemSer);
+  if(Item)
+    GTextLine(40,  280, 670, "Przedmiot:");
+    GTextLine(130, 280, 550, Item.desc);
+    GTextLine(280, 280, 580, Item.serial);
+  endif
+
+  GTextLine(400, 20, 670, "Flagi:");
+  BQGAddTextBox(410, 50, 125, 20, FCLR_TEBOX, "Ukonczony", 0);
+  BQGCheckBox(535, 47, 0, PlayerData.Flags & MQNF_QCOMPLETED, 23);
+
+  BQGAddTextBox(410, 80, 125, 20, FCLR_TEBOX, "Cel Stworzony", 0);
+  BQGCheckBox(535, 77, 0, PlayerData.Flags & MQNF_QTARG_CREATED, 22);
+
+  if(IsAdmin(who))
+    GTextLine(40,  320, 670, "Zresetuj dane Gracza");
+    GButton(24, 323, 2117, 2118, 14);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------

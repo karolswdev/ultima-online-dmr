@@ -1,0 +1,101 @@
+
+//-----------------------------------------------------------------------------
+
+include "include/npcs";
+include "include/effects";
+include "include/packets";
+include "include/poison";
+include "include/coords";
+
+//-----------------------------------------------------------------------------
+
+program FireBlood( param )
+  var who;
+  var attacker;
+ 
+  if (param.size() == 2)
+    who := param[1];
+    attacker := param[2];
+  else
+    who := param;
+    attacker := 0;
+  endif
+
+ 
+  if(who.isa(POLCLASS_NPC))
+    if(IsNpcElemental(who, NPCELEM_ELEMENTAL) or IsNpcElemental(who, NPCELEM_UNDEAD) or GetNpcConfig(who).FireBloodImmune)
+      PrintTextAbove(who,"*niewrazliwe na ognista krew*");
+      return;
+    endif
+  endif
+  
+  SetObjProperty(who, "#FireBloodPid", GetPid());
+  SetObjProperty(who, "#LastFireBloodTime", ReadGameClock());
+
+  var lx       := who.x;
+  var ly       := who.y;
+  var Duration := ReadGameClock() + 5 + RandomInt(5);
+  var Dmg;
+  
+  if(who.isa(POLCLASS_NPC))
+    while(Duration > ReadGameClock() and !who.dead and who)
+
+      PlaySoundEffect(who, SFX_FIREBLAST);
+      PlayPcEffect(who, FX_MARK_EFFECT, 31, 0x10, 0x10, 5);
+
+      Dmg := (2 + RandomInt(3)) * MinMax(coordist(who.x, who.y, lx, ly), 1, 4);
+      var stamDmg := CInt(Dmg / 2);
+
+      if(who.isa(POLCLASS_NPC))
+        stamDmg := CInt(stamDmg / 2);
+      endif
+
+      DealStaminaDamage(who, stamDmg);
+
+      if(GetHp(who) < Dmg)
+        Dmg := GetHp(who) - 1;
+      endif
+
+      if(Dmg)
+        DealDamage(who, Dmg);
+
+        if(RandomInt(100) < 8)
+          CreateBlood(who.x, who.y, who.z, who.realm, CB_SMALL);
+        endif
+      endif
+
+      Duration := Duration + ToMax(coordist(who.x, who.y, lx, ly), 3);
+
+      lx := who.x;
+      ly := who.y;
+      sleep(2);
+
+    endwhile
+  else
+      var BaseDmg := GetEffectiveSkill(attacker,SKILLID_VAMPIRE) + GetEffectiveSkill(attacker,SKILLID_SPIRITSPEAK);
+      for i:= 1 to 4
+        if(who.dead or !who)
+          break;
+        endif
+        Dmg := CInt(BaseDmg /(5+i*5));
+        PlaySoundEffect(who, SFX_FIREBLAST);
+        PlayPcEffect(who, FX_MARK_EFFECT, 31, 0x10, 0x10, 5);
+        if (i == 1)
+          DealStaminaDamage(who, CInt(BaseDmg / 15), attacker);
+        elseif ( i == 2)
+          DealStaminaDamage(who, CInt(BaseDmg / 20), attacker);
+        elseif (i == 3)
+          DealStaminaDamage(who, CInt(BaseDmg / 20), attacker);  
+        endif
+        DealDamage(who, Dmg);
+        PrintTextAbove(who,"* - " + who.name + " zar pali jego cialo - *",FONT_NORMAL,55);
+        sleep(2);
+      endfor
+  endif
+
+  SetObjProperty(who, "#LastFireBloodTime", ReadGameClock());
+  EraseObjProperty(who, "#FireBloodPid");
+
+endprogram
+
+//-----------------------------------------------------------------------------

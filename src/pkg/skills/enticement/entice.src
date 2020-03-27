@@ -1,0 +1,175 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/mount";
+
+include ":musicianship:music";
+
+//-----------------------------------------------------------------------------
+
+Program Enticement(who)
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz stworzenie.",FONT_NORMAL,COLOR_GREEN);
+  var Subject := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+
+  if(!StandardMobCheck(who,Subject,NEW_DIST_CHECK | NO_COMBAT_CHECK,8))
+    return;
+  endif
+
+  if(Subject == who)
+    SendSysMessage(who, "Chcesz zauroczyc siebie?", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  SetBusyTime(who,GetSkillDelay(SKILLID_ENTICEMENT));
+
+  if(IsEnticed(subject))
+    SendSysMessage(who, "Wyglada juz na zauroczone.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Diff   := GetNpcConfig(Subject).provoke;
+
+  if(Diff == error and !IsPlayer(Subject))
+    SendSysMessage(who, "Nie mozesz go zauroczyc!",FONT_NORMAL,COLOR_RED);
+    return;
+  else
+    Diff := CInt(Diff);
+  endif
+
+  if(!can_sing(who))
+    return;
+  endif
+   
+  var instrument := FindInstrument(who);
+  
+  if(!instrument)
+    SendSysMessage(who, "Nie masz instrumentu aby grac!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var MaxSec := CInt(GetEffectiveSkill(who, SKILLID_ENTICEMENT) / 25);
+  var i;
+
+  if(!MaxSec)
+    MaxSec := 1;
+  endif
+
+  if(IsPlayer(Subject))
+    EnticePlayerMount(who, Subject, instrument, MaxSec);
+    return;
+  endif
+
+  if(!Subject.isa(POLCLASS_NPC))
+    SendSysMessage(who,"Tego nie uda Ci sie zauroczyc.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(GetNpcConfig(Subject).alignment == CITYAL_GOOD)
+    SetCriminal(who, 1, "0", "Zauroczenie prawego Npca: "+Subject.name+" ["+Subject.serial+"].");
+  endif
+  
+  if(Checkskill(who, SKILLID_ENTICEMENT, Diff, 0) and play(who, Diff, instrument))
+    if(IsTamed(Subject))
+      PrintTextAbove(Subject,"*stworzenie nie reaguje na muzyke*");
+      return;
+    endif
+    
+    PrintTextAbove(subject, "*stworzenie " +subject.name+" zdaje sie byc zauroczone muzyka*");
+
+    AwardDefaultPoints(who, SKILLID_ENTICEMENT, Diff);
+    Detach();
+
+    for(i:=1;i<=MaxSec*2;i:=i+1)
+      SendChEvent(Subject, who, EVID_WALK, "Entice");
+      sleepms(500);
+    endfor
+
+  else
+    PrintTextAbovePrivate(subject, "*stworzenie nie reaguje na muzyke*", who);
+    if((Randomint(10)+1) <= 3 and !IsTamed(subject))
+      SendChEvent(subject,who,EVID_PEACEMADE);
+      SendChEvent(subject,who,EVID_ENGAGED);
+      PrintTextAbove(subject, "*stworzenie " + subject.name+" jest zirytowane muzyka "+who.name+"*");
+    endif
+  endif
+
+  sleep(2);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function IsEnticed(Sub)
+
+  return GetObjProperty(Sub,"#RunningTo");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnticePlayerMount(who, Subject, instrument, MaxSec)
+
+  var Mount := GetEquipmentByLayer(Subject, LAYER_MOUNT);
+
+  if(!Mount)
+    SendSysMessage(who, "Tego nie uda Ci sie zauroczyc.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetBaseSkill(who, SKILLID_ENTICEMENT) < 100 or GetBaseSkill(who, SKILLID_MUSICIANSHIP) < 100)
+    SendSysMessage(who, "Twa wiedza jest za mala by moc zauroczyc wierzchowca.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!Subject.criminal and !Subject.murderer)
+    SetCriminal(who, 1, "EnticePlayerMount", "Zauroczenie wierzchowca prawej osoby: "+Subject.name+" ["+Subject.serial+"].");
+  endif
+
+  var Animal := GetAnimalFromMount(Mount);
+  var Diff   := GetNpcConfig(Animal).provoke;
+  var oX     := who.x;
+  var oY     := who.y;
+  var aName;
+
+  if(Animal)
+    aName := Animal.name;
+  else
+    aName := Mount.desc;
+  endif
+
+  if(Diff == error)
+    Diff := 40;
+  else
+    Diff := CInt(Diff);
+  endif
+
+  if(Checkskill(who, SKILLID_ENTICEMENT, Diff, 0) and play(who, Diff, instrument))
+    sleep(3);
+
+    if(coordist(oX, oY, who.x, who.y) > 1)
+      SendSysMessage(who, "Oddalil"+ggm(who,3)+" sie.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(Distance(who, Subject) > 14)
+      SendSysMessage(who, "Cel sie oddalil", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(CanMod(Subject, MOD_PARA))
+      DoMod(Subject, MOD_PARA, 1, MaxSec);
+      PrintTextAbove(Subject, "*"+aName+" odmawia posluszenstwa*");
+      return;
+    endif
+  endif
+
+  SendSysMessage(who, "Nie udalo Ci sie oczarowac zwierzecia "+aName+".", FONT_NORMAL, COLOR_RED);
+
+endfunction
+
+//-----------------------------------------------------------------------------

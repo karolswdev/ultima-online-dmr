@@ -1,0 +1,161 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/gumps";
+include "include/skills/std";
+include "include/gumpboxes";
+include "include/gump_utils";
+include ":quests:quest_ctrl";
+include "include/player/misc";
+include "include/tools";
+include "include/calc";
+
+include ":crafting:creation";
+include ":crafting:exceptional";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+
+program BlowPipe(who,pipe)
+
+  if(!StandardItemCheck(who,pipe))
+    return;
+  endif
+
+  if(!GetObjProperty(who,"CanGlassBlow"))
+    SendSysMessage(who,"Nie wiesz co z tym zrobic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_ALCHEMY_GLASS);
+  var LastCraft := GlassGump(who);
+  
+  if(!LastCraft)
+    return;
+  endif
+  
+  start_script(":alchemy:blow_item", array(who, Pipe, LastCraft));
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GlassGump(who)
+
+  var butRes := 0;
+  var doCraft := 0;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_ALCHEMY, "Blow");
+  
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":alchemy:glassblow", SKILLID_ALCHEMY);
+    BuildMainGlassGump(LastCraft.iters);
+
+    case(butRes)
+      2:   BuildBottlesGump();
+      3:   BuildFlasksGump();
+      4:   BuildOthersGump();
+    endcase
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie wydmuchiwal"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        break;
+        
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_ALCHEMY, LastCraft, "Blow");
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGlassGump(ProdIters)
+
+  GPage();
+  BuildGreyMainGump();
+  GNoClose();
+  GNoDispose();
+  GTextLine( 20, 22, 650, "Menu szklarstwa");
+  
+  GButton( 400, 22, 2708, 2709, 99 );
+  GTextLine(430, 22,  600, "Anuluj");
+
+  GTextLine  (27,  75,  500,  "Butelki");
+  GButton    (85,  75,  2710, 2711, 2);
+  GTextLine  (215, 75,  500,  "Flaszki");
+  GButton    (280, 75,  2710, 2711, 3);
+  GTextLine  (420, 75,  500,  "Inne");
+  GButton    (460, 75,  2710, 2711, 4);
+  
+  GTextLine(180, 395, 600, "Powtorz:");
+  BQGAddTextBox(250, 397, 60, 20, 1320, ProdIters, BQG_EDITABLE, 1, 1);
+
+  GButton( 335, 395, 2708, 2709, 1 );
+  GTextLine(360, 395,  600, "To co ostatnio");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildBottlesGump()
+
+    AddGumpElem( 3854, 60,  145, 70,   170, 120, 170 ,0 , 3854, 999 , 2704, 2705);
+    AddGumpElem( 8066, 200, 145, 210,  170, 260, 170 ,0 , 8066, 999 , 2704, 2705);
+    AddGumpElem( 3620, 350, 145, 350,  170, 400, 170 ,0 , 3620, 999 , 2704, 2705);
+
+    AddGumpElem( 4086, 60,  240, 70,   265, 120, 265 ,0 , 4086, 999 , 2704, 2705);
+    AddGumpElem(0xC718,200, 240, 210,  265, 260, 265 ,0 , 2540, 999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildFlasksGump()
+
+    AddGumpElem( 6189, 100, 145, 110,  170, 160, 170 ,"None" , 6189, 999 , 2704, 2705);
+    AddGumpElem( 6194, 310, 145, 310,  170, 360, 170 ,"None" , 6194, 999 , 2704, 2705);
+
+    AddGumpElem( 6202, 100, 240, 110,  265, 160, 265 ,"None" , 6202, 999 , 2704, 2705);
+    AddGumpElem( 6205, 310, 240, 310,  265, 360, 265 ,"None" , 6205, 999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildOthersGump()
+
+    AddGumpElem( 6160, 100, 145, 110,  170, 160, 170 ,0 , 6160, 999 , 2704, 2705);
+    AddGumpElem( 3629, 200, 145, 210,  170, 260, 170 ,0 , 3629, 999 , 2704, 2705);
+
+endfunction
+
+//-----------------------------------------------------------------------------

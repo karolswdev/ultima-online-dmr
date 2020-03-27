@@ -1,0 +1,125 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/dirs";
+
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":harvesting:harvest";
+
+//-----------------------------------------------------------------------------
+
+program CutClothHarvest(Params)
+
+  var who := Params[1];
+  var scissors := Params[2];
+  var Cloth := Params[3];
+
+  if(!StandardItemCheck(who, scissors))
+    return;
+  endif
+
+  if(!StandardItemCheck(who, Cloth))
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareHarvest(Cloth, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_TAILORING, CRAFT_MAX_ITERATIONS, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CutCloth(who, scissors, Cloth, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareHarvest(Cloth, byref Materials)
+
+  Materials := DefineCraftMaterials();
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+
+  AddCraftMaterialItem(Materials, Cloth, 1);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CutCloth(who, scissors, Cloth, byref IterData, byref Materials)
+
+  var ScisCfg      := ReadConfigFile("scissors");
+  var ClothObj     := CInt(ScisCfg[Cloth.objtype].Prod);
+  var Diff         := 20;
+  var MatAmount    := CInt(ScisCfg[Cloth.objtype].material);
+  var ProdAmount   := CInt(GetHarvestAmount(who, SKILLID_TAILORING) / 4);
+  var NewColor     := Cloth.color;
+  var Points       := GetHarvestProcessPoints(SKILLID_TAILORING, Diff);
+  var cont;
+
+  if(Cloth.container)
+    cont := Cloth.container;
+  else
+    cont := who.backpack;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+  
+  if(!CheckToolWear(who, scissors, SKILLID_TAILORING, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who, SKILLID_TAILORING, Diff, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Zniszczyl"+ggm(who,3)+" troche tkaniny!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+  
+  var Product := CreateItemInCont(cont, ClothObj, MatAmount * ProdAmount, who );
+
+  if(Product)  
+    AwardPoints(who, SKILLID_TAILORING, Points, NO_STAT_AWARD | GAIN_RESTRICT, Diff);
+    Product.color := NewColor;
+    SendSysmessage(who, GetCraftIterDesc(IterData) + " Poci"+ggm(who,5)+" tkanine i wlozy"+ggm(who,3)+" ja do plecaka.", FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w pojemniku!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

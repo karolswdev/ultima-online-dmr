@@ -1,0 +1,154 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const MAX_AMT           := 4;
+const CHANGE_GRAPHIC    := 3707;
+const SKILL_TO_MAKE_ALC := 40;
+
+//-----------------------------------------------------------------------------
+
+var tcfg := ReadConfigFile("tub");
+
+//-----------------------------------------------------------------------------
+
+program MakeAlcohol(who, tub)
+
+  var Types := GetConfigStringKeys(tcfg);
+  var Type  := GetObjProperty(tub,"Type");
+
+  if(!(Type in Types) or !Type)
+    SendSysMessage(who,"W tej barylce nie ma alkoholu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsFermented(tub))
+    SendSysMessage(who,"Do czego chcesz przelac alkohol ?",FONT_NORMAL,COLOR_GREEN);
+    var Targ := ObjTarget(who);
+      
+    if(!StandardItemCheck(who,Targ))
+      return;
+    endif
+    
+    if(targ.objtype == UOBJ_EMPTYPITCHER)
+    
+      if(DestroyItem(Targ))
+        SendSysMessage(who,"Przelal"+ggm(who,3)+" alkohol do dzbanka.",FONT_NORMAL,COLOR_GREEN);
+        CreateItemInPack(who,CInt(tcfg[type].ProdP),1);
+      endif
+      
+    elseif(targ.objtype == UOBJ_EMPTYGLASS)
+    
+      var Glasses := array(Targ), i;
+      
+      foreach Item in EnumerateItemsInContainer(who.backpack)
+        if(Item.objtype == UOBJ_EMPTYGLASS)
+          if(Targ != Item)
+            if(ReserveItem(Item))
+              Glasses.append(Item);
+            endif
+          endif
+        endif
+
+        if(Glasses.size() == 5)
+          break;
+        endif
+      endforeach
+      
+      if(Glasses.size() != 5)
+        SendSysMessage(who,"Potrzebujesz 5 szklanek.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+
+      foreach Glass in Glasses
+        if(!DestroyItem(Glass))
+          SendSysMessage(who, "Brakuje Ci szklanek.", FONT_NORMAL, COLOR_RED);
+          return;
+        endif
+      endforeach
+      
+      for(i:=1;i<=5;i:=i+1)
+        CreateItemInPack(who, tcfg[type].ProdG, 1);
+      endfor
+      SendSysMessage(who,"Przelal"+ggm(who,3)+" alkohol do szklanek.",FONT_NORMAL,COLOR_GREEN);
+      
+    else
+      SendsysMessage(who,"Do tego nie przelejesz alkoholu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    tub.graphic := tub.objtype;
+    EraseObjProperty(tub,"Ferm");
+    EraseObjProperty(tub,"StartFerm");
+    EraseObjProperty(tub,"Type");
+
+  elseif(GetObjProperty(tub,"Ferm"))
+  
+    SendSysMessage(who,"Musisz poczekac jakis czas az alkohol sie sfermentuje.",FONT_NORMAL,COLOR_GREEN);
+
+  else
+  
+    var Amt := CInt(GetObjProperty(tub,"Amt"));
+    var msg := tcfg[Type].Msg;
+ 
+    if(Amt >= MAX_AMT)
+      if(GetEffectiveSkill(who,SKILLID_ALCHEMY) < CInt(tcfg[type].Skill))
+        SendSysMessage(who,"Twa wiedza jest za mala na zrobienie tego alkoholu.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      SendSysMessage(who,"Wskaz wode ktora chcesz napelnic barylke.",FONT_NORMAL,COLOR_GREEN);
+      var Targ := LocTarget(who);
+      if(!StandardLocCheck(who,Targ, NEW_DIST_CHECK | NO_DIST_CHECK, 3))
+        return;
+      endif
+      
+      if(!IsWater(Targ.x ,Targ.y, Targ.z, who.realm))
+        SendSysMessage(who,"To nie woda!",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      if(!MakeWaterSplash(who,Targ,0x23F))
+        return;
+      endif
+      SendSysMessage(who,"Napelnil"+ggm(who,3)+" barylke woda.",FONT_NORMAL,COLOR_GREEN);
+      tub.graphic := CHANGE_GRAPHIC;
+      SetObjProperty(tub,"Ferm",GetEffectiveSkill(who,SKILLID_ALCHEMY));
+      SetObjProperty(tub,"StartFerm",ReadGameClock());
+      EraseObjProperty(tub,"Amt");
+    elseif(Amt)
+      SendSysMessage(who,"W barylce znajduje sie "+amt+" "+msg+".",FONT_NORMAL,COLOR_GREEN);
+      return;
+    else
+      SendSysMessage(who,"Ta barylka jest pusta.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function IsFermented(tub)
+
+  var Ferm := GetObjProperty(Tub,"Ferm");
+  
+  if(Ferm)
+    var StartFerm := GetObjProperty(Tub,"StartFerm");
+    if(!StartFerm)
+      StartFerm := ReadGameClock();
+      SetObjProperty(Tub,"StartFerm",StartFerm);
+    endif
+
+    if(((25 - CInt(Ferm / 10)) * 60) + StartFerm < ReadGameClock())
+      return 1;
+    endif
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

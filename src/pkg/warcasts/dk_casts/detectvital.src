@@ -1,0 +1,76 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 65;
+
+//-----------------------------------------------------------------------------
+
+program DkDetectVital(Parms)
+
+  WarCast(Parms, DK_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Range := CInt(GetEffectiveSkill(Caster, SKILLID_FANATICISM) / 20 + GetEffectiveSkill(Caster, SKILLID_ZEAL) / 20);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(Mobile != Caster and !Mobile.murderer and !Mobile.isa(POLCLASS_NPC))
+      PrintTextAbove(Mobile, GetVitalText(Mobile)+" i "+GetStamText(Mobile), FONT_NORMAL, COLOR_STONE);
+    endif  
+  endforeach
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetVitalText(Mobile)
+
+  var Perc := CInt((GetHp(Mobile) * 100) / GetMaxHp(Mobile));
+
+  if(Perc >= 0 and Perc < 10)
+    return "ledwo zyje";
+  elseif(Perc >= 10 and Perc < 25)
+    return "powaznie ranny";
+  elseif(Perc >= 25 and Perc < 50)
+    return "ranny";
+  elseif(Perc >= 50 and Perc < 75)
+    return "poobijany";
+  else
+    return "zdrowy";
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetStamText(Mobile)
+
+  var Perc := CInt((GetStamina(Mobile) * 100) / GetMaxStamina(Mobile));
+
+  if(Perc >= 0 and Perc < 10)
+    return "zadyszany";
+  elseif(Perc >= 10 and Perc < 25)
+    return "zasapany";
+  elseif(Perc >= 25 and Perc < 50)
+    return "zmeczony";
+  elseif(Perc >= 50 and Perc < 75)
+    return "wytrwaly";
+  else
+    return "wypoczety";
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

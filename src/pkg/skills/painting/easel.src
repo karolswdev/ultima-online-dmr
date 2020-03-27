@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program Easel(who,easel)
+
+  if(!StandardItemCheck(who,easel,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  if(Distance(who,easel) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(Easel.graphic == UOBJ_MATEASEL)
+    if(CreateItemInPack(who,UOBJ_PAINTMAT,1))
+      Easel.graphic := Easel.objtype;
+      SendSysMessage(who,"Zdjal"+ggm(who,3)+" plotno ze sztalugi.",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Na tej sztaludze nie ma plotna.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

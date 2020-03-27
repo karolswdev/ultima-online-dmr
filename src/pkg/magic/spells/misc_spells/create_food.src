@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 2;
+
+//-----------------------------------------------------------------------------
+
+program CastCreateFood( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var food;
+  case (RandomInt(8))
+	0:	food := 0x09C0; // sausage
+	1:	food := 0x09ea; // muffin
+	2:	food := 0x1040; // pizza
+	3:	food := 0x09B8; // cookedbird
+	4: 	food := 0x1608; // friedchickenleg
+	5: 	food := 0x09e9; // creamcake
+	7: 	food := 0x0C78; // carrot
+  endcase
+
+  PlaySoundEffect(caster, SFX_SPELL_CREATE_FOOD);
+  CreateItemInPack(caster, food, 1);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

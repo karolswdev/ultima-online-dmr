@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/ainpcs";
+include "ai/main/killpcsloop";
+include "ai/combat/fight";
+include "ai/combat/slimecombatevent";
+include "ai/setup/animalsetup";
+include "ai/main/loot";
+include "ai/main/sleepmode";
+include "include/cdist";
+include "include/tools";
+include ":artifacts:artifacts";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 8; 
+
+//-----------------------------------------------------------------------------
+
+program Slime_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  SetWarMode( 0 );
+  main_AI_loop();
+
+endprogram
+
+//-----------------------------------------------------------------------------

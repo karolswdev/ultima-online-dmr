@@ -1,0 +1,429 @@
+use uo;
+use os;
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/attributes/main";
+include "include/tools";
+include "include/clock";
+include ":banking:gold";
+
+var BannedSkillID := array{50, 48};
+// wampir 50, likantropia 48
+
+program useSoulStone(who, theStone)
+
+    if((theStone.container || !theStone.multi) && !who.cmdlevel)
+		SendSysMessage(who, "Kamien nie moze zostac uzyty w ten sposob.", FONT_NORMAL, COLOR_RED);
+		return;
+    endif
+
+    if(!GetObjProperty(theStone, "LinkedSerial"))
+		SendSysMessage(who, "Od teraz ten kamien nalezy do Ciebie", FONT_NORMAL, COLOR_BLUE);
+		PlayObjectCenteredEffect(who, 14138, 7, 42);
+		SetObjProperty(theStone, "LinkedSerial", who.serial);
+		return;
+    endif
+    
+    if(CInt(GetObjProperty(theStone, "LinkedSerial")) != who.serial && !who.cmdlevel)
+		PrintTextAbove(theStone, "*kamien mieni sie milionem kolorow*", FONT_NORMAL, RandomInt(1400));
+		return;
+    endif
+	
+	if(GetObjProperty(theStone, "StoredSkillNum") == error)
+//		SetObjProperty(theStone, "StoredSkillNum", 999);
+	endif
+	
+	if(GetObjProperty(theStone, "StoredSkillVal") == error)
+//		SetObjProperty(theStone, "StoredSkillVal", 999);
+	endif
+	
+	GInit();
+	GNoDispose();
+
+	GPage(1);
+
+//naglowek
+	GResPic( 55 , 63 , 9270 , 371 , 140  );
+	GTextLine( 207 , 80 , 38 , "KAMIEN DUSZ" );
+	GTextLine( 80 , 105 , 895 , "Moc kamienia pozwoli zachowac Ci w jego wnetrzu" );
+	GTextLine( 80 , 125 , 895 , "jedna Twoja umiejetnosc. Wybierz rozwaznie," );
+	GTextLine( 80 , 145 , 895 , "po kazdym uzyciu potrzebuje on 7 dni na regeneracje." );
+	GTextLine( 80 , 165 , 895 , "W tym czasie nie moga byc dokonane zadne zmiany." );
+
+//srodek
+	GResPic( 55 , 198 , 9270 , 371 , 140  );
+	GTextLine( 180 , 210 , 38 , "Zapisana umiejetnosc:" );
+	GTextLine( 100, 240, 72, GetStoneDesc(theStone));
+	GTextLine( 280, 240, 72, GetStoneVal(theStone));
+
+
+//przyciski srodek	
+	GTextLine( 100 , 272 , 38 , "Dodaj" );
+	GButton(  140, 275, 2118, 2117, 1 ); // 1 - save skill
+//	GTextLine( 210 , 272 , 38 , "Kasuj" );
+//	GButton( 250, 275, 2118, 2117, 2 ); // 2 - erase skill
+	GTextLine( 320 , 272 , 38 , "Wymien" );
+	GButton( 370, 275, 2118, 2117, 3); // 3 - swap skill
+
+	if(GetObjProperty(theStone, "LastTouched"))
+		GTextLine( 100 , 302 , 895 , "Aktywny za: "+ShortRealTime(ReadGameClock() - CInt(GetObjProperty(theStone, "LastTouched"))) );
+	endif
+	GTextLine( 300 , 302 , 895 , "Ustawienia" );
+	GButtonPage( 370, 305, 2118, 2117, 2); // page 2 - ustawienia
+
+//smoki
+	GGumpPic( 5 , 0 , 10440 , 0 );
+	GGumpPic( 394 , 0 , 10441 , 0 );
+
+
+//ustawienia
+	GPage( 2 );
+
+	GResPic( 55 , 63 , 9270 , 371 , 275  );
+	GTextLine( 160 , 85 , 895 , "Wybor grafiki Kamienia Dusz:" );
+
+	GTilePic( 110, 140, 10899 );
+	GButton( 160, 150, 2118, 2117, 11); // 11 - zielony kamien
+	GTilePic( 210, 140, 10972 );
+	GButton( 260, 150, 2118, 2117, 12); // 12 - niebieski kamien
+	GTilePic( 310, 140, 13043 );
+	GButton( 360, 150, 2118, 2117, 13); // 13 - czerwony kamien
+
+	GTextLine( 310 , 302 , 895 , "Powrot" );
+	GButtonPage( 370, 305, 2118, 2117, 1); // page 1 - glowna
+
+//smoki
+	GGumpPic( 5 , 0 , 10440 , 0 );
+	GGumpPic( 394 , 0 , 10441 , 0 );
+
+
+	
+	var gumpRet := GSend(who)[0];
+	
+	case(gumpRet)
+		1: 	SaveSkill(who, theStone);
+//		2: 	DeleteStoredSkill(who, theStone);
+		3: 	SwapStoredSkill(who, theStone);
+		11:	theStone.graphic := 10899;
+		12:	theStone.graphic := 10972;
+		13:	theStone.graphic := 13043;
+		default: SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+	endcase
+
+
+	if(GetObjProperty(theStone, "StoredSkillNum") != error)
+		case(theStone.graphic)
+			10899:		if(theStone.graphic != 10900)
+						theStone.graphic := 10900;
+					endif
+			10972:		if(theStone.graphic != 10973)
+						theStone.graphic := 10973;
+					endif
+			13043:		if(theStone.graphic != 13044)
+						theStone.graphic := 13044;
+					endif
+		endcase
+	elseif(GetObjProperty(theStone, "StoredSkillNum") == error)
+		case(theStone.graphic)
+			10900:		if(theStone.graphic != 10899)
+						theStone.graphic := 10899;
+					endif
+			10973:		if(theStone.graphic != 10972)
+						theStone.graphic := 10972;
+					endif
+			13044:		if(theStone.graphic != 13043)
+						theStone.graphic := 13043;
+					endif
+		endcase
+	endif
+
+    
+endprogram	
+
+function GetStoneDesc(Stone)
+
+	if(GetObjProperty(Stone, "StoredSkillNum") != error)
+
+		var tSkill := CInt(GetObjProperty(Stone, "StoredSkillNum"));
+		var sName := GetSkillConfigElem(tSkill);
+		return sName.name;
+	endif
+	
+	return "";
+	
+endfunction
+
+function GetStoneVal(Stone)
+
+	var tValue := CInt(GetObjProperty(Stone, "StoredSkillVal"));
+	
+	if(tValue)
+		return CDbl(tValue/10)+" % umiejetnosci.";
+	endif
+	
+	return "";
+	
+endfunction
+
+function DeleteStoredSkill(who, Stone)
+
+	if(!CheckTouch(who, Stone))
+	    SendSysMessage(who, "Za wczesnie aby uzywac tego kamienia...", FONT_NORMAL, COLOR_RED);
+	    return;
+	endif
+
+	if(!YesNo(who, "Na pewno usunac ta zachowana umiejetnosc?"))
+		return;
+	endif
+	
+	if(!YesNo(who, "Kontynuowac? Zapisana umiejetnosc zostanie skasowana"))
+		return;
+	endif
+	
+	EraseObjProperty(Stone, "StoredSkillNum");
+	EraseObjProperty(Stone, "StoredSkillVal");
+	EraseObjProperty(Stone, "LastTouched");
+	
+	SendSysMessage(who, "Kamien usunal umiejetnosc...", FONT_NORMAL, COLOR_BLUE);
+	
+endfunction
+
+function SwapStoredSkill(who, Stone)
+
+	if(!CheckTouch(who, Stone))
+	    SendSysMessage(who, "Za wczesnie aby uzywac tego kamienia...", FONT_NORMAL, COLOR_RED);
+	    return;
+	endif
+	
+	var tSkill := CInt(GetObjProperty(Stone, "StoredSkillNum"));
+	var tValue := CInt(GetObjProperty(Stone, "StoredSkillVal"));
+	
+	if(tSkill == 999)
+		SendsysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	var skId := GenerateSkId(who);
+	
+	SendSysMessage(who, "Wybierz umiejetnosc do zamiany :", FONT_NORMAL, COLOR_BLUE);
+	
+	var theSkill := GetSkillConfigElem(skId);
+	var theSkillVal := GetBaseSkillBaseValue(who, skId);
+	
+	var price := theSkillVal * 150;
+    
+	if(skId<0)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(theSkillVal < 250)
+		SendSysMessage(who, "Nie mozna zachowac umiejetnosci ponizej 25%.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(skId in BannedSkillID)
+		SendSysMessage(who, "Nie mozna zachowac tej umiejetnosci.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	var SkillCap := who.skillcap*10;
+	var SkSum := GetObjProperty(who, PROP_SKILLSUM);	
+	var SkillSum := CInt(SkSum[1] + SkSum[2]);
+
+	if((SkillSum - theSkillVal) + tValue > SkillCap)
+			SendSysMessage(who, "Za malo miejsca w SkillCap. Anulowano.", FONT_NORMAL, COLOR_RED);
+			return;
+	endif
+	
+	if(!YesNo(who, "Oplata za ta transakcje to " + price + "."))
+		return;
+	endif
+
+	if(!YesNo(who, "Na pewno zamienic umiejetnosc " + theSkill.name + "?"))
+		return;
+	endif
+	
+	if(!YesNo(who, "Na pewno zamienic ta zachowana umiejetnosc?"))
+		return;
+	endif
+	
+	if(!YesNo(who, "Czy na pewno chcesz zmienic te umiejetnosci?"))
+		return;
+	endif
+	
+	if(!SpendGold(who, price))
+		SendSysMessage(who, "Nie masz wystarczajacej ilosci zlota.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	SetBaseSkillBaseValue(who, skId, 0);
+	PlaySoundEffect(who, 666);
+	PlayLightningBoltEffect(who);
+	
+	sleep(2);
+	
+	SetBaseSkillBaseValue(who, tSkill, tValue);
+	
+	PlaySoundEffect(who, 666);
+	PlayLightningBoltEffect(who);
+	
+	SetObjProperty(Stone, "StoredSkillNum", skId);
+	SetObjProperty(Stone, "StoredSkillVal", theSkillVal);
+	
+	SendSysMessage(who, "Kamien zamienil Twoje umiejetnosci...", FONT_NORMAL, COLOR_BLUE);
+	
+	Touch(Stone);
+	
+endfunction
+
+function SaveSkill(who, Stone)
+
+	if(!CheckTouch(who, Stone))
+	    SendSysMessage(who, "Za wczesnie aby uzywac tego kamienia...", FONT_NORMAL, COLOR_RED);
+	    return;
+	endif
+	
+	if(GetObjProperty(Stone, "StoredSkillNum") != error)
+		SendSysMessage(who, "Kamien moze zapamietac tylko jedna umiejetnosc!", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	SendSysMessage(who, "Wybierz umiejetnosc do zachowania :", FONT_NORMAL, COLOR_BLUE);
+	
+	var skId := GenerateSkId(who);
+	
+	if(skId<0)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(GetBaseSkillBaseValue(who, skId) < 250)
+		SendSysMessage(who, "Nie mozna zachowac umiejetnosci ponizej 25%.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+
+	if(skId in BannedSkillID)
+		SendSysMessage(who, "Nie mozna zachowac tej umiejetnosci.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	var theSkill := GetSkillConfigElem(skId);
+	
+	var price := GetBaseSkillBaseValue(who, skId) * 150;
+	
+	if(!YesNo(who, "Cena za te operacje to " + price + " kontynuowac?"))
+		return;
+	endif
+    
+	if(!YesNo(who, "Na pewno zachowac umiejetnosc " + theSkill.name + "?"))
+		return;
+	endif
+	
+	if(!YesNo(who, "Na pewno zachowac ta umiejetnosc?"))
+		return;
+	endif
+	
+	if(!YesNo(who, "Czy na pewno umiejetnosc ma byc zachowana?"))
+		return;
+	endif
+	
+	if(!SpendGold(who, price))
+		SendSysMessage(who, "Nie masz wystarczajacej ilosci zlota.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	SetObjProperty(Stone, "StoredSkillNum", skId);
+	SetObjProperty(Stone, "StoredSkillVal", GetBaseSkillBaseValue(who, skId));
+	
+	SetBaseSkillBaseValue(who, skId, 0);
+	
+	PlaySoundEffect(who, 666);
+	PlayLightningBoltEffect(who);
+	
+	SendSysMessage(who, "Twoja umiejetnosc zostala zachowana...", FONT_NORMAL, COLOR_BLUE);
+	Touch(Stone);
+	
+endfunction
+
+function GenerateSkId(who)
+
+	GInit();
+	GMode(GMODE_NORMAL, GSMODE_PACKET);
+	GStartPos(100, 100);
+	GResPic(0, 0, 9270, 300, 500);
+	GPage();
+	GAddPageData(30, 450, 0x15A1, 0x15A3, 260, 450, 0x15A4, 0x15A6);
+
+	GTextLine(40, 25, 1000, "Wybierz umiejetnosc:");
+
+	var Idx := 1;
+	var Groups := GetCharGroupedSkills(who, 0, 1);
+
+	foreach Skills in Groups 
+    
+		var GroupCfg := GetAttributeGroupConfig(_Skills_iter);
+
+		GCheckNextPage(12);
+		GTextLine(50, 77+GNPCount()*30, 1000, "Grupa: "+GroupCfg.Name);
+		var i := 0;
+
+		foreach SkillId in Skills
+
+			if(GNpCount() == 11 and i != 0)
+				GCheckNextPage(12);
+				GTextLine(50, 77+GNPCount()*30, 1000, "Grupa: "+GroupCfg.Name);
+			endif
+
+			GCheckNextPage(12);
+			GButton(50, 77+GNPCount()*30, 0x867, 0x869, SkillId+1);
+			GTextLine(80, 80+GNPCount()*30, 550, GetSkillConfigElem(SkillId).Name);
+
+			Idx += 1;
+			i += 1;
+
+		endforeach
+    
+		if(GNPCount() == 10)
+			GCheckNextPage(12);
+		endif
+
+	endforeach
+
+	var Res := GSend(who).butid;
+
+	if(Res)
+		return Res-1;
+	endif
+  
+	var gump := GSend(who)[0];
+  
+	return gump;
+
+endfunction
+
+function CheckTouch(who, Stone)
+
+    if(who.cmdlevel)
+	return 1;
+    endif
+    
+    if(!GetObjProperty(Stone, "LastTouched"))
+	SetObjProperty(Stone, "LastTouched", ReadGameClock());
+	return 1;
+    endif
+    
+    if(ReadGameClock() - CInt(GetObjProperty(Stone, "LastTouched")) > 604800)
+	return 1;
+    else
+	return 0;
+    endif
+    
+endfunction
+
+function Touch(Stone)
+
+    SetObjProperty(Stone, "LastTouched", ReadGameClock());
+    
+endfunction

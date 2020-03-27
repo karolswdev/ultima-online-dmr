@@ -1,0 +1,29 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/finding";
+include "include/checks/stdchecks";
+include "include/logerror";
+
+//-----------------------------------------------------------------------------
+
+program MainCheckSkillHook()
+
+  print("CheckSkillHook: ["+GetPid()+"] Done.");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function CheckSkillHook( who, skillid, difficulty, points )
+
+  return CheckMoreSkill( who, skillid, difficulty, points );
+
+endfunction
+
+//-----------------------------------------------------------------------------

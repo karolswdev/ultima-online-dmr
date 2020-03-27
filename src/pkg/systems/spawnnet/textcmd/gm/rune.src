@@ -1,0 +1,156 @@
+//-----------------------------------------------------------------------------
+
+include "../../spawnnet";
+include "include/gumpboxes";
+include "include/cmds/cancmd";
+include "include/std";
+include "include/finding";
+include "include/move";
+include "include/player/misc";
+include "include/coords";
+
+//-----------------------------------------------------------------------------
+
+program  Rune(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!CanUseCmd(who, "rune"))
+    return;
+  endif
+
+  var txt := splitwords(text);
+
+  case(txt[1]) 
+    "hide":      HideRunes(who);
+    "show":      ShowRunes(who);
+    "ghide":     HideGlobalRunes(who);
+    "gshow":     ShowGlobalRunes(who);
+    "globrun":   RunGlobalRunes(who);
+    "globstop":  StopGlobalRunes(who);
+    "go":        GoToRune(who,txt);
+    "near":      ShowNearRunes(who,CInt(txt[2]));
+    "count":     CountAllSpawns(who);
+    "cex":       CountExistSpawns(who);
+    "am":        ShowRunesWithProp(who,"maxamount");
+    "npcgo":     GoToRuneByNpc(who);
+    "run":       StartNearSpawns(who, CInt(txt[2]));
+    "stop":      StopNearSpawns(who, CInt(txt[2]));
+    "?":         SendSysMessage(who," .rune [go/hide/show/gshow/ghide/run/stop/near/npcgo]", FONT_NORMAL, COLOR_RED);
+    default:     SendSysMessage(who,"Zla opcja [.rune ?]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GoToRune(who,text)
+  if(!text[2])
+    SendSysMessage(who, ".rune go [nr rune]",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var Rune := FindRuneByNr(CInt(text[2]));
+  if(Rune == error)
+    SendSysMessage(who, "Bledny numer.",FONT_NORMAL,COLOR_BAD);
+    return;
+  elseif(Rune == 0)
+    SendSysMessage(who, "Miejsce wolne.",FONT_NORMAL,COLOR_BAD);
+    return;
+  else
+    SendSysMessage(who, "Runo "+text[2]+" x: "+Rune.x+" y: "+Rune.y+" z: "+Rune.z+" Rlm: "+Rune.realm,FONT_NORMAL,COLOR_GOOD);
+    MoveObject(who,Rune.x,Rune.y,Rune.z,Rune.realm,MOVECHAR_FORCELOCATION);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CountAllSpawns(who)
+
+  var i,MaxNr := GetMaxSRuneNr(),Rune,num := 0,amount := 0;
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(Rune)
+      amount := amount + GetRuneMaxAmount(Rune);
+      num := num + 1;
+    endif
+  endfor
+  SendSysMessage(who,amount+" spawnow w "+num+" runach.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CountExistSpawns(who)
+
+  var i,MaxNr := GetMaxSRuneNr(),Rune,num := 0,amount := 0;
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(Rune)
+      amount := amount + len(CheckExistingObjects(Rune));
+      num := num + 1;
+    endif
+  endfor
+  SendSysMessage(who,amount+" spawnow w "+num+" runach.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToRuneByNpc(who)
+
+  var Npc := ObjTarget(who);
+  if(Npc.isa(POLCLASS_NPC))
+    if(GetObjProperty(Npc,"Spawnnet"))
+      GoToRune(who,CInt(GetObjProperty(Npc,"Spawnnet")));
+    else
+      SendSysMessage(who,"To stworzenie nie jest ze spawnneta.",FONT_NORMAL,COLOR_BAD);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StartNearSpawns(who, Range)
+
+  var All   := 0;
+  var Found := 0;
+
+  foreach Rune in ListObjectsInBox(who.x-Range, who.y-Range, -127, who.x+Range, who.y+Range, 127, who.realm)
+    if(Rune.isa(POLCLASS_ITEM) and Rune.objtype == UOBJ_SRUNE)
+      All := All + 1;
+      if(!IsRunning(Rune))
+        RunSpawn(Rune);
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who, "[Start] Range: "+Range+" All: "+All+" Found: "+Found, FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StopNearSpawns(who, Range)
+
+  var All   := 0;
+  var Found := 0;
+
+  foreach Rune in ListObjectsInBox(who.x-Range, who.y-Range, -127, who.x+Range, who.y+Range, 127, who.realm)
+    if(Rune.isa(POLCLASS_ITEM) and Rune.objtype == UOBJ_SRUNE)
+      All := All + 1;
+      if(IsRunning(Rune))
+        RunSpawn(Rune);
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who, "[Stop] Range: "+Range+" All: "+All+" Found: "+Found, FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------

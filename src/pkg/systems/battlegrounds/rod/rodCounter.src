@@ -1,0 +1,41 @@
+use uo;
+use os;
+
+include "include/const/misc";
+include "include/client/fonts";
+include "include/staff";
+include ":rod:RingOfDeath";
+
+program rod_Counter(who)
+
+    if(who.ip)
+	while(1)
+	    sleepms(550);
+	    PrintTextAbove(who, CStr(GetObjProperty(who, "#RodTimer")), FONT_NORMAL, COLOR_BLUE);
+	    SetObjProperty(who, "#RodTimer", CInt(GetObjProperty(who, "#RodTimer")) - 1);
+	    if(CInt(GetObjProperty(who, "#RodTimer")) <= 0)
+		var i := 1;
+		
+		var globalMembers := GetGlobalProperty("RoDMembers");
+		foreach entry in globalMembers
+		
+		CheckWinner(who);
+		if(entry == who.serial)
+		    globalMembers.erase(i);
+		    AlertAdmins("[RoD] Usunieto entry osoby " + who.name);
+		    globalMembers.sort();
+		endif
+		
+		i := i + 1;
+		
+		endforeach
+		
+		SetGlobalProperty("RoDMembers", globalMembers);
+		MoveObjectToLocation(who, 783, 1437, 0, BRITA_REALM);
+        EraseObjProperty(who, "#RodTimer");
+		break;
+	    endif
+	endwhile
+    endif
+		    
+endprogram

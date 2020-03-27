@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/traps";
+
+//-----------------------------------------------------------------------------
+
+var Points := GetDefaultPointsValue(SKILLID_TRACKING);
+
+//-----------------------------------------------------------------------------
+
+program RemoveTrap(who, tongs)
+
+  if(!StandardItemCheck(who, tongs))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz pulapke do rozbrojenia.",FONT_NORMAL,COLOR_GREEN);
+  var item := ObjTarget(who);
+
+  if(!StandardItemCheck(who,item))
+    SetBusyTime(who,GetSkillDelay(SKILLID_TRACKING));
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_TRACKING));
+
+  if( IsTrappedItem(item) )
+    if( CheckSkill( who, SKILLID_TRACKING, -1, Points ) )
+      UnTrap(Item);
+      SendSysMessage( who, "Udalo Ci sie rozbroic pulapke.",FONT_NORMAL,COLOR_GREEN);
+    else
+      if (RandomInt(10) < 4)
+        ArmTrap(who, item);
+      else
+        SendSysMessage( who, "Nie udalo Ci sie rozbroic pulapki.",FONT_NORMAL,COLOR_RED);
+      endif
+    endif
+  else
+    SendSysMessage( who, "Nie wydaje sie, by na tym przedmiocie byla pulapka.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+  

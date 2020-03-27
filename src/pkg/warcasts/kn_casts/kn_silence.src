@@ -1,0 +1,79 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 123;
+
+//-----------------------------------------------------------------------------
+
+program KnSilence(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(GetHp(Caster) == GetMaxHp(Caster))
+    SendSysMessage(Caster, "Jestes w pelni zdrow"+ggm(Caster, 6)+".", FONT_NORMAL, COLOR_BLUE);
+    PlaySoundEffect(Caster, SFX_MEDIT_END);
+    return 0;
+  endif
+
+  var SkKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var Time     := 1500 - CInt((SkKensai + SkTact) * 4.5);
+  var limitHp  :=  CInt(CalcSkillExponential(Caster, SKILLID_KENSAI, 24));
+  Detach();
+  NoLongerBusy(Caster);
+  SetObjProperty(Caster, "#MedTimer", GetPid());
+  GainWarcastPoints(Caster, Caster, KN_WCID, WCGAIN_NORMAL);
+
+  var lx  := Caster.x;
+  var ly  := Caster.y;
+  var lRm := Caster.realm;
+  var Cn  := 0;
+  var lHp := GetHp(Caster);
+
+  PlaySoundEffect(Caster, 0x103);
+
+  while(GetHp(Caster) < GetMaxHp(Caster))
+
+    if(CInt(GetObjProperty(Caster,"#MedTimer")) != GetPid() or Abs(GetHp(Caster) - lHp) > limitHp or lx != Caster.x or ly != Caster.y or lRm != Caster.realm)
+      SendSysMessage(Caster,"Stracil"+ggm(Caster,3)+" koncentracje.", FONT_NORMAL, COLOR_RED);
+      break;
+    endif
+
+    HealMobile(Caster, 1, Caster);
+    lHp := GetHp(Caster);
+    Cn  := Cn + 1;
+
+    if(Cn > 5)
+      HealStamina(Caster, 1, Caster);
+      Cn := 0;
+    endif
+
+    Sleepms(Time);
+
+  endwhile
+
+  EraseObjProperty(Caster, "#MedTimer");
+  PlaySoundEffect(Caster, SFX_MEDIT_END);
+
+  if(GetHp(Caster) == GetMaxHp(Caster))
+    SendSysMessage(Caster, "Zregenerowal"+ggm(Caster, 3)+" sily.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

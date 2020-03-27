@@ -1,0 +1,31 @@
+use uo;
+use os;
+
+//include "include/others";
+include "include/client/fonts";
+
+program meplayer(who, text)
+
+    var props   := SplitWords(text);
+    var cmdlvl  := who.cmdlevel;
+    var time    := CInt(props[1]);
+
+    who.cmdlevel := 0;
+    SetObjProperty(who, "OrigCmdlvl", cmdlvl);
+
+    if((time == 0) && (props[1] != "forever"))
+        time := 30;
+    endif
+
+    if(time)
+        SendSysMessage(who, "Cmdlvl gracza przyznany na czas: "+time+" sekund.",FONT_NORMAL,GREEN_COLOR);
+        detach();
+        sleep(time);
+        who.cmdlevel := cmdlvl;
+        EraseObjProperty(who, "OrigCmdlvl");
+        SendSysMessage(who, "Przywrocilem pierwotny cmdlevel (" + cmdlvl + ").",FONT_NORMAL,GREEN_COLOR);
+    else
+        SendSysMessage(who, "Jestes zwyklym graczem.",FONT_NORMAL,RED_COLOR);
+    endif
+
+endprogram 

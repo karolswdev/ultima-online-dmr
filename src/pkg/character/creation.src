@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "include/loots";
+include "include/checks/stdchecks";
+include "include/finding";
+
+include ":tips:tips";
+
+//-----------------------------------------------------------------------------
+
+program HandleCharacterCreation(Char)
+
+  var cfgElem := GetCreationConfig();
+
+  var Equips := GetConfigStringArray(cfgElem, "Equip");
+
+  EquipItems(Char, Equips);
+
+  SetObjProperty(Char, PROP_CREATEDAT, ReadGameClock());
+
+  var i       := FindCharIndex(Char);
+  var CrTimer := Char.acct.GetProp(PROP_CREATION_TIMER);
+
+  if(!CrTimer or !CrTimer.size())
+    CrTimer := array(0, 0, 0, 0, 0);
+  endif
+
+  CrTimer[i]  := ReadGameClock();
+  Char.acct.SetProp(PROP_CREATION_TIMER, CrTimer);
+
+  TriggerTipEvent(Char, TEID_CHAR_CREATE, TWPTF_ONETIME_EVENT | TWPTF_CHECK_CLASS);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function EquipItems(who, Items)
+
+  foreach Obj in Items
+    var Item := CreateItemAtTempLoc(Obj);
+
+    if(!EquipItem(who, Item))
+      LogError("Nie udalo sie zalozyc przedmiotu podczas zakladania postaci: Serial: "+CInt(Item.serial)+" Obj: "+Obj+" Konto: "+who.acctname);
+      DestroyItem(Item);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

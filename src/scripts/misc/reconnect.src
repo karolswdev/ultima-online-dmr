@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+
+include "include/reputation/murderer";
+include "include/noto";
+include "include/log";
+include "include/cmds/misc";
+include "include/logon";
+include "include/player/misc";
+include "include/checks/geometry";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program Reconnect(who)
+
+  SendPacket (who, "B9000F97DF");
+  SendStaffNotify(EVID_PLAYER_RECONNECT, who);
+
+  if(CheckLogOn(who))
+    CheckIPs(who);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,60 @@
+//------------------------------------------------------------------------------------
+
+use uo;
+include "include/attack";
+include "include/gumpboxes";
+include "include/reputation/pvparea";
+include "include/player/target";
+include "include/names";
+
+//------------------------------------------------------------------------------------
+
+program togglecombat(who)
+
+  SendSysMessage(who, "Wskaz osobe, z ktora chcesz walczyc.", FONT_NORMAL, COLOR_GREEN);
+    
+  var Targ := ObjTarget(who);
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Targ == who) 
+    SendSysMessage(who, "Chcesz walczyc z soba?", FONT_NORMAL, COLOR_RED);
+    return;
+  else
+    case(HaveAcceptedFight(Targ, who))
+      1: 
+          SendSysMessage(who, "Juz walczysz w pojedynku z ta osoba!", FONT_NORMAL, COLOR_RED);
+          return;
+      2: 
+          SendSysMessage(who, "Ta osoba jest z wrogiej gildii!", FONT_NORMAL, COLOR_ORANGE);
+          return;
+      3: 
+          SendSysMessage(who, "Ta osoba pomogla komus z wrogiej gildii!", FONT_NORMAL, COLOR_ORANGE);
+          return;
+    endcase
+  
+    var Delay := GetObjProperty(Targ, "#PvpAskDelay_"+who.serial);
+
+    if(Delay and Delay+30 > ReadGameClock())
+      SendSysMessage(who, "Juz pytal"+ggm(who,3)+" sie niedawno o pojedynek ta osobe!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  SetObjProperty(Targ, "#PvpAskDelay_"+who.serial, ReadGameClock());
+
+  SendSysMessage(who, "Wyslal"+ggm(who,3)+" pytanie o pojedynek osobie "+GetName(Targ)+".", FONT_NORMAL, COLOR_GREEN);
+
+  if(YesNoEx(Targ, "Osoba "+GetName(who)+" chce Cie zaatakowac!!!||Czy podejmujesz wyzwanie?", 10, 30, 300))
+    SendSysMessage(who, "Osoba "+GetName(Targ)+" zgodzila sie na pojedynek!", FONT_NORMAL, COLOR_WHITE);
+    SendSysMessage(Targ, "Zgodzil"+ggm(Targ,3)+" sie na pojedynek z osoboa "+GetName(who)+".", FONT_NORMAL, COLOR_WHITE);
+    HandleFightAcceptance(Targ, who);
+  else
+    SendSysMessage(who, "Osoba "+GetName(Targ)+" odrzucila wyzwanie.", FONT_NORMAL, COLOR_RED);
+    SendSysMessage(Targ, "Odrzucil"+ggm(Targ,3)+" wyzwanie osoby "+GetName(who)+".", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//------------------------------------------------------------------------------------

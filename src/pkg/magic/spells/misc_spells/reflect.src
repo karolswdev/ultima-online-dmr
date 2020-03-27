@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 36;
+
+//-----------------------------------------------------------------------------
+
+program CastMagicReflection( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(IsReflected(Caster) != 1 and !IsDispersed(Caster))
+    PlaySoundEffect(caster, SFX_SPELL_MAGIC_REFLECT);
+    PlayObjectCenteredEffect( caster, FX_SPARK_EFFECT, 10,10);
+    SetReflect(Caster, 1);
+    GainSpellPoints(Caster, Cast, MAGICGAIN_NORMAL);
+  else
+    Fizzle(Caster, "Jestes juz chroniony.");
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

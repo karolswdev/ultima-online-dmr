@@ -1,0 +1,312 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/merc";
+include "include/gumps";
+include "include/mspeech";
+include "include/buildings";
+include "ai/setup/citynpcsetup";
+include "ai/include/def_merc";
+include "ai/include/smartrun";
+include "../pkg/items/hairs/hairs";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+EnableEvents( EVID_SPEECH, SPEECH_RANGE );
+
+//-----------------------------------------------------------------------------
+
+program Barber_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  MerchantInit();
+
+  while(me)
+  
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+
+    StdMercEventLoop();
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case (ev.type)
+    EVID_SPEECH:             if(CheckNpcSpeech(ev.source,ev.text) == 0)
+                               if(CheckBarberSpeech(ev.source, ev.text))
+                                 if(IsWalking())
+                                   SetWalkPause(SHORT_WALK_PAUSE);
+                                 endif
+                                 ev := 0; 
+                                 return 1;
+                               endif
+                             else
+                               ev := 0;
+                               return 1;
+                             endif
+
+                             ev := 0;
+                             return 0;
+  endcase
+
+  return StdMercHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCutRaces()
+
+  var CutRaces := GetConfigStringArray(GetNpcConfig(me), "CutRace");
+
+  return CutRaces;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckBarberSpeech(who, text)
+
+  text := lower(text);
+
+  if(text["strzyz"])
+    if(len(text) < 10)
+      Say("Co strzyc?");
+    else
+	/*
+      if(!(GetCharRace(who) in GetCutRaces()))
+        Say("Oops.. nie umiem przystrzyc twojej fryzury, udaj sie do innego fryzjera.");
+		*/
+      if(!CanMod(who, MOD_HAIRS))
+        Say("Hmm... dziwne te wlosy, nie potrafie takich strzyc.");
+      else
+        TurnToward(who);
+        if(CanNpcSpeakWith(who))
+          HairSelect(who);
+        endif
+      endif
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HairSelect(who)
+
+  Say("Wybierz fryzure...");
+  
+  var Res    := struct;
+
+  Res.+type   := EVID_NH_BARBER_GUMP;
+  Res.+source := who;
+  Res.+npc    := me;
+  
+  start_script("::handle_npc", Res);
+  
+  Res := -100;
+  var GrapID := ReadGameClock() + NH_WAIT_TIME;
+
+  while(GrapID > ReadGameClock())
+    ev := wait_for_event(10);
+    case(ev.type)
+      EVID_SPEECH:         if(lower(ev.text)["strzyz"])
+                             if(who == ev.source)
+                               Say("Czekam az wybierzesz fryzure...");
+                             else
+                               Say("Czekaj cierpliwie na swoja kolej.");
+                             endif
+                           endif
+
+      EVID_NH_BARBER_GUMP: if(who == ev.source)
+                             Res := ev.res;
+                           endif
+
+      EVID_ITEM_GIVEN:     MoveToPack(ev.item, ev.source);
+
+      EVID_QUEST_MSG:      var Data := struct;
+                           Data.+npc := me;
+                           Data.+param := ev;
+                           
+                           start_script(":ngd_npcs:quest_msg", Data);
+    endcase
+    
+    if(Res != -100)
+      break;
+    endif
+  endwhile
+  
+  if(!IsLoggedIn(who))
+    return 0;
+  endif
+
+  if(Res == -100)
+    Say("Widze, ze nie mozesz sie zdecydowac, wiec moze innym razem.");
+    return;
+  endif
+  
+  sleepms(100);
+  TurnToward(who);
+  
+  if(!CanTrade(who))
+    return;
+  endif
+
+  if(Res > 0)
+
+    if(Distance(me,who) > 1)
+      Say("Stoisz za daleko...");
+      return 0;
+    endif
+
+    var ItemCfg := ReadConfigFile(ITEMS_CFG);
+    
+    if(!CanCut(who,Res))
+      case(CInt(ItemCfg[Res].FaceLoc))
+        LAYER_HAIR:  Say("Twe wlosy sa jeszcze za krotkie.");
+        LAYER_BEARD: Say("Twa broda jest jeszcze za krotka.");
+      endcase
+      return;
+    endif
+    
+    if(Res == 999999 or Res == 999998)
+      GrapID := ReadGameClock() + 30;
+      case(Res)
+        999999: Say(who.name+", wiec chcesz ogolic glowe, tak?");
+        999998: Say(who.name+", wiec chcesz ogolic brode, tak?");
+      endcase
+
+      if(!NpcYesNo(who))
+        Say("No to sie zdecyduj w koncu!");
+        return;
+      endif
+    endif
+
+    case(Res)
+      999999:  GrapID := 20;
+      999998:  GrapID := 20;
+      default: GrapID := CInt(ItemCfg[Res].VendorSellsFor);
+    endcase
+
+    if(!SpendGold(who, GrapID))
+      Say("Nie masz "+GrapID+" gp.");
+      return 0;
+    endif
+
+    if(CutDelay(who))
+      case(Res)
+        999999: GrapID := GetEquipmentByLayer(who,LAYER_HAIR);
+                if(GrapID)
+                  ReleaseItem(GrapID);
+                  DestroyItem(GrapID);
+                endif
+                
+                SetObjProperty(who,"HairGrow",GetObjProperty(who,"onlinetimer") + GetHairGrowTime(who));
+                return;
+        999998: GrapID := GetEquipmentByLayer(who,LAYER_BEARD);
+                if(GrapID)
+                  ReleaseItem(GrapID);
+                  DestroyItem(GrapID);
+                endif
+                SetObjProperty(who,"BeardGrow",GetObjProperty(who,"onlinetimer") + GetBeardGrowTime(who));
+                return;
+      endcase
+      
+      case(CInt(ItemCfg[Res].FaceLoc))
+        LAYER_HAIR:  SetObjProperty(who,"HairGrow",GetObjProperty(who,"onlinetimer") + GetHairGrowTime(who));
+        LAYER_BEARD: SetObjProperty(who,"BeardGrow",GetObjProperty(who,"onlinetimer") + GetBeardGrowTime(who));
+      endcase
+      
+      GrapID        := GetEquipmentByLayer(who,CInt(ItemCfg[Res].FaceLoc));
+      var HairColor := 0;
+      
+      if(GrapID)
+        HairColor := GrapID.color;
+        GrapID.movable := 1;
+        ReleaseItem(GrapID);
+        if(!DestroyItem(GrapID))
+          GrapID.movable := 0;
+          return;
+        endif
+      endif
+      
+      GrapID := CreateItemAtLoc(6104,1184,0,Res,1);
+
+      if(GrapID)
+        GrapID.color := HairColor;
+        EquipItem(who, GrapID);
+        GrapID.movable := 0;
+      endif
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CutDelay(who)
+
+  if(!IsLoggedIn(who))
+    return 0;
+  endif
+
+  TurnToward(who);
+  Say("Wiec teraz sie nie ruszaj");
+  sleepms(500);
+  Say("*strzyze*");
+  if(!CutSleep(who))
+    return 0;
+  endif
+  Say("No, prawie skonczone...");
+  if(!CutSleep(who))
+    return 0;
+  endif
+  Say("Pieknie..");
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CutSleep(who)
+
+  for i := 0 to 4
+    if(!IsLoggedIn(who))
+      return 0;
+    endif
+    
+    if(Distance(me,who) > 1)
+      Say("Ah, rozmyslil"+ggm(who,3)+" sie?");
+      Say("*chowa nozyce*");
+      return 0;
+    endif
+    PlaySoundEffect(me,SCISSORS_SOUND);
+    sleep(1);
+  endfor
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

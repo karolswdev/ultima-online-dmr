@@ -1,0 +1,90 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include "include/move";
+
+include "bulks";
+
+//-----------------------------------------------------------------------------
+
+program BulkCheck(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+
+  if(Data.param.objtype == UOBJ_BULK)
+
+    CheckBulkOrder(Data.npc, Data.source, Data.param);
+    return 1;
+
+  elseif(CInt(GetObjProperty(Data.npc,"#BulkGet_"+CStr(Data.source.serial))[1]) > ReadGameClock())
+
+    GetBulkOrder(Data.npc, Data.source, Data.param);
+    return 1;
+
+  endif
+
+  return 0; // nie bedziemy przetwarzac tego itema
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckBulkOrder(Npc,who,Bulk)
+
+  if(CInt(GetObjProperty(Bulk,"BulkNpc")) == Npc.serial)
+    PrintTextAbove(Npc,"Pokaz wiec ten przedmiot!");
+    PrintTextAbove(Npc,"*zniecierpliwion"+ggm(Npc,6)+"*");
+    SetObjProperty(Npc,"#BulkGet_"+CStr(who.serial),{ReadGameClock()+60,Bulk.serial});
+  else
+    PrintTextAbove(Npc,"To nie moje zamowienie.");
+  endif
+  MoveToPack(Bulk, who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBulkOrder(Npc,who,Item)
+
+  var Order := GetObjProperty(Npc,"#BulkGet_"+CStr(who.serial));
+  var Bulk  := FindItemBySerial(Order[2]);
+  var BulkItem := GetObjProperty(Bulk,"BulkOrder");
+
+  if(!Bulk or !BulkItem)
+    PrintTextAbove(Npc,"Hmm.. nie moge znalezc tego zamowienia.");
+    MoveToPack(Item, who);
+  elseif(GetItemMakerSerial(Item) != who.serial)
+    PrintTextAbove(Npc,"Hmm.. nie wyglada na to bys sam"+ggm(who,4)+" to zrobil"+ggm(who,4)+".");
+    MoveToPack(Item, who);
+  else
+    var Res := CheckBulkItemName(BulkItem,Item);
+    if(Res > 0)
+      if(DestroyItem(Item) and DestroyItem(Bulk))
+        PrintTextAbove(Npc,"Tak! Tego potrzebowal"+ggm(Npc,8)+"! Dziekuje.");
+        PrintTextAbove(Npc,"Masz tu maly upominek odemnie.");
+        CreateReward(who, CInt(BulkItem[3]), CInt(BulkItem[4]));
+        var Bulk := GetBulkData(Npc, who);
+        Bulk[6] += 1;
+        SetBulkData(Npc, who, Bulk);
+      endif
+    elseif(Res < 0) 
+      PrintTextAbove(Npc,"Potrzebuje taki przedmiot, ale wyjatkowej jakosci!");
+      MoveToPack(Item, who);
+    else
+      PrintTextAbove(Npc,"Nie tego potrzebowal"+ggm(Npc,8)+".");
+      MoveToPack(Item, who);
+    endif
+  endif
+  EraseObjProperty(Npc,"#BulkGet_"+CStr(who.serial));
+
+endfunction
+
+//-----------------------------------------------------------------------------

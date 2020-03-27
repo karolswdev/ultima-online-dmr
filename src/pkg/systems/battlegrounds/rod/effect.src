@@ -1,0 +1,66 @@
+use uo;
+use os;
+use util;
+
+include "include/client/effects";
+include "include/effects";
+
+program textcmd_cooleffect(who)
+
+    
+    var coins := array;
+    var tcoin;
+    
+    var i := 1;
+    
+    for(i; i <= 12; i := i + 1)
+	tCoin := CreateItemAtLocation(who.x+i, who.y-RandomInt(i), who.z, who.realm, "0xeed", 1);
+	tCoin.invisible := 1;
+	PlayLightningBoltEffect(tCoin);
+	coins.append(tCoin.serial);
+    	tCoin := CreateItemAtLocation(who.x-i, who.y+RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	tCoin.invisible := 1;
+	PlayLightningBoltEffect(tCoin);
+	coins.append(tCoin.serial);
+	tCoin := CreateItemAtLocation(who.x, who.y+RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	tCoin.invisible := 1;
+	PlayLightningBoltEffect(tCoin);
+	coins.append(tCoin.serial);
+	tCoin := CreateItemAtLocation(who.x, who.y-RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	PlayLightningBoltEffect(tCoin);
+	tCoin.invisible := 1;
+	coins.append(tCoin.serial);
+    endfor
+    
+    for(i; i <= 6; i := i + 1)
+	tCoin := CreateItemAtLocation(who.x+i, who.y-RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	tCoin.invisible := 1;
+	PlayLightningBoltEffect(tCoin);
+	coins.append(tCoin.serial);
+    	tCoin := CreateItemAtLocation(who.x-i, who.y+RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	tCoin.invisible := 1;
+	PlayLightningBoltEffect(tCoin);
+	coins.append(tCoin.serial);
+	tCoin := CreateItemAtLocation(who.x, who.y+RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	tCoin.invisible := 1;
+	PlayLightningBoltEffect(tCoin);
+	coins.append(tCoin.serial);
+	tCoin := CreateItemAtLocation(who.x, who.y-RandomInt(i), who.z, who.realm,  "0xeed", 1);
+	PlayLightningBoltEffect(tCoin);
+	tCoin.invisible := 1;
+	coins.append(tCoin.serial);
+    endfor
+    
+    
+    
+	foreach coin in coins
+	    coin := SystemFindObjectBySerial(coin);
+		if(coin)
+//		    SendSysMessage(who, "Doing this...");
+		    PlayMovingEff(who, coin, FX_ENERGY_BOLT, 0xa, 0x1e);
+		    sleepms(40);
+		    DestroyItem(coin);
+		endif
+	endforeach
+	
+endprogram

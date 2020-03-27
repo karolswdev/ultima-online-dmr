@@ -1,0 +1,224 @@
+//------------------------------------------------------------------------------
+
+use uo;
+use os;
+use math;
+
+//------------------------------------------------------------------------------
+
+include "include/std";
+include "include/accounts";
+
+//------------------------------------------------------------------------------
+
+program SetRoyalCoins(who,text)
+  var cmd := SplitWords(text);
+  if (cmd[1] in array("set", "add", "del"))
+
+    if(!cmd[2])
+      SendSysMessage(who,"Nie podano loginu",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    if(!cmd[3])
+      SendSysMessage(who,"Nie podano wartosci",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  case(cmd[1])
+    "set":  SetCoins(who,cmd[2],cmd[3]);
+    "add":  AddDonation(who,cmd[2],cmd[3]);
+    "rem":  RemoveDonation(who,cmd[2],cmd[3]);
+    "exp":  ExportDonations(who);
+    "imp":  ImportDonations(who);
+    "clean": CleanDonations(who);
+    default:
+      SendSysMessage(who, ".donation set/add/rem login amount", FONT_NORMAL,COLOR_RED);
+  endcase
+
+
+endprogram
+
+//------------------------------------------------------------------------------
+
+function CleanDonations(who)
+
+  var Cnt := 0;
+
+  foreach AccName in ListAccounts()
+    
+    var Acc := FindAccount(AccName);
+
+    if(Acc.GetProp("Royals"))
+      Acc.EraseProp("Royals");
+      Cnt += 1;
+    endif
+
+  endforeach   
+  
+  SendGood(who, "Wyczyszczono "+Cnt+" kont.");
+
+endfunction
+
+//------------------------------------------------------------------------------
+
+function ExportDonations(who)
+
+  var Cfg := ReadConfigFile(":donations:coins");
+
+  if(Cfg and GetCOnfigStringKeys(Cfg).size())
+    SendBad(who, "Wyczysc najpierw biezacy config :donations:coins.");
+    return;
+  endif
+
+  var Cnt := 0;
+
+  foreach AccName in ListAccounts()
+    
+    var Acc  := FindAccount(AccName);
+    var Roy  := Acc.GetProp("Royals");
+    var Prof := Acc.GetProp("profile");
+
+    if(Roy and Prof and Roy["donation"] > 0)
+      var pElem := array;
+      var lElems := array;
+
+      pElem.+pname  := "Profile";
+      pElem.+pvalue := Prof.login;
+      lElems.append(pElem);
+      
+      pElem.pname  := "Royals";
+      pElem.pvalue := Pack(Roy);
+      lElems.append(pElem);
+
+      AppendConfigFileElem(":donations:coins", "Coins", AccName, lElems);
+      Cnt += 1;
+    endif
+
+  endforeach    
+
+  SendGood(who, "Wyeksportowano "+Cnt+" kont z monetami.");
+
+endfunction
+
+//------------------------------------------------------------------------------
+
+function ImportDonations(who)
+
+  var ProfList := dictionary;
+
+  foreach AccName in ListAccounts()
+    var Acc  := FindAccount(AccName);
+    var Prof := Acc.GetProp("profile").login;
+
+    if(Prof)
+      ProfList[Prof] := Acc;
+    endif
+  endforeach
+
+  var Cfg := ReadConfigFile(":donations:coins");
+  var Cnt := 0, Err := 0;
+
+  foreach Key in GetConfigStringKeys(Cfg)
+    var Elem := Cfg[Key];
+
+    if(ProfList.exists(Elem.Profile))
+      var Roy := UnPack(Elem.Royals);
+      var Acc := ProfList[Elem.Profile];
+      var CurRoyals := Acc.GetProp("Royals");
+
+      if(CurRoyals)
+        CurRoyals["donation"] += Roy["donation"];
+        CurRoyals["coins"]    += Roy["coins"];
+        Acc.SetProp("Royals", CurRoyals);
+      else
+        Acc.SetProp("Royals", Roy);
+      endif
+
+      Cnt += 1;
+    else
+      Err += 1;
+    endif
+  endforeach
+  
+  SendGood(who, "Zaimportowano "+Cnt+" kont z monetami.");
+
+  if(err)
+    SendBad(who, "Wystapilo "+err+" nie istniejacych kont.");
+  endif
+
+endfunction
+
+//------------------------------------------------------------------------------
+
+function AddDonation(who,account,amount)
+
+  amount := Cint(amount);
+
+  var Acc := FindAccount(account);
+  if(!Acc)
+    SendSysMessage(who,"Nie ma takiego konta "+account,FONT_NORMAL,COLOR_RED);
+    return;
+  endif;
+
+  var CurRoyals := Acc.GetProp("Royals");
+  if(!CurRoyals)
+    CurRoyals := dictionary;
+  endif
+
+  CurRoyals["donation"] := CDbl(CurRoyals["donation"]) + CDbl(amount);
+  CurRoyals["coins"]    := ( CInt(CurRoyals["coins"]) + CInt(Ceil(amount/5)) );
+  Acc.SetProp("Royals", CurRoyals);
+  SendSysMessage(who,"Dodano kontu "+account+" dotacje rowna "+amount+" pln",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SetCoins(who,account,amount)
+
+  var Acc := FindAccount(account);
+  if(!Acc)
+    SendSysMessage(who,"Nie ma takiego konta "+account,FONT_NORMAL,COLOR_RED);
+    return;
+  endif;
+
+  amount := Cint(amount);
+
+  var CurRoyals := Acc.GetProp("Royals");
+  if(!CurRoyals)
+    CurRoyals := dictionary;
+  endif
+
+  CurRoyals["coins"]    := amount;
+  Acc.SetProp("Royals", CurRoyals);
+
+  SendSysMessage(who,"Ustawiono liczbe krolewskich monet konta "+account+" na "+amount,FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function RemoveDonation(who,account,amount)
+
+  var Acc := FindAccount(account);
+  if(!Acc)
+    SendSysMessage(who,"Nie ma takiego konta "+account,FONT_NORMAL,COLOR_RED);
+    return;
+  endif;
+
+  amount := Cint(amount);
+
+  var CurRoyals := Acc.GetProp("Royals");
+  if(!CurRoyals)
+    CurRoyals := dictionary;
+  endif
+
+  CurRoyals["coins"]    := CInt(CurRoyals["coins"]) - CInt(amount);
+  Acc.SetProp("Royals", CurRoyals);
+
+  SendSysMessage(who,"Ustawiono liczbe krolewskich monet konta "+account+" na "+amount,FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------

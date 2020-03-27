@@ -1,0 +1,56 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cancmd";
+include "include/move";
+include "include/gumpboxes";
+
+include ":waypoints:include/waypoints";
+
+//-----------------------------------------------------------------------------
+
+program CmdWaypointGo(who, text)
+
+  var Cfg := ReadConfigFile(CFG_WAYPOINTS);
+  var Names := GetConfigStringKeys(Cfg);
+  var lList := dictionary;
+  var lFound;
+
+  text := lower(text);
+
+  foreach Name in Names
+    
+    var Desc := lower(Cfg[Name].Desc);
+    if(text and Desc[text])
+      lFound := Name;
+      break;
+    endif
+
+    lList[Name] := array(Cfg[Name].Desc, Cfg[Name].Coords);
+
+  endforeach
+
+  if(!lFound)
+    var Headers;
+    AddMultiHeader(Headers, "Nazwa", 180);
+    AddMultiHeader(Headers, "Wspó³rzêdne", 170, 1152);
+
+    lFound := SelectMultiListGump(who, Headers, lList);
+
+    if(!lFound)
+      return;
+    endif
+  endif
+
+  var WayElem := Cfg[lFound];
+
+  SendGood(who, "Przenoszenie do '"+WayElem.Desc+"'");
+
+  var Loc := GetLocFromString(WayElem.Coords);
+
+  MoveObject(who, Loc.x, Loc.y, Loc.z, Loc.realm, MOVEOBJECT_FORCELOCATION);
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

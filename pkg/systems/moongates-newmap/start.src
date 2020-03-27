@@ -1,6 +1,0 @@
-use uo;
-
-include ":moongates:moongates";
-
-print("Initializing moongates - new map");
-CreateMoongates();

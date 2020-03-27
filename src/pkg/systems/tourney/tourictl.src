@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+const ITEM_LIFETIME := 172800;
+
+//-----------------------------------------------------------------------------
+
+program TourItemCtl(Item)
+
+  var Cont;
+  
+  while(item)
+    Cont := item;
+    
+    while(item.desc == error)
+      sleep(60);
+    endwhile
+    
+    while(Cont.container)
+      Cont := Cont.container;
+    endwhile
+    
+    if(Cont.x < 5432 or Cont.y < 1542 or Cont.y > 1768)
+      DestroyItem(Item);
+      exit;
+    elseif(GetObjProperty(Item,"CreatedAt") + ITEM_LIFETIME < ReadGameClock())
+      DestroyItem(Item);
+      exit;
+    endif
+    
+    sleep(360);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

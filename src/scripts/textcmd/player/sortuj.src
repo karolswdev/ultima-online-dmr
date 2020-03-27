@@ -1,0 +1,688 @@
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumps";
+include "include/skills/std";
+include "include/items/containers";
+
+include ":banking:common";
+include ":housing:payments";
+include ":magicitems:common";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+const OBJKIND_MAGIC := 1;
+
+//-----------------------------------------------------------------------------
+
+var ItemsDict   := dictionary;
+
+//-----------------------------------------------------------------------------
+
+program Sortuj(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(text["pomoc"])
+    SendHelpMsg(who);
+    return;
+  elseif(text["zdejmij"])
+    UnEquipSelected(who);
+    return;
+  endif
+
+  var BPack := SelectCont(who);
+
+  if(!BPack)
+    return;
+  endif
+
+  var Loc := GetLocStruct(who);
+
+  if(MoveItemGroup(who, text, BPack))
+    return;
+  endif
+
+  var Items;
+
+  if(text["wierzch"])
+    Items := ListRootItemsInContainer(BPack);
+    text["wierzch"] := "";
+  else
+    Items := EnumerateItemsInContainer(BPack);
+  endif
+
+  if(!Items.size())
+    SendSysMessage(who,"Ten pojemnik jest pusty.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  text := trim(text);
+
+  if(text)
+    var orgItems := Items;
+    Items := array;
+
+    foreach Item in orgItems
+      var Name := GetName(Item);
+
+      if(Name[text])
+        Items.append(Item);
+      endif
+    endforeach
+
+    if(!Items.size())
+      SendSysMessage("Nie znaleziono przedmiotow zawierajacych w nazwie '"+text+"'", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  foreach Item in Items
+    if(CanBeSorted(Item))
+      var ElemName := PrepareNameForItem(Item);
+      if(!ItemsDict.exists(ElemName))
+        var Type := ItemCfg[Item.objtype].ItemTypeName;
+        var Name := CutItemDesc(Item);
+
+        if(Type)
+          Name += " ("+Type+")";
+        endif
+
+        ItemsDict[ElemName] := array(Item.objtype, Item.amount, Name);
+      else
+        ItemsDict[ElemName][2] := ItemsDict[ElemName][2] + Item.amount;
+      endif
+    endif
+  endforeach
+
+  if(text)
+    
+  endif
+
+  var Ret := SendItemsGump(who, BPack);
+
+  if(GetLocDist(who, Loc) > 1)
+    SendBad(who, "Oddalil"+ggm(who,3)+" sie.");
+    return;
+  endif
+
+  var lRes := CanAccessContainer(who, BPack);
+
+  if(!lRes)
+    if(lRes.errortext)
+      SendSysMessage(who, lRes.errortext, FONT_NORMAL,COLOR_RED);
+    endif
+    exit;
+  endif
+  
+  if(ContentChanged(Items, ItemsDict))
+    SendSysMessage(who, "Zawartosc pojemnika zmienila sie.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Ret[0] == 20)
+    MoveAll(who, Items, BPack);
+  elseif(Ret[0] == 10)
+ 
+    var Cont     := SelectCont(who);
+    
+    if(GetLocDist(who, Loc) > 1)
+      SendBad(who, "Oddalil"+ggm(who,3)+" sie.");
+      return;
+    endif
+
+    var lRes := CanAccessContainer(who, BPack);
+
+    if(!lRes)
+      if(lRes.errortext)
+        SendSysMessage(who, lRes.errortext, FONT_NORMAL,COLOR_RED);
+      endif
+      exit;
+    endif
+
+    var ObjTypes := array;
+    var Amt      := 0;
+    var i        := 1;
+
+    foreach Item in ItemsDict
+      if(Ret[10+i])
+        ObjTypes.append(array(Item[1], _Item_iter));
+      endif
+      i := i + 1;
+    endforeach
+
+    if(!ObjTypes.size())
+      SendSysMessage(who, "Nie zaznaczono przedmiotow do przeniesienia.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    CheckItemsDict(Items, ItemsDict, Cont);
+
+    for(i:=1;i<=ObjTypes.size();i:=i+1)
+      if(!ItemsDict.exists(ObjTypes[i][2]))
+        ObjTypes.erase(i);
+        i := i - 1;
+      endif
+    endfor
+
+    if(!ObjTypes.size())
+      SendSysMessage(who, "Przedmioty, ktore chcesz przeniesc znajduja sie w pojemniku docelowym.", FONT_NORMAL, COLOR_RED);
+      return;
+    elseif(ObjTypes.size() == 1)
+      var MaxAmt := ItemsDict[Objtypes[1][2]][2];
+      if(MaxAmt > 1)
+        Amt := SendTextEntryGump(who,"Ile przeniesc? [1-"+MaxAmt+"]",TE_CANCEL_ENABLE,TE_STYLE_NUMERICAL, MaxAmt);
+        if(!Amt)
+          SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+          return;
+        endif
+        Amt := ToMax(CInt(Amt), MaxAmt);
+      endif
+    endif
+
+    MoveItemsToCont(who, Cont, Items, ObjTypes, 0, Amt);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendItemsGump(who,BPack)
+
+  GInit(50,50);
+  GResPic(0,0,3600,460,380);
+  GPage();
+  GTextLine(60,20, 1000, ItemsDict.size()+" przedmiot"+Gam(ItemsDict.size(), GAM_OW)+" w pojemniku "+(CutWord(CutItemDesc(BPack), 25)));
+
+  GButton(35,340,2714, 2715,10);
+  GTextLine(60,340,999,"Przenies zaznaczone");
+  GButton(235,340,2714, 2715,20);
+  GTextLine(260,340,999,"Przenies wszystko");
+
+  GAddPageData(427,19,2650,2651,427,343,2648,2647);
+
+  var i := 1;
+
+  foreach Item in ItemsDict
+    if(Item)
+      GCheckNextPage(14);
+      GCheckBox(25,(GNPCount()*20)+50,2714, 2715, 10+i);
+      GTextLine(50,(GNPCount()*20)+50,1419, Item[2]);
+      GTextCrop(90,(GNPCount()*20)+50, 350, 20, 550, Item[3]);//GetDescForItem(_Item_iter, GDFIF_ADD_TYPE));
+    endif
+    i := i + 1;
+  endforeach
+
+  return GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItemGroup(who, byref text, BPack)
+
+  var Items    := 0;
+  var ObjTypes := array;
+  var ObjKinds := array;
+
+  if(text["klejnoty"])
+    ObjTypes += GetGemsObjTypes();
+  endif
+
+  if(text["skladniki"])
+    ObjTypes += GetMainRegsObjTypes();
+  endif
+
+  if(text["magiczne"])
+    ObjKinds.append(OBJKIND_MAGIC);
+  endif
+
+  if(!ObjTypes.size() and !ObjKinds.size())
+    return 0;
+  endif
+
+  if(text["wierzch"])
+    Items := ListRootItemsInContainer(BPack);
+  else
+    Items := EnumerateItemsInContainer(BPack);
+  endif
+
+  if(!Items.size())
+    SendSysMessage(who,"Ten pojemnik jest pusty.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Cont := SelectCont(who);
+
+  if(!Cont)
+    return;
+  endif
+
+  if(Cont == BPack)
+    SendSysMessage(who, "Wskaz inny pojemnik!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  MoveItemsToCont(who, Cont, Items, ObjTypes, ObjKinds);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindStackForItem(Item, byref RootItems)
+
+  if(IsStackableObj(Item.objtype))
+    foreach inItem in RootItems
+      if(Item != inItem)
+        if(CanStack(inItem, Item))
+          return inItem;
+        endif
+      endif
+    endforeach
+  endif
+
+  return 0;
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function MoveAll(who, Items, BPack)
+
+  var Loc := GetLocStruct(who);
+  var Cont := SelectCont(who);
+
+  if(!Cont)
+    return;
+  endif
+
+  if(Cont == BPack)
+    SendSysMessage(who, "Wskaz inny pojemnik!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetLocDist(who, Loc) > 1)
+    SendBad(who, "Oddalil"+ggm(who,3)+" sie.");
+    return;
+  endif
+
+  var lRes := CanAccessContainer(who, BPack);
+
+  if(!lRes)
+    if(lRes.errortext)
+      SendSysMessage(who, lRes.errortext, FONT_NORMAL,COLOR_RED);
+    endif
+    exit;
+  endif
+  
+  var RootItems := ListRootItemsInContainer(Cont);
+  
+  var i := 0,Amt := 0;
+  
+  foreach Item in Items
+    if(CanBeSorted(Item) and !item.newbie)
+      var ExItem := FindStackForItem(Item, RootItems);
+
+      if(ExItem)
+        if(AddAmount(ExItem, item.amount))
+          DestroyItem(Item);
+          i   := i + 1;
+          Amt := Amt + item.amount;
+          continue;
+        endif
+      endif
+
+      if(MoveItemToContainer(Item, Cont))
+        i   := i + 1;
+        Amt := Amt + item.amount;
+        RootItems.append(Item);
+      endif
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Przeniesiono "+i+" przedmiot"+Gam(i, GAM_OW)+", o lacznej ilosci "+Amt+", do pojemnika ["+CutItemDesc(Cont)+"]",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItemsToCont(who, Cont, byref mItems, byref ObjTypes, ObjKinds := 0, maxAmt := 0)
+
+  var sItems := dictionary;
+  var Descs  := dictionary;
+  var Num    := 0;
+  var aAmt   := 0;
+  var Res, Amt;
+
+  foreach ObjType in ObjTypes
+    if(ObjType.size())
+      if(IsStackableObj(Objtype[1]))
+        sItems[ObjType[1]] := array;
+      else
+        sItems[ObjType[1]] := 0;
+      endif
+
+      if(ObjType[2])
+        if(Descs.exists(ObjType[1]))
+          Descs[ObjType[1]].append(ObjType[2]);
+        else
+          Descs[ObjType[1]] := array(ObjType[2]);
+        endif
+      endif
+    else
+      if(IsStackableObj(Objtype))
+        sItems[ObjType] := array;
+      else
+        sItems[ObjType] := 0;
+      endif
+    endif
+  endforeach
+
+  foreach Item in EnumerateItemsInContainer(Cont)
+    if(!CanBeSorted(Item))
+      continue;
+    endif
+
+    if(Item.container == Cont)
+      if(sItems.exists(Item.objtype))
+        if(sItems[Item.objtype] != 0)
+          sItems[Item.objtype].append(Item);
+        endif
+      endif
+    endif
+  endforeach
+
+  foreach Item in mItems
+    if(Item.container == Cont)
+      continue;
+    endif
+    
+    if(!CanBeSorted(Item))
+      continue;
+    endif
+
+    Res := 0;
+
+    if(sItems.exists(Item.objtype) or IsObjKind(Item, ObjKinds))
+      if(Descs.exists(Item.objtype))
+        if(!(PrepareNameForItem(Item) in (Descs[Item.objtype])))
+          continue;
+        endif
+      endif
+
+      if(!sItems.exists(Item.objtype) or sItems[Item.objtype] == 0)
+        Res  := MoveItemToContainer(Item, Cont);
+        aAmt := aAmt + 1;
+      else
+        foreach sItem in (sItems[Item.objtype])
+          if(CanStack(sItem, Item))
+            Amt := Item.amount;
+            if(maxAmt)
+              if(aAmt + Amt > maxAmt)
+                Amt := maxAmt - aAmt;
+              endif
+            endif
+            Res := AddAmount(sItem, Amt);
+            if(Res)
+              Res := SubtractAmount(Item, Amt);
+              if(!Res)
+                if(!SubtractAmount(sItem, Amt))
+                  DestroyItem(sItem);
+                endif
+              endif
+              aAmt := aAmt + Amt;
+            endif
+            break;
+          endif
+        endforeach
+
+        if(!Res)
+          if(!maxAmt or (aAmt + Item.amount == maxAmt))
+            Res  := MoveItemToContainer(Item, Cont);
+            aAmt := aAmt + Item.amount;
+            sItems[Item.objtype].append(Item);
+          else
+            Amt := Item.amount;
+            if(maxAmt)
+              if(aAmt + Amt > maxAmt)
+                Amt := maxAmt - aAmt;
+              endif
+            endif
+
+            aAmt := aAmt + Amt;
+
+            var nItem := CreateItemCopyAtLocation(CR_TEMP_ITEM_X, CR_TEMP_ITEM_Y, CR_TEMP_ITEM_Z, Item, CR_TEMP_ITEM_REALM);
+            sItems[nItem.objtype].append(nItem);
+
+            if(nItem)
+              if(Item.amount != Amt)
+                Res := SubtractAmount(nItem, Item.amount - Amt);
+              else
+                Res := 1;
+              endif
+
+              if(!Res)
+                DestroyItem(nItem);
+              else
+                Res := SubtractAmount(Item, Amt);
+                if(!Res)
+                  DestroyItem(nItem);
+                else
+                  Res := MoveItemToContainer(nItem, Cont);
+                  sItems[Item.objtype].append(nItem);
+                endif
+              endif
+            endif
+          endif
+        endif
+      endif
+
+      if(!Res)
+        SendSysMessage(who,"Nie udalo sie przeniesc ["+CutItemDesc(item)+"] do pojemnika ["+CutItemDesc(Cont)+"].",FONT_NORMAL,COLOR_RED);
+        break;
+      endif
+
+      Num := Num + 1;
+
+      if(maxAmt)
+        if(aAmt >= maxAmt)
+          break;
+        endif
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,"Przeniesiono "+Num+" przedmiot"+Gam(Num, GAM_OW)+", o lacznej ilosci "+aAmt+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsObjKind(Item, ObjKinds)
+
+  foreach ObjKind in ObjKinds
+
+    case(ObjKind)
+      OBJKIND_MAGIC:
+        return IsMagicItem(Item);
+    endcase
+
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectCont(who)
+
+  var Loc := GetLocStruct(who);
+  SendSysMessage(who,"Wybierz pojemnik.",FONT_NORMAL,COLOR_GREEN);
+  var Cont := ObjTarget(who);
+
+  if(Cont.isa(POLCLASS_ITEM))
+    // bez owner checka dla smietnika, ownercheck bedzie nizej dla innych pojemnikow.
+    if(!StandardItemCheck(who, Cont, NO_MOVABLE_CHECK | NO_OWNER_CHECK | NO_ESCROW_CHECK))
+      exit;
+    endif
+  elseif(Cont.isa(POLCLASS_NPC))
+    if(!StandardMobCheck(who, Cont))
+      exit;
+    endif
+  endif
+
+  if(Cont.objtype == UOBJ_POTION_KEG)
+    SendSysMessage(who,"Do kega sie wlewa!",FONT_NORMAL,COLOR_RED);
+    exit;
+  endif
+
+  if(GetLocDist(who, Loc) > 1)
+    SendBad(who, "Oddalil"+ggm(who,3)+" sie.");
+    return;
+  endif
+
+  var lRes := CanAccessContainer(who, Cont);
+
+  if(!lRes)
+    if(lRes.errortext)
+      SendSysMessage(who, lRes.errortext, FONT_NORMAL,COLOR_RED);
+    endif
+    exit;
+  endif
+  
+  return Cont;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendHelpMsg(who)
+
+  SendSysMessage(who,".sortuj [skladniki/klejnoty/zdejmij] wierzch",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"skladniki - sortuje skladniki do wybranego pojemnika.",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"klejnoty - sortuje klejnoty do wybranego pojemnika.",FONT_NORMAL,COLOR_BLUE);
+  SendSysMessage(who,"wierzch - sortuje tylko przedmioty ktore sa na wierzchu wybranego pojemnika.",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"przyklad : .sortuj klejnoty wierzch",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"zdejmij - zdejmuje wybrany przedmiot.",FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UnEquipSelected(who)
+
+  GInit(50,50);
+  GResPic(0,0,3600,600,380);
+  GPage();
+  GTextLine(90,20,550, "Zalozone przedmioty");
+
+  GAddPageData(567,19,2650,2651,567,343,2648,2647);
+
+  var Item, i;
+
+  for(i:=1;i<=24;i:=i+1)
+    if(!(i in {LAYER_PACK,LAYER_HAIR,LAYER_BEARD}))
+      Item := GetEquipmentByLayer(who,i);
+      if(item)
+        GCheckNextPage(14);
+        GTextLine(60,(GNPCount()*20)+50,560,Item.desc);
+        GButton(30,(GNPCount()*20)+50,2714, 2715,Item.serial);
+      endif
+    endif
+  endfor
+
+  var Ser := GSend(who)[0];
+  
+  if(!Ser)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  foreach Item in ListEquippedItems(who)
+    if(Item.serial == Ser)
+      if(MoveItemToContainer(Item,who.backpack))
+        SendSysMessage(who,"Zdjal"+ggm(who,3)+" przedmiot "+CutItemDesc(item)+".",FONT_NORMAL,COLOR_GREEN);
+        return;
+      else
+        SendSysMessage(who,"Nie udalo sie zdjac przedmiotu "+CutItemDesc(item)+".",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endif
+  endforeach
+
+  SendSysMessage(who,"Wybrany przedmiot zostal juz zdjety.",FONT_NORMAL,COLOR_RED);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ContentChanged(byref Items, ItemsDict)
+
+  var ElemName;
+
+  foreach Item in Items
+    if(CanBeSorted(Item))
+      ElemName := PrepareNameForItem(Item);
+
+      if(!ItemsDict.exists(ElemName))
+        return 1;
+      elseif(ItemsDict[ElemName][2] - Item.amount < 0)
+        return 1;
+      else
+        ItemsDict[ElemName][2] := ItemsDict[ElemName][2] - Item.amount;
+      endif
+
+      if(!ItemsDict[ElemName][2])
+        ItemsDict.erase(ElemName);
+      endif
+    endif
+  endforeach
+
+  return ItemsDict.size() != 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItemsDict(byref Items, byref ItemsDict, Cont)
+
+  var ElemName;
+
+  foreach Item in ListRootItemsInContainer(Cont)
+    if(Item in Items)
+      ElemName := PrepareNameForItem(Item);
+      ItemsDict[ElemName][2] := ItemsDict[ElemName][2] - Item.amount;
+      if(!ItemsDict[ElemName][2])
+        ItemsDict.erase(ElemName);
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PrepareNameForItem(Item)
+
+  return CutItemDesc(Item)+"_"+Item.objtype;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanBeSorted(Item)
+
+  return (item.container.objtype != UOBJ_SPELLBOOK and item.container.objtype != 0xe83 and item.container.objtype != UOBJ_RUNEBOOK);
+
+endfunction
+
+//-----------------------------------------------------------------------------

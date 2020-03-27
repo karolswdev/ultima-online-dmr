@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/mobile/npcs/specs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 43;
+
+//-----------------------------------------------------------------------------
+
+program CastExplosion( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  if(Reflected(CastOn, Caster))
+    CastOn := caster;
+  endif
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  Detach();
+  sleepms(1000);
+
+  PlaySoundEffect( CastOn, SFX_SPELL_EXPLOSION );
+  if(!CastOn.container)
+    PlayStationaryEff( CastOn.x,CastOn.y,CastOn.z, FX_EXPLODE_3, 7, 0x10, 0, CastOn.realm );
+  endif
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+  if(CastOn.isa(POLCLASS_NPC))
+    var Res := BreakNpcSpecial(CastOn, NSPEC_BLADEDANCE);
+    if(Res > 0)
+      SendSysMessage(Caster, "Przelamal"+ggm(Caster,3)+" koncetracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_WHITE);
+    elseif(Res < 0)
+      SendSysMessage(Caster, "Prawie przelamal"+ggm(Caster,3)+" koncentracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_ORANGE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

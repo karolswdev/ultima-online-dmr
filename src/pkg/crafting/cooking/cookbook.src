@@ -1,0 +1,404 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "cooking";
+include "include/gumps";
+include "include/gump_utils";
+include "include/items";
+include "include/checks/objchecks";
+include "include/items/containers";
+include "include/skills/gumps";
+
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+// Globals
+//-----------------------------------------------------------------------------
+
+var gCookCfg, gCookTypeCfg, gCookGrpCfg;
+var Recipes, CookElem, gCraftReceptures;
+var wPos, gMySkill, gMultiDict;
+
+//-----------------------------------------------------------------------------
+// Cooking
+//-----------------------------------------------------------------------------
+
+program CookBook(who, Book)
+  
+  if(!StandardItemCheck(who, Book))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var SkillReq  := CInt(ItemCfg[Book.objtype].SkillReq);
+
+  if(SkillReq)
+    if(GetBaseSkill(who, SKILLID_COOKING) < SkillReq)
+      SendSysMessage(who, "Twa wiedza jest za mala by umiec odczytac ta ksiazke.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_COOKING);
+  var CraftData := CookBookGump(who, Book);
+
+  if(CraftData)
+    start_script(":cooking:cook_recipe", array(who, Book, CraftData));
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function IsRecipeAvail(Id)
+
+  if(CInt(gCookCfg[Id].CraftLevel) < CRAFT_RECP_MIN_LEVEL or (Id in gCraftReceptures))
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CookBookGump(who, Book)
+
+  gMySkill  := GetEffectiveSkill(who, SKILLID_COOKING);
+  gCraftReceptures := GetCraftReceptures(who, SKILLID_COOKING);
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var butRes := 0;
+  var doCraft := 0;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_COOKING, ItemCfg[Book.objtype].name);
+  gMultiDict := GetCookBookMultiple(Book);
+
+  if(!GetCookCfgs(Book))
+    return;
+  endif
+
+  GetSortedRecipes();
+  BuildMainCbGump(Book, LastCraft.iters);
+
+  var curDescId := 0;
+
+  while(IsLoggedIn(who) and Book and doCraft == 0)
+  
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    if(!curDescId)
+      LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+    else
+      SaveMultiDict(Book, GumpRes, curDescId);
+    endif
+
+    if(butRes > 100 and butRes <= 100+Recipes.size() and IsRecipeAvail(Recipes[butRes-100]))
+      LastCraft.objtype := Recipes[butRes-100];
+      doCraft := 1;
+    elseif(butRes > 1000 and butRes <= 1000+Recipes.size() and IsRecipeAvail(Recipes[butRes-1000]))
+      curDescId := butRes-1000;
+      ShowRecipeDesc(Book, butRes-1000);
+      continue;
+    endif
+
+    case(butRes)
+    
+      99:
+        if(!(LastCraft.objtype in Recipes) or !IsRecipeAvail(LastCraft.objtype))
+          SendSysMessage(who,"Jeszcze nic nie robil"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        
+      0:
+      1:
+        if(!curDescId)
+          SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+          doCraft := -1;
+        endif
+    endcase
+
+    curDescId := 0;
+
+    if(doCraft == 0)
+      BuildMainCbGump(Book, LastCraft.iters);
+    endif
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_COOKING, LastCraft, ItemCfg[Book.objtype].name);
+
+  if(doCraft == 1 and LastCraft.objtype and (LastCraft.objtype in Recipes))
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveMultiDict(Book, GumpRes, curDescId)
+
+  if(curDescId)
+    if(curDescId % 2)
+      if(curDescId + 1 <= Recipes.size())
+        SaveMultiDictId(curDescId + 1, GumpRes);
+      endif
+    else
+      SaveMultiDictId(curDescId - 1, GumpRes);
+    endif
+
+    SaveMultiDictId(curDescId, GumpRes);
+    SetObjProperty(Book, "MultiDict", gMultiDict);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveMultiDictId(Id, GumpRes)
+
+  if(!GumpRes[10+Id])
+    if(gMultiDict.exists(Recipes[Id]))
+      gMultiDict.erase(Recipes[Id]);
+    endif
+  else
+    gMultiDict[Recipes[Id]] := ReadGameClock();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainCbGump(Book, ProdIters)
+
+  var bName := GetCookBookName(Book);
+
+  GInit(160, 160);
+  GPage();
+  GGumpPic(0, 0, 0x1FE);
+  GAddPageData(0, 0, 0x1FF, 0x1FF, 356, 0, 0x200, 0x200);
+
+  GResPic(45, 10, 0x2454, 150, 40);
+  GTextLine(60, 18, 999, bName);
+  
+  GButton(230, 12, 2104, 2103, 99);
+  GTextLine(250, 8, 999, "To co ostatnio");
+
+  GTextLine(210, 32, 655, "Powtorz:");
+  BQGAddTextBox(275, 32, 60, 20, 1410, ProdIters, BQG_EDITABLE | BQG_BACK_PAPER, 1, 1);
+  
+  var i;
+  for(i:=1; i<=Recipes.size(); i+=1)
+    BuildRecipeTitle(i);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRecipeTitle(Idx)
+
+  CookElem := gCookCfg[Recipes[Idx]];
+
+  GCheckNextPage(14);
+
+  if(GNPCount() >= 7)
+    wPos := 185;
+  else
+    wPos := 0;
+  endif
+
+  var Color := 650;
+  var IsIn := CookElem.CraftLevel < CRAFT_RECP_MIN_LEVEL or IsRecipeAvail(Recipes[Idx]);
+  if(!IsIn)
+    Color := 999;
+    GTilePic(27+wPos,  57+(GNPCount()%7*22), 0xE39);
+  elseif(gMySkill + 15 < CookElem.Diff)
+    Color := 0;
+  else
+    GButton(34+wPos,  62+(GNPCount()%7*22), 2104,   2103,   100+Idx);
+  endif
+
+  if(IsIn)
+    GButton(48+wPos,  59+(GNPCount()%7*22), 0x1523, 0x1523, 1000+Idx);
+    // cooking nie ma expow! ale jak bedzie mial to ta linie trzeba odkomentowac
+    //GCraftGumpDot(57+wPos,  55+(GNPCount()%7*22), CInt(CookElem.CraftLevel));
+  endif
+
+  GTextCrop(70+wPos,57+(GNPCount()%7*22), 135,    20,     Color, CookElem.Name);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowRecipeDesc(Book, Idx)
+
+  var bName := GetCookBookName(Book);
+
+  GInit(160, 160);
+  GGumpPic(0, 0, 0x1FE);
+
+  GButton(75, 10, 4033, 4033, 10000);
+  GTextLine(100, 8, 999, bName);
+
+  if(Idx % 2)
+    BuildRecipeDesc(0, Idx);
+    if(Idx + 1 <= Recipes.size())
+      BuildRecipeDesc(185, Idx + 1);
+    endif
+  else
+    BuildRecipeDesc(0, Idx - 1);
+    BuildRecipeDesc(185, Idx);
+  endif
+
+  if(Idx - 2 >= 1)
+    GButton(0, 0, 0x1FF, 0x1FF, 1000+Idx-2);
+  endif
+
+  if(Idx + 2 <= Recipes.size())
+    GButton(356, 0, 0x200, 0x200, 1000+Idx+2);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRecipeDesc(wdPos, Idx)
+
+  CookElem := gCookCfg[Recipes[Idx]];
+  var Lines := SplitTextToLines(CookElem.Name, 20);
+
+  if(gMySkill + 15 >= CookElem.Diff)
+    GButton(40+wdPos,  39, 2104,   2103,   100+Idx);
+  endif
+
+  GTextCrop(60+wdPos,33, 150,    20, GetCookRecColor(CookElem),  Lines[1]);
+  if(Lines[2])
+    GTextCrop(60+wdPos,53, 150,    20,  GetCookRecColor(CookElem),  Lines[2]);
+  endif
+
+  if(!wdPos)
+    GTextLine(33, 200, 0, Idx);
+  else
+    GTextLine(375, 200, 0, Idx);
+  endif
+
+  var i := 0, IngrName;
+
+  foreach Ingr in GetConfigStringArray(CookElem, "Ingredient")
+    Ingr    := SplitWords(Ingr);
+
+    if(gCookGrpCfg[Ingr[1]])
+      IngrName := gCookGrpCfg[Ingr[1]].Name;
+      Ingr[2]  := 1;
+    else
+      Ingr[1] := GetItemObjType(Ingr[1]);
+      Ingr[2] := CInt(Ingr[2]);
+
+      IngrName := GetDescForItem(Ingr[1], GDFIF_ADD_TYPE);
+ 
+      if(Ingr[2])
+        if(!IsStackableObj(Ingr[1]) and GetObjMaxUses(Ingr[1]) > 1)
+          Ingr[2] := Ingr[2]+"p";
+        endif
+      endif
+    endif
+
+    if(Ingr[2])
+      GTextLine(40+wdPos, 78+i*20, 1419, Ingr[2]);
+    endif
+    GTextLine(70+wdPos, 78+i*20, 650, IngrName);
+
+    i := i + 1;
+
+    Sleepms(1);
+  endforeach
+
+  if(CookElem.Multiple and gMySkill >= 20)
+    GCheckBox(60+wdPos, 192, 0x38, 0x37, 10+Idx, gMultiDict[Recipes[Idx]]);
+    GTextLine(80+wdPos, 190, 998, "Rob "+CInt(gMySkill/10)+" na raz");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCookCfgs(Book)
+
+  gCookCfg := GetCookCfgFromBook(Book);
+
+  if(!gCookCfg)
+    return 0;
+  endif
+
+  gCookTypeCfg := ReadConfigFile(COOKTYPES_CFG);
+
+  if(!gCookTypeCfg)
+    LogError("[Cookbook] Book: ["+Book.objtype+"] CookTypeCfg: ["+COOKTYPES_CFG+"] nie istnieje.", LOGF_SCRIPTS);
+    return 0;
+  endif
+
+  gCookGrpCfg  := ReadConfigFile(COOKGROUPS_CFG);
+
+  if(!gCookGrpCfg)
+    LogError("[Cookbook] Book: ["+Book.objtype+"] CookGrpCfg: ["+COOKGROUPS_CFG+"] nie istnieje.", LOGF_SCRIPTS);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCookBookName(Book)
+
+  var bName := Book.desc;
+  bName["ksiazka kucharska - "] := "";
+
+  return bName;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCookRecColor(CookElem)
+
+  if(gMySkill + 15 < CookElem.Diff)
+    return 0;
+  else
+    return gCookTypeCfg[CookElem.CookType].RecColor;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetSortedRecipes()
+
+  var Ids  := dictionary;
+  var List := GetConfigIntKeys(gCookCfg);
+
+  foreach Id in List
+    if(gCookCfg[Id])
+      Ids[ZeroFill(gCookCfg[Id].Diff, 3)+"_"+Id] := Id;
+    endif
+  endforeach
+
+  Recipes := array;
+
+  foreach Id in Ids
+    Recipes.append(Id);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

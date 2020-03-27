@@ -1,0 +1,27 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program textcmd_unloadall( who, scname )
+
+  if(!scname)
+    scname := "";
+  endif
+
+  var res := Unload_Scripts(scname);
+  if (res == error)
+    SendSysMessage( who, "Blad: " + res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage( who, "Przeladowano " + res + " skryptow.", FONT_NORMAL, COLOR_BLUE );
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

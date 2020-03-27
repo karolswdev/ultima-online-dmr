@@ -1,0 +1,829 @@
+//--------------------------------------------------------------------------------
+
+include "../../spawnnet";
+include "../../spawnchest";
+include "include/gumpboxes";
+include "include/findcity";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/player/misc";
+
+//--------------------------------------------------------------------------------
+
+program SpawnnetMenu(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!CanUseCmd(who, "smenu"))
+    return 0;
+  endif
+
+  var res;
+  var keeprun := 1;
+
+  while(who and keeprun)
+
+    BuildMenuGump(who);
+    res := GSend(who);
+
+    case(res[0])
+      1:       AllRunesGump(who);
+      2:       StopGlobalRunes(who);
+      3:       RunGlobalRunes(who);
+      4:       HideGlobalRunes(who);
+      5:       ShowGlobalRunes(who);
+      6:       ShowNearRunes(who,100);
+      7:       RestartSpawnScripts(who);
+      11:      ChangeGlobalData(who,PROP_RESTIME);
+      12:      ChangeGlobalData(who,PROP_MAXAMOUNT);
+      14:      AnnihilateWorldSpawns(who);
+      15:      GenerateConfig(who);
+      17:      ShowRunesWithProp(who,PROP_RANGE);
+      18:      ShowRunesWithProp(who,PROP_MAXAMOUNT);
+      19:      ShowRunesWithProp(who,PROP_AMOUNT);
+      20:      ShowRunesWithProp(who,PROP_RESTIME);
+      21:      ShowRunesWithProp(who,PROP_TYPE);
+      22:      ShowRunesWithProp(who,PROP_TEMPLATE);
+
+      31:      AllChestsGump(who);
+      32:      StopGlobalChests(who);
+      33:      RunGlobalChests(who);
+      34:      HideGlobalChests(who);
+      35:      ShowGlobalChests(who);
+      36:      ShowNearChests(who,100);
+      41:      ChangeChestGlobalData(who,PROP_RESTIME);
+      42:      ShowChestsWithProp(who,PROP_TEMPLATE);
+      43:      DestroyAllChestSpawns(who);
+      44:      GenerateChestConfig(who);
+      45:      DestroyGlobalChests(who);
+      46:      ExportChestsFromConfig(who);
+      47:      DestroyGlobalRunes(who);
+      48:      ExportRunesFromConfig(who);
+      51:      ChangeChGlobalSpawnsData(who,PROP_RANGE);
+      52:      ChangeChGlobalSpawnsData(who,PROP_MAXAMOUNT);
+      53:      ChangeChGlobalSpawnsData(who,PROP_AMOUNT);
+      54:      ChangeChGlobalSpawnsData(who,PROP_RESTIME);
+      55:      ChangeChGlobalSpawnsData(who,PROP_TYPE);
+      56:      ChangeChGlobalSpawnsData(who,PROP_TEMPLATE);
+      57:      SpawnGlobalRunes(who);
+      default: keeprun := 0;
+    endcase
+
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function BuildMenuGump(who)
+
+  GInit(0,0);
+  GPage();
+
+  GResPic(30,30,5120,370,180);
+  GTextLine(70,35,270,"Menu Spawnneta   Ost. Nr Runa: " + GetMaxSRuneNr());
+
+  GTextLine(40, 60, 590, "Pokaz wszystkie runy");
+  GButton(350, 63, 2117, 2118, 1);
+
+  GTextLine(40, 80, 590, "Zatrzymaj wszystkie runy");
+  GButton(350, 83, 2117, 2118, 2);
+
+  GTextLine(40, 100, 590, "Wlacz wszystkie runy");
+  GButton(350, 103, 2117, 2118, 3);
+
+  GTextLine(40, 120, 590, "Ukryj wszystkie runy");
+  GButton(350, 123, 2117, 2118, 4);
+
+  GTextLine(40, 140, 590, "Odkryj wszystkie runy");
+  GButton(350, 143, 2117, 2118, 5);
+
+  GTextLine(40, 160, 590, "Pokaz runy w zasiegu 100");
+  GButton(350, 163, 2117, 2118, 6);
+
+  GTextLine(40, 180, 590, "Zobacz runy");
+  GButtonPage(350, 183, 2117,2118, 2);
+
+  GResPic(405, 30, 5120, 370, 160);
+  GTextLine(440, 35, 270,"Ost Nr. Skrzyni: " + GetMaxSChestNr());
+
+  GTextLine(415, 60, 590, "Pokaz wszystkie skrzynie");
+  GButton(725, 63, 2117, 2118, 31);
+
+  GTextLine(415, 80, 590, "Zatrzymaj wszystkie skrzynie");
+  GButton(725, 83, 2117, 2118, 32);
+
+  GTextLine(415, 100,590, "Wlacz wszystkie chestspawny");
+  GButton(725,103, 2117, 2118, 33);
+
+  GTextLine(415, 120,590, "Ukryj wszystkie skrzynie");
+  GButton(725,123, 2117, 2118, 34);
+
+  GTextLine(415, 140,590, "Odkryj wszystkie skrzynie");
+  GButton(725,143, 2117, 2118, 35);
+
+  GTextLine(415, 160,590, "Pokaz skrzynie w zasiegu 100");
+  GButton(725,163, 2117, 2118, 36);
+
+
+  if(IsAdmin(who))
+    GResPic(30, 215, 5120, 370, 240);
+    GTextLine(70, 220, 270, "Globalne opcje runow");
+
+    GTextLine(40, 245, 590, "Zmien czas respawnu runow");
+    GButton(350, 248, 2117,2118, 11);
+
+    GTextLine(40, 265, 590, "Zmien max. ilosc runow");
+    GButton(350, 268, 2117,2118, 12);
+
+    GTextLine(40, 285, 590, "Zniszcz wszystkie spawny");
+    GButton(350, 288, 2117,2118, 14);
+
+    GTextLine(40, 305, 590, "Zmien Wl. grupie spawnow");
+    GButtonPage(350, 308, 2117, 2118, 3);
+
+    GTextLine(40, 325, 590, "Zresetuj skrypty spawnow");
+    GButton(350, 328, 2117, 2118, 7);
+
+    GTextLine(40, 345, 590, "Wymuszony globalny spawn");
+    GButton(350, 348, 2117, 2118, 57);
+
+    GTextLine(40, 365, 590, "Generuj konfig");
+    GButton(350, 368, 2117,2118, 15);
+
+    GTextLine(40, 395, 590, "Zniszcz wszystkie runy");
+    GButton(350, 398, 2117,2118, 47);
+
+    GTextLine(40, 415, 590, "Importuj runy z konfiga");
+    GButton(350, 418, 2117,2118, 48);
+
+    GResPic(405, 195, 5120, 370, 180);
+    GTextLine(435, 200, 270, "Globalne opcje skrzyn");
+
+    GTextLine(415, 225, 590, "Zmien czas respawnu skrzyn");
+    GButton(725, 228, 2117, 2118, 41);
+
+    GTextLine(415, 245, 590, "Zobacz skrzynie z grupa");
+    GButton(725, 248, 2117, 2118, 42);
+
+    GTextLine(415, 265, 590, "Zniszcz wszystkie chestspawny");
+    GButton(725, 268, 2117, 2118, 43);
+
+    GTextLine(415, 285, 590, "Generuj konfig");
+    GButton(725, 288, 2117, 2118, 44);
+
+    GTextLine(415, 315, 590, "Zniszcz wszystkie chesty");
+    GButton(725, 318, 2117, 2118, 45);
+
+    GTextLine(415, 335, 590, "Importuj chesty z konfiga");
+    GButton(725, 338, 2117, 2118, 46);
+  endif
+
+  GPage();
+  GPage();
+  GResPic(405,195,5120,200,160);
+  GTextLine(450,200,270,"Wlasciwosc");
+
+  GTextLine(415,220,590,"Zasieg");
+  GButton(565,223,2117,2118,17);
+
+  GTextLine(415,240,590,"Max. Ilosc");
+  GButton(565,243,2117,2118,18);
+
+  GTextLine(415,260,590,"Ilosc");
+  GButton(565,263,2117,2118,19);
+
+  GTextLine(415,280,590,"Czas respawnu");
+  GButton(565,283,2117,2118,20);
+
+  GTextLine(415,300,590,"Typ");
+  GButton(565,303,2117,2118,21);
+
+  GTextLine(415,320,590,"Template");
+  GButton(565,323,2117,2118,22);
+
+  GPage();
+  GResPic(405,235,5120,200,160);
+  GTextLine(450,240,270,"Wlasciwosc");
+
+  GTextLine(415,260,590,"Zasieg");
+  GButton(565,263,2117,2118,51);
+
+  GTextLine(415,280,590,"Max. Ilosc");
+  GButton(565,283,2117,2118,52);
+
+  GTextLine(415,300,590,"Ilosc");
+  GButton(565,303,2117,2118,53);
+
+  GTextLine(415,320,590,"Czas respawnu");
+  GButton(565,323,2117,2118,54);
+
+  GTextLine(415,340,590,"Typ");
+  GButton(565,343,2117,2118,55);
+
+  GTextLine(415,360,590,"Template");
+  GButton(565,363,2117,2118,56);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function AllRunesGump(who)
+
+  var Rune,i,MaxNr := GetMaxSRuneNr();
+
+  GInit(30,100);
+  GMultiHeaderInit();
+  GResPic(0, 0,5120,550,460);
+
+  GTextLine(20, 10, 999, "Wszystkie Runy");
+  GAddPageData(530, 15, 2435, 2436, 530, 440, 2437, 2438);
+  GMultiPage();
+
+  var n := 1;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(Rune)
+      GCheckNextPage(20);
+      GButton(20, GNPCount()*20+43, 2117, 2118, i);
+      GTextLine(40,  GNPCount()*20+40, 1419, n);
+      GTextLine(80,  GNPCount()*20+40, 670, GetRuneNr(Rune));
+      GTextLine(140, GNPCount()*20+40, 560, GetRuneType(Rune));
+      GTextLine(230, GNPCount()*20+40, 550, GetRuneTemplate(Rune));
+      GTextLine(400, GNPCount()*20+40, 1000,Rune.x + "," + Rune.y + "," + Rune.z+" "+Rune.realm);
+      n := n + 1;
+    endif
+  endfor
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+    if(Res[0])
+      Rune := FindRuneByNr(Res[0]);
+      if(Rune)
+        MoveObject(who, Rune.x, Rune.y, Rune.z, Rune.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+        SendSysMessage(who, "Przenoszenie do Runa ["+GetRuneNr(Rune)+"] ["+Rune.x+","+Rune.y+","+Rune.z+" "+Rune.realm+"]", FONT_NORMAL, COLOR_GREEN);
+      else
+        break;
+      endif
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function AllChestsGump(who)
+
+  var Chest,i,MaxNr := GetMaxSChestNr();
+  var ChestCfg := ReadConfigFile(SCHEST_CFG);
+
+  GInit(30,100);
+  GMultiHeaderInit();
+  GResPic(0, 0,5120,490,460);
+
+  GTextLine(20, 10, 999, "Wszystkie Skrzynie");
+  GAddPageData(460, 15, 2435, 2436, 460, 440, 2437, 2438);
+  GMultiPage();
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Chest := FindChestByNr(i);
+    if(Chest)
+      GCheckNextPage(20);
+      GButton(20, GNPCount()*20+43, 2117, 2118, i);
+      GTextLine(40,  GNPCount()*20+40, 1419, i);
+      GTextLine(80,  GNPCount()*20+40, 670, GetChestNr(Chest));
+      GTextLine(160, GNPCount()*20+40, 550, GetRuneTemplate(Chest));
+      GTextLine(200, GNPCount()*20+40, 550, ClStr(ChestCfg[GetRuneTemplate(Chest)].name));
+      GTextLine(340, GNPCount()*20+40, 1000,Chest.x + "," + Chest.y + "," + Chest.z+" "+Chest.realm);
+    endif
+  endfor
+
+  GSend(who);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function RestartSpawnScripts(who)
+
+  if(!YesNoEx(who, "Na pewno chcesz zrestartowac wszystkie runy?!"))
+    return;
+  endif
+
+  var Rune,i,MaxNr := GetMaxSRuneNr(),CreatedCr,num := 0,amount := 0;
+
+  for(i:=1;i<=Maxnr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(Rune)
+      CreatedCr := CheckExistingObjects(Rune);
+      foreach Spawn in CreatedCr
+        Spawn := SystemFindObjectBySerial(Spawn);
+        if(Spawn.isa(POLCLASS_NPC))
+          RestartScript(Spawn);
+          amount := amount + 1;
+        endif
+      endforeach
+      num := num + 1;
+    endif
+  endfor
+
+  SendSysMessage(who,"Zrestartowano skrypty "+amount+" spawnom, w "+num+" runach.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GenerateConfig(who)
+
+  UnloadConfigFile(SPAWNRUNES_CFG);
+  var SpawnCfg := ReadConfigFile(SPAWNRUNES_CFG);
+  if(!spawncfg)
+    SendSysMessage(who, "Konfig nie istnieje ! ["+SPAWNRUNES_CFG+"]",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+  if(len(GetConfigStringKeys(SpawnCfg)))
+    SendSysMessage(who, "Konfig nie jest pusty ! ["+SPAWNRUNES_CFG+"]",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var ElemArr := {},num := 0,MaxNr := GetMaxSRuneNr(),Rune,i;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(Rune)
+      ElemArr := {};
+      ElemArr := AddConfigElemToArray("Pos",         (Rune.x + " " + Rune.y + " " + Rune.z+" "+Rune.realm)    ,ElemArr);
+      ElemArr := AddConfigElemToArray("Amount",      CInt(GetRuneAmount(Rune))                 ,ElemArr);
+      ElemArr := AddConfigElemToArray("MaxAmount",   CInt(GetRuneMaxAmount(Rune))              ,ElemArr);
+      ElemArr := AddConfigElemToArray("Template",    CStr(GetRuneTemplate(Rune))               ,ElemArr);
+      ElemArr := AddConfigElemToArray("Type",        CStr(GetRuneType(Rune))                   ,ElemArr);
+      ElemArr := AddConfigElemToArray("Range",       CInt(GetRuneRange(Rune))                  ,ElemArr);
+      ElemArr := AddConfigElemToArray("Flags",       GetFlags(Rune)                            ,ElemArr);
+      ElemArr := AddConfigElemToArray("RespawnTime", CInt(GetRuneRespawnTime(Rune))            ,ElemArr);
+      if(GetObjProperty(Rune,PROP_ROUND_DESTS))
+        ElemArr := AddConfigElemToArray(PROP_ROUND_DESTS, Pack(GetObjProperty(Rune,PROP_ROUND_DESTS))    ,ElemArr);
+      endif
+      if(GetCheckedType(Rune))
+        ElemArr := AddConfigElemToArray("CheckedType",GetCheckedType(Rune)                     ,ElemArr);
+      endif
+      ElemArr := AddConfigElemToArray("Facing",   GetRuneFacing(Rune)                          ,ElemArr);
+      ElemArr := AddConfigElemToArray("OverColor",GetRuneOverColor(Rune)                       ,ElemArr);
+      AppendConfigFileElem(SPAWNRUNES_CFG,"SpawnRune",GetRuneNr(Rune)                          ,ElemArr);
+      num := num + 1;
+    else
+      ElemArr := {};
+      ElemArr := AddConfigElemToArray("Pos",         "Empty"    ,ElemArr);
+      AppendConfigFileElem(SPAWNRUNES_CFG,"SpawnRune",i,ElemArr);
+    endif
+ endfor
+
+ SendSysMessage(who,"Dodano "+num+" spawn runow do konfiga.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GenerateChestConfig(who)
+
+  UnloadConfigFile(SPAWNCHEST_CFG);
+  var SpawnCfg := ReadConfigFile(SPAWNCHEST_CFG);
+  if(!spawncfg)
+    SendSysMessage(who, "Konfig nie istnieje ["+SPAWNCHEST_CFG+"]!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+  if(len(GetConfigStringKeys(SpawnCfg)))
+    SendSysMessage(who, "Konfig nie jest pusty ! ["+SPAWNCHEST_CFG+"]",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var ElemArr := {},num := 0,MaxNr := GetMaxSChestNr(),Chest,i;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Chest := FindChestByNr(i);
+    if(Chest)
+      ElemArr := {};
+      ElemArr := AddConfigElemToArray("Pos",         (Chest.x + " " + Chest.y + " " + Chest.z+" "+Chest.realm)  ,ElemArr);
+      ElemArr := AddConfigElemToArray("Template",    CStr(GetRuneTemplate(Chest))               ,ElemArr);
+      ElemArr := AddConfigElemToArray("RespawnTime", CInt(GetRuneRespawnTime(Chest))            ,ElemArr);
+      if(GetCheckedType(Chest))
+        ElemArr := AddConfigElemToArray("CheckedType",GetCheckedType(Chest)                     ,ElemArr);
+      endif
+      AppendConfigFileElem(SPAWNCHEST_CFG,"SpawnChest",GetChestNr(Chest),ElemArr);
+      num := num + 1;
+    else
+      ElemArr := {};
+      ElemArr := AddConfigElemToArray("Pos",         "Empty"    ,ElemArr);
+      AppendConfigFileElem(SPAWNCHEST_CFG,"SpawnChest",i,ElemArr);
+    endif
+  endfor
+
+  SendSysMessage(who,"Dodano "+num+" spawn Chestow do konfiga.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+
+function ChangeChGlobalSpawnsData(who,Type)
+
+  var Value := SendTextEntryGump(who,"Jaka Wartosc ?",TE_CANCEL_ENABLE);
+  if(!Value)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+  var num := 0,MaxNr := GetMaxSRuneNr(),Rune,i,Runes := {};
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(CInt(Value))
+      if(CInt(GetRunePropValue(Rune,Type)) == CInt(Value))
+        num := num + 1;
+        Runes.append(rune);
+      endif
+    elseif(CStr(Value))
+      if(lower(CStr(GetRunePropValue(Rune,Type))) == lower(CStr(Value)))
+        num := num + 1;
+        Runes.append(rune);
+      endif
+    endif
+  endfor
+
+  SendSysMessage(who,"Istenieje "+num+" runow z "+GetRunePropName(Type)+" - "+Value+".",FONT_NORMAL,COLOR_GOOD);
+  if(!Runes.size())
+    return;
+  endif
+
+  GInit( 100, 100);
+  GPage();
+  GResPic(0,0,5120,200,160);
+  GTextLine(35,5,270,"Co zrobic ?");
+
+  GTextLine(15,30,590,"Zabij Spawny");
+  GButton(175,33,2117,2118,1);
+
+  GTextLine(15,50,590,"Wymuszony Spawn");
+  GButton(175,53,2117,2118,2);
+
+  GTextLine(15,70,590,"Zniszcz Runy");
+  GButton(175,73,2117,2118,3);
+
+  GTextLine(15,90,590,"Zrestartuj Skrypty");
+  GButton(175,93,2117,2118,4);
+
+  GTextLine(15,130,590,"Zmien");
+  GButtonPage(175,133,2117,2118,2);
+
+  GPage();
+  GPage();
+
+  GResPic(205,35,5120,200,160);
+  GTextLine(250,40,270,"Wlasciwosc");
+
+  GTextLine(215,60,590,"Zasieg");
+  GButton(365,63,2117,2118,11);
+
+  GTextLine(215,80,590,"Max. Ilosc");
+  GButton(365,83,2117,2118,12);
+
+  GTextLine(215,100,590,"Ilosc");
+  GButton(365,103,2117,2118,13);
+
+  GTextLine(215,120,590,"Czas respawnu");
+  GButton(365,123,2117,2118,14);
+
+  GTextLine(215,140,590,"Template");
+  GButton(365,143,2117,2118,15);
+
+  var res := GSend(who);
+  var amount := 0,Flag := 0;
+
+  case(res[0])
+   1:   foreach Rune in Runes
+          amount := amount + AnnihilateSpawns(Rune);
+        endforeach
+        SendSysMessage(who,"Zniszczono "+amount+" Spawnow w "+num+" runach.",FONT_NORMAL,COLOR_GOOD);
+        return;
+
+   2:   foreach Rune in Runes
+          amount := amount + ForceSpawn(Rune);
+        endforeach
+        SendSysMessage(who,"Wymuszony spawn na "+amount+" runach, "+(num-amount)+" wylaczonych runow.",FONT_NORMAL,COLOR_GREEN);
+        return;
+
+   3:   if(!YesNo(who,"Napewno?"))
+          SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+         return;
+        endif
+        foreach Rune In Runes
+          SetStopped(Rune);
+          DestroyItem(Rune);
+        endforeach
+        SendSysMessage(who,"Zniszczono "+num+" runow!",FONT_NORMAL,COLOR_GREEN);
+        return;
+
+   4:   foreach Rune in Runes
+          foreach Mob in CheckExistingObjects(rune)
+            amount := amount + 1;
+            Mob := SystemFindObjectBySerial(CInt(Mob));
+            RestartScript(Mob);
+          endforeach
+        endforeach
+        SendSysMessage(who,"Restart skryptu "+amount+" spawnow, w "+num+" runach.",FONT_NORMAL,COLOR_GREEN);
+        return;
+
+   11:  Flag := PROP_RANGE;
+   12:  Flag := PROP_MAXAMOUNT;
+   13:  Flag := PROP_AMOUNT;
+   14:  Flag := PROP_RESTIME;
+   15:  Flag := PROP_TEMPLATE;
+   default: return;
+
+  endcase
+
+  if(Flag)
+    var NewVal := SendTextEntryGump(who,"Wprowadz nowa wartosc",TE_CANCEL_ENABLE);
+    if(!NewVal)
+     SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+     return;
+    endif
+    if(Flag == PROP_TEMPLATE)
+     if(!CheckSpawn(Runes[1],GetRuneType(Runes[1]),NewVal,who))
+       SendSysMessage(who,"Template "+NewVal+" nie istnieje!",FONT_NORMAL,COLOR_BAD);
+       return 0;
+     endif
+    endif
+    num := 0;
+    foreach Rune in Runes
+     case(Flag)
+       PROP_RANGE:     num := num + SetRuneRange(Rune,NewVal);
+       PROP_AMOUNT:    num := num + SetRuneAmount(Rune,NewVal);
+       PROP_MAXAMOUNT: if(SetRuneMaxAmount(Rune,NewVal) != error)
+                         num := num + 1;
+                       endif
+       PROP_RESTIME:   num := num + SetRuneRespawnTime(Rune,NewVal);
+       PROP_TEMPLATE:  num := num + SetRuneTemplate(Rune,NewVal);
+     endcase
+    endforeach
+    SendSysMessage(who,"Zmieniono "+GetRunePropName(Flag)+" "+num+" runom na "+NewVal+".",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function DestroyGlobalRunes(who)
+
+  UnloadConfigFile(SPAWNRUNES_CFG);
+  var SpawnCfg := ReadConfigFile(SPAWNRUNES_CFG);
+  if(!spawncfg)
+    SendSysMessage(who, "Konfig nie istnieje ["+SPAWNRUNES_CFG+"]!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!len(GetConfigStringKeys(SpawnCfg)))
+    SendSysMessage(who, "Konfig ["+SPAWNRUNES_CFG+"] jest pusty !",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var RuneAm := GetRunesAmount();
+  if(!RuneAm)
+    SendSysMessage(who, "Nie ma zadnego runa.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Zniszczyc "+RuneAm+" runow ?",FONT_NORMAL,COLOR_GOOD);
+  if(!YesNo(who,"Napewno?"))
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var num := 0,MaxNr := GetMaxSRuneNr(),Rune,i,sp := 0;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Rune := FindRuneByNr(i);
+    if(Rune)
+      ReleaseItem(Rune);
+      if(IsRunning(Rune))
+        RunSpawn(Rune);
+      endif
+      if(IsSpawning(Rune))
+        sp := sp + 1;
+      else
+        DestroyItem(Rune);
+        num := num + 1;
+      endif
+    endif
+  endfor
+
+  SendSysMessage(who,"Ilosc runow: "+RuneAm+", zniszczonych "+num+", nie zniszczonych "+sp+".",FONT_NORMAL,COLOR_RED);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function DestroyGlobalChests(who)
+
+  UnloadConfigFile(SPAWNCHEST_CFG);
+  var SpawnCfg := ReadConfigFile(SPAWNCHEST_CFG);
+  if(!spawncfg)
+    SendSysMessage(who, "Konfig nie istnieje ["+SPAWNCHEST_CFG+"]!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!len(GetConfigStringKeys(SpawnCfg)))
+    SendSysMessage(who, "Konfig ["+SPAWNCHEST_CFG+"] jest pusty !",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var ChestAm := GetChestsAmount();
+  if(!ChestAm)
+    SendSysMessage(who, "Nie ma zadnego chesta.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  SendSysMessage(who,"Zniszczyc "+ChestAm+" chestow ?",FONT_NORMAL,COLOR_GOOD);
+  if(!YesNo(who,"Napewno?"))
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var num := 0,MaxNr := GetMaxSChestNr(),Chest,i,sp := 0;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    Chest := FindChestByNr(i);
+    if(Chest)
+      ReleaseItem(Chest);
+      if(IsRunning(Chest))
+        RunSpawn(Chest);
+      endif
+      if(IsSpawning(Chest))
+        sp := sp + 1;
+      else
+        DestroyItem(Chest);
+        num := num + 1;
+      endif
+    endif
+  endfor
+
+  SendSysMessage(who,"Ilosc chestow: "+ChestAm+", zniszczonych "+num+", nie zniszczonych "+sp+".",FONT_NORMAL,COLOR_RED);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ExportRunesFromConfig(who)
+
+  UnloadConfigFile(SPAWNRUNES_CFG);
+  var SpawnCfg := ReadConfigFile(SPAWNRUNES_CFG);
+  var AllRunes := GetConfigStringKeys(SpawnCfg);
+
+  if(!SpawnCfg)
+    SendSysMessage(who, "Konfig nie istnieje ["+SPAWNRUNES_CFG+"]!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!AllRunes.size())
+    SendSysMessage(who, "Konfig ["+SPAWNRUNES_CFG+"] jest pusty !",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var RuneAm := GetRunesAmount();
+  if(RuneAm)
+    SendSysMessage(who, "Aby importowac runy, musisz zniszczyc istniejace.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!YesNo(who,"Napewno?"))
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var Pos,NewRune,i,num := 0,err := 0,empty := 0;
+
+  foreach Rune in AllRunes
+    Pos := SpawnCfg[Rune].Pos;
+    if(Pos == "Empty")
+      empty := empty + 1;
+      continue;
+    else
+      Pos := SplitWords(Pos);
+    endif
+    i := 0;
+    NewRune := CreateItemAtLoc(CInt(Pos[1]),CInt(Pos[2]),CInt(Pos[3]),UOBJ_SRUNE,1,Pos[4]);
+    if(NewRune)
+      while(!GetRuneNr(NewRune) and i <= 1500)
+        i := i + 1;
+        sleepms(50);
+      endwhile
+      if(i >= 1500)
+        DestroyItem(NewRune);
+        err := err + 1;
+        continue;
+      endif
+      SetRuneTemplate(    NewRune,CStr(SpawnCfg[Rune].Template));
+      SetRuneMaxAmount(   NewRune,CInt(SpawnCfg[Rune].MaxAmount));
+      SetRuneAmount(      NewRune,CInt(SpawnCfg[Rune].Amount));
+      SetRuneRange(       NewRune,CInt(SpawnCfg[Rune].Range));
+      SetRuneType(        NewRune,CStr(SpawnCfg[Rune].Type));
+      SetRuneRespawnTime( NewRune,CInt(SpawnCfg[Rune].RespawnTime));
+      SetRuneOverColor(   NewRune,CInt(SpawnCfg[Rune].OverColor));
+      SetRuneFacing(      NewRune,CInt(SpawnCfg[Rune].Facing));
+      SetFlags(           NewRune,CInt(SpawnCfg[Rune].Flags));
+
+      if(SpawnCfg[Rune].CheckedType)
+        SetCheckedType(     NewRune,CStr(SpawnCfg[Rune].CheckedType));
+      endif
+
+      if(SpawnCfg[Rune].WalkDests)
+        SetObjProperty(NewRune,PROP_ROUND_DESTS,UnPack(SpawnCfg[Rune].WalkDests));
+      endif
+
+      num := num + 1;
+    endif
+  endforeach
+  SendSysMessage(who,"Postawiono "+num+" runow, z "+len(AllRunes)+", blednych "+err+", bylo pustych "+empty+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ExportChestsFromConfig(who)
+
+  UnloadConfigFile(SPAWNCHEST_CFG);
+  var SpawnCfg  := ReadConfigFile(SPAWNCHEST_CFG);
+  var AllChests := GetConfigStringKeys(SpawnCfg);
+
+  if(!SpawnCfg)
+    SendSysMessage(who, "Konfig nie istnieje ["+SPAWNCHEST_CFG+"]!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!AllChests.size())
+    SendSysMessage(who, "Konfig ["+SPAWNCHEST_CFG+"] jest pusty !",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var ChestAm := GetChestsAmount();
+  if(ChestAm)
+    SendSysMessage(who, "Aby importowac chesty, musisz zniszczyc istniejace.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!YesNo(who,"Napewno?"))
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var Pos,NewChest,i,num := 0,err := 0,empty := 0;
+  foreach Chest in AllChests
+    Pos := SpawnCfg[Chest].Pos;
+    if(Pos == "Empty")
+      empty := empty + 1;
+      continue;
+    else
+      Pos := SplitWords(Pos);
+    endif
+    i := 0;
+    NewChest := CreateItemAtLoc(CInt(Pos[1]),CInt(Pos[2]),CInt(Pos[3]),UOBJ_SCHEST,1,Pos[4]);
+    if(NewChest)
+      while(!GetChestNr(NewChest) and i <= 500)
+        i := i + 1;
+        sleepms(100);
+      endwhile
+      if(i >= 500)
+        DestroyItem(NewChest);
+        err := err + 1;
+        continue;
+      endif
+      SetRuneTemplate(    NewChest,CStr(SpawnCfg[Chest].Template));
+      SetRuneRespawnTime( NewChest,CInt(SpawnCfg[Chest].RespawnTime));
+      if(SpawnCfg[Chest].CheckedType)
+        SetCheckedType(     NewChest,CStr(SpawnCfg[Chest].CheckedType));
+      endif
+      num := num + 1;
+    endif
+  endforeach
+  SendSysMessage(who,"Postawiono "+num+" chestow, z "+len(AllChests)+", blednych "+err+", bylo pustych "+empty+".",FONT_NORMAL,COLOR_GREEN);
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddConfigElemToArray(Name,Value,ElemArray)
+
+  var NewElem := {};
+  NewElem.+pname  := Name;
+  NewElem.+pvalue := CStr(Value);
+  ElemArray.append(NewElem);
+  return ElemArray;
+
+endfunction
+
+//--------------------------------------------------------------------------------

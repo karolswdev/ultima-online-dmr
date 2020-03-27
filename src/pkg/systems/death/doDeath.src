@@ -1,0 +1,50 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+
+program doDeath(parms)
+
+	var who := parms[1];
+	var timeout := parms[2];
+	
+	SendInstaResDialog(who);
+	
+	var found := LookForHealers(who);
+	
+	if(found)
+		SendSysMessage(who, "Znaleziono uzdrowiciela. Strzalka naprowadzi Cie na niego.", FONT_NORMAL, COLOR_GREEN);
+	else
+		SendSysMessage(who, "Nie znaleziono uzdrowiciela. Sprobuj wyjsc z lochu. Sprobujemy wowczas namierzyc uzdrowiciela", FONT_NORMAL, COLOR_RED);
+	endif
+	
+	
+	while(who.dead && timeout > 0)
+		if(!found)
+			found := LookForHealers(who);
+		endif
+		
+		sleepms(1000);
+		timeout := timeout - 1;
+	endwhile
+	
+	SendSysMessage(who, "Nie jestes martwy albo czas szukania uzdrowicieli minal.", FONT_NORMAL, COLOR_GREEN);
+	SendQuestArrow(who);
+			
+			
+endprogram
+
+function LookForHealers(who)
+
+	foreach mob in ListMobilesNearLocation(who.x, who.y, 0x40000000, 60, who.realm)
+		if(mob.npctemplate["Healer"])
+			SendQuestArrow(who, mob.x, mob.y);
+			return 1;			
+		endif
+	endforeach
+	
+	return 0;
+	
+endfunction
+
+	

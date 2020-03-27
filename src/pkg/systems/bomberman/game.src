@@ -1,0 +1,18 @@
+include "bomberman";
+
+
+program GameScript( item )
+
+  SetObjProperty(item, BA_GAME_SCRIPT, GetPid());
+
+  var ev;
+  while( item )
+
+    ev := Wait_For_Event( 20 );
+    if (ev)
+      SendSysMessage(2, CStr(ev));
+    endif
+    
+  endwhile
+
+endprogram

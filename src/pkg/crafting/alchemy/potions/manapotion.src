@@ -1,0 +1,35 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseManaPotion(who,potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(!CanDrink(who,potion, 30))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion, 0.5);
+  
+  Strength := CInt(GetMaxMana(who) * (CInt(Strength*QualMod + ExpMod) * 0.01));
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  SetMana(who,GetMana(who) + Strength);
+  
+  if(GetMana(who) > GetMaxMana(who))
+    SetMana(who,GetMaxMana(who));
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

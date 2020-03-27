@@ -1,0 +1,29 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use storage;
+
+//-----------------------------------------------------------------------------
+
+include "include/log";
+include "include/items/temp_storage";
+
+//-----------------------------------------------------------------------------
+
+program ReturnTempControl(Params)
+
+  sleep(Params[2]);
+
+  if(TypeOf(Params[1]) == VAR_ARRAY)
+    foreach Item in (Params[1])
+      sleep(RandomInt(4));
+      ReturnTempItem(Item);
+    endforeach
+  else
+    ReturnTempItem(Params[1]);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

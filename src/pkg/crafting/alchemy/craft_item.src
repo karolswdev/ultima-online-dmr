@@ -1,0 +1,293 @@
+//-----------------------------------------------------------------------------
+use basic;
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/buildings";
+
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+include ":crafting:iterations";
+include ":crafting:exceptional";
+include ":artifacts:artifacts";
+
+include "potion";
+include "potionkeg/potionkeg";
+
+//-----------------------------------------------------------------------------
+
+program AlchemyCraftItem(Params)
+
+  var who := Params[1];
+  var mortar := Params[2];
+  var CraftData := Params[3];
+  
+  SetScriptController(who);
+
+  if(mortar.objtype == UOBJ_CAULDRON or mortar.objtype == UOBJ_CAULDRON2)
+    if(!StandardItemCheck(who, mortar, NO_MOVABLE_CHECK | NO_OWNER_CHECK | NEW_DIST_CHECK, 1))
+      return;
+    endif
+  else
+    if(!StandardItemCheck(who, mortar))
+      return;
+    endif
+  endif
+
+  var Materials;
+  var Cont := GetContForTool(who, mortar);
+
+  if(!PrepareCraft(who, Cont, CraftData.objtype, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_ALCHEMY, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, mortar, CraftData.objtype, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, Cont, ObjType, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":alchemy:alchemy");
+
+  Materials := DefineCraftMaterialsFromCfg(who, SkillCfg[ObjType], "reagent", Cont);
+
+  return 1;
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, mortar, ObjType, byref IterData, byref Materials)
+
+  var SkillCfg := ReadConfigFile(":alchemy:alchemy");
+
+  var Bottles     := FindEmptyBottle(who,ObjType);
+  var BottleCheck := 0;
+  var ProdAmount  := 1;
+
+  if(Bottles)
+    BottleCheck := 1;
+  endif
+
+  var Keg := 0;
+  
+  if(mortar.objtype != UOBJ_CAULDRON and mortar.objtype != UOBJ_CAULDRON2)
+    Keg     := FindItemInContainer(who.backpack,UOBJ_POTION_KEG);
+  else
+    ProdAmount := CInt(1 + GetBaseSkill(who, SKILLID_ALCHEMY)/25 + GetOverSkill(who, SKILLID_ALCHEMY)/4);
+  endif
+
+  if(Keg)
+    if(GetPotionsInKeg(Keg) >= 100)
+      Keg := 0;
+    elseif(GetKegType(Keg) and GetKegType(Keg) != ObjType)
+      Keg := 0;
+    elseif(Keg.locked)
+      Keg := 0;
+    elseif(GetPotionQuality(Keg))
+      Keg := 0;
+    endif
+  endif
+  
+  if(Bottles)
+    if(!StandardItemCheck(who, Bottles))
+      return;
+    elseif(Bottles.amount < ProdAmount)
+      var EmptyObj := GetEmptyBottleObjType(ObjType);
+      SendSysMessage(who, "Brakuje Ci "+(ProdAmount - Bottles.amount)+" "+GetDescForItem(EmptyObj)+".", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  elseif(Keg)
+    if(!StandardItemCheck(who, Keg))
+      return 0;
+    endif
+  endif
+
+  if(!Bottles and !Keg)
+    var EmptyObj := GetEmptyBottleObjType(ObjType);
+    SendSysMessage(who, "Potrzebujesz "+ProdAmount+" "+GetDescForItem(EmptyObj)+".", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  
+  var Diff := Cint(SkillCfg[ObjType].skill);
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SOUND_EFFECT_GRIND))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, mortar, SKILLID_ALCHEMY, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who,SKILLID_ALCHEMY,Diff,0))
+    SendSysMessage(who, GetCraftIterDesc(IterData)+" Nie udalo Ci sie rozetrzec skladnikow.",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SOUND_EFFECT_GRIND))
+    return 0;
+  endif
+
+  var Points   := GetCraftPoints(SKILLID_ALCHEMY, Diff);
+  var ExpMod   := 0;
+  var WhoInt   := GetIntelligence(who);
+  var WhoDex   := GetDexterity(who);
+  var MySkill  := GetEffectiveSkill(who,SKILLID_ALCHEMY);
+
+  if(mortar.objtype != UOBJ_CAULDRON and mortar.objtype != UOBJ_CAULDRON2)
+    ExpMod := ExpMod + Cint(WhoInt / 5);
+    ExpMod := ExpMod + Cint(WhoDex / 5);
+    ExpMod := ExpMod + CheckItemQuality(mortar);
+  
+    if(MySkill > (Diff - 20))
+      ExpMod := ExpMod + Cint((MySkill - Diff) / 30);
+    endif
+  endif
+
+  var Cont := GetContForTool(who, mortar);
+  
+  PlaySoundEffect(who,SOUND_EFFECT_POUR);
+  
+  if(Keg and !BottleCheck)
+    if(AddPotionToKeg(who, keg, ObjType, ALCH_ADD))
+      SendSysMessage(who,GetCraftIterDesc(IterData)+" Roztarl"+ggm(who,3)+" miksture i przelal"+ggm(who,3)+" ja do kega.",FONT_NORMAL,COLOR_GOOD);
+      AwardPoints(who, SKILLID_ALCHEMY, Points, GAIN_RESTRICT, Diff);
+    endif
+    return 1;
+  else
+    if(!SubtractAmount(Bottles, ProdAmount))
+      SendSysMessage(who,"Zabraklo Ci butelek!",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+  
+  var Potion;
+  
+  var itemLoops := 1;
+  var doubleProduce := GetGlyphMod(who, "DoubleProduce");
+  
+  if(HaveChance(doubleProduce))
+	PrintTextAbove(who, "*cud, cud, podwojny wyrob!*", FONT_NORMAL, COLOR_GREEN);
+	itemLoops := 2;
+   endif
+   
+   
+   while(itemLoops > 0)
+
+	  if(SkillCfg[ObjType].CanBeExp and BottleCheck)
+		var ExpData := CraftExceptional(who, SKILLID_ALCHEMY, ExpMod, 1);
+		if(ExpData.makeExp)
+
+		  var Mod     := CInt((MySkill - SKILL_TO_MAKE_EXP) / 2);
+		  var NewName := GetDescForItem(ObjType);
+
+		  ObjType := GetItemDescriptor(ObjType);
+		  ObjType.CProps["ExpMod"] := Mod;
+
+		  if(ExpData.makeNamed)
+			NewName := EXP_ITEM_NAME + " " + NewName + " [roztarl"+ggm(who, 4)+" " + GetRealName(who) + "]%%";
+			// jak podpisany, to dodatkowo info o made!
+			ObjType.CProps[PROP_MADE] := GenMade(who, MTYPE_REGS, Mod);
+		  else
+			NewName := EXP_ITEM_NAME + " " + NewName + "%%";
+		  endif
+
+		  Potion := CreateItemInCont(Cont, ObjType, 1, who);
+
+		  if(!Potion)
+			SendSysMessage(who,"Nie udalo sie stworzyc mikstury. Masz za malo miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+			return 0;
+		  endif
+
+		  if(Potion.amount == 1)
+			SetName(Potion, NewName);
+		  endif
+		  
+		  if(expData.inscribe)
+			start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, Potion});
+		   endif
+		
+		   if(expData.changeColor)
+			start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, Potion});
+		   endif
+
+		  SendSysMessage(who, GetCraftIterDesc(IterData)+" Roztarl"+ggm(who, 3)+" wyjatkowej jakosci miksture i wlozyl"+ggm(who, 3)+" ja do plecaka.",FONT_NORMAL,COLOR_BLUE);
+
+		  AwardPoints(who, SKILLID_ALCHEMY, Points, GAIN_RESTRICT, Diff);
+		  SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_ALCHEMY, array(Potion, 0));
+		  
+		  itemLoops := itemLoops - 1;
+		  continue;
+		endif
+	  endif
+	  
+	  if(!Potion)
+		if(IsStackableObj(ObjType) or ProdAmount == 1)
+		  Potion := CreateItemInCont(Cont, GetMadeDescriptor(ObjType, who, MTYPE_REGS, 1), ProdAmount, who);
+	  else
+		for i := 1 to ProdAmount
+		  var curItem := CreateItemInCont(cont, GetMadeDescriptor(ObjType, who, MTYPE_REGS, 1), 1, who);
+		  if(!curItem)
+			break;
+		  endif
+
+		  if(!Potion)
+			Potion := array;
+		  endif
+
+		  Potion.append( curItem);
+		endfor
+	  endif
+		
+		if(!Potion)
+		  SendSysMessage(who,"Nie ma miejsca w pojemniku.",FONT_NORMAL,COLOR_RED);
+		  return 0;
+		endif
+	  endif
+	  
+	  if(mortar.objtype != UOBJ_CAULDRON and mortar.objtype != UOBJ_CAULDRON2)
+	  
+		SendSysMessage(who,GetCraftIterDesc(IterData)+" Roztarl"+ggm(who,3)+" miksture i wlozyl"+ggm(who,3)+" do pojemnika.",FONT_NORMAL,COLOR_GOOD);
+		AwardPoints(who, SKILLID_ALCHEMY, Points, GAIN_RESTRICT, Diff);
+		SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_ALCHEMY, array(Potion, 0));
+	  else
+		SendSysMessage(who,GetCraftIterDesc(IterData)+" Roztarl"+ggm(who,3)+" "+ProdAmount+" mikstur"+Gam(ProdAmount, GAM_E)+" w kotle.",FONT_NORMAL,COLOR_GOOD);
+		AwardPoints(who, SKILLID_ALCHEMY, CInt(Points/2), GAIN_RESTRICT, Diff);
+	  endif
+	  
+	  itemLoops := itemLoops - 1;
+	  
+	endwhile
+	  
+	  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

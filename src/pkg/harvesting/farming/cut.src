@@ -1,0 +1,183 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+include "include/dirs";
+include "include/tools";
+include "include/effects";
+include ":quests:quest_ctrl";
+
+include ":harvesting:iterations";
+include ":harvesting:harvest";
+include ":harvesting:harvcont";
+
+//--------------------------------------------------------------------------------
+
+program cutgrain(who, item)
+
+  var Loc;
+
+  if(item.objtype == UOBJ_KOSA)
+    if(!StandardItemCheck(who,item))
+      return;
+    endif
+
+    if(!IstoolEquipped(who, item))
+      return;
+    endif
+
+    SendSysMessage(who, "Wybierz rosline do sciecia.",FONT_NORMAL,COLOR_GREEN);
+    Loc := LocTarget(who);
+    if(!StandardLocCheck(who, Loc, NO_LOCSPEC_CHECK))
+      return;
+    endif
+    
+    if(SetHarvestContainerFromLoc(who, Loc, SKILLID_FARMING))
+      return;
+    endif
+
+  else
+    var hand1 := Getequipmentbylayer(who,LAYER_HAND1);
+    var hand2 := Getequipmentbylayer(who,LAYER_HAND2);
+ 
+    if(hand1.objtype != UOBJ_KOSA and hand2.objtype != UOBJ_KOSA)
+      SendSysmessage(who, "Musisz wziac kose do reki by moc cos sciac!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    Loc := item;
+  endif
+
+  var CutCfg := ReadConfigFile( ":farming:cut" );
+  var Elem;
+
+  if(Loc.item)
+    Elem := FindConfigElem(CutCfg, Loc.item.objtype);
+  endif
+
+  if(!Elem)
+    Elem := FindConfigElem(CutCfg, Loc.objtype);
+  endif
+
+  if(!elem)
+    Sendsysmessage(who, "Tego nie mozesz obciac!",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  TriggerTipEvent(who, TEID_HARV_FARMING);
+
+  var IterData := DefineHarvestIterations(who, SKILLID_FARMING);
+  var Res;
+
+  while(HarvestIteration(who, IterData))
+    Res := DoFarmingCut(who, elem, Loc, item, IterData);
+    
+    if(Res == error)
+      break;
+    endif
+
+  endwhile
+
+  FinishHarvestIteration(who, IterData);
+
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function DoFarmingCut(who, elem, Loc, tool, byref IterData)
+
+  var products := GetConfigString(elem,"product");
+  var prod     := SplitWords(products);
+  var product  := GetItemObjType(prod[RandomInt(len(prod))+1]);
+  var skill    := GetConfigInt(elem,"skill");
+  var points   := GetConfigInt(elem,"points");
+  var x,y;
+  
+  if(!product)
+    product := prod[1];
+  endif
+  
+  if(Loc.item)
+    x := Loc.item.x;
+    y := Loc.item.y;
+  else
+    x := Loc.x;
+    y := Loc.y;
+  endif
+
+  if(coordist(who.x,who.y,Loc.x,Loc.y) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  if(IterData.curIter == 1)
+    SendSysMessage(who, "Scinasz rosline...",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  TurnCharTowardLocation(who, Loc);
+
+  if(!CheckToolWear(who,tool,SKILLID_FARMING))
+    return error;
+  endif
+
+  if(!tool)
+    return error;
+  endif
+ 
+  if(!HarvestDelay(who, IterData, 0x23A, 0x9))
+    return error;
+  endif
+
+  if(HarvestOverflowed(who))
+
+    SendSysMessage(who, "Prawie cos wycial"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+
+  elseif(Checkskill(who, SKILLID_FARMING, skill, 0))
+
+    var Amt := CInt((GetBaseSkill(who,SKILLID_FARMING) / 20.0) + (GetOverSkill(who, SKILLID_FARMING)/4.0) + (CheckItemQuality(tool) / 5.0));
+    var i;
+
+    var amount := HarvestResource("farming",x,y,1,Amt);
+    if(!amount)
+      SendSysMessage(who,"Z tej rosliny juz nic wiecej nie wytniesz.",FONT_NORMAL,COLOR_RED);
+      return error;
+    else
+      var Item;
+      var itmDesc := GetHarvestDescriptor(product, who);
+
+      if(IsStackableObj(Product))
+        Item := CreateHarvResource(who, SKILLID_FARMING, itmDesc, Amount);
+      else
+        for(i:=1;i<=Amount;i:=i+1)
+          Item := CreateHarvResource(who, SKILLID_FARMING, itmDesc, 1);
+          if(!Item)
+            break;
+          endif
+        endfor
+      endif
+
+      if(Item)
+        SendSysMessage(who, GetHarvestIterDesc(IterData) + " Udalo Ci sie obciac rosline.",FONT_NORMAL,COLOR_GREEN);
+        AwardPoints(who,SKILLID_FARMING,Points);
+
+        SendQuestEvent(who, EVQID_HARVEST, SKILLID_FARMING, Item);
+        return 1;
+      else
+        SendSysMessage(who, "Masz za malo miejsca w plecaku!", FONT_NORMAL, COLOR_RED);
+        return error;
+      endif
+    endif
+      
+  else
+    SendSysMessage(who, GetHarvestIterDesc(IterData) + " Nie udalo Ci sie obciac rosliny.",FONT_NORMAL,COLOR_RED);
+  endif
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+
+

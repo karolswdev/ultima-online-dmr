@@ -1,0 +1,537 @@
+//-----------------------------------------------------------------------------
+// Modified: 2006-11-22
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/clock";
+include "include/getobj";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/player/misc";
+
+include ":tips:tips";
+include ":tips:tip_gump";
+
+include ":quests:bq_gump";
+include ":quests:quests";
+
+//-----------------------------------------------------------------------------
+
+var QData, gRes, gWho, TipID, tData, etData, textIdx;
+
+InitTipData(tData);
+InitTipData(etData);
+
+//-----------------------------------------------------------------------------
+
+program TipsToolCmd(_who, text)
+
+  gWho  := _who;
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+  gRes := 0;
+
+  var Started := 0;
+
+  case(text[1])
+    "at":     ProcAddTip();
+
+    "t":      ProcTips(CInt(text[2]), CInt(text[3]));
+              if(!gRes)
+                return;
+              endif
+
+    default:  if(text[1])
+                SendSysMessage(gWho, ".tips [at/t]", FONT_NORMAL, COLOR_RED);
+                return;
+              endif
+  endcase
+
+  if(!Started)
+    BuildMainTipGump();
+  endif
+
+  while(IsLoggedIn(gWho))
+    
+    gRes := GSend(gWho);
+
+    if(!gRes or !gRes.butid)
+      break;
+    endif
+
+    case(gRes.butid)
+      1:      ProcTips();
+
+      2:      ProcAddTip();
+
+    endcase
+
+    BuildMainTipGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainTipGump()
+
+  GInit(20, 20);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GResPic(0, 0, 3600, 500, 320);
+  GTextLine(210, 20, 680, "Tips Menu");
+
+  GButton(80,  63, 2117, 2118, 1);
+  GTextLine(100,  60, 550, "Lista wskazowek");
+  GButton(240, 63, 2117, 2118, 2);
+  GTextLine(260, 60, 550, "Dodawanie wskazowki");
+
+  var GProps  := GetTipsGlobalProps();
+  var QCrInfo := GProps.GetProp(TIGPROP_CRINFO);
+
+  BuildTipElemModSegInfo(QCrInfo,   "Ostatnio stworzony Tip:",        40, 250);
+
+endfunction
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Quest Tips
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+function ProcTips(tId := 0, tRange := 0)
+
+  var Modif := 0;
+  
+  if(!tId or tRange > tId)
+    ShowTips(0, tId, tRange);
+    if(!TipID)
+      return 0;
+    endif
+  else
+    TipID := tId;
+  endif
+
+  gRes := AssignTipData(TipID, etData);
+  if(!gRes)
+    SendSysMessage(gWho, gRes.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  textIdx := 1;
+  BuildShowTip();
+
+  while(IsLoggedIn(gWho))
+    gRes := GSend(gWho);
+    if(Modif)
+      SaveTipData(etData);
+    endif
+
+    if(gRes.butid >= 20 and gRes.butid <= 52)
+
+      ChangeTipFlag(etData, gRes.butid-20);
+
+    elseif(gRes.butid > 1000 and gRes.butid < 1199)
+      
+      textIdx := gRes.butid - 1000;
+
+    else
+
+      case(gRes.butid)
+        5:        ShowTips();
+                  if(!TipID)
+                    return;
+                  endif
+                  
+                  var Res := AssignTipData(TipID, etData);
+                  if(!Res)
+                    SendSysMessage(gWho, Res.errortext, FONT_NORMAL, COLOR_RED);
+                    return;
+                  endif
+                  Modif   := 0;
+                  textIdx := 1;
+
+        6:        Modif   := 0;
+ 
+        7:        Modif   := 1;
+
+        11:       etData.EventId := SelectTipEvent(gWho);
+        
+        12:       etData.QuestId := SelectQuest(QGROUP_TUTORIALS, gWho);
+
+        15:       var Res := SetTip(TipID, etData, gWho);
+                  if(Res)
+                    SendSysMessage(gWho, "Zmieniono Tip ID: "+TipID, FONT_NORMAL, COLOR_GREEN);
+                    Modif := 0;
+                  else
+                    SendSysMessage(gWho, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyTip(etData);
+                  if(Check)
+                    SendSysMessage(gWho, "Tip zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(gWho, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        19:       SendSysMessage(gWho, "Chcesz skasowac Tip ID: "+TipID+"?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(gWho, "Tak?"))
+                    var Res := DeleteTip(TipID);
+                    if(Res)
+                      SendSysMessage(gWho, "Skasowano Tip ID: "+TipID+".", FONT_NORMAL, COLOR_GREEN);
+                      TipID := 0;
+                      InitTipData(etData);
+                      return;
+                    else
+                    SendSysMessage(gWho, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        1199:     var i;
+                  for(i:=1;i<=8;i:=i+1)
+                    etData.Text.erase(textIdx);
+                  endfor
+
+        default:  return;
+      endcase
+    endif
+
+    if(Modif)
+      BuildModifyTip();
+    else
+      BuildShowTip();
+    endif
+
+  endwhile
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShowTip()
+
+  BQGInit("Tip ID: "+TipID, 650, 550, 5);
+
+  GButton(90, 513, 2117, 2118, 7);
+  GTextLine(110, 510, 999, "Modyfikuj");
+
+  if(IsAdmin(gWho) or CanUseCmd(gWho, "tips del"))
+    GButton(390, 513, 2117, 2118, 19);
+    GTextLine(410, 510, 999, "Usun");
+  endif
+
+  BuildTipInfo(etData, BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModifyTip()
+
+  BQGInit("Modyfikowanie Tip ID: "+TipID, 650, 550, 6);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Zmien");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  BuildTipInfo(etData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowTips(Flags := 0, QsSet := 0, QsEnd := 0)
+
+  var Data := GetTipsData();
+  var Keys := GetDataKeys(Data, TIP_TITLE, BQG_ZEROFILL, QsSet, QsEnd);
+  Keys.sort();
+  Keys.reverse();
+
+  BuildTips(Keys, Data);
+
+  while(IsLoggedIn(gWho))
+    gRes := CInt(GSend(gWho).butid);
+
+    if(gRes != 100000)
+      if(gRes > 10000)
+        BuildTipModInfo(Data, CInt(UnZeroFill(Keys[gRes-10000])));
+        continue;
+      elseif(gRes > 0)
+        if(Flags & BQG_RETVAL)
+          return CInt(UnZeroFill(Keys[gRes]));
+        else
+          TipID := CInt(UnZeroFill(Keys[gRes]));
+        endif
+        return;
+      elseif(!(Flags & BQG_RETVAL))
+        TipID := 0;
+        return;
+      else
+        return;
+      endif
+    endif
+
+    BuildTips(Keys, Data);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTips(byref Keys, byref Data)
+
+  BQGInit("Tip: "+Keys.size(), 600, 500, 0, 1);
+  GAddPageData(565,18,2650,2651,565,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Tytul");
+  GTextLine(400, 40, 999, "Zdarzenie");
+  GTextLine(558, 40, 999, "Info");
+  GMultiPage();
+
+  var Tip, i := 1;
+
+  foreach Key in Keys
+    GCheckNextPage(20);
+    Tip := Data.FindElement(TIP_TITLE+UnZeroFill(Key));
+    GTextLine(30, 60+GNPCount()*20, 1419, Key);
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GButton(560, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(100,60+GNPCount()*20, 550, Tip.GetProp(TIPROP_NAME));
+    GTextLine(400,60+GNPCount()*20, 550, GetTipEventName(Tip.GetProp(TIPROP_EVENT_ID)));
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTipModInfo(byref Data, tId)
+
+  var Tip := Data.FindElement(TIP_TITLE+tId);
+
+  BQGInit("Info: Tip ID: "+tId, 440, 330, 100000);
+  GTextLine(30, 40, 999, "Nazwa:");
+  GTextLine(80, 40, 550, Tip.GetProp(TIPROP_NAME));
+
+  BuildTipElemModInfo(Tip, 30, 80);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcAddTip()
+
+  textIdx := 1;
+  BuildAddTip();
+
+  while(IsLoggedIn(gWho))
+
+    gRes := GSend(gWho);
+    SaveTipData(tData);
+
+    if(gRes.butid >= 20 and gRes.butid <= 52)
+      ChangeTipFlag(tData, gRes.butid-20);
+
+    elseif(gRes.butid > 1000 and gRes.butid < 1199)
+
+      textIdx := gRes.butid - 1000;
+
+    else
+
+      case(gRes.butid)
+        11:       tData.EventId := SelectTipEvent(gWho);
+        
+        12:       tData.QuestId := SelectQuest(QGROUP_TUTORIALS, gWho);
+
+        15:       var nId := AddTip(tData, gWho);
+                  if(nId)
+                    SendSysMessage(gWho, "Dodano nowy Tip ID: "+nId, FONT_NORMAL, COLOR_GREEN);
+                    InitTipData(tData);
+                    textIdx := 1;
+                  else
+                    SendSysMessage(gWho, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyTip(tData);
+                  if(Check)
+                    SendSysMessage(gWho, "Tip zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(gWho, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        19:       SendSysMessage(gWho, "Chcesz wyczyscic aktualny szablon wskazowki?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(gWho, "Tak?"))
+                    InitTipData(tData);
+                  endif
+
+        1199:     var i;
+                  for(i:=1;i<=8;i:=i+1)
+                    tData.Text.erase(textIdx);
+                  endfor
+
+        default:  return;
+      endcase
+    endif
+
+    BuildAddTip();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeTipFlag(byref Data, Bit)
+
+  Bit := CInt(Bit);
+
+  if(Bit == 0)
+    if((Data.Flags & TPF_ALL_CLASSES) == TPF_ALL_CLASSES)
+      SetBitOff(Data.Flags, TPF_ARCHER);
+      SetBitOff(Data.Flags, TPF_WARRIOR);
+      SetBitOff(Data.Flags, TPF_MAGE);
+    else
+      SetBitOn(Data.Flags, TPF_ARCHER);
+      SetBitOn(Data.Flags, TPF_WARRIOR);
+      SetBitOn(Data.Flags, TPF_MAGE);
+    endif
+    return;
+  endif
+
+  Bit := CInt(Pow(2, Bit-1));
+
+  if(Data.Flags & Bit)
+    SetBitOff(Data.Flags, Bit);
+  else
+    SetBitOn(Data.Flags, Bit);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveTipData(byref Data)
+
+  Data.Delay   := CInt(gRes.text[2]);
+
+  if(gRes.unitext[5])
+    Data.Name := gRes.unitext[5];
+  else
+    Data.Name := "";
+  endif
+
+  var i;
+
+  if(!Data.Text)
+    Data.Text := array;
+  endif
+
+  for(i:=textIdx;i<textIdx+8;i:=i+1)
+    Data.Text[i] := gRes.unitext[i+9];
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddTip()
+
+  BQGInit("Dodawanie wskazowki", 650, 550);
+
+  GButton(90, 513, 2117, 2118, 15);
+  GTextLine(110, 510, 999, "Dodaj");
+
+  GButton(190, 513, 2117, 2118, 16);
+  GTextLine(210, 510, 999, "Weryfikuj");
+
+  GButton(490, 513, 2117, 2118, 19);
+  GTextLine(510, 510, 999, "Wyczysc");
+
+  BuildTipInfo(tData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestTipGump(byref Data, Flags)
+
+  if(Flags & BQG_NOTIPSCROLL)
+    BQGAddTextBox(100, 80, 300, 20, FCLR_TEBOX, Data.Text, Flags, 8, 10, "Tekst:");
+  else
+    if(!(Flags & BQG_EDITABLE))
+      while(textIdx > Data.Text.size() and textIdx > 1)
+        textIdx := textIdx - 7;
+      endwhile
+    endif
+
+    BQGAddTextBox(100, 80, 300, 20, FCLR_TEBOX, Data.Text, Flags, 8, 10, "Tekst:", textIdx);
+
+    if(textIdx == 1 or (textIdx > 7 and textIdx < 32))
+      if(Flags & BQG_EDITABLE or textIdx+8 <= Data.Text.size())
+        GButton(407, 220, 2648, 2647, 1000+textIdx+8);
+      endif
+    endif
+
+    if(textIdx > 8)
+      GButton(407, 80, 2650, 2651, 1000+textIdx-8);
+    endif
+
+    if(Flags & BQG_EDITABLE)
+      GButton(409, 103, 2117, 2118, 1199);
+    endif
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTipInfo(byref Data, Flags := 0)
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Name, Flags, 1, 5, "Tytul:");
+  BuildQuestTipGump(Data, Flags);
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+
+  BQGAddTextBox(100, 290, 120, 20, FCLR_TEBOX, GetTipEventName(Data.EventId), Flags, 1, 0, "Zdarzenie:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 290, 2714, 2715, 11);
+  endif
+  
+  var qName := "<Brak>";
+
+  if(Data.QuestId)
+    qName := QGROUP_TUTORIALS+":"+Data.QuestId;
+  endif
+
+  BQGAddTextBox(100, 350, 120, 20, FCLR_TEBOX, qName, Flags, 1, 0, "Quest:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 350, 2714, 2715, 12);
+  endif
+
+  BQGAddTextBox(100, 320, 120, 20, FCLR_TEBOX, Data.Delay, Flags, 1, 2, "Opoznienie:");
+
+  if(Flags & BQG_SHOWEXTRA)
+    BQGAddTextBox(470, 320, 125, 20, FCLR_TEBOX, "Wszystkie klasy", Flags);
+    BQGCheckBox(595, 317, Flags, (Data.Flags & TPF_ALL_CLASSES) == TPF_ALL_CLASSES, 20);
+    BQGAddTextBox(470, 350, 125, 20, FCLR_TEBOX, "Lucznik", Flags);
+    BQGCheckBox(595, 347, Flags, Data.Flags & TPF_ARCHER, 21);
+    BQGAddTextBox(470, 380, 125, 20, FCLR_TEBOX, "Wojownik", Flags);
+    BQGCheckBox(595, 377, Flags, Data.Flags & TPF_WARRIOR, 22);
+    BQGAddTextBox(470, 410, 125, 20, FCLR_TEBOX, "Mag", Flags);
+    BQGCheckBox(595, 407, Flags, Data.Flags & TPF_MAGE, 23);
+    BQGAddTextBox(470, 440, 125, 20, FCLR_TEBOX, "Jako zwój", Flags);
+    BQGCheckBox(595, 437, Flags, Data.Flags & TPF_ONDEMAND, 25);
+    
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

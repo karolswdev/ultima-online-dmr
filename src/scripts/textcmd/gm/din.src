@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/std";
+include "include/checks/stdchecks";
+include "include/log";
+
+include "include/tempmods";
+
+//-----------------------------------------------------------------------------
+
+program DestroyItemsInContainerCmd( who )
+
+  SetLogRunCycles(LST_CMD);
+
+  SendSysMessage(who,"Wybierz kontener.", FONT_NORMAL, COLOR_GREEN);
+
+  var Targ := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+  
+  if(!Targ)
+    SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var n := 0;
+
+  if(IsPlayer(Targ))
+
+    foreach Item in ListEquippedItems( Targ )
+      if(!Item.isa(POLCLASS_CONTAINER))
+        LogMsg(DESTROY_LOG,who,Item);
+        DestroyItem( Item );
+        n := n + 1;
+      endif
+    endforeach
+
+  elseif(Targ.isa(POLCLASS_CONTAINER))
+
+    foreach Item in EnumerateItemsInContainer( Targ )
+      LogMsg(DESTROY_LOG,who,Item);
+      DestroyItem( Item );
+      n := n + 1;
+    endforeach
+
+  else
+
+    SendSysMessage(who,"To nie kontener.", FONT_NORMAL, COLOR_RED);
+    return;
+
+  endif
+
+  SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" "+n+" przedmiotow w kontenerze "+GetName(Targ)+".", FONT_NORMAL, COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

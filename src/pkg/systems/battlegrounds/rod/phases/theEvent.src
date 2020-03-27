@@ -1,0 +1,73 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+include "include/npcs";
+
+include ":rod:RingOfDeath";
+
+program theEvent()
+
+    BroadCast("[Ring Smierci] Minuta do przygotowania sie.", FONT_NORMAL, COLOR_RED);
+    
+    sleep(5);
+    
+	foreach person in ListObjectsInBox(932, 633, -90, 948, 641, -90, "malas")
+	if(person.ip && !person.cmdlevel)
+	    SetObjProperty(person, "#RodTimer", 60);
+	endif
+    endforeach
+    
+    SetGlobalProperty("#RodInProgress", 1);
+    
+    var rulesPerson := CreateNpc("townperson", 940, 637, -90, "malas");
+	if(rulesPerson)
+	sleep(1);
+	PrintTextAbovE(rulesPerson, "Witam!");
+	sleep(1);
+	PrintTextAbove(rulesPerson, "Wyglosze zasady obowiazujace:");
+	sleep(4);
+	PrintTextAbove(rulesPerson, "Kazdy z was zaczyna z czasem 60 sekund");
+	sleep(9);
+	PrintTextAbove(rulesPerson, "Wybiegacie na arene a czas jest odliczany");
+	sleep(6);
+	PrintTextAbove(rulesPerson, "Aby zwiekszyc swoj czas zbierajcie czerwone kafle.");
+	sleep(9);
+	PrintTextAbove(rulesPerson, "Aby uleczyc sie zbierajcie zolte kafle.");
+	sleep(9);
+	PrintTextAbove(rulesPerson, "Aby wygrac - nalezy wyeliminowac innych - w dowolny sposob");
+	sleep(4);
+	PrintTextAbove(rulesPerson, "Jesli wasz czas dobiega konca - walka konczy sie");
+	sleep(2);
+	PrintTextAbove(rulesPerson, "*3*");
+	sleep(1);
+	PrintTextAbove(rulesPerson, "*2*");
+	sleep(1);
+	PrintTextAbove(rulesPerson, "*1*");
+	sleep(1);
+	PrintTextAbove(rulesPerson, "*JUZ*");
+	sleep(1);
+	KillNpc(rulesPerson);
+	endif
+	
+	// just to make sure
+	EraseGlobalProperty("RoDMembers");
+	
+	var rodMembers := array();
+	
+
+    foreach person in ListObjectsInBox(932, 633, -90, 948, 641, -90, "malas")
+	if(person.ip && !person.cmdlevel)
+	    rodMembers.append(person.serial);
+	    MoveObjectToLocation(person, 940, 635, -90, "malas", 1);
+	    start_script(":rod:rodCounter", person);
+	    SetObjProperty(person, "#RodTimer", 95 + RandomInt(2));
+	    sleepms(60);
+	endif
+    endforeach	
+    
+    CreateNewTile();
+    CreateNewHealTile();
+    SetGlobalProperty("RoDMembers", rodMembers);
+
+endprogram

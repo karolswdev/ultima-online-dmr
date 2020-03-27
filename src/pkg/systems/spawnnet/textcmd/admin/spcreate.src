@@ -1,0 +1,87 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+
+include "../../spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program CanCCreateSpawnRunes(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  case(text)
+    "on":       TurnOn(who);
+    "off":      TurnOff(who);
+    "status":   Status(who);
+    "chon":     TurnChestOn(who);
+    "choff":    TurnChestOff(who);
+    "chstatus": ChestStatus(who);
+    default:    SendSysMessage(who,".spcreate [on/off/status/chon/choff/chstatus]",FONT_NORMAL,COLOR_GOOD);
+ endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function TurnOn(who);
+
+  SetGlobalProperty("CanCreateSpawnRunes",1);
+  SendSysMessage(who,"Teraz kazdy moze dostawiac runy.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TurnOff(who);
+
+  EraseGlobalProperty("CanCreateSpawnRunes");
+  SendSysMessage(who,"Pelny zakaz stawiania runow.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Status(who);
+
+  if(GetGlobalProperty("CanCreateSpawnRunes"))
+    SendSysMessage(who,"Status : stawianie runow - wlaczone.",FONT_NORMAL,COLOR_GOOD);
+  else
+    SendSysMessage(who,"Status : stawianie runow - wylaczone.",FONT_NORMAL,COLOR_GOOD);
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TurnChestOn(who);
+
+  SetGlobalProperty("CanCreateSpawnChest",1);
+  SendSysMessage(who,"Teraz kazdy moze dostawiac chestspawny.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TurnChestOff(who);
+
+  EraseGlobalProperty("CanCreateSpawnChest");
+  SendSysMessage(who,"Pelny zakaz stawiania chestspawny.",FONT_NORMAL,COLOR_GOOD);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChestStatus(who);
+
+  if(GetGlobalProperty("CanCreateSpawnChest"))
+    SendSysMessage(who,"Status : stawianie chestspawnow - wlaczone.",FONT_NORMAL,COLOR_GOOD);
+  else
+    SendSysMessage(who,"Status : stawianie chestspawnow - wylaczone.",FONT_NORMAL,COLOR_GOOD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

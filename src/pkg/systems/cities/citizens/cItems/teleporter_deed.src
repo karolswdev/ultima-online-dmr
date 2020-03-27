@@ -1,0 +1,137 @@
+use uo;
+use os;
+
+include ":major:major";
+include ":citizens:citizens";
+include "include/findcity";
+include "include/gumps";
+
+program use_cityFountainDeed(who, theDeed)
+
+    if(!Accessible(who, theDeed))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    if(FindCity(who) == "no city")
+        SendSysMessage(who, "Nie jestes w miescie.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    var tStone := FindVStone(FindCity(who));
+    
+    if(!tStone)
+        SendSysMessage(who, "To miasto nie ma kamienia miasta!", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    if(!IsMajor(who))
+        SendSysMessage(who, "Tylko burmistrz moze stawiac inwestycje!", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    if(GetMajor(tStone) != who)
+        SendSysMessage(who, "Nie jestes burmistrzem tego miasta!", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    var theTile := ChooseTile(who);
+    
+    if(!theTile)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    SendSysMessage(who, "Wskaz miejsce, w ktorym chcesz postawic pierwsza plytke:", FONT_NORMAL, COLOR_BLUE);
+    
+    var whox, whoy;
+    
+    whox := who.x;
+    whoy := who.y;
+    
+    var fPlace := TargetCoordinates(who);
+    
+    if(fPlace)
+        
+        SendSysMessage(who, "Wskaz miejsce, w ktorym chcesz postawic druga plytke:", FONT_NORMAL, COLOR_BLUE);
+        
+        var sPlace := TargetCoordinates(who);
+        
+        // Testing whether both tiles are in the city
+        
+        MoveObjectToLocation(who, fPlace.x, fPlace.y, fPlace.z, 1);
+        
+        if(FindCity(who) == "no city")
+            SendSysMessage(who, "Miejsce pierwszej plytki nie jest w miescie.", FONT_NORMAL, COLOR_RED);
+            MoveObjectToLocation(who, whox, whoy, 0, 1);
+            return;
+        endif
+        
+        MoveObjectToLocation(who, sPlace.x, sPlace.y, sPlace.z, 1);
+        if(FindCity(who) == "no city")
+            SendSysMessage(who, "Miejsce drugiej plytki nie jest w miescie.", FONT_NORMAL, COLOR_RED);
+            MoveObjectToLocation(who, whox, whoy, 0, 1);
+            return;
+        endif
+        
+        if(DestroyItem(theDeed))
+        
+            var fTile, sTile;
+            
+            fTile := CreateItemAtLocation(fPlace.x, fPlace.y, fPlace.z, 0xA220, 1);
+                if(!fTile)
+                    SendSysMessage(who, "Blad tworzenia pierwszej plytki.", FONT_NORMAL, COLOR_RED);
+                    syslog("System miast: Pierwsza plytka " + who.serial + " nie mogla zostac stworzona.");
+                endif
+                
+                    fTile.graphic := theTile;
+                
+            sTile := CreateItemAtLocation(sPlace.x, sPlace.y, sPlace.z, 0xA220, 1);
+                if(!sTile)
+                    SendSysMessage(who, "Blad tworzenia drugiej plytki.", FONT_NORMAL, COLOR_RED);
+                    syslog("System miast: Druga plytka " + who.serial + " nie mogla zostac stworzona.");
+                endif
+                
+                    sTile.graphic := theTile;
+                    
+                SetObjProperty(fTile, "LinksTo", sTile.serial);
+                SetObjProperty(fTile, "MajorSerial", who.serial);
+                SetObjProperty(sTile, "LinksTo", fTile.serial);
+                SetObjProperty(sTile, "MajorSerial", who.serial);
+                
+                SendSysMessage(who, "Zrobione!", FONT_NORMAL, COLOR_BLUE);
+                
+        endif
+    endif
+    
+endprogram
+
+function ChooseTile(who)
+
+    GInit(0, 0);
+    GNoClose();
+    GResPic(76, 74, 3600, 288, 171);
+    GTextLine(154, 102, 55, "Wybierz rodzaj kafelek");
+    GTilePic(123, 132, 1179); 
+    GTilePic(210, 131, 1295); 
+    GTilePic(292, 133, 1305); 
+    GButton(136, 189, 1209, 1209, 1);
+    GButton(225, 187, 1209, 1209, 2);
+    GButton(308, 185, 1209, 1209, 3);
+    GButton(282, 206, 242, 242, 4);
+    
+    var res := GSend(who)[0];
+    
+    if(!res || res == 4)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    case(res)
+        1: return 1179;
+        2: return 1295;
+        3: return 1305;
+    endcase
+    
+endfunction
+    

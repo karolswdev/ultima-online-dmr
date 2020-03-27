@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/staff";
+include "include/names";
+
+//-----------------------------------------------------------------------------
+
+program BroadCastGM(who,text);
+
+  if(!text)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  elseif(text == "c")
+    ProcessCastLoop(who);
+  else
+    AlertSeers(GetRealName(who) + ": "+text, FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ProcessCastLoop(who)
+
+  SendGood(who, "Wchodzisz w rozmowe na broad-cast gm, aby wyjsc wpisz 'q'");
+
+  while(IsLoggedIn(who))
+    var Text := RequestInput(who, who.backpack, "");
+    
+    if(Text == "q" or Text == "Q")
+      break;
+    endif
+    
+    if(Text)
+      AlertSeers(GetRealName(who) + ": "+text, FONT_NORMAL, COLOR_BLUE);
+    endif
+    
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+

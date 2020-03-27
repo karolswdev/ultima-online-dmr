@@ -1,0 +1,208 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/attributes/npcs_cag";
+include "include/events";
+include "include/mount";
+include "include/calc";
+
+include ":musicianship:music";
+include ":quests:include/quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program Provokation(who)
+
+  if(IsBusy(who,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz cel.",FONT_NORMAL,COLOR_GREEN);
+
+  var ProvCreature1 := ObjTarget(who);
+
+  if(!StandardMobCheck(who,ProvCreature1,NEW_DIST_CHECK | NO_COMBAT_CHECK, 12))
+    SetBusyTime(who,GetSkillDelay(SKILLID_PROVOCATION));
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_PROVOCATION));
+
+  var Diff   := GetNpcConfig(ProvCreature1).provoke;
+  var mDiff  := ToMin(CInt(Diff) - 10, 0);
+
+  var ProvCreature2;
+
+  if(ProvCreature1 == who)
+    SendSysMessage(who, "Chcesz siebie sprowokowac?",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if((Diff == error or IsTamed(ProvCreature1)) and !IsPlayer(ProvCreature1))
+    SendSysMessage(who, "Nie uda Ci sie tego sprowokowac!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  Diff := CInt(Diff) + 5;
+
+  if(!can_sing(who))
+    return;
+  endif
+
+  var Points := max(5, GetDefaultPointsForDiff(who, SKILLID_PROVOCATION, Diff+25));
+
+  var instrument := findinstrument(who);
+
+  if(!instrument)
+    SendSysmessage(who, "Nie masz instrumentu aby grac!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!StandardItemCheck(who,instrument,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_PROVOCATION));
+
+
+  if(IsPlayer(ProvCreature1))
+    if(CanVsAttack(who,ProvCreature1))
+      ProvokeMount(who, ProvCreature1, instrument);
+    else
+      SendSysMessage(who, "Nie mozesz " + + " sprowokowac!", FONT_NORMAL, COLOR_ORANGE);
+    endif
+    return;
+  endif
+
+  if(GetObjProperty(ProvCreature1, QTPROP_QTSER))
+    SendSysMessage(who, "Tego nie sprowokujesz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetNpcConfig(ProvCreature1).alignment == CITYAL_GOOD)
+    SetCriminal(who, 1, "Provocation", "Prowokacja prawego Npca: "+ProvCreature1.name+" ["+ProvCreature1.serial+"].");
+  endif
+
+  if(CheckSkill(who, SKILLID_PROVOCATION, Diff,0) and Play(who, mDiff, instrument, 0, S_BATTLE_ID))
+    SendSysMessage(who, "Wybierz cel",FONT_NORMAL,COLOR_BLUE);
+    ProvCreature2 := ObjTarget(who, TGTOPT_HARMFUL);
+    if (!StandardMobCheck(who,ProvCreature2,NEW_DIST_CHECK | NO_COMBAT_CHECK, 12))
+      SetBusyTime(who,GetSkillDelay(SKILLID_PROVOCATION));
+      return;
+    endif
+
+    if(GetObjProperty(ProvCreature2, QTPROP_QTSER))
+      SendSysMessage(who, "Tego nie sprowokujesz.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(ProvCreature1 == ProvCreature2 or ProvCreature2.enabled("invul"))
+      PrintTextAbove(ProvCreature1,"*wrrrr*",FONT_NORMAL,COLOR_RED);
+      SendChEvent(ProvCreature1,who,EVID_ENGAGED);
+      return;
+    endif
+    SendChEvent(ProvCreature1,who,EVID_PEACEMADE);
+    SendChEvent(ProvCreature2,who,EVID_PEACEMADE);
+    SendChEvent(ProvCreature1,ProvCreature2,EVID_ENGAGED);
+    SendChEvent(ProvCreature2,ProvCreature1,EVID_ENGAGED);
+    PrintTextAbove(ProvCreature1,"*arghhh!*",FONT_NORMAL,COLOR_RED);
+    PrintTextAbove(ProvCreature2,"*argh!*",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,"Sprowokowal"+ggm(who,3)+" stworzenie " + ProvCreature1.name + " aby zaatakowalo " + ProvCreature2.name + "!", FONT_NORMAL,COLOR_BLUE);
+
+    if(IsMobGainable(ProvCreature1) and IsMobGainable(ProvCreature2))
+      AwardPoints(who, SKILLID_PROVOCATION, Points);
+      CagNpcDamaged(ProvCreature1, CInt(Points/2), who);
+      CagNpcDamaged(ProvCreature2, CInt(Points/2), who);
+    endif
+  elseif(RandomInt(100) > GetEffectiveSkill(who, SKILLID_PROVOCATION) / 2)
+    SendChEvent(ProvCreature1,who,EVID_ENGAGED);
+    if(IsMobGainable(ProvCreature1))
+      AwardPoints(who,SKILLID_PROVOCATION,Points);
+    endif
+    PrintTextAbove(ProvCreature1,"*argh!*",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,"Rozwscieczyl"+ggm(who,3)+" stworzenie " + ProvCreature1.name + "!",FONT_NORMAL,COLOR_RED);
+  else
+    if(IsMobGainable(ProvCreature1) and GetEffectiveSkill(who, SKILLID_PROVOCATION) < 30)
+      AwardPoints(who,SKILLID_PROVOCATION, CInt(Points/2));
+    endif
+    SendSysMessage(who,"Nie udalo Ci sie sprowokowac tego stworzenia.", FONT_NORMAL, COLOR_RED);
+  endif
+
+  sleep(1);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ProvokeMount(who, Targ, Instrument)
+
+  if(!StandardMobCheck(who,Targ,NEW_DIST_CHECK, 12))
+    SetBusyTime(who,GetSkillDelay(SKILLID_PROVOCATION));
+    return;
+  endif
+
+  if(GetEffectiveSkill(who, SKILLID_PROVOCATION) < 100 or GetBaseSkill(who, SKILLID_MUSICIANSHIP) < 100 or GetBaseSkill(who, SKILLID_ENTICEMENT) < 100)
+    SendSysMessage(who, "Twa wiedza jest za mala by sprowokowac wierzchowca.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!Targ.criminal and !Targ.murderer)
+    SetCriminal(who, 1, "ProvokeMount", "Prowokacja wierzchowca prawej osoby: "+Targ.name+" ["+Targ.serial+"].");
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_PROVOCATION)*2);
+
+  var Diff := 40;
+  var oX     := who.x;
+  var oY     := who.y;
+
+  Diff += ToMin(CInt(GetDexterity(Targ) - GetDexterity(who)) * 2, -5);
+  Diff := Diff - CInt(CheckItemQuality(Instrument) / 3);
+  Diff := ToMin(Diff, 0);
+
+  var mDiff  := ToMin(Diff - 5, 0);
+
+  if(CanMod(Targ, MOD_DEFENSE) == 0)
+    var aMod := CInt(MinMax(GetTempModAmount(Targ, MOD_DEFENSE), -50, 50) / 4);
+    Diff := Diff  + aMod;
+    mDiff := mDiff + aMod;
+  endif
+
+  if(CheckSkill(who, SKILLID_PROVOCATION, Diff,0) and Play(who, mDiff, instrument, 0, S_BATTLE_ID))
+    sleep(2);
+    if(who.dead)
+      return;
+    endif
+      
+    if(who.paralyzed)
+      SendSysMessage(who, "Jestes sparalizowan"+ggm(who,6)+".", FONT_NORMAL, COLOR_RED);
+      return;
+    endif;
+
+    if(coordist(oX, oY, who.x, who.y) > 1)
+      SendSysMessage(who, "Oddalil"+ggm(who,3)+" sie.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    if(Distance(who, Targ) > 12)
+      SendSysMessage(who, "Cel sie oddalil.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var Chance := GetEffectiveSkill(who, SKILLID_PROVOCATION) / 2;
+    if(CanMod(Targ, MOD_RUN_SPEED))
+      if(RandomInt(100) < CInt(Chance - (Chance * GetModAmount(Targ, MOD_DISMOUNT_RES) * 0.01)))
+        var Duration := CInt(CalcSkillExponential(who, SKILLID_PROVOCATION, 5));
+        DoMod(Targ, MOD_RUN_SPEED, RUNSPEED_SLOW, Duration);
+        SendSysMessage(who, "Udalo ci sie sprowokowac wierzchowca.", FONT_NORMAL, COLOR_GREEN);
+        return;
+      endif
+    
+    endif
+  endif
+  SendSysMessage(who, "Nie udalo Ci sie sprowokowac wierzchowca.", FONT_NORMAL, COLOR_RED);
+  Sleep(3);
+
+endfunction
+
+//-----------------------------------------------------------------------------

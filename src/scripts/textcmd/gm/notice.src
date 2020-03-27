@@ -1,0 +1,69 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/cmds/loggumps";
+include "include/cmds/cancmd";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+program ShowNoticeLogsCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var stext := SplitWords(text);
+  var FileName := NOTICE_LOG;
+  
+  if(stext[1] == "wm")
+
+    if(CanUseCmd(who, "notice wm"))
+      FileName := WM_NOTICE_LOG;
+    else
+      SendSysMessage(who, "Nie masz uprawnien do przegladania tych logow.", FONT_NORMAL, COLOR_RED);
+    endif
+
+    stext.erase(1);
+  
+  elseif(stext[1] == "sm")
+
+    if(CanUseCmd(who, "notice sm"))
+      FileName := SM_NOTICE_LOG;
+    else
+      SendSysMessage(who, "Nie masz uprawnien do przegladania tych logow.", FONT_NORMAL, COLOR_RED);
+    endif
+
+    stext.erase(1);
+
+  endif
+
+  if(stext[1] == "era")
+
+    if(FileName == NOTICE_LOG and !IsAdmin(who))
+      SendSysMessage(who, "Nie masz uprawnien do kasowania globalnych notice.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who, "Skasowac log ["+FileName+"] ?", FONT_NORMAL, COLOR_GREEN);
+    if(YesNo(who, "Na pewno?"))
+      SendSysMessage(who, "Skasowano log ["+FileName+"]", FONT_NORMAL, COLOR_GREEN);
+      WriteFile(FileName, {});
+    else
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    endif
+
+  else
+
+    if(stext[1] == "sort")
+      stext.erase(1);
+      text := CombineWords(stext);
+      ShowSortedLogs(who, FileName, text);
+    else
+      text := CombineWords(stext);
+      ShowLogs(who, FileName, text);
+    endif
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/deeds";
+include "include/std";
+include "include/cmds/cancmd";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program DeedCfgImportCmd(who, Temp)
+
+  if(!CanUseCmd(who, "deedcfgimp"))
+    return;
+  endif
+
+  SetLogRunCycles(LST_CMD);
+
+  UnloadConfigFile(MDEEDS_CFG);
+  
+  if(!Temp)
+    Temp := SelectTemplate(who);
+    if(!Temp)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  SendSysMessage(who,"Wskaz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  BuildFromTemplate(who,Temp,Loc.x,Loc.y,Loc.z);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

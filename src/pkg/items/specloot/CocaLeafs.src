@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+use uo;
+
+include "include/tempmods";
+
+
+program CocaLeafs(who, item)
+     
+  var duration := 500; //500 sekund
+  var bMod := 0;
+
+  case(CanMod(who,MOD_STAMINA))
+    0: if(CanModifyMod(who, MOD_STAMINA))
+         ModifyMod(who,MOD_STAMINA,35, duration);
+         bMod := 1;
+       endif
+    1: DoMod(who,MOD_STAMINA,35, duration);
+       bMod := 1;
+  endcase
+   
+  case(CanMod(who,MOD_LIFE))
+    0: if(CanModifyMod(who, MOD_LIFE))
+         ModifyMod(who,MOD_LIFE,35, duration);
+         bMod := 1;
+       endif 
+    1: DoMod(who,MOD_LIFE,35, duration);
+       bMod := 1;
+  endcase
+
+  case(CanMod(who,MOD_MANA))
+    0: if(CanModifyMod(who, MOD_MANA))
+         ModifyMod(who,MOD_MANA,35, duration);
+         bMod := 1;
+       endif
+    1: DoMod(who,MOD_MANA,35, duration);
+       bMod := 1;
+  endcase
+
+  if(bMod)
+    SendSysMessage(who, "Zjadasz liscie koki i czujesz przyplyw sil.",FONT_NORMAL,COLOR_GREEN);
+    DestroyItem(item);
+  else
+    SendSysMessage(who, "Zjedzenie lisci koki nie przyniesie efektu.",FONT_NORMAL,COLOR_ORANGE);
+  endif
+
+ //sleepms(500);
+ //SendSysMessage(who,"Liscie koki przestaja dzialac poczujesz oslabienie.");
+ //sleepms(100);
+ //UndoMod()
+  
+endprogram

@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 39;
+
+//-----------------------------------------------------------------------------
+
+program PdSacrifice(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var MainSk := GetEffectiveSkill(Caster, SKILLID_PALADINISM);
+  var MindSk := GetEffectiveSkill(Caster, SKILLID_ZEAL);
+  var Range  := CInt(MainSk / 11 + MindSk / 25);
+  var Amt    := GetHp(Caster) + CInt(MainSk / 5) + (MindSk / 20) + RandomInt(10);
+  var Gained := 0;
+
+  PerformAction(Caster, ANIM_CAST_AREA);
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 32, 0xF, 0x10, 5);
+
+  foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+    if(Mobile != Caster)
+      if(Mobile.criminal or Mobile.murderer)
+        continue;
+      endif
+
+      PlaySoundEffect(Mobile, SFX_SPELL_HEAL);
+      PlayPcEffect(Mobile, FX_HEAL_EFFECT, 85, 0xf, 0x12, 3);
+      HealMobile(Mobile, Amt, Caster);
+      
+      if(Gained < 3)
+        Gained += GainWarcastPoints(Caster, Mobile, PD_WCID, WCGAIN_DEFENSIVE);
+      endif
+    endif
+  endforeach
+
+  SetHp(Caster, 1 + RandomInt(2));
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

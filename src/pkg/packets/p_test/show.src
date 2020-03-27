@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+program ShowTest()
+  print("Packet Testing...");
+  return 1;
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function ShowPacketSend(who,byref Packet)
+
+  start_script("show_send",{who,Packet});
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+exported function ShowPacketRecv(who,byref Packet)
+
+  start_script("show_recv",{who,Packet});
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

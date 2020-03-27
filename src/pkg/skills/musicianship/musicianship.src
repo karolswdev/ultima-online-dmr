@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+
+include ":musicianship:music";
+
+//-----------------------------------------------------------------------------
+
+program Musicianship(who, item)
+
+  if(!StandardItemCheck(who,item,NO_COMBAT_CHECK))
+    return;
+
+  endif
+
+  if(!can_sing(who))
+    return;
+  endif
+
+  var Points := GetDefaultPointsValue(SKILLID_MUSICIANSHIP);
+  Play(who, -1, item,Points);
+
+  var x,y,i;
+  
+  for(i:=0; i<3; i:=i+1)
+    x := who.x;
+    y := who.y;
+    sleep(1);
+    if(CoorDist(who.x ,who.y , x,y) > 4 )
+      sleep(1);
+    endif
+  endfor
+
+endprogram
+
+//-----------------------------------------------------------------------------

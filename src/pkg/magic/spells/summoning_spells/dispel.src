@@ -1,0 +1,116 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/systems/wearwolf/common";
+include "../pkg/systems/vampire/common";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 41;
+
+//-----------------------------------------------------------------------------
+
+program CastDispel( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_OBJECT, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Reflected(CastOn, Caster))
+    CastOn := caster;
+  endif
+
+  if(CastOn.objtype == UOBJ_BLUEGATE or CastOn.objtype == UOBJ_REDGATE or CastOn.objtype == UOBJ_BLACKGATE)
+    var Creator := FindPlayerBySerial(GetobjProperty(CastOn, "Creator"));
+    if(IsPlayer(Creator) and !IsStaff(Creator) and GetObjProperty(CastOn,"DestGateSer") and !GetObjProperty(CastOn,"City") and !CInt(GetObjProperty(CastOn,"FireMoon")))
+      PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_SMOKE, 0xa, 0xa,0,CastOn.realm);
+      DestroyItem(CastOn);
+    else
+      Fizzle(Caster, "Tego nie mozesz odwolac.");
+    endif
+    return;
+  endif
+
+  if(GetModAmount(CastOn,MOD_GRAPHIC) and !IsWearWolfMorphed(CastOn))
+    if(CastOn != Caster)
+      if(CastOn.graphic == CID_LICHE or CastOn.graphic == CID_VAMP_GARGOYLE  or CastOn.graphic == CID_VAMP_BAT or CastOn.graphic == CID_WOLF or CastOn.graphic == CID_GRIZZLY or IsWolfMorphed(CastOn))
+        Fizzle(Caster,"Twa moc jest za slaba...");
+        return;
+      endif
+    endif
+
+    UndoMod(CastOn,MOD_GRAPHIC);
+    UndoMod(CastOn,MOD_INCO);
+    UndoMod(CastOn,MOD_STATUS);
+    UndoMod(CastOn,MOD_TPREFIX);
+    UndoMod(CastOn,MOD_TSUFFIX);
+    UndoMod(CastOn,MOD_TRACE);
+    UndoMod(CastOn,MOD_TGUILD);
+    UndoMod(CastOn,MOD_UNTOUCHABLE);
+    UndoMod(CastOn,MOD_RUN_SPEED);
+    UndoMod(CastOn,MOD_COLOR);
+
+    if(!IsInVampireChange(CastOn))
+      if(GetModAmount(CastOn,MOD_INT) > 0)
+        UndoMod(CastOn, MOD_INT, UMDF_WAIT);
+      endif
+      if(GetModAmount(CastOn,MOD_DEX) > 0)
+        UndoMod(CastOn,MOD_DEX, UMDF_WAIT);
+      endif
+      if(GetModAmount(CastOn,MOD_STR) > 0)
+        UndoMod(CastOn,MOD_STR, UMDF_WAIT);
+      endif
+      if(GetModAmount(CastOn,MOD_AR) > 0)
+        UndoMod(CastOn,MOD_AR, UMDF_WAIT);
+      endif
+    endif
+    return;
+  endif
+
+  if(IsSummoned(CastOn) and !IsSetFlag(CastOn, NPCF_MIN_LOOT))
+    PlaySoundEffect( caster, 0x202 );
+    PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_HEAL_EFFECT, 0xa, 0xa, 0, CastOn.realm );
+    var Master := GetMaster(CastOn);
+    if(Master)
+      var MasterResist := GetEffectiveSkill(Master, SKILLID_MAGICRESISTANCE);
+      var Chance       := CInt(MasterResist * 0.5);
+      var cfgElem      := GetNpcConfig(CastOn);
+
+      if(cfgElem.DispelResist)
+        Chance := CInt(MasterResist * (CInt(cfgElem.DispelResist) * 0.01));
+      endif
+      if((RandomInt(100) + 1) > Chance)
+        GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+        KillSummonedCreature(CastOn, Master);
+      elseif(IsPlayer(Caster))
+        SendSysMessage(Caster,"Nie udalo Ci sie odwolac tego stworzenia!",FONT_NORMAL,COLOR_RED);
+      endif
+    else
+      GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+      KillSummonedCreature(CastOn);
+    endif
+    if(CastOn)
+      SendChEvent(CastOn,Caster,EVID_ENGAGED);
+    endif
+  elseif(CastOn.isA(POLCLASS_NPC))
+    if(IsNpcElemental(CastOn, NPCELEM_UNDEAD))
+      PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_HEAL_EFFECT, 0xa, 0xa, 0, CastOn.realm );
+      SendChEvent(CastOn,Caster,EVID_PEACEMADE);
+      SendChEvent(CastOn,Caster,EVID_ENGAGED);
+      PlaySoundEffect(Caster, 0x202);
+      PlayObjectCenteredEffect(CastOn, 0x37b9, 0x03, 0x0a);
+      var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+      if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+        GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

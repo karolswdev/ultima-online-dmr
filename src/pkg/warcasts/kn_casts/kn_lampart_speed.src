@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 131;
+
+//-----------------------------------------------------------------------------
+
+program KnLampartSpeed(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var SkKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+
+  var Duration := 3 + (CInt(SkKensai / 25) * 3);
+
+  PlaySoundEffect(Caster, SFX_SPELL_INVISIBILITY);
+  PlaySoundEffect(Caster, SFX_FREN_WHIRLWIND);
+
+  Caster.hidden       := 1;
+  Caster.stealthsteps := Duration;
+  PlayPcStEffect(Caster.x, Caster.y, Caster.z+1, Caster.realm, FX_SMOKE, 1101, 0x10, 0xE, 3);
+
+  GainWarcastPoints(Caster, Caster, KN_WCID, WCGAIN_NORMAL);
+
+  while(Duration)
+    if(!Caster.hidden)
+      PlayPcStEffect(Caster.x, Caster.y, Caster.z+1, Caster.realm, FX_SMOKE, 1101, 0x10, 0xE, 3);
+      PlaySoundEffect(Caster, SFX_SPELL_INVISIBILITY);
+      Caster.stealthsteps := 0;
+      break;
+    endif
+
+    sleepms(400);
+    Duration := Duration - 1;
+  endwhile
+
+  if(Caster.hidden)
+    PlayPcStEffect(Caster.x, Caster.y, Caster.z+1, Caster.realm, FX_SMOKE, 1101, 0x10, 0xE, 3);
+    PlaySoundEffect(Caster, SFX_SPELL_INVISIBILITY);
+    Caster.hidden := 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

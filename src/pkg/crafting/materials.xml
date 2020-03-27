@@ -1,0 +1,144 @@
+<items>
+  <item Type="0x1BD7" Location="lumberjacking" Class="Item" Name="board" Desc="deski%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1766" Location="tailoring" Class="Item" Name="clothpiece" Desc="tkanina%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1EB2" Location="carpentry" Class="Item" Name="barrelstaves" Desc="zaokraglone deski" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x1DB8" Location="carpentry" Class="Item" Name="barrellid" Desc="wieko" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x10E1" Location="tinkering" Class="Item" Name="barrelhoops" Desc="obrecz" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x6544" Location="mining" Class="Item" Name="grafitIngot" Desc="grafit%%" VendorBuysFor="6" VendorSellsFor="80" />
+  <item Type="0x1BDD" Location="lumberjacking" Class="Item" Name="log" Desc="klody%%" VendorBuysFor="1" VendorSellsFor="80" />
+  <item Type="0xEE18" Location="blacksmithy" Class="Item" Name="sand" Desc="piasek%%" VendorBuysFor="1" VendorSellsFor="8" />
+  <item Type="0x6530" Location="mining" Class="Item" Name="IronIngot" Desc="zelazo%%" VendorBuysFor="2" VendorSellsFor="40" />
+  <item Type="0x6546" Location="magicitemmaking" Class="Item" Name="Crystal" Desc="krysztal%y%" VendorBuysFor="150" VendorSellsFor="240" />
+  <item Type="0x14EB" Location="cartography" Class="Map" Name="blankmap" Desc="czysta mapa" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x1BE9" Location="blacksmithy" Class="Item" Name="goldingotm" Desc="zloto%%" VendorBuysFor="70" VendorSellsFor="150" />
+  <item Type="0x0F13" Location="spells" Class="Item" Name="ruby" Desc="rubin%y%" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0x104F" Location="tinkering" Class="Item" Name="clockparts" Desc="czesci do zegara%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x1086" Location="tinkering" Class="Item" Name="bracelet" Desc="bransoleta" VendorBuysFor="32" VendorSellsFor="96" />
+  <item Type="0xEE20" Location="blacksmithy" Class="Item" Name="glassingot" Desc="szklo%%" VendorBuysFor="2" VendorSellsFor="20" />
+  <item Type="0x0F8C" Location="spells" Class="Item" Name="SulphurousAsh" Desc="siarka%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x0F7A" Location="spells" Class="Item" Name="BlackPearl" Desc="czarne perly%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x0F0F" Location="spells" Class="Item" Name="starsapphire" Desc="gwiezdny szafir%%" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0F84" Location="spells" Class="Item" Name="garlic" Desc="czosnek%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x0F30" Location="spells" Class="Item" Name="diamond" Desc="diament%y%" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0F86" Location="spells" Class="Item" Name="mandrake" Desc="mandragora%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x0F16" Location="spells" Class="Item" Name="amethyst" Desc="ametyst%y%" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0F85" Location="spells" Class="Item" Name="ginseng" Desc="zenszen%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x0F11" Location="spells" Class="Item" Name="sapphire" Desc="szafir%y%" VendorBuysFor="30" VendorSellsFor="90" />
+  <item Type="0x0F15" Location="spells" Class="Item" Name="citrine" Desc="cytryn%%" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x0F7B" Location="spells" Class="Item" Name="BloodMoss" Desc="krwawy mech%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x0F25" Location="spells" Class="Item" Name="amber" Desc="bursztyn%y%" VendorBuysFor="10" VendorSellsFor="30" />
+  <item Type="0x0F8D" Location="spells" Class="Item" Name="Spidersilk" Desc="pajecze sieci%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x0F18" Location="spells" Class="Item" Name="tourmaline" Desc="turmalin%%" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x0F88" Location="spells" Class="Item" Name="Nightshade" Desc="wilcze jagody%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x0F80" Location="spells" Class="Item" Name="DaemonBone" Desc="kosci demona%%" VendorBuysFor="20" VendorSellsFor="80" />
+  <item Type="0xA800" Location="vampire" Class="Item" Name="VialBlood" Desc="krew%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x0F7C" Location="spells" Class="Item" Name="BloodSpawn" Desc="krwawe nasienie%%" VendorBuysFor="25" VendorSellsFor="50" />
+  <item Type="0x1605" Location="cooking" Class="Item" Name="soupvase" Desc="waza na zupe%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x0F78" Location="spells" Class="Item" Name="BatWing" Desc="skrzydla nietoperza%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x09B5" Location="cookitems" Class="Item" Name="egg" Desc="jajko%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0xC75B" Location="cookitems" Class="Item" Name="cornflour" Desc="maka kukurydziana" VendorBuysFor="10" VendorSellsFor="20" />
+  <item Type="0x09B9" Location="cookitems" Class="Item" Name="RawBird" Desc="surowy ptak%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0xC717" Location="eatitems" Class="Item" Name="cream" Desc="smietana" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x0D19" Location="cookitems" Class="Item" Name="mushroom" Desc="borowik%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0xA722" Location="wearwolf" Class="Item" Name="wearwolfheart" Desc="serce wilkolaka%%" VendorBuysFor="8" VendorSellsFor="16" />
+  <item Type="0x0F8E" Location="spells" Class="Item" Name="SerpentScale" Desc="luski weza%%" VendorBuysFor="10" VendorSellsFor="20" />
+  <item Type="0xC779" Location="cookitems" Class="Item" Name="risedough" Desc="ciasto ryzowe%%" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x09F1" Location="cookitems" Class="Item" Name="RawRibs" Desc="surowe zebra%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0x103F" Location="cookitems" Class="Item" Name="cookiemix" Desc="ciasto ucierane" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x0F87" Location="spells" Class="Item" Name="EyeOfNewt" Desc="oko beholdera%%" VendorBuysFor="20" VendorSellsFor="40" />
+  <item Type="0x0C70" Location="eatitems" Class="Item" Name="lettuce" Desc="salata%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0xC72E" Location="eatitems" Class="Item" Name="cookedegg" Desc="gotowane jaj%ka/ko%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0x1DA3" Location="config" Class="Item" Name="leftleg" Desc="Lewa Noga" VendorBuysFor="100" VendorSellsFor="1500" />
+  <item Type="0x0C6D" Location="eatitems" Class="Item" Name="onion" Desc="cebula%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x1F9B" Location="drinkitems" Class="Item" Name="pitcherofwine" Desc="wino" VendorBuysFor="9" VendorSellsFor="30" />
+  <item Type="0x097E" Location="eatitems" Class="Item" Name="WheelOfCheese" Desc="ser%%" VendorBuysFor="5" VendorSellsFor="15" />
+  <item Type="0x0DD8" Location="fishing" Class="Item" Name="sardine" Desc="sardynki" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x15F8" Location="cooking" Class="Item" Name="woodenbowl" Desc="drewniana miska%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0xC73A" Location="fishing" Class="Item" Name="oyster" Desc="ostryga%%" VendorBuysFor="2" VendorSellsFor="8" />
+  <item Type="0x09F0" Location="drinkitems" Class="Item" Name="pitcherofmilk" Desc="dzbanek z mlekiem" VendorBuysFor="10" VendorSellsFor="20" />
+  <item Type="0xA720" Location="wearwolf" Class="Item" Name="wolfblood" Desc="krew wilka%%" VendorBuysFor="2" VendorSellsFor="4" />
+  <item Type="0x9040" Location="farming" Class="Item" Name="rise" Desc="ryz%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0x24E2" Location="drinkitems" Class="Item" Name="sake" Desc="sake" VendorBuysFor="4" VendorSellsFor="20" />
+  <item Type="0x3B0E" Location="fishing" Class="Item" Name="squid" Desc="kalamarnica" VendorBuysFor="25" VendorSellsFor="150" />
+  <item Type="0x0F82" Location="spells" Class="Item" Name="DragonBlood" Desc="krew smoka%%" VendorBuysFor="15" VendorSellsFor="60" />
+  <item Type="0x0C5C" Location="eatitems" Class="Item" Name="watermelon" Desc="arbuz%%" VendorBuysFor="6" VendorSellsFor="13" />
+  <item Type="0x172C" Location="eatitems" Class="Item" Name="peach" Desc="brzoskwinia%%" VendorBuysFor="1" VendorSellsFor="7" />
+  <item Type="0x09EC" Location="eatitems" Class="Item" Name="honey" Desc="miod%%" VendorBuysFor="13" VendorSellsFor="39" />
+  <item Type="0xC709" Location="cookitems" Class="Item" Name="sweetcookiemix" Desc="slodkie ciasto ucierane" VendorBuysFor="12" VendorSellsFor="36" />
+  <item Type="0x1044" Location="cookitems" Class="Item" Name="spam" Desc="mieso%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0xC704" Location="cookitems" Class="Item" Name="doughball" Desc="kulka ciasta%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0x1E8C" Location="cookitems" Class="Item" Name="pigfeets" Desc="swinskie nozki%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xC721" Location="eatitems" Class="Item" Name="tomato" Desc="pomidor%%" VendorBuysFor="6" VendorSellsFor="14" />
+  <item Type="0x1039" Location="cookitems" Class="Item" Name="Flour" Desc="maka%%" VendorBuysFor="4" VendorSellsFor="7" />
+  <item Type="0xC700" Location="cookitems" Class="Item" Name="ferment" Desc="zaczyn%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xC705" Location="cookitems" Class="Item" Name="sweetdoughball" Desc="slodka kulka ciasta%%" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x171F" Location="eatitems" Class="Item" Name="banana" Desc="banan%%" VendorBuysFor="2" VendorSellsFor="8" />
+  <item Type="0x1723" Location="eatitems" Class="Item" Name="coconut" Desc="orzech kokosowy%%" VendorBuysFor="4" VendorSellsFor="10" />
+  <item Type="0x1F99" Location="drinkitems" Class="Item" Name="pitcherofliquor" Desc="likier" VendorBuysFor="10" VendorSellsFor="38" />
+  <item Type="0x09D7" Location="tinkering" Class="Item" Name="plate" Desc="talerz" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0xC701" Location="cookitems" Class="Item" Name="yeast" Desc="drozdze%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x09D0" Location="eatitems" Class="Item" Name="apple" Desc="jablko%%" VendorBuysFor="1" VendorSellsFor="7" />
+  <item Type="0x1727" Location="eatitems" Class="Item" Name="dates" Desc="daktyl%%" VendorBuysFor="1" VendorSellsFor="6" />
+  <item Type="0xC70A" Location="cookitems" Class="Item" Name="pizzacrust" Desc="ciasto na pizze%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x0C7F" Location="farming" Class="Item" Name="corn" Desc="kukurydza%%" VendorBuysFor="2" VendorSellsFor="8" />
+  <item Type="0x09B8" Location="eatitems" Class="Item" Name="CookedBird" Desc="gotowany ptak" VendorBuysFor="37" VendorSellsFor="111" />
+  <item Type="0x1728" Location="eatitems" Class="Item" Name="lemons" Desc="cytryna%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x0DD7" Location="fishing" Class="Item" Name="anchovies" Desc="sardele" VendorBuysFor="7" VendorSellsFor="30" />
+  <item Type="0x097A" Location="cookitems" Class="Item" Name="RawFishSteak" Desc="surowe steki rybne%%" VendorBuysFor="1" VendorSellsFor="4" />
+  <item Type="0x097B" Location="eatitems" Class="Item" Name="bakedfishsteak" Desc="steki rybne%%" VendorBuysFor="1" VendorSellsFor="3" />
+  <item Type="0x09CE" Location="fishing" Class="Item" Name="carp" Desc="karp%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x09CF" Location="fishing" Class="Item" Name="cod" Desc="dorsz%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x09CC" Location="fishing" Class="Item" Name="sheatfish" Desc="sum%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x09CD" Location="fishing" Class="Item" Name="salmon" Desc="losos%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x1F95" Location="drinkitems" Class="Item" Name="pitcherofale" Desc="piwo" VendorBuysFor="5" VendorSellsFor="26" />
+  <item Type="0x0D39" Location="eatitems" Class="Item" Name="turnip" Desc="rzepa%%" VendorBuysFor="4" VendorSellsFor="8" />
+  <item Type="0x0C78" Location="eatitems" Class="Item" Name="carrot" Desc="marchewka%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x0979" Location="eatitems" Class="Item" Name="baconstrip" Desc="plastry bekonu%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x09EA" Location="eatitems" Class="Item" Name="muffin" Desc="buleczka%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0x0C6A" Location="eatitems" Class="Item" Name="pumpkin" Desc="dynia%%" VendorBuysFor="6" VendorSellsFor="14" />
+  <item Type="0x172A" Location="eatitems" Class="Item" Name="limes" Desc="cytrus%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0x172D" Location="eatitems" Class="Item" Name="pear" Desc="gruszka%%" VendorBuysFor="2" VendorSellsFor="7" />
+  <item Type="0x0DD9" Location="fishing" Class="Item" Name="sprat" Desc="szprotki" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x0DD6" Location="fishing" Class="Item" Name="herring" Desc="sledzie" VendorBuysFor="7" VendorSellsFor="12" />
+  <item Type="0xC736" Location="eatitems" Class="Item" Name="cheesenoodle" Desc="kluseczki z serem" VendorBuysFor="11" VendorSellsFor="33" />
+  <item Type="0x3B14" Location="fishing" Class="Item" Name="shrimp" Desc="krewetka" VendorBuysFor="15" VendorSellsFor="80" />
+  <item Type="0x1F9D" Location="drinkitems" Class="Item" Name="pitcherofwater" Desc="dzbanek z woda" VendorBuysFor="4" VendorSellsFor="12" />
+  <item Type="0x0FF6" Location="drinkitems" Class="Item" Name="emptypitcher" Desc="szklany dzbanek" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x0C74" Location="cookitems" Class="Item" Name="honeydew" Desc="miod%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0xC718" Location="cookitems" Class="Item" Name="honeyjar" Desc="sloik na miod%%" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x09D1" Location="eatitems" Class="Item" Name="grapes" Desc="winogrono%%" VendorBuysFor="1" VendorSellsFor="5" />
+  <item Type="0x0C7B" Location="eatitems" Class="Item" Name="cabbage" Desc="kapusta%%" VendorBuysFor="4" VendorSellsFor="10" />
+  <item Type="0x0976" Location="cookitems" Class="Item" Name="SlabOfBacon" Desc="bekon%%" VendorBuysFor="5" VendorSellsFor="12" />
+  <item Type="0x0C73" Location="eatitems" Class="Item" Name="squash" Desc="kabaczek%%" VendorBuysFor="3" VendorSellsFor="8" />
+  <item Type="0x1873" Location="cookitems" Class="Item" Name="boundpig" Desc="oprawiona swinia" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x09C9" Location="cookitems" Class="Item" Name="ham" Desc="szynka" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x1607" Location="cookitems" Class="Item" Name="rawchickenleg" Desc="surowe udo kurczaka%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0x1609" Location="cookitems" Class="Item" Name="rawlegoflamb" Desc="surowe udo jagniecia%%" VendorBuysFor="6" VendorSellsFor="18" />
+  <item Type="0x09C0" Location="eatitems" Class="Item" Name="sausage" Desc="kielbasa" VendorBuysFor="20" VendorSellsFor="60" />
+  <item Type="0xC778" Location="eatitems" Class="Item" Name="risepaper" Desc="papier ryzowy%%" VendorBuysFor="3" VendorSellsFor="9" />
+  <item Type="0x15FA" Location="eatitems" Class="Item" Name="BowlBroth" Desc="rosol" VendorBuysFor="14" VendorSellsFor="28" />
+  <item Type="0xC793" Location="eatitems" Class="Item" Name="lemonjuice" Desc="sok cytrynowy" VendorBuysFor="38" VendorSellsFor="114" />
+  <item Type="0xC798" Location="eatitems" Class="Item" Name="pearjuice" Desc="sok gruszkowy" VendorBuysFor="15" VendorSellsFor="45" />
+  <item Type="0x0F0E" Location="alchemy" Class="Item" Name="EmptyBottle" Desc="pusta butelka%%" VendorBuysFor="2" VendorSellsFor="4" />
+  <item Type="0xC857" Location="cooking" Class="Item" Name="sunoil" Desc="olej slonecznikowy" VendorBuysFor="200" VendorSellsFor="950" />
+  <item Type="0xC858" Location="cooking" Class="Item" Name="smallsunoil" Desc="maly olej slonecznikowy" VendorBuysFor="85" VendorSellsFor="250" />
+  <item Type="0x3191" Location="config" Class="Item" Name="trufle" Desc="trufle%%" VendorBuysFor="5" VendorSellsFor="10" />
+  <item Type="0x0F89" Location="spells" Class="Item" Name="Obsidian" Desc="obsydian%%" VendorBuysFor="15" VendorSellsFor="30" />
+  <item Type="0x0F90" Location="spells" Class="Item" Name="Deadwood" Desc="martwe drzewo%%" VendorBuysFor="10" VendorSellsFor="20" />
+  <item Type="0x0F7E" Location="spells" Class="Item" Name="Bone" Desc="kosc%i%" VendorBuysFor="2" VendorSellsFor="8" />
+  <item Type="0x0F81" Location="spells" Class="Item" Name="FertileDirt" Desc="zyzna gleba%%" VendorBuysFor="3" VendorSellsFor="10" />
+  <item Type="0x0F8A" Location="spells" Class="Item" Name="PigIron" Desc="surowka%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0xA721" Location="wearwolf" Class="Item" Name="frostwolfblood" Desc="krew lodowego wilka%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0x0F7F" Location="spells" Class="Item" Name="Brimstone" Desc="otoczak%%" VendorBuysFor="7" VendorSellsFor="21" />
+  <item Type="0x182D" Location="alchemy" Class="Item" Name="MedFlask" Desc="flaszka%%" VendorBuysFor="3" VendorSellsFor="6" />
+  <item Type="0x183A" Location="alchemy" Class="Item" Name="LongFlask" Desc="flaszka%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0x183D" Location="alchemy" Class="Item" Name="LargeFlask" Desc="flaszka%%" VendorBuysFor="6" VendorSellsFor="12" />
+  <item Type="0x0F7D" Location="spells" Class="Item" Name="BloodReagent" Desc="skladnik krwi%%" VendorBuysFor="16" VendorSellsFor="48" />
+  <item Type="0x0E24" Location="config" Class="Item" Name="vial" Desc="fiolka%%" VendorBuysFor="2" VendorSellsFor="6" />
+  <item Type="0xA852" Location="paladin" Class="Item" Name="HolyWater" Desc="woda swiecona%%" VendorBuysFor="7" VendorSellsFor="14" />
+  <item Type="0x26B6" Location="spells" Class="Item" Name="DragonScale" Desc="luski smoka%%" VendorBuysFor="15" VendorSellsFor="30" />
+  <item Type="0x1067" Location="tailoring" Class="Item" Name="leather" Desc="skora%%" VendorBuysFor="3" VendorSellsFor="90" />
+  <item Type="0xA501" Location="carpets" Class="Item" Name="twine" Desc="dratwa%%" VendorBuysFor="2" VendorSellsFor="5" />
+  <item Type="0x3197" Location="config" Class="Item" Name="FireRuby" Desc="ognisty rubin%%" VendorBuysFor="10" VendorSellsFor="40" />
+  <item Type="0x0F8F" Location="spells" Class="Item" Name="VolcanicAsh" Desc="wulkaniczny pyl%%" VendorBuysFor="12" VendorSellsFor="48" />
+</items>

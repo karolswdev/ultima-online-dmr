@@ -1,0 +1,145 @@
+//--------------------------------------------------------------------------
+// Modified: 2005-05-31
+//--------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/std";
+include "include/finding";
+include "include/attributes/main";
+include "include/player/target";
+include "include/names";
+
+include "include/tempmods";
+
+include ":quests:bq_gump";
+include ":quests:quests";
+
+//--------------------------------------------------------------------------
+
+var QData, who;
+
+//--------------------------------------------------------------------------
+
+program ShowFaithQuestPlayerInfo(_who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  who    := _who;
+
+  var Player;
+
+  if(CInt(text))
+    Player := FindPlayerBySerial(text);
+  elseif(text)
+    Player := FindCharacterByName(text);
+  endif
+
+  if(!Player)
+    Player := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!IsPlayer(Player))
+    SendSysMessage(who,"To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  QData := GetObjProperty(Player, PROP_FAITHQDATA);
+  BuildMainFqGump(Player);
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res   := GSend(who);
+    QData := GetObjProperty(Player, PROP_FAITHQDATA);
+
+    case(Res.butid)
+      100:       if(YesNo(who, "Zresetowac?"))
+                   QData.Delay := 0;
+                   SetObjProperty(Player, PROP_FAITHQDATA, QData);
+                 endif
+
+      default:   return;
+    endcase
+    BuildMainFqGump(Player);
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------
+
+function BuildMainFqGump(Player)
+
+  BQGInit("Quest wiary Gracza "+GetRealName(Player), 600, 310);
+
+  if(!QData)
+    return;
+  endif
+
+  GResPic(30, 50, 0xa3c, 340, 220);
+
+  var QTime     := 0;
+  var JoinTime  := "0s";
+  var DelayTime := "0s";
+  var Time      := CInt(GetObjProperty(Player, PROP_FAITHSTIME));
+
+  if(Time)
+    JoinTime := ShortRealTime(ReadGameClock() - Time);
+  endif
+
+  if(QData.Delay)
+    DelayTime := ShortRealTime(QData.Delay - ReadGameClock());
+  endif
+
+  if(QData.Time)
+    QTime := ReadGameClock() - QData.Time;
+  endif
+
+  var WcID := 0;
+
+  if(QData.Type < 0x4000)
+    WcID := QData.Type;
+  endif
+
+  GTextLine(40,  60, 670, "Czas od zp:");
+  GTextLine(130, 60, 550, JoinTime);
+  GTextLine(40,  80, 670, "Opoznienie:");
+  GTextLine(130, 80, 550, DelayTime);
+
+  GTextLine(40,  110, 670, "Ostatnie Zadanie:");
+  GTextLine(40,  130, 670, "wcID:");
+  GTextLine(130, 130, 550, WcID);
+  GTextLine(40,  150, 670, "Bilet:");
+  GTextLine(130, 150, 550, QData.Ticket);
+  GTextLine(40,  170, 670, "Quest ID:");
+  GTextLine(130, 170, 550, QData.QId);
+  GTextLine(40,  190, 670, "Czas od:");
+  GTextLine(130, 190, 550, ShortRealTime(QTime));
+
+  GTextLine(40,  210, 670, "NPC Serial:");
+  GTextLine(130, 210, 550, QData.Source);
+
+  if(QData.Source)
+    var Npc := FindNpcBySerial(QData.Source);
+    if(Npc.name)
+      GTextLine(40,  230, 670, "NPC Imie:");
+      GTextLine(130, 230, 550, Npc.name);
+    endif
+  endif
+
+  GTextLine(400, 20, 670, "Flagi:");
+  BQGAddTextBox(410, 50, 125, 20, FCLR_TEBOX, "Test Quest", 0);
+  BQGCheckBox(535, 47, 0, QData.Type == 0x40000000, 21);
+
+  BQGAddTextBox(410, 80, 125, 20, FCLR_TEBOX, "Failed", 0);
+  BQGCheckBox(535, 77, 0, QData.Flags & QF_FAILED, 22);
+
+  BQGAddTextBox(410, 110, 125, 20, FCLR_TEBOX, "Completed", 0);
+  BQGCheckBox(535, 107, 0, QData.Flags & QF_COMPLETED, 23);
+  
+  if(IsAdmin(who))
+    GButton(24, 83, 2117, 2118, 100);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------

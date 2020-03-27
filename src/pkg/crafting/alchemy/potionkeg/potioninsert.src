@@ -1,0 +1,36 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "potionkeg";
+include "include/move";
+include "include/objtypes/skills";
+
+//-----------------------------------------------------------------------------
+
+program OnInsertPotionKeg(who, keg, movetype, inserttype, adding_item, existing_stack)
+
+  var potion := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    potion := existing_stack;
+  endif
+
+  if(keg.locked)
+    SendSysMessage(who, "Ten keg jest zalakowany!", FONT_NORMAL, COLOR_RED);
+  elseif(GetPotionQuality(keg) != GetPotionQuality(potion))
+    SendSysMessage(who, "Ta mikstura nie pasuje do tego kega!", FONT_NORMAL, COLOR_RED);
+  else
+    AddPotionToKeg(who,keg,potion);
+  endif
+
+  if(potion)
+    MoveToPack(potion, who);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

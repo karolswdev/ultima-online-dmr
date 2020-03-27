@@ -1,0 +1,147 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cancmd";
+include "include/clock";
+include "include/finding";
+include "include/msgs";
+include "include/player/target";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+var Targ, who;
+
+//-----------------------------------------------------------------------------
+
+program CanCmd(_who, text)
+
+  who  := _who;
+  text := SplitWords(text);
+
+  if(CInt(text[1]))
+    Targ := FindPlayerBySerial(text[1]);
+    text.erase(1);
+  endif
+
+  case(text[1])
+    "set":        text.erase(1); SetCmd(CombineWords(text));
+    "era":        text.erase(1); EraCmd(CombineWords(text));
+    "clear":      ClearCmds();
+    "setgrp":     SetGroupCmds(text[2]);
+    "status":     StatusCmd();
+    default:      SendSysMessage(who, ".cancmd [set/era/clear/setgrp/status]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckTarg()
+
+  if(!Targ)
+    SendSysMessage(who, "Wskaz osobe.", FONT_NORMAL, COLOR_GREEN);
+    Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  endif
+
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie osoba.", FONT_NORMAL, COLOR_RED);
+    exit;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetCmd(cName)
+
+  CheckTarg();
+
+  if(!cName)
+    SendSysMessage(who, "Wpisz nazwe komendy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Res := AccessCmd(Targ, cName);
+  if(Res)
+    SendSysMessage(who, "Osoba "+Targ.name+" ma wlaczona komende ["+cName+"] od "+CUnixTime(Res)+".", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Wlaczyl"+ggm(who,3)+" komende ["+cName+"] osobie "+Targ.name+".", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraCmd(cName)
+
+  CheckTarg();
+
+  if(!cName)
+    SendSysMessage(who, "Wpisz nazwe komendy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Res := EraseAccessCmd(Targ, cName);
+  if(Res)
+    SendSysMessage(who, "Wylaczyl"+ggm(who,3)+" komende ["+cName+"] osobie "+Targ.name+".", FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Osoba "+Targ.name+" nie ma wlaczonej komendy ["+cName+"].", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearCmds()
+
+  CheckTarg();
+
+  EraseAllCmds(Targ);
+
+  SendSysMessage(who, "Usunal"+ggm(who,3)+" wszystkie komendy osobie "+Targ.name+".", FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetGroupCmds(GroupName)
+
+  CheckTarg();
+
+  if(!GroupName)
+    SendSysMessage(who, "Wpisz nazwe grupy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Res := SetGroupAccessCmd(Targ, GroupName);
+
+  if(Res)
+    SendSysMessage(who, "Wlaczyl"+ggm(who,3)+" grupe komend ["+GroupName+"] osobie "+Targ.name+".", FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Grupa komend ["+GroupName+"] nie istnieje.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StatusCmd()
+
+  CheckTarg();
+
+  var Cmds := GetAccessCmd(Targ);
+
+  if(!Cmds.size())
+    SendSysMessage(who, "Osoba "+Targ.name+" nie ma wlaczonej zadnej komendy.", FONT_NORMAL, COLOR_RED);
+  else
+    foreach Cmd in Cmds
+      SendSysMessage(who, CUnixTime(Cmd)+" - ["+_Cmd_iter+"]", FONT_NORMAL, COLOR_GREEN);
+      Sleepms(1);
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

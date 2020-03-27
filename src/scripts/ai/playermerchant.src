@@ -1,0 +1,1859 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "include/player/misc";
+include ":banking:gold";
+include "include/effects";
+include "include/checks/objchecks";
+include "include/equipment";
+include "ai/include/shop_packets";
+include "ai/include/smaster";
+
+include ":housing:housing";
+include "../pkg/systems/renthouse/renthouse";
+include "../pkg/systems/spawnnet/spawnnet";
+include ":quests:quest_ctrl";
+include ":npcguilds:common";
+include ":fences:fences";
+include ":carpets:rolls";
+
+//-----------------------------------------------------------------------------
+
+const V_SPEECH_RANGE         := 1;
+const SEARCH_RANGE           := 3;
+const WORKING_TIME           := 86400;// 24h
+const MAX_BUY_ITEMS          := 20;
+const ST_PAYMENT             := 200;
+const PAYMENT_PER            := 0.02;
+const VENDOR_BUY_PRICE       := 10000;
+const MIN_SOLD_GOLD          := 5000;
+
+//-----------------------------------------------------------------------------
+
+var me := Self();
+var waittime, following, _MeMaster, MyGold, Payment, _House, _HouseRent, NextHouseCheck, inv_fs, inv_pb;
+
+//-----------------------------------------------------------------------------
+
+SaveAiSerial();
+sleep(1);
+check_frozen();
+check_alignment();
+
+//-----------------------------------------------------------------------------
+
+function InitData()
+
+  var storage := FindStorageArea( VENDOR_STORAGE );
+
+  if(!storage)
+    storage := CreateStorageArea( VENDOR_STORAGE );
+    LogNotice("[PlayerVendor] Tworzenie Storage ["+VENDOR_STORAGE+"]", LOGF_NOTE_INFO | LOGF_NO_NEED | LOGF_SCRIPTS);
+  endif
+
+  var inv_1c := FindItemInStorage( storage, me.serial + VENDOR_FS_CONTNAME, UOBJ_BANKBOX );
+  inv_pb := FindItemInStorage( storage, me.serial + VENDOR_PB_CONTNAME, UOBJ_BANKBOX );
+  inv_fs := FindItemInStorage( storage, me.serial + VENDOR_1C_CONTNAME, UOBJ_BANKBOX );
+
+  if (!inv_fs or !inv_pb or !inv_1c)
+    return 0;
+  endif
+
+  waittime       := DEF_WAITTIME;
+  following      := 0;
+  _MeMaster      := FindVendorMaster();
+  MyGold         := CInt(GetObjProperty(me,"MyGold"));
+  Payment        := CInt(GetObjProperty(me,"Payment"));
+  _House         := FindItemBySerial(GetObjProperty(me,"MultiOwnerSerial"));
+  _HouseRent     := 0;
+  NextHouseCheck := ReadGameClock();
+
+  if(GetHrNr(_House))
+    _HouseRent := GetHr(GetHrCity(_House), GetHrNr(_House));
+  endif
+
+  if(!Payment)
+    SetPayment(ST_PAYMENT);
+  endif
+
+  CheckHouseVendor(me, _House);
+  
+	var foundMerchantItem := 0;
+	var houseItem;
+	var item;
+			
+	var items := ListItemsNearLocation(me.x, me.y, 0x40000000, 8, me.realm);
+			
+	foreach item in items
+		if(item.name == "KUPCY")
+			foundMerchantItem := 1;
+			houseItem := item;
+			break;
+		endif
+	endforeach
+			
+	if(foundMerchantItem)
+		_House := houseItem;
+	else		
+		Say("Tu nie ma domu albo bazaru kupcow.");
+	endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+program PlayerVendor_AI()
+
+  if(!InitData())
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents( EVID_ITEM_GIVEN);
+  EnableEvents( EVID_SPEECH , V_SPEECH_RANGE );
+  EnableEvents( EVID_ENGAGED + EVID_DAMAGED );
+
+  while(me)
+    if(!CheckVendor())
+      KillVendor();
+    endif
+
+    ev := wait_for_event(waittime);
+
+    if(ev)
+      case(ev.type)
+        EVID_SPEECH:          CheckSpeech(ev.source,lower(ev.text));
+        EVID_ENGAGED:         if(ev.source == _MeMaster)
+                                if(CInt(GetObjProperty(me, "#MasterHits")) > 5)
+                                  Say("*zdumion"+ggm(me,6)+"*");
+                                  Say("*idzie sobie*");
+                                  KillVendor();
+                                else
+                                  SetObjProperty(me, "#MasterHits", CInt(GetObjProperty(me, "#MasterHits"))+1);
+                                  Say( "Przestan, albo sobie pojde.");
+                                endif
+                              else
+                                Say( ev.source.name + ", zawolam straznika jesli nie przestaniesz!");
+                              endif
+
+        EVID_DAMAGED:         Say("Straz! Pomocy zostal"+ggm(me,8)+" zaatakowan"+ggm(me,6)+"!");
+
+        EVID_CMERC_SOLD:      Sold();
+
+        EVID_CMERC_BOUGHT:    Bought();
+
+        EVID_ITEM_GIVEN:      CheckItem(ev);
+      EVID_QUEST_MSG:      var Data := struct;
+                           Data.+npc := me;
+                           Data.+param := ev;
+                           
+                           start_script(":ngd_npcs:quest_msg", Data);
+
+      endcase
+    endif
+
+    if(following)
+      if(!GetObjProperty(me,"#Following"))
+        SetObjProperty(me,"#Following",_MeMaster.serial);
+      endif
+      Follow();
+    else
+      EraseObjProperty(me,"#Following");
+      waittime := DEF_WAITTIME;
+    endif
+
+    if(_MeMaster)
+      if(!GetObjProperty(me,"NextPay"))
+        SetObjProperty(me,"NextPay",ReadGameClock());
+      endif
+
+      if(GetObjProperty(me,"NextPay") + WORKING_TIME < ReadGameClock())
+        SetObjProperty(me,"NextPay",ReadGameClock());
+        CheckPay();
+      endif
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Follow()
+
+  if(!following or _MeMaster.dead or !IsLoggedIn(_MeMaster) or IsClosed())
+    following := 0;
+    waittime  := DEF_WAITTIME;
+    return;
+  endif
+
+  if(Distance(me,_MeMaster) > 20)
+    following := 0;
+    waittime  := DEF_WAITTIME;
+    return;
+  endif
+
+  case(Distance(me,_MeMaster))
+    0:
+    1:        waittime := 1;
+    2:
+    3:        if(WalkToward(_MeMaster))
+                waittime := 0;
+              else
+                waittime := 1;
+              endif
+    default:  if(RunToward(_MeMaster))
+                waittime := 0;
+              else
+                waittime := 1;
+              endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FindVendorMaster()
+
+  return FindPlayerBySerial(GetObjProperty(me,PROP_MASTER));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckVendor()
+
+  if(GetObjProperty(me,"KillMe"))
+    return 0;
+  endif
+
+  if(GetObjProperty(me,PROP_MASTER) == error)
+    return 1;
+  endif
+
+  if(!_MeMaster)
+    _MeMaster := FindVendorMaster();
+  endif
+
+  if(_MeMaster == 0)
+    return 0;
+  endif
+
+  if(NextHouseCheck <= ReadGameClock())
+    if(GetObjProperty(me,"MultiOwnerSerial"))
+      if(_HouseRent)
+        if(!CanControlHr(_MeMaster, _House))
+          return 0;
+        endif
+
+      elseif(_House.isa(POLCLASS_MULTI))
+
+        if(!IsHouseOwner(_MeMaster, _House) and !IsHouseCoOwner(_MeMaster, _House) and !IsHouseFriend(_MeMaster, _House))
+          return 0;
+        endif
+
+      else
+        return 1;
+      endif
+    endif
+
+    NextHouseCheck := ReadGameClock() + 120;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function KillVendor()
+
+  Say("Bywajcie");
+  sleep(3);
+
+  if(_MeMaster)
+    
+    var Data := GetEscrowData(_MeMaster);
+
+    SetEscrowFilling(Data, 1);
+    foreach item in ListRootItemsInContainer(inv_fs)
+      MoveItemToEscrow(item, Data, 1);
+    endforeach
+
+    foreach item in ListRootItemsInContainer(inv_pb)
+      MoveItemToEscrow(item, Data, 1);
+    endforeach
+
+    SetEscrowFilling(Data, 0);
+
+    var BankBox := FindBankBox(_MeMaster);
+
+    if(MyGold > 0)
+      CreateGold(BankBox,MyGold);
+    endif
+  endif
+
+  PlayStationaryEff( me.x,me.y,me.z, FX_SMOKE, 0xa, 0xa );
+  KillNPC(me);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPay()
+
+  if(!SetMyGold(MyGold - Payment))
+    SetVendorOff();
+    Say("Nie bede sprzedawal"+ggm(me,4)+" poki nie otrzymam zaplaty!");
+    SetObjProperty(me,"NotPayed",CInt(GetObjProperty(me,"NotPayed")) + 1);
+    SetPayment(Payment + ST_PAYMENT);
+    if(GetObjProperty(me,"NotPayed") > 3)
+      KillVendor();
+    endif
+    return 0;
+  else
+    EraseObjProperty(me,"NotPayed");
+    SetPayment(ST_PAYMENT);
+    return 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetVendorOff()
+  if(!IsClosed())
+    SetObjProperty(me,"Closed",ReadGameClock());
+    Reprice();
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetVendorOn()
+  if(IsClosed())
+    EraseObjProperty(me,"Closed");
+    ResetPrices();
+  endif
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetMyGold(Gold)
+
+  if(Gold >= 0)
+    MyGold := CInt(Gold);
+    SetObjProperty(Me,"MyGold",MyGold);
+    return 1;
+  else
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetPayment(NewPay)
+
+  Payment := NewPay;
+  SetObjProperty(Me,"Payment",Payment);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckItem(ev)
+
+  if(ev.item)
+    if(!ReserveItem(ev.item))
+      return;
+    endif
+  endif
+
+  if(!_MeMaster)
+    if(ev.item.objtype == UOBJ_GOLDCOIN and ev.item.amount >= VENDOR_BUY_PRICE)
+      Say("Jestem zaszczycon"+ggm(me,6)+" pracujac dla ciebie");
+      SetVendorMaster(me,ev.source);
+      _MeMaster := ev.source;
+
+      SetMyGold(ev.item.amount - VENDOR_BUY_PRICE);
+      if(MyGold)
+        Say("Pani"+ggm(ev.source,11)+", zostalo mi "+MyGold+" zlota na przyszlosc.");
+      endif
+      DestroyItem(ev.item);
+      if(GetObjProperty(me,"Spawnnet"))
+        EraseFromSpawnnet(me);
+      endif
+    else
+      Say("Nie potrzebuje tego.");
+      MoveToPack(ev.item, ev.source);
+    endif
+  else
+    if(_MeMaster == ev.source)
+      if(!StockItem(ev))
+        MoveToPack(ev.item, ev.source);
+      endif
+    else
+      Say("Przepraszam, ale nie moge przyjac od Ciebie tego przedmiotu.");
+      MoveToPack(ev.item, ev.source);
+    endif
+  endif
+
+  if(ev.item)
+    ReleaseItem(ev.item);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckHouse()
+
+  if(_HouseRent)
+    if(IsInHr(me.x,me.y,me.z,me.realm,_HouseRent))
+      return 1;
+    endif
+  elseif(_House)
+    if(Distance(me, _House) <= 10)
+      return 1;
+    endif
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsClosed()
+  return CInt(GetObjProperty(me,"Closed"));
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(who,text)
+
+  if(who.cmdlevel)
+    if(text["pokaz pb"])
+
+      SendViewContainer(who, inv_pb);
+      return;
+
+    elseif(text["pokaz fs"])
+
+      SendViewContainer(who, inv_fs);
+      return;
+
+    elseif(text["kupi"])
+
+      PlayerVendorSendBuy( who );
+      return;
+
+    endif
+  endif
+
+  if(text["kupi"])
+    TurnToward( who );
+
+    if(CheckHouse())
+      TurnToward( who );
+      if(!IsClosed())
+        PlayerVendorSendBuy( who );
+      elseif(_MeMaster == who)
+        if(GetObjProperty(me,"NotPayed"))
+          Say("Czekam na zaplate");
+        else
+          SendBuyWindow( who, inv_fs, me, inv_pb );
+        endif
+      else
+        Say("Przepraszam, ale teraz nie sprzedaje");
+      endif
+    else
+      Say("Nie wolno mi tu sprzedawac.");
+    endif
+
+  elseif ((text["sprzedawaj dla"]) and who == _MeMaster)
+
+    Say("Dla kogo mam pracowac?");
+    var NewMaster := ObjTarget(who);
+    if(NewMaster)
+      if(IsPlayer(NewMaster))
+        TurnToward(NewMaster);
+        if(NewMaster != _MeMaster)
+          Say("Dobrze wiec bede pracowac teraz dla "+NewMaster.name);
+          SetVendorMaster(me,NewMaster);
+          _MeMaster := NewMaster;
+          return;
+        else
+          Say("Dla Ciebie przeciez pracuje!");
+        endif
+      else
+        Say("Dla niego nie bede pracowac");
+      endif
+    endif
+
+  elseif(text["sprzedaj"] and _MeMaster == who)
+
+    TurnToward( who );
+    Say ("Jesli chcesz zebym cos sprzedal"+ggm(me,4)+" poprostu mi to daj");
+
+  elseif(text["sprzeda"])
+
+    TurnToward( who );
+    if(who.cmdlevel)
+      PlayerVendorSendSell(who);
+    elseif(!IsClosed())
+      if(CheckHouse())
+        PlayerVendorSendSell(who);
+      else
+        Say("Nie wolno mi tu kupowac.");
+      endif
+    else
+      Say("Przepraszam ale teraz nie kupuje.");
+    endif
+
+  elseif ((text["remanent"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    if(!IsClosed())
+      SetVendorOff();
+      Say("Zgodnie z twoja wola, zamykam sklep, pani"+ggm(who,11)+"!");
+    else
+      Say("Sklep jest zamkniety!");
+    endif
+
+  elseif((text["otwarte"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    if(!IsClosed())
+      Say("Sklep otwarty!");
+      return;
+    elseif(GetObjProperty(me,"NotPayed"))
+      if(!SetMyGold(MyGold - Payment))
+        Say("Czekam na zaplate.");
+        return;
+      endif
+    endif
+
+    EraseObjProperty(me,"NotPayed");
+    SetVendorOn();
+    Say("Jak sobie zyczysz pani"+ggm(who,11)+", przywracam ceny.");
+    Say("Gotowy do handlu!");
+
+  elseif(text["pokaz przedmioty"] and (who == _MeMaster or who.cmdlevel))
+
+    SetFlag(me.backpack, ITEMF_NO_INSERT);
+    SendOpenSpecialContainer(who, me.backpack);
+
+  elseif(text["wypisz czek"] and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward(who);
+    WriteCheque();
+
+  elseif ((text["daj"] or text["odbieram"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    CashOut();
+
+  elseif ((text["zaloz"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    say ("Co mam zalozyc?");
+    WearItem(ObjTarget(who));
+
+  elseif ((text["zdejmij"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    Say ("Och, czuje sie skrepowan"+ggm(me,6)+"!");
+    StripItems(who);
+
+  elseif ((text["stop"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    Say ("Dobrze, wiec stane sobie tu.");
+    following := 0;
+
+  elseif ((text["za mna"] or text["chodz"]) and who == _MeMaster)
+
+    TurnToward( who );
+    say ("Prowadz wiec!");
+    following := 1;
+
+  elseif ((text["dom"]) and (who == _MeMaster or who.cmdlevel))
+
+    TurnToward( who );
+    if(me.multi)
+      if(IsHouseOwner(who,me.multi) or IsHouseCoOwner(who,me.multi) or IsHouseFriend(who,me.multi))
+        if(IsPublicHouse(me.multi))
+          if(AddHouseVendor(me,me.multi))
+            Say ("Aha. Wiec to twoj dom. Dobrze.");
+            SetObjProperty(me, "MultiOwnerSerial", me.multi.serial);
+            _House := me.multi;
+          else
+            Say("Nie moge sprzedawac w tym domu.");
+          endif
+        else
+          Say("Ten dom nie zostal zadeklarowany publicznym");
+        endif
+      elseif(!GetHouseOwner(me.multi))
+        Say("Tu nie ma domu.");
+      elseif(GetHouseOwner(me.multi).acctname != who.acctname)
+        Say("To nie twoj dom!");
+      endif
+    else
+      var Sign := CheckNearHr(me.x,me.y,me.z,me.realm);
+      if(Sign)
+        var fHouse := GetHr(GetHrCity(Sign),GetHrNr(Sign));
+        if(!IsInHr(me.x,me.y,me.z,me.realm,fHouse))
+          Say("Nie jestem wewnatrz domu.");
+        elseif(!CanControlHr(who,Sign))
+          Say("To nie twoj dom!");
+        elseif(HrHaveVendor(Sign) == me)
+          Say("Juz tu sprzedaje");
+        elseif(HrHaveVendor(Sign))
+          Say("Tu juz ktos sprzedaje");
+        else
+          Say ("Aha. Wiec to twoj dom. Dobrze.");
+          SetObjProperty(me, "MultiOwnerSerial", Sign.serial);
+          AddHrVendor(Sign,me);
+          _House := Sign;
+          _HouseRent    := fHouse;
+          return;
+        endif
+        _House := 0;
+      else
+		
+		var foundMerchantItem := 0;
+		var houseItem;
+		var item;
+		
+		var items := ListItemsNearLocation(me.x, me.y, 0x40000000, 8, me.realm);
+		
+		foreach item in items
+			if(item.name == "KUPCY")
+				foundMerchantItem := 1;
+				houseItem := item;
+				break;
+			endif
+		endforeach
+		
+		if(foundMerchantItem)
+			_House := houseItem;
+		else		
+		    Say("Tu nie ma domu albo bazaru kupcow.");
+		endif
+      endif
+    endif
+
+  elseif(text["odwolaj"] or text["odwoluj"])
+
+    TurnToward( who );
+    if(_House)
+      EraseHouseVendors(_House,me.serial);
+      EraseObjProperty(me,"MultiOwnerSerial");
+      _House := 0;
+      _HouseRent    := 0;
+      Say("Dobrze, nie bede juz tu wiecej sprzedawal"+ggm(me,4));
+    endif
+
+  elseif (text["wynajac"])
+
+    TurnToward( who );
+    if(!_MeMaster)
+      Say("Z checia bede pracowal"+ggm(who,4)+" dla ciebie za 10k gp");
+    endif
+
+  elseif(text["kupuj"] and who == _MeMaster)
+
+    AddToBuyList(who);
+
+  elseif(text["pokaz liste"]);
+
+     ShowList(who);
+
+  elseif(text["zwolnij"] and who == _MeMaster)
+
+    sleepms(500);
+    if(YesNo(who,"Na pewno?"))
+      KillVendor();
+    endif
+
+  elseif(text["bilans"] and who == _MeMaster)
+
+    TurnToward(who);
+
+    if(MyGold <= 0)
+      PrintTextAbovePrivate(me,"Pani"+ggm(who,11)+", nie mam zlota przy sobie.",who);
+    else
+      PrintTextAbovePrivate(me,"Pani"+ggm(who,11)+", mam "+MyGold+" zlota.",who);
+    endif
+  elseif((text["pokaz transakcje"]) and who == _MeMaster)
+    sleepms(500);
+    TurnToward(who);
+    ShowHistoryList(who);
+  elseif(text["witaj"] or text["witam"])
+
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBuyList()
+
+  var List := GetObjProperty(me,"VendorBuyList");
+
+  if(!List or !List.size())
+    List := array;
+    SetObjProperty(me, "VendorBuyList", List);
+  endif
+
+  return List;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetBuyList(byref BuyList)
+
+  foreach ItemDef in BuyList
+    if(WrongPrice(ItemDef[2]))
+      ItemDef[2] := -1;
+    endif
+  endforeach
+
+  return SetObjProperty(me, "VendorBuyList", BuyList);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsItemOnBuyList(Item, byref BuyList)
+
+  foreach ItemDef in BuyList
+
+    if(ItemDef[1] == Item.objtype)
+      if(ItemDef[4])
+        if(ItemDef[4] == GetObjProperty(Item, PROP_NPCTEMP) and IsPetTicket(Item))
+          return 1;
+        endif
+      elseif(!ItemDef[3])
+        return 1;
+      else
+        var iDesc := CutDesc(Item.desc);
+        CheckBuyItemDesc(iDesc);
+
+        if(ItemDef[3] == iDesc)
+          return 1;
+        endif
+      endif
+    endif
+
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBuyItemDesc(byref ItemDef)
+
+  if(!ItemDef[3])
+    return GetDescForItem(ItemDef[1]);
+  endif
+
+  return ItemDef[3];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckBuyItemDesc(byref Desc)
+
+  if(Desc[EXP_ITEM_NAME])
+    var Pos := find(Desc, "[", 1);
+    if(Pos)
+      Desc := Desc[1, Pos-1];
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddToBuyList(who)
+
+  Say("Co mam kupowac?");
+  var Item    := ObjTarget(who);
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if((!Item.isa(POLCLASS_ITEM) or !Item.movable or Item.objtype == UOBJ_GOLDCOIN or Item.objtype == UOBJ_CHEQUE or Item.newbie or !ItemCfg[item.objtype].VendorSellsFor) and !IsPetTicket(item))
+    Say("Tego nie moge skupowac");
+  elseif(Distance(me,Item) > 2)
+    Say("Nie widze tego przedmiotu");
+  else
+    var BuyList := GetBuyList();
+
+    if(IsItemOnBuyList(Item, BuyList))
+      Say("Mam juz ten przedmiot na liscie.");
+      return;
+    endif
+
+    if(BuyList.size() >= MAX_BUY_ITEMS)
+      Say("Moja lista jest pelna");
+    else
+      var Desc    := GetDescForItem(Item.objtype);
+      var iDesc   := CutDesc(Item.desc);
+      CheckBuyItemDesc(iDesc);
+
+      if(IsPetTicket(item))
+        Desc := "Bilet na zwierza "+GetTicketNpcName(item);
+      endif
+
+      if(!Desc)
+        Say("Nie wiem co to za przedmiot.");
+      else
+        var Cost := SendTextEntryGump( who, "Za ile mam kupowac ten przedmiot?", TE_CANCEL_ENABLE, TE_STYLE_NORMAL);
+
+        Say("Dobrze, dodal"+ggm(me,8)+" do swojej listy przedmiot "+iDesc);
+
+        if(!CInt(Cost) or WrongPrice(CInt(Cost)))
+          Say("Ta cena mi sie nie podoba, nie bede tego skupowac!");
+          return;
+        else
+          Say("Bede wiec kupowal"+ggm(me,4)+" ten przedmiot po cenie "+cost+" gp");
+        endif
+
+        var ItemDef := array(Item.objtype, Cost, 0);
+
+        if(IsPetTicket(item))
+          var NpcName := GetTicketNpcName(item);
+          Say("Dobrze, bilety na zwierza "+NpcName+".");
+          ItemDef[3] := "Bilety na zwierza "+NpcName;
+          ItemDef[4] := GetObjProperty(item, PROP_NPCTEMP);
+
+        elseif(Desc != iDesc)
+          Say("Jedynie "+iDesc+" i zadnych innych rodzajow tego przedmiotu.");
+          ItemDef[3] := iDesc;
+        else
+          Say(Desc+", jak i rowniez inne rodzaje tego przedmiotu.");
+        endif
+
+        BuyList.append(ItemDef);
+        SetBuyList(BuyList);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowList(who)
+
+  var BuyList := GetBuyList();
+
+  sleepms(100);
+  GInit(100,100);
+  GResPic(0,0,3600,500,300);
+  GTextLine(155,20,1000,"Lista przedmiotow ktore skupuje");
+  if(_MeMaster == who)
+    GTextLine(20,40,999,"Kasuj");
+  endif
+  GTextLine(385,40,999,"Cena");
+  GPage();
+  GAddPageData(465,15,2650,2651,465,263,2648,2647);
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  foreach bItem in BuyList
+    GCheckNextPage(10);
+    if(_MeMaster == who)
+      GButton(30,60+(GNPCount()*20),2714,2715, _bItem_iter);
+      GButton(385,60+(GNPCount()*20),2714,2715,1000000 + _bItem_iter);
+    endif
+    GTextCrop(65,60+(GNPCount()*20), 300, 20, 570, GetBuyItemDesc(bItem));
+    if(bItem[2] == -1)
+      GTextLine(405,60+(GNPCount()*20),550,CInt(ItemCfg[bItem[1]].VendorSellsFor) + " gp");
+    else
+      GTextLine(405,60+(GNPCount()*20),550,CInt(bItem[2]) + " gp");
+    endif
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  if(who == _MeMaster)
+    if(Res > 1000000)
+      var Cost := SendTextEntryGump( who, "Za ile mam kupowac ten przedmiot?", TE_CANCEL_ENABLE, TE_STYLE_NORMAL);
+      if(!CInt(Cost) or WrongPrice(CInt(Cost)))
+        Say("Cos ta kwota mi sie nie podoba, nie bede skupowac tego!");
+        return;
+      else
+        Say("Bede wiec kupowal"+ggm(me,4)+" przedmiot "+GetBuyItemDesc(BuyList[Res-1000000])+" po cenie "+cost+" gp");
+      endif
+      BuyList[Res-1000000][2] := CInt(Cost);
+      SetBuyList(BuyList);
+    elseif(Res)
+      Say("Skasowal"+ggm(me,3)+" ze swojej listy przedmiot "+GetBuyItemDesc(BuyList[Res]));
+      BuyList.erase(Res);
+      SetBuyList(BuyList);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetItems(who)
+
+  var Chk := 0;
+  foreach Item in ListRootItemsInContainer(inv_pb)
+
+    if(!MoveItemToContainer(Item,who.backpack))
+      PrintTextAbovePrivate(me,"Pani"+ggm(who,11)+", brak Ci miejsca w plecaku.",who);
+      return;
+    endif
+    Chk := 1;
+  endforeach
+
+  if(!Chk)
+    Say("Nie mam zadnych przedmiotow");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StockItem(ev)
+
+  TurnToward(ev.source);
+
+  if(ev.item.objtype == UOBJ_GOLDCOIN)
+    if(SetMyGold(MyGold + ev.item.amount))
+      Say("Dobrze, mam teraz "+MyGold+" zlota.");
+      DestroyItem(ev.item);
+      return 1;
+    endif
+
+    return 0;
+  elseif(ev.item.objtype == UOBJ_CHEQUE)
+    if(SetMyGold(MyGold + GetChequeVal(ev.item)))
+      Say("Dobrze, mam teraz "+MyGold+" zlota.");
+      DestroyItem(ev.item);
+      return 1;
+    endif
+
+    return 0;
+  endif
+
+  if(!CheckHouse())
+    Say("Nie bardzo mam gdzie teraz sprzedawac.");
+    return 0;
+  endif
+
+  if(IsClosed())
+    Say("Teraz nie sprzedaje, otworz sklep najpierw.");
+    return 0;
+  endif
+
+  if(ev.item.isa(POLCLASS_CONTAINER))
+    if(ev.item.item_count > 1)
+      StockItemsFromCont(ev.item);
+      return;
+    endif
+  endif
+
+  var ExItem := AddItemToVendorCont(ev.item);
+  var Cost   := 0;
+
+  if(ExItem)
+    Cost := ExItem.sellprice;
+    if(!ev.item)
+      ev.item := ExItem;
+    endif
+  else
+    Cost := SendTextEntryGump( ev.source, "Ile powin"+ggm(me,15)+" chciec za ten przedmiot? ", TE_CANCEL_ENABLE, TE_STYLE_NORMAL);
+  endif
+
+  if(CInt(Cost))
+    if(!IsClosed())
+      ev.item.sellprice := CInt(Cost);
+    endif
+  else
+    Say("Pani"+ggm(ev.source,11)+", nie podal"+ggm(ev.source, 3)+" ceny.");
+    return 0;
+  endif
+
+  if(ev.item)
+    if(!ev.item.movable)
+      ev.item.movable := 1;
+    endif
+
+    ReleaseItem(ExItem);
+    MoveObject(ev.item, CR_TEMP_ITEM_X, CR_TEMP_ITEM_Y, CR_TEMP_ITEM_Z, CR_TEMP_ITEM_REALM, MOVEITEM_FORCELOCATION);
+
+    if(MoveItemToContainer(ev.item, inv_fs))
+      Say("Sprzedam ten przedmiot za " + Cost + " gp.");
+      return 1;
+    else
+      Say("Pani"+ggm(ev.source,11)+", nie mam wiecej miejsca.");
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StockItemsFromCont(Cont)
+
+  var ExItem, Cnt, Amt, iAmt;
+
+  Cnt := 0;
+  Amt := 0;
+
+  foreach Item in ListRootItemsInContainer(Cont)
+    if(Item.isa(POLCLASS_CONTAINER) and Item.item_count > 1)
+      continue;
+    endif
+
+    iAmt := Item.amount;
+
+    ExItem := AddItemToVendorCont(Item);
+
+    if(ExItem)
+      if(Item)
+        if(Item.container != inv_fs)
+          if(!MoveItemToContainer(Item, inv_fs))
+            continue;
+          else
+            Item.sellprice := ExItem.sellprice;
+          endif
+        endif
+      endif
+
+      Cnt := Cnt + 1;
+      Amt := Amt + iAmt;
+    endif
+  endforeach
+
+  if(!Cnt)
+    Say("W tym pojemniku nie ma zadnych przedmiotow, ktore sprzedaje.");
+  else
+    Say("Pobral"+ggm(me,8)+" z tego pojemnika "+Cnt+" przedmiotow o lacznej ilosci "+Amt+".");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddItemToVendorCont(Item)
+
+  var IsStack := IsStackableObj(Item.objtype);
+  var ExItem  := 0;
+  var Desc    := CutDesc(Item.desc);
+
+  EraseObjProperty(Item, "GivenBy");
+  EraseObjProperty(Item, "GivenTo");
+  EraseObjProperty(Item, "GivenTime");
+
+  foreach eItem in EnumerateItemsInContainer(inv_fs)
+    if(eItem.objtype == Item.objtype)
+      if(IsStack)
+        if(CanStack(eItem, Item))
+          if(AddAmount(eItem, Item.amount))
+            if(!DestroyItem(Item))
+              SubtractAmount(eItem, Item.amount);
+              return 0;
+            else
+              ExItem := eItem;
+              break;
+            endif
+          else
+            return 0;
+          endif
+        endif
+      else
+        if(CutDesc(eItem.desc) == Desc)
+          ExItem := eItem;
+          break;
+        endif
+      endif
+    endif
+  endforeach
+
+  return ExItem;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WriteCheque()
+
+  if(!MyGold)
+    PrintTextAbovePrivate(me,"Nie mam juz zlota.",_MeMaster);
+    return 0;
+  else
+    PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+" mam " + MyGold + " zlota",_MeMaster);
+  endif
+
+  if(_MeMaster)
+
+    var Amount := CInt(MyGold);
+
+    if(Amount < CHEQUE_MIN_CASHOUT)
+      PrintTextAbovePrivate(me,"Stawka jest za mala!",_MeMaster);
+      return;
+    endif
+
+    if(Amount > CHEQUE_MAX_CASHOUT)
+      PrintTextAbovePrivate(me,"Masz calkiem sporo pieniedzy, moge wypisac ci tylko czek na " + CHEQUE_MAX_CASHOUT + ".",_MeMaster);
+      Amount := CHEQUE_MAX_CASHOUT;
+    endif
+
+    if(Amount < CHEQUE_SIGN_COST)
+      PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+", za wypisanie czeku potrzebuje "+CHEQUE_SIGN_COST+" gp na oplaty.",_MeMaster);
+      return;
+    endif
+
+    var Cheque := CreateItemInPack(_MeMaster,UOBJ_CHEQUE,1);
+
+    if(Cheque)
+      PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+", prosze tutaj czek na "+(Amount - CHEQUE_SIGN_COST)+" zlota. Zostawil"+ggm(me, 8)+" sobie "+CHEQUE_SIGN_COST+" zlota na oplaty za czek.", _MeMaster);
+      SetChequeVal(Cheque, Amount - CHEQUE_SIGN_COST);
+      SetMyGold(CInt(MyGold) - Amount);
+    else
+      PrinttextAbovePrivate(me, "Pani"+ggm(_MeMaster,11)+", nie masz miejsca w plecaku!", _MeMaster);
+    endif
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CashOut()
+
+  if(!MyGold)
+    PrintTextAbovePrivate(me,"Nie mam juz zlota.",_MeMaster);
+    return 0;
+  else
+    PrintTextAbovePrivate(me,"Pani"+ggm(_MeMaster,11)+" mam " + mygold + " zlota",_MeMaster);
+  endif
+
+  if(_MeMaster)
+    var Amount := CInt(MyGold);
+    if(Amount > 60000)
+      Amount := 60000;
+    endif
+
+    if(CreateItemInCont(_MeMaster.backpack,UOBJ_GOLDCOIN,Amount))
+      SetMyGold(CInt(MyGold) - Amount);
+      if(MyGold)
+        PrintTextAbovePrivate(me,"Pani"+ggm(ev.source,11)+", zostalo mi jeszcze "+MyGold+" zlota.",_MeMaster);
+      endif
+    else
+      PrintTextAbovePrivate(me,"Pani"+ggm(ev.source,11)+", brak Ci miejsca w plecaku.",_MeMaster);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Reprice()
+
+  foreach thing in EnumerateItemsInContainer(inv_fs)
+    SetObjProperty(thing, "sp", thing.sellprice);
+    thing.sellprice := 0;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResetPrices()
+
+  foreach thing in EnumerateItemsInContainer(inv_fs)
+    thing.sellprice := CInt(GetObjProperty(thing, "sp"));
+    EraseObjProperty(thing, "sp");
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WearItem(item)
+
+  if(!StandardItemCheck(_MeMaster,Item))
+    NoLongerBusy(_MeMaster);
+    ReleaseItem(Item);
+    return;
+  endif
+
+  NoLongerBusy(_MeMaster);
+  ReleaseItem(Item);
+
+  if(Item.container != _MeMaster.backpack)
+    Say("Zaloze tylko to co mi dasz ze swojego plecaka Pani"+ggm(_MeMaster,11));
+    return;
+  endif
+
+  if(!EquipItem(me, item))
+    if(!item.tile_layer)
+      Say("Nie moge tego zalozyc.");
+      return;
+    endif
+
+    var Items := {};
+    foreach thing in ListEquippedItems(me)
+      if(!(thing.layer in {LAYER_HAIR, LAYER_BEARD, LAYER_PACK, LAYER_MOUNT}))
+        if(MoveItemToContainer(thing, me.backpack))
+          Items.append(thing);
+        endif
+      endif
+    endforeach
+
+    EquipItem(me, item);
+
+    foreach thing in Items
+      if(!EquipItem(me, thing))
+        MoveToPack(thing,_MeMaster);
+      endif
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StripItems(mmaster)
+
+  UnEquipAll(me, {}, mmaster.backpack);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WrongPrice(Price)
+
+    if(Price > 1000000)
+      return 1;
+    endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DefineBuyItemsDict(byref aItems)
+
+  var Desc;
+  aItems := dictionary;
+
+  foreach Item in EnumerateItemsInContainer(inv_fs)
+    if(aItems.exists(Item.objtype))
+      Desc := CutDesc(Item.desc);
+
+      foreach aItem in (aItems[Item.objtype])
+        if(IsStackableObj(Item.objtype))
+          if(CanStack(aItem[1], Item))
+            aItem[2] := aItem[2] + Item.amount;
+            aItem[1].append(Item);
+            Item := 0;
+            break;
+          endif
+        elseif(aItem[3] == Desc)
+          aItem[2] := aItem[2] + Item.amount;
+          aItem[1].append(Item);
+          Item := 0;
+          break;
+        endif
+      endforeach
+
+      if(Item)
+        aItems[Item.objtype].append(array( array(Item), Item.amount, CutDesc(Item.desc)));
+      endif
+    else
+      aItems[Item.objtype] := array( array( array(Item), Item.amount, CutDesc(Item.desc)) );
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DefineBuyItems(byref Items)
+
+  Items := array;
+
+  var aItems;
+  DefineBuyItemsDict(aItems);
+
+  foreach aItem in aItems
+    foreach inItem in aItem
+      Items.append( array(inItem[1][1], inItem[2], inItem[1][1].sellprice) );
+    endforeach
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DefineBuyListDict(byref List, byref Dict)
+
+  Dict := dictionary;
+
+  foreach bItem in List
+    if(!Dict.exists(bItem[1]))
+      Dict[bItem[1]] := array(bItem);
+    else
+      Dict[bItem[1]].append(bItem);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetItemDefFromBuyListDict(byref Dict, Item)
+
+  if(!Dict.exists(item.objtype) or item.newbie)
+    return 0;
+  endif
+
+  foreach bItem in (Dict[Item.objtype])
+    if(bItem[4])
+      if(IsPetTicket(Item))
+        if(GetObjProperty(Item, PROP_NPCTEMP) == bItem[4])
+          return bItem;
+        endif
+      endif
+    elseif(!bItem[3])
+      return bItem;
+    else
+      var Desc := CutDesc(Item.desc);
+      CheckBuyItemDesc(Desc);
+
+      if(Desc == bItem[3])
+        return bItem;
+      endif
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetPriceFromItemDef(byref fItem)
+
+  var Price;
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  if(fItem[2] == -1)
+    Price := CInt(ItemCfg[fItem[1]].VendorSellsFor);
+  else
+    Price := CInt(fItem[2]);
+  endif
+
+  return Price;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DefineSellItemsDict(who, byref dItems)
+
+  dItems := dictionary;
+
+  var Price, ElemName;
+  var Buys := GetBuyList();
+  var buyItems := dictionary;
+  var fItem;
+
+  DefineBuyListDict(Buys, buyItems);
+
+  foreach Item in EnumerateItemsInContainer(who.backpack)
+
+    fItem := GetItemDefFromBuyListDict(BuyItems, Item);
+
+    if(fItem)
+      Price    := GetPriceFromItemDef(fItem);
+      ElemName := Item.objtype+"_"+CutDesc(Item.desc)+"_"+Price;
+
+      if(dItems.exists(ElemName))
+        dItems[ElemName][2] := dItems[ElemName][2] + Item.amount;
+        dItems[ElemName][1].append(Item);
+      else
+        dItems[ElemName] := array(array(Item), Item.amount, CInt(Price));
+      endif
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DefineSellItems(who, byref Items)
+
+  Items := array;
+
+  var aItems;
+  DefineSellItemsDict(who, aItems);
+
+  foreach aItem in aItems
+    Items.append( array(aItem[1][1], aItem[2], aItem[3]) );
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayerVendorSendBuy( who )
+
+  TurnToward(who);
+
+  var Items;
+  DefineBuyItems(Items);
+
+  if(!SendBuyPacket(who, me, inv_fs, inv_pb, Items))
+    Say("Aktualnie nie mam nic do sprzedania.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayerVendorSendSell( who )
+
+  TurnToward(who);
+
+  var Items;
+  DefineSellItems(who, Items);
+
+  if(!SendSellPacket(who, me, inv_fs, inv_pb, Items))
+    Say("Nie widze bys mial"+ggm(who,4)+" cos do sprzedania, co by mnie interesowalo.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Bought()
+
+  if(!ev.source or !ev.items or !ev.items.size())
+    return 0;
+  endif
+
+  if(!IsPlayer(ev.source) or ev.source.dead)
+    return 0;
+  endif
+
+  if((Distance(me,ev.source) > 2 or !CheckLineOfSight(me,ev.source) or DistZ(me,ev.source) >= 20) and !ev.source.cmdlevel)
+    return 0;
+  endif
+
+  var fPrice := 0;
+  var aPrice := 0;
+  var allAmt := 0;
+
+  foreach Item in (ev.items)
+    Item[1] := FindItemBySerial(Item[1]);
+    fPrice  := fPrice + Item[1].sellprice * CInt(Item[2]);
+    allAmt  := allAmt + CInt(Item[2]);
+  endforeach
+
+
+  if(!fPrice)
+    if(IsClosed())
+      if(ev.source != _MeMaster)
+        return;
+      else
+        Say("Prosze Pani"+ggm(ev.source, 11)+", zabral"+ggm(ev.source, 3)+" "+ev.items.size()+" przedmiotow o lacznej ilosci "+AllAmt+".");
+      endif
+    else
+      Say("Niestety spoznil"+ggm(ev.source, 3)+" sie, przedmioty te zostaly wykupione.");
+      return;
+    endif
+  elseif(!SpendGold(ev.source, fPrice))
+    Say("Nie masz wystarczajaco zlota, potrzebujesz "+fPrice+" gp.");
+    return;
+  endif
+
+  aPrice := 0;
+  var Amt, sAmt, Items, Desc, ObjType, iItem, Price, history;
+  DefineBuyItemsDict(Items);
+
+  history := GetPurchaseHistory();
+
+  foreach Item in (ev.items)
+    Amt     := CInt(Item[2]);
+
+    if(!Item[1])
+      Say("Ah.. niestety pewne przedmioty zostaly juz wykupione.");
+      break;
+    endif
+
+    Desc    := CutDesc(Item[1].desc);
+    ObjType := Item[1].objtype;
+
+    var hItem := struct;
+
+    hItem.+name := Desc;
+    hItem.+amt := Amt;
+    hItem.+date := GetFullDate(readgameclock(),0);
+    hItem.+price := Item[1].sellprice*Amt;
+    hItem.+type := 1;   //1 - sprzedane przez kupca, 2 - kupione
+
+
+    if(history.size() < 40)
+      history.append(hItem);
+    else
+      history.erase(1);
+      history.append(hItem);
+    endif
+
+    while(Amt > 0)
+      iItem := 0;
+
+      foreach eItem in (Items[ObjType])
+        if(eItem[3] == Desc)
+          foreach xItem in (eItem[1])
+            if(xItem)
+              iItem := xItem;
+              eItem[1].erase(_xItem_iter);
+              break;
+            endif
+          endforeach
+          break;
+        endif
+      endforeach
+
+      if(!iItem)
+        break;
+      endif
+
+      sAmt  := iItem.amount;
+      Price := iItem.sellprice;
+
+      if(Amt < sAmt)
+        sAmt := Amt;
+        var dItem := CreateItemCopyAtLoc(CR_TEMP_ITEM_X, CR_TEMP_ITEM_Y, CR_TEMP_ITEM_Z, iItem, CR_TEMP_ITEM_REALM);
+        if(!dItem)
+          break;
+        endif
+
+        Amt := iItem.amount - sAmt;
+
+        if(SubtractAmount(iItem, sAmt))
+          if(!SubtractAmount(dItem, Amt))
+            AddAmount(iItem, sAmt);
+            Amt := 0;
+            break;
+          elseif(!MoveToPack(dItem, ev.source))
+            AddAmount(iItem, sAmt);
+            DestroyItem(dItem);
+            Amt := 0;
+            break;
+          endif
+          Amt := 0;
+        else
+          Amt := 0;
+          break;
+        endif
+      elseif(!MoveToPack(iItem, ev.source))
+        break;
+      endif
+
+      aPrice := aPrice + Price * sAmt;
+      Amt    := Amt - sAmt;
+    endwhile
+
+  endforeach
+
+  if(aPrice)
+    if(aPrice < fPrice)
+      CreateGold(ev.source.backpack, fPrice - aPrice);
+    endif
+
+    SetMyGold(MyGold + aPrice);
+    SetPayment(Payment + (aPrice * PAYMENT_PER));
+    SetPurchaseHistory(history);
+
+
+    PrintTextAbovePrivate( me,"Koszt zakupu wyniosl "+aPrice+" gp", ev.source);
+  elseif(!IsClosed())
+    PrintTextAbovePrivate( me,"Niestety nie udalo Ci sie nic kupic "+ev.source.name, ev.source);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Sold()
+
+  if(!ev.source or !ev.items or !ev.items.size())
+    return 0;
+  endif
+
+  if(!IsPlayer(ev.source) or ev.source.dead)
+    return 0;
+  endif
+
+  if((Distance(me,ev.source) > 2 or !CheckLineOfSight(me,ev.source) or DistZ(me,ev.source) >= 20) and !ev.source.cmdlevel)
+    return 0;
+  endif
+
+  TurnToward(ev.source);
+
+  var dItems;
+  DefineSellItemsDict(ev.source, dItems);
+
+  var Buys     := GetBuyList();
+  var buyItems := dictionary;
+  var aPrice   := 0;
+  var SubItems := array;
+  var fItem, Amt, sAmt, Price, ElemName, Desc, history, hAmt;
+
+  DefineBuyListDict(Buys, buyItems);
+  history := GetPurchaseHistory();
+
+ 
+
+  foreach Item in (ev.items)
+    Item[1] := FindItemBySerial(Item[1]);
+    fItem   := GetItemDefFromBuyListDict(BuyItems, Item[1]);
+    Desc := CutDesc(Item[1].desc);
+
+    if(fItem)
+      Price    := GetPriceFromItemDef(fItem);
+      ElemName := Item[1].objtype+"_"+CutDesc(Item[1].desc)+"_"+Price;
+      
+      var hItem := struct;
+      hItem.+name := Desc;
+      hItem.+price := CInt(Price)*CInt(Item[2]);
+      hItem.+date := GetFullDate(readgameclock(),0);
+      hItem.+amt := CInt(Item[2]);
+      hItem.+type := 2;  //1 - sprzedane przez kupca, 2 - kupione
+
+      if(history.size() < 40)
+        history.append(hItem);
+      else
+        history.erase(1);
+        history.append(hItem);
+      endif
+
+      if(dItems.exists(ElemName))
+        Amt := CInt(Item[2]);
+        
+
+        foreach dItem in (dItems[ElemName][1])
+          if(!ReserveItem(dItem))
+            Say(ev.source.name+", czemu ciagle uzywasz przedmiotu "+CutDesc(dItem.desc)+" ?");
+            return;
+          endif
+
+          ReleaseItem(dItem);
+
+          if(Amt < dItem.amount)
+            sAmt := Amt;
+          else
+            sAmt := dItem.amount;
+          endif
+          
+          
+
+          SubItems.append( array(dItem, sAmt, CInt(Price)) );
+          Amt    := Amt - dItem.amount;
+          aPrice := aPrice + Price * dItem.amount;
+
+          if(Amt <= 0)
+            break;
+          endif
+        endforeach
+
+        if(Amt > 0)
+          Say(ev.source.name+ ", brakuje Ci jakims cudem "+Amt+" "+CutDesc(Item[1].desc)+"!");
+          return;
+        endif
+      else
+        Say(ev.source.name+ ", gdzie sie podzial przedmiot "+CutDesc(Item[1].desc)+"?");
+        return;
+      endif
+    endif
+
+  endforeach
+
+  if(MyGold - aPrice < MIN_SOLD_GOLD)
+    Say(ev.source.name+", niestety nie mam juz zlota, by zakupic te przedmioty od Ciebie.");
+    return;
+  endif
+
+  aPrice := 0;
+
+  var cpItem;
+
+  foreach Item in SubItems
+    if(Item[2] != Item[1].amount)
+      cpItem := CreateItemCopyAtLoc(CR_TEMP_ITEM_X, CR_TEMP_ITEM_Y, CR_TEMP_ITEM_Z, Item[1], CR_TEMP_ITEM_REALM);
+      if(cpItem)
+        Amt := Item[1].amount - Item[2];
+
+        if(SubtractAmount(cpItem, Amt))
+          if(SubtractAmount(Item[1], Item[2]))
+            if(MoveItemToMyPack(cpItem))
+              aPrice := aPrice + Item[3] * Item[2];
+            else
+              DestroyItem(cpItem);
+              AddAmount(Item[1], Item[2]);
+              break;
+            endif
+          else
+            DestroyItem(cpItem);
+          endif
+        else
+          DestroyItem(cpItem);
+        endif
+      endif
+    else
+      if(MoveItemToMyPack(Item[1]))
+        aPrice := aPrice + Item[3] * Item[2];
+      else
+        break;
+      endif
+    endif
+    
+  endforeach
+
+  if(!aPrice)
+    Say(ev.source.name+ ", zdaje sie ze nie mam juz miejsca w plecaku!");
+    return;
+  endif
+
+  
+  SetPurchaseHistory(history);
+  SetMyGold(MyGold - aPrice);
+  CreateGold(ev.source.backpack, aPrice);
+  SetPayment(Payment + (aPrice * PAYMENT_PER));
+
+  PrintTextAbovePrivate(me, "Sprzedal"+ggm(ev.source,3)+" mi przedmioty za laczna sume "+aPrice+" gp", ev.source);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveItemToMyPack(Item)
+
+  if(IsStackableObj(Item.objtype))
+    foreach iItem in EnumerateItemsInContainer(me.backpack)
+      if(CanStack(iItem, Item))
+        if(AddAmount(iItem, Item.amount))
+          if(DestroyItem(Item))
+            return 1;
+          else
+            SubtractAmount(iItem, Item.amount);
+            return 0;
+          endif
+        else
+          return 0;
+        endif
+      endif
+    endforeach
+  endif
+
+  return MoveItemToContainer(Item, me.backpack);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+
+function GetPurchaseHistory()
+
+  var history := GetObjProperty(me,"PurchaseHistory");
+
+  if(!history)
+    SetObjProperty(me,"PurchaseHistory",array());
+  else
+    return history;
+  endif
+
+  return GetObjProperty(me,"PurchaseHistory");
+
+endfunction
+
+//------------------------------------------------------------
+
+function SetPurchaseHistory(history)
+
+  SetObjProperty(me,"PurchaseHistory",history);
+
+endfunction
+
+//------------------------------------------------------------
+
+function ShowHistoryList(who)
+
+  var color;
+  var HistoryList := GetPurchaseHistory();
+
+  GInit(100,100);
+  GResPic(0,0,3600,760,300);
+  GTextLine(210,20,400,"Lista transakcji");
+  GTextLine(455,40,999,"Cena");
+  GTextLine(535,40,999,"Data");
+  GTextLine(30,40,999,"Kasuj");
+  GTextLine(420,40,999,"Ilosc");
+  GTextLine(61,20,999,"Kasuj wszystko");
+  GButton(25,20,4017,4019, 999);
+
+  GPage();
+  GAddPageData(465,15,2650,2651,465,263,2648,2647);
+  
+  if(HistoryList.size() >= 40)
+    Say("Twoja lista transakcyjna jest pelna!");
+  endif
+    
+  foreach Item in HistoryList
+    
+    if(Item.type == 1)
+      color := 2128;
+    elseif(Item.type == 2)
+      color := 2122;
+    endif
+
+    GCheckNextPage(10);
+    GButton(30,60+(GNPCount()*20),2714,2715, _Item_iter);
+    GTextLine(50,58+(GNPCount()*20),color,Item.name);
+    GTextLine(420,60+(GNPCount()*20),color,Item.amt);
+    GTextLine(455,60+(GNPCount()*20),color,Item.price+ " gp");
+    GTextLine(535,60+(GNPCount()*20),color,Item.date);
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  if(Res < 100 and Res != 0)
+    Say("Skasowal"+ggm(me,3)+" ze swojej listy transakcyjnej przedmiot: "+HistoryList[Res].name);
+    HistoryList.erase(Res);
+    SetPurchaseHistory(HistoryList);
+  elseif(Res == 999)
+    Say("Skasowal"+ggm(me,3)+" wszystko ze swojej listy transakcyjnej");
+    HistoryList.shrink(0);
+    SetPurchaseHistory(HistoryList);
+  endif
+
+endfunction

@@ -1,0 +1,100 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/traps";
+include "common";
+
+//-----------------------------------------------------------------------------
+
+const TRAP := "walkon_trap";
+
+//-----------------------------------------------------------------------------
+
+var Points  := GetDefaultPointsValue(SKILLID_DETECTINGHIDDEN );
+var ItemCfg := ReadConfigFIle(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program DetectHidden( who )
+
+  if(IsBusy(who,NO_BUSY_CHECK | NO_COMBAT_CHECK | NO_WORK_BREAK))
+    return;
+  endif
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_DETECTINGHIDDEN));
+
+  var range  := CInt(GetEffectiveSkill( who, SKILLID_DETECTINGHIDDEN)/20);
+  var hiders := ListMobilesNearLocationEx( who.x,who.y,who.z, range, LISTEX_FLAG_HIDDEN, who.realm );
+  var items  := ListItemsNearLocation( who.x,who.y,who.z, range, who.realm );
+  var foundany := 0;
+  var time;
+  
+  foreach mobile in hiders
+    if(Found(who, mobile))
+      mobile.hidden := 0;
+      foundany := 1;
+      PrintTextAbovePrivate( mobile, "Zostal"+ggm(mobile,3)+" odkryt"+ggm(mobile,6)+"!", mobile,FONT_NORMAL,COLOR_RED );
+      PrintTextAbovePrivate( mobile, "Znalazl"+ggm(who,3)+" kogos!!", who,FONT_NORMAL,COLOR_GREEN);
+    endif
+  endforeach
+  
+  if (!foundany)
+    SendSysMessage( who, "Nie znalazl"+ggm(who,3)+" nikogo.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+  foreach item in items
+
+    if(IsTrappedItem(Item))
+      if(CheckSkill( who, SKILLID_DETECTINGHIDDEN, -1, 0 ))
+        PrintTextAbovePrivate( item, "*Pulapka*", who,FONT_NORMAL,COLOR_RED);
+        foundany := 1;
+      else
+        if(RandomInt(10) < 4)
+          ArmTrap(who,item);
+          break;
+        endif
+      endif
+
+    elseif(ItemCfg[Item.objtype].WalkOnScript == TRAP)
+
+      if(CheckSkill( who, SKILLID_DETECTINGHIDDEN, -1, 0 ))
+        item.invisible := 0;
+        foundany := 1;
+        time := range * 12 + RandomInt(9) - RandomInt(9);
+        if(time <= 0)
+          time := 1;
+        endif
+        PrintTextAbovePrivate( item, "*Pulapka*", who,FONT_NORMAL,COLOR_RED);
+        start_script(":traps:hide_trap", array(item, time));
+      else
+        if(RandomInt(10) < 4)
+          //ArmTrap(who,item);
+          break;
+        endif
+      endif
+    endif
+  endforeach
+   
+  if(foundany)
+    AwardPoints(who, SKILLID_DETECTINGHIDDEN, Points);
+  else
+    AwardPoints(who, SKILLID_DETECTINGHIDDEN, Points, NO_STAT_AWARD);
+  endif
+   
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Found( finder, hider )
+
+  var Chance := GetDetectChance(finder, hider);
+
+  if(CheckSkill( finder, SKILLID_DETECTINGHIDDEN, Chance, 0 ) )
+    return 1;
+  else
+    return 0;
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

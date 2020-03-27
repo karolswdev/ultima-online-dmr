@@ -1,0 +1,46 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//--------------------------------------------------------------------------------
+
+include "arena";
+
+//--------------------------------------------------------------------------------
+
+program TournamentItemControl(item)
+
+  var cfgfile   := ReadConfigFile(":arena:itemdesc");
+  var dmg       := cfgfile[item.objtype].damage;
+  if(cfgfile[item.objtype].desc)
+    item.name   := cfgfile[item.objtype].desc;
+  endif
+  
+  var s := 1;
+  while(!GetObjProperty(item,"equipped"))
+    s := s + 1;
+    sleepms(100);
+    if(s > 100)
+      break;
+    endif
+  endwhile
+  
+  var who := SystemFindObjectBySerial(CInt(GetObjProperty(item,"equipped")));
+  
+  while(GetObjProperty(who,"#TourFight") and who and item)
+    sleepms(500);
+  endwhile
+  
+  if(GetObjProperty(item,"DestroyDelay") and GetObjProperty(item,"equipped"))
+    sleep(CInt(GetObjProperty(item,"DestroyDelay")));
+  endif
+
+  if(item)
+    DestroyItem(item);
+  endif
+  
+endprogram
+
+//--------------------------------------------------------------------------------

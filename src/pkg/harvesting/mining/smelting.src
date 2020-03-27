@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/dirs";
+
+include ":crafting:common";
+include ":crafting:creation";
+
+//-----------------------------------------------------------------------------
+
+program Smelting(who, ore)
+
+  if(!StandardItemCheck(who, ore))
+    return;
+  endif
+
+  var MiniCfg   := ReadConfigFile(":mining:mining");
+  var SmeltCfg  := ReadConfigFile(":mining:smelting");
+  var Diff;
+
+  if(MiniCfg[ore.objtype])
+    Diff := CInt(MiniCfg[ore.objtype].Diff);
+  elseif(SmeltCfg[ore.objtype])
+    Diff := CInt(SmeltCfg[ore.objtype].Diff);
+  else
+    SendSysMessage(who, "Nie wiesz jak to przetopic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Diff := Max(Diff - 20, 1);
+
+  if(GetEffectiveSkill(who, SKILLID_MINING) < Diff - 15)
+    SendSysMessage(who, "Twe umiejetnosci gornicze sa zbyt male, by wiedziec jak to przetopic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Forge := IsNearForge(who);
+  if(!Forge)
+    SendSysMessage(who, "To mozesz przetopic tylko w piecu.", FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  start_script(":mining:smelt_item", array(who, Ore, CRAFT_MAX_ITERATIONS));
+
+endprogram
+
+//-----------------------------------------------------------------------------

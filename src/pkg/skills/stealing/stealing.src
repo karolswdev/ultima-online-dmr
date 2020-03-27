@@ -1,0 +1,302 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/player/young";
+include "include/noto";
+
+include "../snooping/snooping";
+include ":quests:quest_ctrl";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const STEAL_TIME := 180;
+
+//-----------------------------------------------------------------------------
+
+var gItemCfg  := ReadConfigFile(ITEMS_CFG);
+var gSnoopCfg := ReadConfigFile(":snooping:snoop");
+
+//-----------------------------------------------------------------------------
+
+program SkillStealing(who)
+
+  if(IsBusy(who))
+    return;
+  endif
+
+  if(!CanSnoop(who))
+    return;
+  endif
+  
+/*  if(IsYoung(who))
+    SendSysMessage(who,"Twoj status mlodego uniemo¿liwia Ci okradanie.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif*/
+
+  var Gloves := GetEquipmentByLayer(who, LAYER_GLOVES);
+
+  if(!Gloves or Gloves.objtype != UOBJ_THIEF_GLOVES)
+    SendSysMessage(who,"Bez odpowiednich rekawic nikogo nie okradniesz!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(GetProcess(CInt(GetObjProperty(who,"#Stealing"))))
+    return;
+  endif
+  
+  SetObjProperty(who,"#Stealing",GetPid());
+  //CInt(CalcSkillExponential(Caster, SKILLID_WEARWOLF, 4) + CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 3) + RandomInt(3)); // do 7 czy tez 9 dla 120 WW.
+  //var WeightLimit := 5 + CInt(GetEffectiveSkill(who,SKILLID_STEALING) / 10);
+  var WeightLimit :=  5 + CInt(CalcSkillExponential(who, SKILLID_STEALING, 11));
+  SetBusyTime(who,GetSkillDelay(SKILLID_STEALING));
+  
+  SendSysMessage(who,"Co lub kogo chcial"+ggm(who,1)+" okrasc?",FONT_NORMAL,COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  
+  if(!Targ)
+    SendBad(who, "Anulowano.");
+    return;
+  endif
+
+  if(Targ.isa(POLCLASS_ITEM))
+  
+    SetCriminal(who, 1, "Stealing", "Probowal"+ggm(who,3)+" ukrasc przedmiot.");
+
+    if(Targ.newbie or !Targ.container or Targ.isa(POLCLASS_CONTAINER) or CInt(GetObjProperty(Targ.container,"#BeingSnoop")) != who.serial)
+      SendSysMessage(who,"Tego nie uda Ci sie ukrasc!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    if(!ReserveItem(Targ))
+      SendSysMessage(who,"Nie uda Ci sie ukrasc tego w tej chwili.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    ReleaseItem(Targ);
+    
+    SendSysMessage(who,"Probujesz ukrasc przedmiot "+Targ.desc+"...",FONT_NORMAL,COLOR_GREEN);
+
+    var Weight := Targ.weight;
+
+    if(Targ.amount > 1 and Targ.weight > WeightLimit)
+      Weight := gItemCfg[Targ.objtype].Weight;
+    endif
+
+    if(CInt(Weight) > WeightLimit)
+      SendSysMessage(who,"Nie udzwigniesz tego przedmiotu!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    sleep(GetStealSleepDelay(who));
+    
+    if(CInt(Weight) > WeightLimit)
+      SendSysMessage(who,"Nie udzwigniesz tego przedmiotu!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    var Victim := FindPlayerBySerial(CInt(GetObjProperty(who,"#Snooping")));
+    if(!Victim)
+      return;
+    endif
+
+/*    if(IsYoung(Victim))
+      SendSysMessage(who,"Ten przedmiot nalezy do mlodego, ktorego nie mozesz okrasc.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif*/
+
+
+    if(GetObjProperty(Targ.container,"#BeingSnoop") != who.serial or GetObjProperty(who,"#Snooping") != Victim.serial)
+      return;
+    endif
+
+    if(GetObjProperty(who,"LastSteal") and (CInt(GetObjProperty(who,"LastSteal")) > ReadGameClock()) and RandomInt(100) < 80)
+      if(IsPlayer(Targ))
+        SendSysMessage(who,"Oh! Za szybko chcial"+ggm(who,3)+" znow cos ukrasc! "+Victim.name+" zorientowal"+ggm(Victim,4)+" sie!",FONT_NORMAL,COLOR_RED);
+      else
+        SendSysMessage(who,"Ujawnil"+ggm(who,3)+" sie!",FONT_NORMAL,COLOR_RED);
+      endif
+      AlarmOthers(who,Victim);
+      return;
+    endif
+    
+    var AmtStolen := 0;
+
+    if(CheckSkill(who,SKILLID_STEALING,GetSnoopDiff(who,Victim),0) and CheckSkill(who,SKILLID_STEALING,-1,0) and Victim.backpack)
+      SetObjProperty(Targ,"#Stealed",who.serial);
+      if(Targ.amount > 1 and (Targ.weight) > WeightLimit)
+        if(Weight["/"])
+          Weight    := CInt(Weight[find(Weight,"/",1)+1,len(Weight)]);
+        else
+          Weight    := CInt(Weight);
+        endif
+        AmtStolen := WeightLimit / Weight;
+        
+        if(AmtStolen > Targ.amount)
+          AmtStolen := Targ.amount;
+        endif
+        
+        var TargObj := Targ.objtype;
+        
+        if(SubtractAmount(Targ,AmtStolen))
+          EraseObjProperty(Targ,"#Stealed");
+          var Coins := CreateItemInPack(who,TargObj,AmtStolen);
+          if(!Coins)
+            if(Targ)
+              AddAmount(Targ,AmtStolen);
+            endif
+            SendSysMessage(who,"Nie udalo Ci sie ukrasc tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+            return;
+          endif
+          Targ := Coins;
+        else
+          EraseObjProperty(Targ,"#Stealed");
+          SendSysMessage(who,"Nie udalo Ci sie ukrasc tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+          return;
+        endif
+      elseif(!MoveItemToContainer(Targ,who.backpack))
+        EraseObjProperty(Targ,"#Stealed");
+        SendSysMessage(who,"Nie udalo Ci sie ukrasc tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      EraseObjProperty(Targ,"#Stealed");
+      
+      if(AmtStolen)
+        SendSysMessage(who,"Udalo Ci sie ukrasc "+AmtStolen+" "+CutDesc(Targ.desc)+"!",FONT_NORMAL,COLOR_GREEN);
+      else
+        SendSysMessage(who,"Udalo Ci sie ukrasc "+Targ.desc+"!",FONT_NORMAL,COLOR_GREEN);
+      endif
+      AwardPoints(who,SKILLID_SNOOPING,GetDefaultPointsValue(SKILLID_STEALING));
+      SetObjProperty(who,"LastSteal",ReadGameClock() + CInt(gSnoopCfg["Opts"].StealItemDelay));
+      SetObjProperty(who,"#LastStealed",Victim.serial);
+      AwardPoints(who,SKILLID_STEALING,GetDefaultPointsValue(SKILLID_STEALING));
+      SetObjProperty(who,"#WasStealing",ReadGameClock() + STEAL_TIME);
+      SendQuestEvent(who, EVQID_SKILL, SKILLID_STEALING, Victim);
+    else
+      SendSysMessage(who,"Nie Udalo Ci sie ukrasc "+Targ.desc+"!",FONT_NORMAL,COLOR_RED);
+    endif
+    
+  elseif(Targ.isa(POLCLASS_MOBILE))
+  
+    SetCriminal(who, 1, "Stealing", "Probowal"+ggm(who,3)+" okrasc osobe.");
+
+    if(!StandardMobCheck(who,Targ))
+      return;
+    endif
+  
+/*    if(IsYoung(Targ))
+      SendSysMessage(who,"Mlodej osoby nie okradniesz.",FONT_NORMAL,COLOR_BLUE);
+      return;
+    endif*/
+    
+    if(Targ == who)
+      SendSysMessage(who,"Chcesz siebie okrasc?",FONT_NORMAL,COLOR_BLUE);
+      return;
+    endif
+    
+    if(Distance(who, Targ) > 1)
+      SendSysMessage(who,"Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    var TargPack := GetSnoopPack(Targ);
+
+    if(!TargPack)
+      SendSysMessage(who,"To stworzenie nie ma plecaka!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    //__NOPVP__  SetPvPStatus(who,PVP_FORCED_YES, PVP_FORCED_TIME); // za zagladanie flaga pvp
+    
+    if(!len(EnumerateItemsInContainer(TargPack)))
+      SendSysMessage(who,"To stworzenie nie ma za duzo przy sobie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    if(GetObjProperty(Targ,"#BeingSnoop") == who.serial or GetObjProperty(who,"#Snooping"))
+      SendSysMessage(who,"Juz zagladasz do plecaka tej osoby!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    SendSysMessage(who,"Probujesz ukrasc jakis przedmiot z plecaka stworzenia "+Targ.name+"...",FONT_NORMAL,COLOR_GREEN);
+    sleep((2 + GetStealSleepDelay(who)));
+
+    if(Distance(who,Targ) > 1)
+      SendSysMessage(who,"Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    if(GetObjProperty(Targ,"#BeingSnoop") == who.serial or GetObjProperty(who,"#Snooping"))
+      SendSysMessage(who,"Juz zagladasz do plecaka tej osoby!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(!TargPack or !len(EnumerateItemsInContainer(TargPack)))
+      SendSysMessage(who,"Ta osoba nie ma za duzo przy sobie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    
+    var Items := {};
+    foreach item in ListRootItemsInContainer(TargPack)
+      if(!item.newbie and !item.isa(POLCLASS_CONTAINER) and item.weight <= WeightLimit)
+        Items.append(item);
+      endif
+    endforeach
+
+    if(!len(Items))
+      SendSysMessage(who,"Nie bardzo jest co ukrasc temu stworzeniu.",FONT_NORMAL,COLOR_BLUE);
+      return;
+    endif
+    
+    var StealItem := Items[RandomInt(len(Items))+1];
+    if(!StealItem)
+      StealItem := Items[1];
+    endif
+
+    FameLost(who);
+    KarmaLost(who);
+
+    if(GetObjProperty(who,"LastSteal") and (CInt(GetObjProperty(who,"LastSteal")) > ReadGameClock()) and RandomInt(100) < 80)
+      if(IsPlayer(Targ))
+        SendSysMessage(who,"Oh! Za szybko chcial"+ggm(who,3)+" znow cos ukrasc! "+Targ.name+" zorientowal"+ggm(Targ,4)+" sie!",FONT_NORMAL,COLOR_RED);
+      else
+        SendSysMessage(who,"Ujawnil"+ggm(who,3)+" sie!",FONT_NORMAL,COLOR_RED);
+      endif
+      AlarmOthers(who,Targ);
+      return;
+    endif
+    
+    if(CheckSkill(who,SKILLID_STEALING,GetSnoopDiff(who,Targ),0) and CheckSkill(who,SKILLID_STEALING,-1,0) and TargPack)
+      SetObjProperty(StealItem,"#Stealed",who.serial);
+
+      if(MoveItemToContainer(StealItem,who.backpack))
+        SendSysMessage(who,"Udalo Ci sie ukrasc przedmiot "+StealItem.desc+"!",FONT_NORMAL,COLOR_GREEN);
+        SetObjProperty(who,"LastSteal",ReadGameClock() + CInt(gSnoopCfg["Opts"].StealMobDelay));
+        SetObjProperty(who,"#LastStealed",Targ.serial);
+        AwardPoints(who,SKILLID_STEALING,GetDefaultPointsValue(SKILLID_STEALING));
+        SetObjProperty(who,"#WasStealing",ReadGameClock() + STEAL_TIME);
+        SendQuestEvent(who, EVQID_SKILL, SKILLID_STEALING, Targ);
+      else
+        SendSysMessage(who,"Nie udalo Ci sie ukrasc tego przedmiotu.",FONT_NORMAL,COLOR_RED);
+      endif
+
+      EraseObjProperty(StealItem,"#Stealed");
+    else
+      SendSysMessage(who,"Nie udalo Ci sie okrasc stworzenia "+Targ.name+"!",FONT_NORMAL,COLOR_RED);
+      AlarmOthers(who,Targ);
+    endif
+
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetStealSleepDelay(who)
+
+  return CInt((CInt(gSnoopCfg["Opts"].StealingSleep) + (5 - CInt(GetEffectiveSkill(who,SKILLID_STEALING) / 20))));
+
+endfunction
+
+//-----------------------------------------------------------------------------

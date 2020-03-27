@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+
+include ":healing:healing";
+
+//-----------------------------------------------------------------------------
+
+var clock := ReadGameClock();
+var counter := 0;
+var Healing;
+
+//-----------------------------------------------------------------------------
+
+program UseKensaiSkill( who )
+
+  if(IsBusy(who, NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(GetEffectiveSkill(who, SKILLID_KENSAI) < 80)
+    SendSysMessage(who, "Twa wiedza jest zbyt mala...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Kogo chcesz sprobowac wskrzesic?", FONT_NORMAL, COLOR_GREEN);
+  var Targ := ObjTarget(who, TGTOPT_CHECK_LOS+TGTOPT_HELPFUL);
+
+  SetBusyTime(who,GetSkillDelay(SKILLID_KENSAI));
+
+  if(!StandardMobCheck(who,Targ,NO_CHECK_SPECLOS | NEW_DIST_CHECK | NO_COMBAT_CHECK | NOCHECK_DEAD, 1))
+    return;
+  elseif(!IsPlayer(Targ))
+    SendSysMessage(who, "Tego nie uda Ci sie wskrzesic.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Targ == who)
+    SendSysMessage(who, "Chcesz siebie wskrzesic?",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(!Targ.dead)
+    SendSysMessage(who, "Ta osoba wyglada na calkiem zywa.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Healing := GetEffectiveSkill(who, SKILLID_KENSAI);
+  
+  if(GetStamina(who) < 40)
+    SendSysMessage(who, "Brak Ci wytrzymalosci na ten wyczyn.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  ConsumeStamina(who, 40+RandomInt(5));
+  
+  SetObjProperty(who, "#HealTimer", clock);
+  ResurrectPc(who, Targ, SKILLID_KENSAI);
+  EraseObjProperty(who, "#HealTimer");
+
+endprogram
+
+//-----------------------------------------------------------------------------

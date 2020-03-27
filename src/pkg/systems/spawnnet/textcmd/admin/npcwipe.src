@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/npcs";
+
+include "include/gumpboxes";
+
+//-----------------------------------------------------------------------------
+
+program NpcWipeCmd(who)
+
+  SetLogRunCycles(LST_CMD);
+  
+  if(!YesNo(who,"Na pewno?"))
+    return;
+  endif
+  
+  var Rlms := Realms();
+  var num := 0,x,y, Width, Height;
+
+  foreach RlmInfo in Rlms
+    Width  := RlmInfo.width;
+    Height := RlmInfo.height;
+
+    for(x:=Width; x>=32; x:=x -32)
+      if(!(x % 256))
+        SendSysMessage(who, "Niszczenie dla X=" + x + " D:"+num+" Rlm: "+_RlmInfo_iter+" PID: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+      endif
+      for(y:=Height; y>=32; y:=y-32)
+        foreach npc in ListObjectsInBox(x - 32, y - 32, -127, x-1, y-1, 127, _RlmInfo_iter)
+          if(npc.isa(POLCLASS_NPC))
+            KillNPC(npc);
+            num := num + 1;
+          endif
+        endforeach
+      endfor
+    endfor
+  endforeach
+
+  SendSysMessage(who,"Zabito "+num+" npecow.",FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

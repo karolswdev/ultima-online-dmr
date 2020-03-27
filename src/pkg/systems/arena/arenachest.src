@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include "arena";
+include ":banking:common";
+
+//-----------------------------------------------------------------------------
+
+program ArenaChestControl(Chest)
+
+  while(Chest)
+    foreach item in ListRootItemsInContainer(Chest)
+      if(item.objtype == UOBJ_ARENAPACK)
+        if(!len(ListRootItemsInContainer(item)))
+          DestroyItem(item);
+        endif
+      endif
+    endforeach
+    sleep(120);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

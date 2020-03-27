@@ -1,0 +1,62 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/mobile/npcs/specs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 108;
+
+//-----------------------------------------------------------------------------
+
+program CastVampCurse( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!CanGetMagicStatMod(CastOn))
+    Fizzle(Caster, "Czar nie daje efektu na tej osobie.");
+    return;
+  endif
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_CURSE);
+  PlayPcEffect( CastOn, FX_CURSE_EFFECT, 37, 0xF, 0xF, 1);
+  var ModAmount := CInt(GetEffectiveSkill(Caster,SKILLID_VAMPIRE) / 20) + CInt(GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK) / 20) + RandomInt(3) + 3;
+  var Duration  := GetVampireSpellDur(Caster);
+  ModAmount     := Resisted(CastOn, Caster, ModAmount, SpellGlob.Circle, SpellGlob.Type);
+  var ModFlags := __IfElse(IsDungeonSpellCasted(SPELL_ID), MODF_CHECK_VAMPIRE, 0);
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  CagNpcDamaged(CastOn, ModAmount, Caster);
+
+  DoMod(CastOn, MOD_LIFE, 0 - ModAmount, Duration, 0, ModFlags);
+  DoMod(CastOn, MOD_MANA, 0 - ModAmount, Duration, 0, ModFlags);
+  DoMod(CastOn, MOD_STAMINA, 0 - ModAmount, Duration, 0, ModFlags);
+  
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+
+  if(CastOn.isa(POLCLASS_NPC))
+    var Res := BreakNpcSpecial(CastOn, NSPEC_STONEFALL);
+    if(Res > 0)
+      SendSysMessage(Caster, "Przelamal"+ggm(Caster,3)+" koncetracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_WHITE);
+    elseif(Res < 0)
+      SendSysMessage(Caster, "Prawie przelamal"+ggm(Caster,3)+" koncentracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_ORANGE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,27 @@
+//-----------------------------------------------------------------------------
+
+include "plankutil";
+
+//-----------------------------------------------------------------------------
+
+program renameboat(you, tillerman)
+
+  if((GetObjProperty(tillerman,"owner") != you.serial) &&(you.cmdlevel < 2))
+    PrintTextAbove(tillerman,"Przestan! albo wyrzuce Cie za burte!");
+    return;
+  endif
+
+  var boatname := RequestInput(you, tillerman, "Wprowadz nowa nazwe dla lodzi.(maksymalnie 40 znakow)");
+
+  if(boatname)
+    if(len(boatname) <= 40)
+      tillerman.name := boatname;
+      SendSysMessage(you, "Nazwa zostala zmieniona.");
+    else
+      SendSysMessage(you, "Za dluga nazwa.");
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+include "include/items";
+include "include/effects";
+
+include ":crafting:creation";
+
+//-----------------------------------------------------------------------------
+
+program UseThread(who, thread)
+
+  if(!StandardItemCheck(who,thread))
+    return;
+  endif
+
+  SendSysMessage(who, "Na czym chcesz to uzyc?",FONT_NORMAL,COLOR_GREEN);
+  var UseOn := ObjTarget(who);
+
+  if(!StandardItemCheck(who,UseOn,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+
+  if(UseOn == thread)
+    start_script(":blades:cut_item", array(who, UseOn, thread, "UseThreadTwine", CRAFT_MAX_ITERATIONS));
+    return;
+  endif
+
+  var obj := UseOn.objtype;
+
+  if ( (obj < UOBJ_LOOM_START) || (obj > UOBJ_LOOM_END))
+    SendSysMessage(who,"Nici mozesz nawinac tylko na narzedziu tkackim.",FONT_NORMAL,COLOR_RED);
+    return;
+  else
+    if(Distance(who,UseOn) > 1)
+      SendSysMessage(who,"Jestes za daleko.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    start_script(":blades:cut_item", array(who, UseOn, thread, "UseThreadCloth", CRAFT_MAX_ITERATIONS));
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

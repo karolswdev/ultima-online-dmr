@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/items";
+include "include/move";
+include "include/finding";
+
+//-----------------------------------------------------------------------------
+
+const UOBJ_FIRE := 0x19AD;
+
+//-----------------------------------------------------------------------------
+
+var Fire;
+
+//-----------------------------------------------------------------------------
+
+program ControlForge(Forge)
+
+  sleepms(100+RandomInt(2000));
+
+  foreach item in ListObjectsInBox(Forge.x,Forge.y,-127,Forge.x,Forge.y,127,Forge.realm)
+    if(item.objtype == UOBJ_FIRE and Item.isa(POLCLASS_ITEM))
+      Fire := item;
+    endif
+  endforeach
+
+  if(!Fire)
+    Fire := FindItemBySerial(GetObjProperty(Forge,"FireSer"));
+  endif
+
+  if(!Fire)
+    Fire := CreateItemAtLoc(Forge.x,Forge.y,Forge.z+7,UOBJ_FIRE,1,Forge.realm);
+  endif
+
+  if(Fire.z != Forge.z+7)
+    MoveObject(Fire, Forge.x, Forge.y, Forge.z+7, Forge.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+  endif
+
+  if(Fire.movable)
+    Fire.movable := 0;
+  endif
+  
+  SetObjProperty(Forge,"FireSer",Fire.serial);
+
+endprogram
+
+//-----------------------------------------------------------------------------

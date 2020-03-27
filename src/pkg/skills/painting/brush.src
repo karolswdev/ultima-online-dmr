@@ -1,0 +1,280 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/gumps";
+include "include/skills/std";
+include "include/gumpboxes";
+include "include/tools";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+
+include ":quests:quest_ctrl";
+include ":crafting:exceptional";
+include ":crafting:receptures";
+include ":crafting:common";
+
+//-----------------------------------------------------------------------------
+
+const PAINT_PORTRAIT_TIME := 150;
+const PORTRAIT_DIFF       := 85;
+
+//-----------------------------------------------------------------------------
+
+program PaintBrush(who,brush)
+
+  if(!StandardItemCheck(who,brush))
+    return;
+  endif
+
+  InitSkillGlob(who, ":painting:painting", SKILLID_CARTOGRAPHY);
+  BuildPaintingsGump();
+
+  var Painting := GSend(who)[0];
+  if(!Painting)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(Painting == 1)
+    Painting := CInt(GetObjProperty(who,"LastPainting"));
+    if(!Painting)
+      SendSysMessage(who,"Jeszcze nic nie malowal"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  elseif(Painting == 2)
+    PaintPortrait(who);
+    return;
+  elseif(!(Painting in (SkillGlob.avObjTypes)))
+    return;
+  endif
+
+  Paint(who,brush,Painting);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildPaintingsGump()
+
+  BuildGreyMainGump();
+  GTextLine( 200, 22, 650, "Menu Malarstwa");
+  GButton( 470, 22, 2708, 2709, 1 );
+  GTextLine(370, 22,  600, "To co ostatnio");
+
+  GTextLine  (220,  345, 500,  "Maluj portret");
+  GButton( 200, 345, 2710, 2711, 2 );
+
+  GPage();
+  AddGumpElem( 3743, 80,  125, 100, 130, 85,  150 ,"None", 0,       999 , 2704, 2705);
+  AddGumpElem( 3815, 80,  125, 230, 130, 215, 150 ,"None", 0,       999 , 2704, 2705);
+  AddGumpElem( 3751, 80,  125, 360, 130, 345, 150 ,"None", 0,       999 , 2704, 2705);
+
+  AddGumpElem( 3750, 80,  125, 100, 230, 85,  255 ,"None", 0,       999 , 2704, 2705);
+  AddGumpElem( 3747, 80,  125, 230, 230, 215, 255 ,"None", 0,       999 , 2704, 2705);
+  AddGumpElem( 3744, 80,  125, 360, 210, 345, 255 ,"None", 0,       999 , 2704, 2705);
+
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Paint(who,brush,ObjType)
+
+  SetObjProperty(who,"LastPainting",CInt(ObjType));
+  var Easel := IsNearEasel(who);
+  if(!Easel)
+    SendSysMessage(who,"Malowac mozesz tylko na sztaludze.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Easel == -1)
+    return;
+  elseif(!ReserveItem(Easel))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ExpMod     := 0;
+  var Diff       := CInt(SkillGlob.cfg[ObjType].Diff);
+  var MySkill    := GetEffectiveSkill(who,SKILLID_CARTOGRAPHY);
+  var Name       := GetDescForItem(ObjType);
+  var Points     := GetCraftPoints(SKILLID_CARTOGRAPHY, MySkill);
+  var Painting;
+  var LogMod     := 0;
+
+  ExpMod         := CInt(GetDexterity(who) / 4);
+  ExpMod         := ExpMod + CInt((Diff - MySkill) / 4);
+  ExpMod         := ExpMod + (CheckItemQuality(Brush) * 2);
+
+  ModifyGainByNutr(who, ExpMod, ATTRIBUTEID_PAINTING);
+
+  if(FindCity(who))
+    if(IsInBuilding(who.x, who.y, who.realm))
+      if(IsNpcNear(who.x, who.y, who.realm, 10, "painter", 1))
+        ExpMod := ExpMod + EXP_CITY_GAIN;
+      endif
+    endif
+  endif
+
+  if(!MakeNoise(who, 0x248))
+    return;
+  endif
+
+  Easel.graphic := UOBJ_EASEL;
+
+  if(!CheckToolWear(who,brush,SKILLID_CARTOGRAPHY))
+    return;
+  endif
+
+  if(CheckMoreSkill(who,SKILLID_CARTOGRAPHY,Diff,0))
+    var Exp := 0;
+    
+    if(RandomInt(1000) < ExpMod and MySkill >= SKILL_TO_MAKE_EXP)
+      Exp := 1;
+      LogMod := 5;
+    endif
+
+    var itmDesc := GetItemDescriptor(CInt(ObjType));
+    var propMade := GenMade(who, MTYPE_LOG, LogMod);
+    itmDesc.CProps.insert(PROP_MADE, propMade);
+
+    Painting := CreateItemInCont(who.backpack, itmDesc, 1, who);
+
+    if(!Painting)
+      SendSysMessage(who,"Nie masz miejsca w plecaku!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(RandomInt(1000) < ExpMod and MySkill >= SKILL_TO_MAKE_EXP)
+      Name := "Wyjatkowy "+Name+" namalowany przez "+who.name;
+      SendSysMessage(who,"Namalowal"+ggm(who,3)+" wyjatkowy obraz.",FONT_NORMAL,COLOR_BLUE);
+    else
+      SendSysMessage(who,"Namalowal"+ggm(who,3)+" obraz.",FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    SetName(Painting,Name);
+
+    AwardPoints(who, SKILLID_CARTOGRAPHY, Points, GAIN_RESTRICT, Diff);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_CARTOGRAPHY, array(Painting, 0));
+  else
+    SendSysMessage(who,"Oh! nie udalo Ci sie.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsNearEasel(who)
+
+  foreach item in ListItemsNearLocation(who.x,who.y-1,who.z,0,who.realm)
+    if(item.graphic == UOBJ_MATEASEL)
+      if(!StandardItemCheck(who,item,NO_MOVABLE_CHECK))
+        return -1;
+      endif
+      return item;
+    endif
+  endforeach
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PaintPortrait(who)
+
+  var Easel := IsNearEasel(who);
+  if(!Easel)
+    SendSysMessage(who,"Malowac mozesz tylko na sztaludze.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Easel == -1)
+    return;
+  elseif(!ReserveItem(Easel))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var OfWho := ObjTarget(who);
+
+  if(!StandardMobCheck(who,OfWho))
+    return;
+  endif
+
+  if(!IsPlayer(OfWho) or OfWho.dead)
+    SendSysMessage(who,"Jego portetu nie namalujesz.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(who == ofwho)
+    return;
+  endif
+
+  var Wx := who.x,Wy := who.y,Ox := ofwho.x,Oy := ofwho.y,Rlm := who.realm,ORlm := ofwho.realm;
+  var Time := ReadGameClock() + PAINT_PORTRAIT_TIME;
+
+  SendSysMessage(who,"Probujesz namalowac portret osoby "+ofwho.name+"...",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(ofwho,who.name+" probuje namalowac twoj portret...",FONT_NORMAL,COLOR_GREEN);
+
+  while(Easel and who and IsLoggedIn(who) and ofwho and IsLoggedIn(ofwho) and !ofwho.concealed and !ofwho.hidden)
+    if(who.x != Wx or who.y != Wy or Rlm != who.realm)
+      SendSysMessage(who,"Oddalil"+ggm(who,3)+" sie.",FONT_NORMAL,COLOR_RED);
+      SendSysMessage(ofwho,who.name + " oddalil"+ggm(who,4)+" sie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    if(ofwho.x != Ox or ofwho.y != Oy or ORlm != ofwho.realm)
+      SendSysMessage(ofwho,"Oddalil"+ggm(who,3)+" sie.",FONT_NORMAL,COLOR_RED);
+      SendSysMessage(who,ofwho.name + " oddalil"+ggm(who,4)+" sie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+
+    if(Time < ReadGameClock())
+      if(CheckMoreSkill(who,SKILLID_CARTOGRAPHY,PORTRAIT_DIFF,80))
+        var Portrait := CreateItemInPack(who,UOBJ_PORTRAIT);
+        if(Portrait)
+          SendSysMessage(who,"Namalowal"+ggm(who,3)+" portet "+ofwho.name+".",FONT_NORMAL,COLOR_GREEN);
+          SetName(Portrait,"Portret osoby "+GetRealName(ofwho));
+          SetPortrait(ofwho,Portrait);
+        else
+          SendSysMessage(who,"Masz za malo miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+        endif
+      else
+        SendSysMessage(who,"Nie udalo Ci sie namalowac portetu "+ofwho.name+".",FONT_NORMAL,COLOR_GREEN);
+      endif
+      Easel.graphic := UOBJ_EASEL;
+      return;
+    endif
+
+    sleepms(500);
+
+  endwhile
+
+  if(Easel)
+    Easel.graphic := UOBJ_EASEL;
+  endif
+
+  if(IsLoggedIn(who))
+    SendSysMessage(who,"Przestal"+ggm(who,3)+" malowac.",FONT_NORMAL,COLOR_RED);
+  endif
+
+  if(IsLoggedIn(ofwho))
+    SendSysMessage(ofwho,who.name + "przestal"+ggm(who,3)+" malowac.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetPortrait(ofwho,Portrait)
+
+  var Items := dictionary,i,Item;
+  for(i:=1;i<=24;i:=i+1)
+    if(i != LAYER_PACK)
+      Item := GetEquipmentByLayer(ofwho,i);
+      if(Item)
+        Items[Item.graphic] := Item.color;
+      endif
+    endif
+  endfor
+  SetObjProperty(Portrait,"EquippedItems",Items);
+  SetObjProperty(Portrait,"WhoGender",ofwho.gender);
+  SetObjProperty(Portrait,"WhoName",GetRealName(ofwho));
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "spawnrune";
+include "spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program DestroyRune(rune)
+
+  if(IsRunning(Rune) or IsSpawning(Rune))
+    return 0;
+  endif
+
+  var RuneNr := GetRuneNr(Rune);
+
+  AnnihilateSpawns(Rune);
+ 
+  if(RuneNr and Rune == FindRuneByNr(RuneNr))
+    SetGlobalProperty(SR_SER_FLAG+CStr(RuneNr),"Empty");
+  endif
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

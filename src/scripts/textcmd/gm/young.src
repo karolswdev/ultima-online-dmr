@@ -1,0 +1,83 @@
+//-----------------------------------------------------------------------------
+
+include "include/names";
+include "include/player/target";
+include "include/player/young";
+//-----------------------------------------------------------------------------
+
+program CmdYoung(who, text)
+
+  var spText := SplitWords(text);
+
+  case(spText[1])
+    "set":      CmdSetYoung(who);
+
+    "del":      CmdDelYoung(who);
+
+    default:    SendSysMessage(who, ".young [set/del]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CmdSetYoung(who)
+
+  SendSysMessage(who, "Wskaz gracza.", FONT_NORMAL, COLOR_GREEN);
+
+  var Targ := Target(who);
+
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(IsYoung(Targ))
+    SendSysMessage(who, "Ta osoba jest juz mloda.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(SetYoung(Targ))
+    LogNotice("[CmdYoung]: GM: "+GetRealName(who)+" ustawil status mlodego osobie: "+GetRealName(Targ), LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO | LOGF_FORCE_SYSLOG);
+    SendSysMessage(who, "Ustawniono status mlody osobie: "+GetRealName(Targ)+".", FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdDelYoung(who)
+
+  SendSysMessage(who, "Wskaz gracza.", FONT_NORMAL, COLOR_GREEN);
+
+  var Targ := Target(who);
+
+  if(!Targ)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(!IsPlayer(Targ))
+    SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(!IsYoung(Targ))
+    SendSysMessage(who, "Ta osoba NIE jest mloda.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(DelYoung(Targ))
+    LogNotice("[CmdYoung]: GM: "+GetRealName(who)+" skasowal status mlodego osobie: "+GetRealName(Targ), LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO | LOGF_FORCE_SYSLOG);
+    SendSysMessage(who, "Skasowano status mlody osobie: "+GetRealName(Targ)+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

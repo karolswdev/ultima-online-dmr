@@ -1,0 +1,22 @@
+use uo;
+
+include "../../utilsGumps";
+
+var me;
+
+program textcmd_motd(who)
+	if (who[1] == "ICP")
+		me := who[2];
+	else
+		me := who;
+	endif
+	if (me == -1)
+		return 1;
+	endif
+	var text := GetCommandHelp(me, "motd");
+	if(!text)
+		text := "Nie ma zadnych nowych wiadomosci dzis...";
+	endif
+	var res := SendStringAsHtmlWindow(me, text, "Wiadomosci...");
+	return 1;
+endprogram

@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 51;
+
+//-----------------------------------------------------------------------------
+
+program CastFlameStrike( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_OBJECT, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  if (Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  if(!CastOn.container)
+    PlayStationaryEff(CastOn.x,CastOn.y,CastOn.z, FX_FLAMESTRIKE, 0x0a, 0x1e, 0, CastOn.realm );
+  endif
+
+  PlaySoundEffect( Caster, SFX_SPELL_FLAME_STRIKE );
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

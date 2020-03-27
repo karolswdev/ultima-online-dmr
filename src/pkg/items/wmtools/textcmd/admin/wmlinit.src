@@ -1,0 +1,175 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-26
+// Modified: 2011-04-26
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/items/utils";
+include "include/objects/location";
+
+include ":itemsets:definition";
+
+include ":wmtools:gmp_defs";
+include ":wmtools:wml_common";
+include ":wmtools:wmultis";
+include ":wmtools:statics";
+
+//-----------------------------------------------------------------------------
+
+const MULTIS_CFG := "::multis";
+
+//-----------------------------------------------------------------------------
+
+program WMMultiInit(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!IsRealAdmin(who))
+    return;
+  endif
+
+  var multiCfg := ReadConfigFile(MULTIS_CFG);
+  var newIds   := GetConfigStringKeys(multiCfg);
+
+  if(!multiCfg or !newIds or !newIds.size())
+    SendSysMessage(who, "Plik "+MULTIS_CFG+" nie posiada zdefiniowanych elementow!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Groups := GetWmlGroups();
+
+  SendSysMessage(who, "Znaleziono "+Groups.size()+" elementow WML.", FONT_NORMAL, COLOR_WHITE);
+  
+  if(text)
+
+    if(text in newIds)
+
+      if(CInt(text) in Groups)
+
+        SendSysMessage(who, "Czy chcesz nadpisac WML " + text + "?", FONT_NORMAL, COLOR_GREEN);
+
+        if(!YesNo(who, "Na pewno?"))
+          return;
+        endif
+
+      endif
+
+      Groups := array(CInt(text));
+      newIds := array(text);
+
+    else
+
+      SendSysMessage(who, "Nie ma multi: " + text, FONT_NORMAL, COLOR_RED);
+      return;
+
+    endif
+
+  elseif(Groups.size())
+
+    SendSysMessage(who, "Czy chcesz nadpisac wszystkie elementy WML nowymi?", FONT_NORMAL, COLOR_GREEN);
+
+    if(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+
+  endif
+
+
+
+  foreach wmlId in Groups
+
+    var Res := CleanItemsInWmlGroup(wmlId);
+
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    endif
+
+    Res := DelWmlGroup(wmlId);
+
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    endif
+
+  endforeach
+
+  var iCount := 0;
+  
+  SendSysMessage(who, "Importowanie "+newIds.size()+" elementow WML...", FONT_NORMAL, COLOR_GREEN);
+
+  foreach wmlId in newIds
+
+    var Data := WmlGroupStruct();
+
+    Data.Id := CInt(wmlId);
+    
+    var Res := AddWmlGroup(who, Data);
+
+    if(!Res)
+      SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    var wmlGroup := GetWmlGroup(Data.Id);
+
+    var mltItems := array;
+    var cfgItems := GetConfigStringArray(multiCfg[wmlId], "static");
+
+    foreach Item in cfgItems
+      
+      var strDef := SplitWords(Item);
+      var mltItem := struct;
+
+      mltItem.+objtype := CInt(strDef[1]);
+      mltItem.+x := CInt(strDef[2]);
+      mltItem.+y := CInt(strDef[3]);
+      mltItem.+z := CInt(strDef[4]);
+      mltItem.+color   := CInt(strDef[5]);
+      mltItem.+visible := 1;
+
+      if(mltItem.objtype != 1)
+        mltItems.append(mltItem);
+      endif
+
+    endforeach
+    
+    cfgItems := GetConfigStringArray(multiCfg[wmlId], "dynamic");
+
+    foreach Item in cfgItems
+      
+      var strDef := SplitWords(Item);
+      var mltItem := struct;
+
+      mltItem.+objtype := CInt(strDef[1]);
+      mltItem.+x := CInt(strDef[2]);
+      mltItem.+y := CInt(strDef[3]);
+      mltItem.+z := CInt(strDef[4]);
+      mltItem.+color   := CInt(strDef[5]);
+      mltItem.+visible := 0;
+
+      if(mltItem.objtype != 1)
+        mltItems.append(mltItem);
+      endif
+
+    endforeach
+
+    wmlGroup.SetProp("Status", "Exist");
+    wmlGroup.SetProp("Items", mltItems);
+    wmlGroup.SetProp("ItemCount", mltItems.size());
+
+    iCount += 1;
+
+  endforeach
+
+  SendSysMessage(who, "Zaimportowano "+iCount+" elementow WML.", FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/client/fonts";
+
+
+//-----------------------------------------------------------------------------
+
+program RefreshCmd( who , text)
+
+  text := SplitWords(text);
+  if(text[1] == "light")
+    var Targ := ObjTarget(who);
+    if(Targ.isa(POLCLASS_MOBILE))
+      if(text[2])
+        Targ.setlightlevel (Cint(Text[2]), 24000);
+        SendSysMessage(who,"Ustawianie Light lvl "+text[2]+" osobie "+Targ.name+".",FONT_NORMAL,COLOR_GREEN);
+      else
+        Targ.setlightlevel (1, 1);
+        SendSysMessage(who,"Przywracanie poziomu swiatla osobie "+Targ.name+".",FONT_NORMAL,COLOR_GREEN);
+      endif
+      exit;
+    endif
+  endif
+    
+  SetHp(who, GetMaxHp(who));
+  SetMana(who, GetMaxMana(who));
+  SetStamina(who, GetMaxStamina(who));
+  who.setlightlevel (0, 100000);
+  SendSysMessage(who,"Odswiezanie.",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

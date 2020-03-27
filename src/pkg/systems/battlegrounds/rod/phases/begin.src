@@ -1,0 +1,14 @@
+use uo;
+use os;
+
+include ":rod:RingOfDeath";
+include "include/client/fonts";
+
+program AnnounceAndBeginTheEvent()
+
+    AnnounceRod();
+    
+    // just out of precautions, un-relative paths are always better
+    start_script(":rod:phases/theEvent");
+    
+endprogram

@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 26;
+
+//-----------------------------------------------------------------------------
+
+program VwBloodReveal(Parms)
+
+  VampireRuneCast(Parms, VW_WCID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Range := CInt(GetEffectiveSkill(Caster,SKILLID_VAMPIRE) / 25);
+  var Found := 0;
+
+  foreach Mobile in ListMobilesNearLocationEx(Caster.x, Caster.y, Caster.z, range, LISTEX_FLAG_HIDDEN + LISTEX_FLAG_NORMAL, Caster.realm)
+    if(Mobile != Caster and Mobile.hidden)
+      Mobile.hidden := 0;
+      Found := Found + 1;
+    endif
+  endforeach
+
+  if(!Found)
+    SendSysMessage(Caster, "Nie znalazl"+ggm(Caster,3)+" nikogo.", FONT_NORMAL, COLOR_RED);
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

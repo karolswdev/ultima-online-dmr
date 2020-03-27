@@ -1,0 +1,298 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/poison";
+include "include/key";
+
+include ":magic:magicatt";
+include "common";
+include ":crafting:common";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+include ":crafting:mat_groups";
+
+include ":magic:magic";
+include ":meditation:meditation";
+include ":vampire:common";
+include ":housing:common";
+include ":crafting:exceptional";
+
+//-----------------------------------------------------------------------------
+
+program InscriptionCraftItem(Params)
+
+  var who := Params[1];
+  var Tool := Params[2];
+  var Craft := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Tool, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  var Materials;
+  var Cont := GetContForTool(who, Tool);
+  
+  
+  // goqsane: This is added to support POL99 changes. Spellbooks changed a lot and now this script gets a SpellId and not a Scroll objtype.
+  var SpellsCfg := ReadConfigFile(SPELLS_CFG);
+  
+  for i := 1 to 64
+	if(SpellsCfg[i].SpellId == Craft.ObjType)
+		Craft.ObjType := SpellsCfg[i].Scroll;
+	endif
+  endfor
+
+  if(!PrepareCraft(who, Cont, Craft.objtype, Craft.InscType, Materials))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_INSCRIPTION, Craft.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Tool, Craft.objtype, Craft.InscType, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, Cont, ObjType, InscType, byref Materials)
+
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+  if(InscType == INSCTYPE_SPELLS)
+    var SpellID  := ItemCfg[ObjType].SpellID;
+
+    var SpellsCfg := ReadConfigFile(":*:spells");
+    var SpellElem := SpellsCfg[SpellID];
+
+    Materials := DefineCraftMaterialsFromCfg(who, SpellElem, "SReagent", Cont);
+    AddCraftMaterial(Materials, Cont, UOBJ_BLANK_SCROLL, 1);
+
+  else
+    var ScrollsCfg := ReadConfigFile(INSCRIPTION_CFG);
+    var SpellElem := ScrollsCfg[ObjType];
+
+    Materials := DefineCraftMaterialsFromCfg(who, SpellElem, "material", Cont);
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, tool, ObjType, InscType, byref IterData, byref Materials)
+
+  var Cont := GetContForTool(who, Tool);
+
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+  var ScrollsCfg := ReadConfigFile(INSCRIPTION_CFG);
+  var Diff, Points, UMana;
+  var ProdAmount := 1;
+  
+  if(InscType == INSCTYPE_SPELLS)
+    var SpellID  := ItemCfg[ObjType].SpellID;
+    var Circle   := GetSpellValue(SpellID,"Circle");
+    Diff     := GetCircleValue(Circle,"InscDiff");
+    Points   := GetCraftPoints(SKILLID_INSCRIPTION, Diff);
+    UMana    := GetCircleValue(Circle,"UMana");
+  else
+    Diff     := ScrollsCfg[ObjType].skill;
+    Points   := GetDefaultPointsValue(SKILLID_INSCRIPTION);
+    UMana    := MinMax(CInt(Diff/10), 2, 8);
+  endif
+  
+  if(tool.objtype == UOBJ_WRITING_DESK)
+    var WhoInsc := GetEffectiveSkill(who, SKILLID_INSCRIPTION);
+    if(WhoInsc > 100)
+      var perc := CInt(WhoInsc - 100);
+      UMana := Max(1, CInt(UMana - (CDBl(UMana * (3 * perc)) / 100)));
+    endif
+    
+    ProdAmount := 5;
+  endif
+
+  if(!Diff or !Umana or !points)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  Diff := Abs(Diff - CInt(CheckItemQuality(tool) / 2));
+
+  if(GetMana(who) < UMana)
+    SendSysMessage(who,"Masz za malo many. Czekasz na odnowienie...",FONT_NORMAL,COLOR_RED);
+    if(!WaitForMana(who, UMana))
+      return 0;
+    endif
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SOUND_EFFECT_SCRIBE))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, tool, SKILLID_INSCRIPTION, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!ConsumeManaAmount(who, UMana))
+    SendSysMessage(who,"Masz za malo many.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CheckSkill(who, SKILLID_INSCRIPTION, Diff, 0))
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Nie udalo Ci sie i zniszczyl"+ggm(who,3)+" zwoj.",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SOUND_EFFECT_SCRIBE))
+    return 0;
+  endif
+
+  PlaySoundEffect(who, SOUND_EFFECT_INSCRIPTION);
+
+  var ItemDesc := GetMadeDescriptor(ObjType, who, MTYPE_LOG, 1);
+
+  if(InscType == INSCTYPE_SCROLLS and ScrollsCfg[ObjType].SetLevel)
+    var BaseInsc := GetBaseSkill(who, SKILLID_INSCRIPTION);
+    var Level := MinMax(CInt(BaseInsc/20), 1, 5);
+
+    if(BaseInsc >= 100 and GetEffectiveSkill(who, SKILLID_INSCRIPTION) >= 105)
+      Level += 1;
+    endif
+
+    ItemDesc.CProps["ItemLevel"] := Level;
+  endif
+
+  var Name;
+  var ExpData;
+
+  if(tool.objtype != UOBJ_WRITING_DESK and ScrollsCfg[ObjType].Exp)
+    var myskill := GetEffectiveSkill(who, SKILLID_INSCRIPTION);
+    var myint   := GetIntelligence(who);
+    var mydex   := GetDexterity(who);
+    var ExpMod  := 10.0 + CDbl(myskill)/4.0 + CDbl(myint)/2.6 + CDbl(mydex)/2.9;
+    ExpMod      := CInt(ExpMod + CDbl(CheckItemQuality(tool)) * 2.7);
+
+    ExpData := CraftExceptional(who, SKILLID_INSCRIPTION, ExpMod, 4);
+
+    if(ExpData.makeExp)
+      if(ScrollsCfg[ObjType].ExpNewbie)
+        ItemDesc.Newbie := 1;
+      endif
+
+      if(ExpData.makeNamed)
+        ItemDesc.CProps["Exp"] := "[Napisal"+ggm(who,4)+" "+GetRealName(who)+"]";
+        Name := GetDescForItem(ObjType)+" "+EXP_ITEM_NAME+" [Napisal"+ggm(who,4)+" "+GetRealName(who)+"]";
+      else
+        ItemDesc.CProps["Exp"] := EXP_ITEM_NAME;
+        Name := GetDescForItem(ObjType)+" "+EXP_ITEM_NAME;
+      endif
+    endif
+  endif
+
+  var thescroll := CreateItemInCont(Cont, ItemDesc, ProdAmount, who);
+  
+  if(ExpData.inscribe)
+		start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, thescroll});
+	endif
+	
+	if(ExpData.changeColor)
+		start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, thescroll});
+	endif
+
+  if(thescroll)
+    if(Name)
+      SetName(thescroll, Name);
+      SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" wyjatkowej jakosci zwoj i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+    else
+      SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" zwoj i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
+    endif
+	
+	
+    
+    AwardPoints(who, SKILLID_INSCRIPTION, Points, GAIN_RESTRICT, Diff);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_INSCRIPTION, array(thescroll, 0));
+  else
+    SendSysMessage(who, "Masz za malo miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function WaitForMana(who, UMana)
+
+  var i := 0;
+
+  if(GetBaseSkill(who, SKILLID_MEDITATION) >= 25)
+
+    while(i < 3 and GetMana(who) < UMana)
+      Meditate(who);
+      i += 1;
+    endwhile
+
+    if(GetMana(who) < UMana)
+      return 0;
+    else
+      return 1;
+    endif
+  endif
+
+  var x := who.x; 
+  var y := who.y;
+  i := 0;
+  
+  while(GetMana(who) < UMana and i < 20)
+    if(Modulo(i, 4) == 2)
+      SendSysMessage(who,"Nadal masz za malo many...",FONT_NORMAL,COLOR_ORANGE);
+    endif
+
+    sleepms(750);
+
+    if(x != who.x or y != who.y)
+      SendSysMessage(who,"Przerwal"+ggm(who,3)+" oczekiwanie na odzyskanie many.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+    
+    i += 1;
+
+  endwhile
+
+  if(GetMana(who) < UMana)
+    SendSysMessage(who,"Masz za malo many aby kontynuowac.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

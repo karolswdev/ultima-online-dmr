@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/client/fonts";
+
+
+//-----------------------------------------------------------------------------
+
+program MultiTeleCmd( who )
+
+  while (IsLoggedIn(who))
+
+    var where := LocTarget( who );
+    if(where)
+      var result := MoveObject( who, where.x, where.y, where.z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD );
+      if (!result)
+        if(result.errortext)
+          SendSysMessage( who, result.errortext, FONT_NORMAL, COLOR_RED );
+        else
+          SendSysMessage( who, "Wystapil blad podczas przenoszenia.", FONT_NORMAL, COLOR_RED );
+        endif
+      endif
+    else
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

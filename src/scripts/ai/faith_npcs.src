@@ -1,0 +1,964 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+include "include/findcity";
+include "include/mspeech";
+include "include/buildings";
+include "include/reputation/murderer";
+include "include/noto";
+
+include "ai/combat/fight";
+include "ai/combat/ngd_npcevent";
+include "ai/include/cdist";
+include "ai/include/npccast";
+include "ai/setup/citynpcsetup";
+include "ai/include/def_merc";
+include "ai/include/smartrun";
+
+include ":warcasts:warcasts";
+include ":warcasts:wcbook";
+include ":alchemy:potion";
+
+include ":npcguilds:shared";
+include ":quests:crquest";
+include ":quests:quests";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+const HALT_THRESHOLD         := 10;
+const MURDERS_LIMIT          := 50;
+
+const CQFT_TEST              := 0x40000000;
+const CQF_TESTDIFF           := 50;
+
+const FQUEST_DELAY           := 21600;
+const FAITH_SET_SKVAL        := 15;
+const FAITH_MIN_SKVAL        := 10;
+
+//-----------------------------------------------------------------------------
+
+var _wcIDs;
+
+//-----------------------------------------------------------------------------
+
+program FaithNpcs_AI()
+
+  SetLogRunCycles(LST_AI);
+  drop_anchor();
+  
+  EnableMainEvents();
+  sleepms(RandomInt(2000));
+  
+  if(GetMercType())
+    MerchantInit();
+  endif
+  
+  while(me)
+  
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+    
+    StdMercEventLoop();
+
+    check_anchor();
+    
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_SPEECH:             if(!CheckPreSpeech(ev.source, ev.text))
+                               if(CheckNpcSpeech(ev.source, ev.text) == 0)
+                                 if(CheckFaithSpeech(ev.source, ev.text))
+                                   if(IsWalking())
+                                     SetWalkPause(SHORT_WALK_PAUSE);
+                                   endif
+                                   ev := 0; 
+                                   return 1;
+                                 endif
+                               else
+                                 ev := 0;
+                                 return 1;
+                               endif
+                             else
+                               ev := 0;
+                               return 1;
+                             endif
+                             ev := 0;
+
+    EVID_ENGAGED:                   
+    EVID_DAMAGED:            Fight(ev.source);
+                             ev := 0;
+                             return 1;
+
+    EVID_QUEST_MSG:          HandleFaithQuestMsg(ev);
+                             ev := 0;
+                             return 1;
+  endcase
+
+  return StdMercHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPreSpeech(who, byref text)
+
+  if(CanFightWith(who))
+    Say("Won!");
+   // Fight(who);
+    return 1;
+  endif
+
+  if(!CanIHearPlayer(who))
+    return 0;
+  endif
+
+  var ltext := lower(text);
+
+  if(ltext["poswiec"] and ltext["mikstur"])
+    TurnToward(who);
+    if(len(ltext) < 20)
+      Say("Co tam mowisz?");
+    else
+      if(!me.murderer)
+        MakeHolyPotions(who);
+      else
+        Say("Zwariowal"+ggm(who,3)+"? Nie zajmuje sie czyms takim!");
+      endif
+    endif
+    return 1;
+  endif
+
+  if(ltext["ucz"] and ltext["modlitw"])
+    TurnToward(who);
+    if(len(ltext) < 15)
+      Say("Hm, co ucz?");
+    else
+      if(IsMyFaith(who))
+        CheckPrayers(who);
+      else
+        Say("Nie wygladasz mi na osobe, ktora podziela ma wiare.");
+      endif
+    endif
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckFaithSpeech(who, byref text)
+
+  if(CanFightWith(who))
+    Say("Won!");
+  //  Fight(who);
+    return 0;
+  endif
+
+  var ltext := lower(text);
+
+  if(ltext["wita"])
+    if(Distance(me, who) <= 2)
+      if(IsMyFaith(who))
+        TurnToward(who);
+        Say("Witaj "+who.name);
+      endif
+    endif
+  elseif(ltext["sluzyc"] and ltext["dobru"])
+    TurnToward(who);
+    if(len(ltext) < 20)
+      Say("Co tam mowisz? sluzyc?");
+    else
+      if(!me.murderer)
+        CheckFaithMan(who);
+      else
+        Say("Haha! Dobre!");
+        Say("Zabawn"+ggm(who,6)+" jestes!");
+      endif
+    endif
+  elseif(ltext["sluzyc"] and ltext["zlu"])
+    TurnToward(who);
+    if(len(ltext) < 20)
+      Say("Co tam mowisz? sluzyc?");
+    else
+      if(me.murderer)
+        CheckFaithMan(who);
+      else
+        Say("Nawet o tym nie mysl, wszystko co zle musi zginac!");
+      endif
+    endif
+  elseif(ltext["zadanie"])
+    TakeFinishedFaithQuest(who);
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+
+function CheckFaithMan(who)
+ 
+  if(IsMyFaith(who))
+    if(!me.murderer)
+      Say("Juz przeciez sluzysz dobru przyjacielu.");
+    else
+      Say("Juz sluzysz zlu! Hah! Zaniki pamieci?");
+    endif
+    return;
+  endif
+ 
+  if(!CanGetFaithQuest(who))
+    return;
+  endif
+
+  if(!me.murderer)
+    if(!CanBeGoodFaith(who))
+      return;
+    endif
+  elseif(!CanBeEvilFaith(who))
+    return;
+  endif
+
+  if(CreateQuestForPlayerFaith(who, CQF_TESTDIFF, CQFT_TEST))
+    if(!me.murderer)
+      Say("Wykonaj to zadanie w imie dobra, to udowodnisz ze jestes warty mych nauk.");
+    else
+      Say("Wykonaj to zadanie w imie zla, to pokazesz ze jestes warty mych nauk.");
+    endif
+  else
+    Say("Spokojnie ostatnio.. nie mam zadania aktualnie zadnego, zawitaj pozniej.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPrayers(who)
+
+  if(!CanGetFaithQuest(who))
+    return;
+  endif
+
+  var wcID := SelectFaithWarCast(who);
+  
+  if(wcID)
+    var WarCfg := GetWarCastCfg();
+    if(CreateQuestForPlayerFaith(who, CInt(WarCfg[wcId].Diff), wcID))
+      if(!me.murderer)
+        Say("Wykonaj to zadanie, a naucze Cie nowej modlitwy.");
+      else
+        Say("Wykonaj to zadanie, a poznasz kolejna modlitwe, ktora pomoze Ci tepic dobro!");
+      endif
+    else
+      Say("Hm.. nie mam teraz zadania dla Ciebie, przyjdz pozniej.");
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectFaithWarCast(who)
+
+  var Res;
+
+  if(!me.murderer)
+    Res := GetWcIDs(who, PD_WCID_START, PD_WCID_END);
+  else
+    Res := GetWcIDs(who, DK_WCID_START, DK_WCID_END);
+  endif
+
+  case(Res)
+    0:   Say("Gdziez zgubil"+ggm(who,3)+" swa ksiege?!");
+         Say("Nie dobrze, nie wracaj bez niej.");
+         return 0;
+
+    2:   Say("Umiesz juz wszystkie modlitwy...");
+         return 0;
+  endcase
+
+  var Event     := struct;
+  Event.+type   := EVID_NH_SEL_WCID_GUMP;
+  Event.+npc    := me;
+  Event.+source := who;
+  Event.+oth    := _wcIDs;
+
+  start_script("::handle_npc", Event);
+  
+  Res := -100;
+  var Timer := ReadGameClock() + NH_WAIT_TIME;
+  var wEv;
+
+  while(Timer > ReadGameClock())
+    wEv := wait_for_event(10);
+    if(wEv.type == Event.type)
+      if(Event.source == wEv.source)
+        Res := 1;
+      endif
+    elseif(wEv.type == EVID_ITEM_GIVEN)
+      MoveToPack(wEv.item, wEv.source);
+    elseif(wEv.type == EVID_QUEST_MSG)
+      HandleFaithQuestMsg(wEv);
+    endif
+
+    if(Res != -100)
+      break;
+    else
+      wEv := 0;
+    endif
+    
+  endwhile
+
+  clear_event_queue();
+
+  if(Res == -100)
+    Say("Widze, ze nie mozesz sie zdecydowac.");
+    return 0;
+  endif
+
+  return CInt(wEv.wcId);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetWcIDs(who, IdSet, IdEnd)
+
+  GetSortedWcIdsByDiff(_wcIDs, IdSet, IdEnd);
+
+  var i, Book, BookObj;
+  var WarCfg := GetWarCastCfg();
+  
+  if(!me.murderer)
+    BookObj := UOBJ_PD_WCBOOK;
+  else
+    BookObj := UOBJ_DK_WCBOOK;
+  endif
+
+  Book := GetEquipmentByLayer(who, LAYER_HAND1);
+  if(Book.objtype != BookObj)
+    Book := FindItemInContainer(who.backpack, BookObj);
+  endif
+
+  var MaxSkill;
+  
+  if(!me.murderer)
+    MaxSkill := GetEffectiveSkill(who, SKILLID_PALADINISM);
+  else
+    MaxSkill := GetEffectiveSkill(who, SKILLID_FANATICISM);
+  endif
+
+  MaxSkill := ToMin(MaxSkill + 10, FAITH_MIN_SKVAL + 10);
+
+  var newIds := dictionary;
+  var numGot := 0;
+
+  if(!Book)
+    _wcIDs := dictionary;
+    return 0;
+  else
+    for(i:=1;i<=_wcIDs.size();i:=i+1)
+      if(!IsInWarCastBook(Book, _wcIDs[i]))
+        if(FindItemInContainer(who.backpack, WarCfg[_wcIDs[i]].ItemObj))
+          newIds[_wcIDs[i]] := 0;
+          numGot := numGot + 1;
+          continue;
+        endif
+      else
+        newIds[_wcIDs[i]] := 0;
+        numGot := numGot + 1;
+        continue;
+      endif
+
+      if(WarCfg[_wcIDs[i]].Diff >= MaxSkill + 15)
+        break;
+      elseif(WarCfg[_wcIDs[i]].Diff > MaxSkill)
+        newIds[_wcIDs[i]] := -1;
+      else
+        newIds[_wcIDs[i]] := 1;
+      endif
+    endfor
+  endif
+
+  _wcIDs := newIds;
+
+  if(numGot == _wcIDs.size())
+    return 2;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsMyFaith(Mob)
+
+  if(me.murderer)
+    return GetBaseSkill(Mob, SKILLID_FANATICISM);
+  else
+    return GetBaseSkill(Mob, SKILLID_PALADINISM);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanBeGoodFaith(who)
+
+  if(!IsCharClass(who, CLASS_WARRIOR))
+    Say("Nie wygladasz mi na wojownika.");
+    return 0;
+  elseif(GetBaseSkillBaseValue(who, SKILLID_KENSAI) or GetBaseSkillBaseValue(who, SKILLID_BARBARIAN))
+    Say("Hem.. nie nadajesz sie na Paladyna.");
+    return 0;
+  endif
+
+  var Cnt := GetBadMurdCount(who);
+
+  if(GetKarmaLvl(who) < 3 or GetFameLvl(who) < 4)
+    Say("Nie widze bys byl zazartym wojownikiem ze zlem! Twa karma i slawa niska jest...");
+	if(GetObjProperty(who, "CanBePaladin"))
+		Say("Ale widze, ze z goqsane znasz sie tyle lat...prosze.");
+		return 1;
+	endif
+    return 0;
+  elseif(Cnt)
+    Say("Widze, ze chociaz jedna dusza spoczywa na twym sumieniu, lecz jednak moze byc jeszcze dla Ciebie szansa.");
+  else
+    Say("Twe sumienie czyste jest, zapewne dobrze wiesz co to znaczy sluzyc dobru!");
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanBeEvilFaith(who)
+
+  if(!IsCharClass(who, CLASS_WARRIOR))
+    Say("Nie wygladasz mi na wojownika.");
+    return 0;
+  elseif(GetBaseSkillBaseValue(who, SKILLID_KENSAI) or GetBaseSkillBaseValue(who, SKILLID_BARBARIAN))
+    Say("Pheh, ty chcesz byc Mrocznym Rycerzem? Zejdz mi z oczu.");
+    return 0;
+  endif
+
+  var Murders := GetMurders(who);
+
+  if(Murders.size() < MURDERS_LIMIT)
+    Say("Hah! Tez mi z Ciebie morderca, za wiele osob nie zabil"+ggm(who,3)+", poki tego nie zrobisz to tu sie nie pokazuj.");
+    return 0;
+  elseif(GetKarmaLvl(who) > -3 or GetFameLvl(who) < 4)
+    Say("Nie widze bys byl zazartym morderca! Twa karma i slawa slaba jest!");
+    return 0;
+  else
+    Say("Tak! Poznal"+ggm(who,3)+" smak porzadnego zabijania, tak tez zlo nie jest Ci obce!");
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateQuestForPlayerFaith(who, Diff, fType)
+
+  var GenQuestData;
+  InitQuestGenData(GenQuestData);
+
+  SetQuestGuildType(GenQuestData);
+  SetQuestTypes(GenQuestData);
+
+  GenQuestData.Source     := me;
+  GenQuestData.City       := FindCity(me);
+  GenQuestData.Player     := who;
+  GenQuestData.Level      := CInt(Diff/20)+1;
+
+  if(GenQuestData.Level < 1)
+    GenQuestData.Level := 1;
+  elseif(GenQuestData.Level > 5)
+    GenQuestData.Level := 5;
+  endif
+
+  foreach Type in GetConfigStringArray(GetNpcConfig(me), NGD_QTYPE)
+    Type    := SplitWords(Type);
+    Type[1] := CInt(Type[1]);
+    Type[2] := CInt(Type[2]);
+    GenQuestData.QuestTypes.append(Type);
+  endforeach
+
+  var Ticket := GenerateQuest(GenQuestData);
+  SaveFaithQuestData(Ticket, who, fType);
+
+  if(!Ticket)
+    if(Ticket.errortext)
+      LogError("CreateQuestForPlayerFaith: GenQuest NPC: "+me.serial+" Player: "+who.serial+", Err: "+Ticket.errortext, LOGF_WORLD);
+    endif
+    return 0;
+  endif
+
+  MoveToPack(Ticket, who);
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TakeFinishedFaithQuest(who)
+
+  TurnToward(who);
+
+  var QData := GetObjProperty(who, PROP_FAITHQDATA);
+
+  if(!QData or !QData.Ticket)
+    Say("Zadanie? nie wyglada na to bys mial"+ggm(who,4)+" wykonac jakies.");
+    return 0;
+  endif
+
+  var Ticket := FindItemBySerial(QData.Ticket);
+
+  if(!Ticket)
+    Say("Widze ze nie wykonal"+ggm(who,3)+" ostatniego zadania.. nie dobrze.");
+    FailFaithQuest(who, QData);
+    return 1;
+  endif
+
+  if(GetTopCont(Ticket) != who.backpack)
+    Say("Nie widze bys mial"+ggm(who,4)+" wskazowki zadania przy sobie.");
+    return 1;
+  endif
+
+  if(QData.Source != me.serial)
+    Say("Nie dostal"+ggm(who,3)+" tego zadania odemnie.");
+    return 1;
+  endif
+    
+  var TicketData := GetObjProperty(Ticket, QGPROP_QCRINFO);
+
+  if(!TicketData)
+    LogError("TakeFinishedFaithQuest: NPC: "+me.serial+" Bilet: "+Ticket.serial+" nie posiada QuestData!");
+    Say("*hmm..*");
+    return 1;
+  endif
+
+  if(TicketData.Player != who.serial)
+    Say("Nie dawal"+ggm(me,8)+" tego zadania tobie! Won!");
+    return 1;
+  elseif(TicketData.Flags & QF_FAILED)
+    Say("Widze, ze nie udalo Ci sie wykonac tego zadania! Nie dobrze, nici z naszej umowy.");
+    FailFaithQuest(who, QData);
+    sleepms(500);
+    TurnAwayFrom(who);
+    return 1;
+  elseif(TicketData.Flags & QF_COMPLETED)
+    CompleteFaithQuest(who, QData);
+    if(QData.Type == CQFT_TEST)
+      if(!me.murderer)
+        Say("Gratuluje! Udalo Ci sie zakonczyc zadanie, udowodnil"+ggm(who,3)+" ze umiesz sluzyc dobru!");
+      else
+        Say("Hah! Wlasnie tak! Ukonczyl"+ggm(who,3)+" zadanie, udowodnil"+ggm(who,3)+" ze umiesz sluzyc zlu!");
+      endif
+    else
+      if(!me.murderer)
+        Say("Zadanie wykonane, dobrze, za dzielna wiare w dobro, moge nauczyc Cie nowej modlitwy.");
+      else
+        Say("Tak! Zadanie wykonane, to i modlitwy nauczymy Cie nowej.");
+      endif
+    endif
+    SendQuestTicketEvent(Ticket, me, EVQID_FINISH, 0, who);
+    return 1;
+  else
+    Say("Hm.. na co czekasz? Wykonaj szybko to zadanie...");
+    return 1;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HandleFaithQuestMsg(byref Ev)
+
+  var QData := GetObjProperty(ev.QPlayer, PROP_FAITHQDATA);
+
+  if(!QData)
+    LogError("HandleFaithQuestMsg: NPC: "+me.serial+" dostal FailQuestMsg ["+Ev+"], a Player nie ma QData. QPl: "+ev.QPlayer.serial+" Pl: "+ev.Player.serial+".");
+    return;
+  endif
+
+  if(!QData.Ticket)
+    return;
+  endif
+
+  FailFaithQuest(ev.QPlayer, QData);
+  SendSysMessage(ev.QPlayer, "Nie udalo Ci sie wykonac zadania od "+me.name+".", FONT_NORMAL, COLOR_RED);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FailFaithQuest(who, byref QData)
+
+  QData.Flags   := QData.Flags | QF_FAILED;
+  QData.Delay   := ReadGameClock() + FQUEST_DELAY - RandomInt(CInt(FQUEST_DELAY / 8));
+  QData.Ticket  := 0;
+
+  SetObjProperty(who, PROP_FAITHQDATA, QData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CompleteFaithQuest(who, byref QData)
+
+  QData.Flags   := QData.Flags | QF_COMPLETED;
+  QData.Delay   := ReadGameClock() + FQUEST_DELAY - RandomInt(CInt(FQUEST_DELAY / 8));
+  QData.Ticket  := 0;
+  QData.Count   := QData.Count + 1;
+
+  SetObjProperty(who, PROP_FAITHQDATA, QData);
+
+  GiveFaithReward(who, QData.Type);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GiveFaithReward(who, fType)
+
+  if(fType == CQFT_TEST)
+    var Book;
+
+    if(!me.murderer)
+      SetBaseSkill(who, SKILLID_PALADINISM, FAITH_SET_SKVAL);
+
+      Book := GetEquipmentByLayer(who, LAYER_HAND1);
+      if(Book.objtype != UOBJ_PD_WCBOOK)
+        Book := FindItemInContainer(who.backpack, UOBJ_PD_WCBOOK);
+      endif
+
+      if(!Book)
+        Book := CreateItemInPack(who, UOBJ_PD_WCBOOK);
+      endif
+    else
+      SetBaseSkill(who, SKILLID_FANATICISM, FAITH_SET_SKVAL);
+
+      Book := GetEquipmentByLayer(who, LAYER_HAND1);
+      if(Book.objtype != UOBJ_DK_WCBOOK)
+        Book := FindItemInContainer(who.backpack, UOBJ_DK_WCBOOK);
+      endif
+
+      if(!Book)
+        Book := CreateItemInPack(who, UOBJ_DK_WCBOOK);
+      endif
+    endif
+
+    if(GetBaseSkill(who, SKILLID_ZEAL) < FAITH_SET_SKVAL)
+      SetBaseSkill(who, SKILLID_ZEAL, FAITH_SET_SKVAL);
+    endif
+    
+    if(!Book)
+      SendSysMessage(who, "Nie masz miejsca w plecaku na ksiege!", FONT_NORMAL, COLOR_RED);
+    endif
+
+    SetObjProperty(who, PROP_FAITHSTIME, ReadGameClock());
+  else
+
+    var WarCfg := GetWarCastCfg();
+    if(!WarCfg[fType])
+      LogError("GiveFaithReward: me ["+me.serial+"] mial Questa z typem ["+fType+"], nie ma takiego wcId");
+      Say("Hm.. gdzies mi sie ta modlitwa zawieruszyla, przyjdz pozniej.");
+      return;
+    endif
+
+    var Item := CreateItemInPack(who, WarCfg[fType].ItemObj);
+    if(!Item)
+      LogError("GiveFaithReward: me ["+me.serial+"] typ Questu ["+fType+"] Brak lub bledny ItemObj w wcId! Res: "+Item);
+      Say("Hm... nie moge sobie przypomniec tej modlitwy, przyjdz pozniej.");
+      return;
+    endif
+    
+    if(!me.murderer)
+      if(GetBaseSkill(who, SKILLID_PALADINISM) < FAITH_MIN_SKVAL)
+        SetBaseSkill(who, SKILLID_PALADINISM, FAITH_MIN_SKVAL);
+      endif
+    else
+      if(GetBaseSkill(who, SKILLID_FANATICISM) < FAITH_MIN_SKVAL)
+        SetBaseSkill(who, SKILLID_FANATICISM, FAITH_MIN_SKVAL);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveFaithQuestData(Ticket, who, Type)
+
+  var Data     := struct;
+
+  if(!Ticket)
+    Data.+Delay  := ReadGameClock() + 600;
+    Data.+Source := me.serial;
+    Data.+Count  := 0;
+    Data.+QId    := 0;
+    Data.+Time   := 0;
+    Data.+Type   := Type;
+    Data.+Ticket := 0;
+    Data.+Flags  := 0;
+  else
+    var QData    := GetObjProperty(Ticket, QGPROP_QCRINFO);
+    Data.+Delay  := 0;
+    Data.+Source := me.serial;
+    Data.+Count  := 0;
+    Data.+QId    := QData.Id;
+    Data.+Time   := ReadGameClock();
+    Data.+Type   := Type;
+    Data.+Ticket := Ticket.serial;
+    Data.+Flags  := QData.Flags;
+  endif
+
+  SetObjProperty(who, PROP_FAITHQDATA, Data);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanGetFaithQuest(who)
+
+  case(GotFaithQuest(who))
+    1:    Say("Czekam az wykonasz zadanie ktore juz Ci dal"+ggm(me,8)+", wiec nie ociagaj sie.");
+          return 0;
+    2:    Say("Oj.. ostatnio za dobrze sie nie spisal"+ggm(who,3)+", przyjdz pozniej a moze sie cos dla Ciebie znajdzie.");
+          return 0;
+    3:    Say("Ostatnio spisal"+ggm(who,3)+" sie dobrze, poczekaj, a za jakis czas nadarzy sie znow okazja na wykonanie zadania.");
+          return 0;
+    4:    Say("Nie mam aktualnie zadnego zadania, zawitaj pozniej.");
+          return 0;
+  endcase
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GotFaithQuest(who)
+
+  var Data := GetObjProperty(who, PROP_FAITHQDATA);
+
+  if(!Data)
+    return 0;
+  endif
+
+  if(Data.Delay > ReadGameClock())
+    if(Data.Flags & QF_FAILED)
+      return 2;
+    elseif(Data.Flags & QF_COMPLETED)
+      return 3;
+    else
+      return 4;
+    endif
+  endif
+
+  if(!(Data.Flags & (QF_COMPLETED | QF_FAILED)))
+    if(Data.Time + FQUEST_DELAY > ReadGameClock() or FindItemBySerial(Data.Ticket))
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetQuestGuildType(byref Data)
+
+  if(!me.murderer)
+    Data.GdType := NGDTYPE_WARRIORS;
+    SetBitOn(Data.CrFlags, QGLOCF_GOOD);
+  else
+    Data.GdType := NGDTYPE_MURDERERS;
+    SetBitOn(Data.CrFlags, QGLOCF_MURDER);
+  endif
+  SetBitOn(Data.CrFlags, QCRF_QGD_ONLY);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetQuestTypes(byref Data)
+
+  Data.QuestTypes := array;
+
+  if(!me.murderer)
+    Data.QuestTypes.append(array(QTYPE_KILL,     QSTYPE_NPC));
+    Data.QuestTypes.append(array(QTYPE_DESTROY,  QSTYPE_ITEM));
+    Data.QuestTypes.append(array(QTYPE_TAKE,     QSTYPE_ITEM));
+    Data.QuestTypes.append(array(QTYPE_TAKE,     QSTYPE_EXNPC));
+    Data.QuestTypes.append(array(QTYPE_TAKE,     QSTYPE_LOOTNPC));
+    Data.QuestTypes.append(array(QTYPE_GOTO,     QSTYPE_EXNPC));
+    Data.QuestTypes.append(array(QTYPE_GOTO,     QSTYPE_LOC));
+    Data.QuestTypes.append(array(QTYPE_RESCUE,   QSTYPE_NPC));
+  else
+    Data.QuestTypes.append(array(QTYPE_KILL,     QSTYPE_NPC));
+    Data.QuestTypes.append(array(QTYPE_KILL,     QSTYPE_PLAYER));
+    Data.QuestTypes.append(array(QTYPE_DESTROY,  QSTYPE_ITEM));
+    Data.QuestTypes.append(array(QTYPE_TAKE,     QSTYPE_ITEM));
+    Data.QuestTypes.append(array(QTYPE_TAKE,     QSTYPE_EXNPC));
+    Data.QuestTypes.append(array(QTYPE_TAKE,     QSTYPE_LOOTNPC));
+    Data.QuestTypes.append(array(QTYPE_GOTO,     QSTYPE_EXNPC));
+    Data.QuestTypes.append(array(QTYPE_GOTO,     QSTYPE_LOC));
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanFightWith(who)
+
+  if(who.cmdlevel)
+    return 0;
+  endif
+
+  if(me.murderer)
+    return !who.murderer;
+  else
+    return who.murderer;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EnableMainEvents()
+
+  EnableEvents( EVID_DAMAGED);
+  EnableEvents( EVID_ENGAGED);
+  EnableEvents( EVID_ITEM_GIVEN);
+  EnableEvents( EVID_SPEECH, SPEECH_RANGE );
+
+  DisableEvents(EVID_DISENGAGED + EVID_OPPONENT_MOVED);
+  EnableEvents (EVID_ENGAGED + EVID_DAMAGED);
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisableMainEvents()
+  DisableEvents(EVID_ENGAGED + EVID_DAMAGED);
+  DisableEvents(EVID_SPEECH + EVID_ITEM_GIVEN);
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeHolyPotions(who)
+
+  Say("Ktore mikstury chcial"+ggm(who,1)+" bym poswiecil"+ggm(me,4)+"?");
+
+  var iEv := SendNpcHandleEvent(EVID_NH_ITEM_SELECT, who, me);
+
+  if(iEv)
+    var potion := iEv.item;
+    if(potion)
+      if(potion.objtype != UOBJ_LESSER_EXPLOSION_POTION and potion.objtype != UOBJ_EXPLOSION_POTION and potion.objtype != UOBJ_GREATER_EXPLOSION_POTION)
+        Say("Moge poswiecic tylko fioletowe mikstury!");
+        return;
+      elseif(GetObjProperty(potion, "ExpMod") != error)
+        Say("Nie moge poswiecic wyjatkowych mikstur.");
+        return;
+      endif
+
+      var HolyWater := FindItemInContainer(who.backpack, UOBJ_HOLYWATER);
+      if(!HolyWater or HolyWater.amount < potion.amount)
+        Say("Potrzebujesz wody swieconej na kazda miksture!");
+        return;
+      endif
+
+      var HolyPotion;
+      case(potion.objtype)
+        UOBJ_LESSER_EXPLOSION_POTION:   HolyPotion := UOBJ_LESSER_HOLY_POTION;
+        UOBJ_EXPLOSION_POTION:          HolyPotion := UOBJ_HOLY_POTION;
+        UOBJ_GREATER_EXPLOSION_POTION:  HolyPotion := UOBJ_GREATER_HOLY_POTION;
+
+        default:                        Say("Moge poswiecic tylko fioletowe mikstury.");
+                                        return;
+      endcase
+
+      if(!SubtractAmount(HolyWater, potion.amount));
+        Say("Potrzebujesz wody swieconej na kazda miksture!");
+        return;
+      endif
+
+      var PotAmt := potion.amount;
+      var Names  := GetObjPropertyNames(potion);
+      var CProps := dictionary;
+
+      foreach Name in Names
+        CProps[Name] := GetObjProperty(potion, Name);
+      endforeach
+
+      if(!DestroyItem(potion))
+        Say("Nie moge tego poswiecic!");
+        return;
+      endif
+
+      Sleep(1);
+      PlaySoundEffect(who, SOUND_EFFECT_POUR);
+
+      HolyPotion := GetItemDescriptor(HolyPotion);
+      HolyPotion.CProps := CProps;
+
+      HolyPotion := CreateItemInPack(who, HolyPotion, PotAmt);
+
+      if(!HolyPotion)
+        Say("Ech, niestety, cos poszlo nie tak.");
+        return;
+      endif
+
+      var Qual := 0;
+
+      case(GetPotionQuality(HolyPotion))
+        POTQUAL_MATURE:   Qual := "Dojrzala ";
+        POTQUAL_ROTTEN:   Qual := "Zgnila ";
+      endcase
+
+      if(Qual)
+        if(HolyPotion.amount == PotAmt)
+          SetName(HolyPotion, Qual+GetDescForItem(HolyPotion.objtype)+"%%");
+        endif
+      endif
+      CreateItemInPack(who, UOBJ_VIAL, PotAmt);
+      Say("Prosze, oto mikstury.");
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

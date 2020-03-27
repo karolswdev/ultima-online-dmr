@@ -1,0 +1,88 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/packets";
+include "include/misc";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program SendSpeech(Parms)
+
+  var who    := Parms[1];
+  var Text   := Parms[2];
+
+  if(who.squelched)
+    return;
+  endif
+  
+  if(who.dead)
+    MakeGhostSpeech(Parms[2]);
+  endif
+  
+  if(who.hidden)
+    who.hidden := 0;
+  endif
+  
+  var Packet := CrUCSpPacket(Parms[1],Parms[2],Parms[3],Parms[4],Parms[5]);
+  var Range;
+
+  case(Parms[3])
+    WHISP_TYPE:    Range := MAX_WHISP_RANGE;
+    YELL_TYPE:     Range := MAX_YELL_RANGE;
+    default:       Range := MAX_SPEECH_RANGE;
+  endcase
+  
+  Range := Range / 2;
+  
+  foreach Mob in ListObjectsInBox(who.x-Range,who.y-Range, ToMin(who.z-20, -127),who.x+Range,who.y+Range, ToMax(who.z+20, 127),who.realm)
+    if(IsPlayer(Mob))
+      if(Mob.concealed >= who.concealed)
+        if(who.dead)
+          if(Mob.enabled("hearghosts") or who == Mob)
+            Packet.SetUnicodeString(48,Text,1);
+            Packet.SendPacket(Mob);
+            Packet.SetUnicodeString(48,Parms[2],1);
+          else
+            Packet.SendPacket(Mob);
+          endif
+        else
+          Packet.SendPacket(Mob);
+        endif
+      endif
+    endif
+  endforeach
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MakeGhostSpeech(byref ChrArr)
+
+  var i;
+  var cNext := 1;
+
+  for(i:=1;i<=ChrArr.size();i:=i+1)
+    if(cNext)
+      if(RandomInt(100) < 50)
+        cNext := !cNext;
+      endif
+    endif
+    
+    if(!cNext)
+      ChrArr[i] := 0x4F;
+    else
+      ChrArr[i] := 0x6F;
+    endif
+    
+    cNext := !cNext;
+    
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,76 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 25;
+
+//-----------------------------------------------------------------------------
+
+program CastArchCure( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  PlaySoundEffect(caster, SFX_SPELL_ARCH_CURE);
+
+  var plvl            := 0;
+  var CasterMagery    := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var CasterPoisoning := GetEffectiveSkill( Caster, SKILLID_POISONING );
+
+  var potency         := CInt(CasterMagery / 50) + CInt(CasterPoisoning / 50);
+
+  var range           := CInt(CasterMagery / 10);
+  var Gained := 0;
+
+  foreach CastOn in ListMobilesNearLocation( CastLoc.x, CastLoc.y, CastLoc.z, range, CastLoc.realm);
+    if((CheckLineOfSight(CastOn, caster)) and (!CastOn.cmdlevel))
+      PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 10,10);
+      if(CastOn.isA(POLCLASS_NPC))
+        if(IsNpcElemental(CastOn, NPCELEM_POISON))
+          SendChEvent(CastOn,Caster,EVID_PEACEMADE);
+          SendChEvent(CastOn,Caster,EVID_ENGAGED);
+          if(DoMagicDamage(CastOn, Caster, potency, SpellGlob.SpellGlob.Circle, SpellGlob.SpellGlob.DmgType, SpellGlob.Type) > 0)
+            if(Gained < 3)
+              Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+            endif
+          endif
+          continue;
+        endif
+      endif
+      plvl := GetPoisonLevel(CastOn);
+      if (plvl >= 1)
+        plvl := plvl - potency;
+        if (plvl >= 1)
+          if(Caster == CastOn)
+            SendSysMessage(Caster, "Wyleczyl"+ggm(Caster, 3)+ " czesciowo trucizne.",FONT_NORMAL,COLOR_GREEN);
+          else
+            SendSysMessage(CastOn, Caster.name + " czesciowo Cie uzdrawia!",FONT_NORMAL,COLOR_GREEN);
+          endif
+        else
+          if(Caster == CastOn)
+            SendSysMessage(Caster,"Uzdrowil"+ggm(Caster,3)+" sie kompletnie.",FONT_NORMAL,COLOR_BLUE);
+          else
+            SendSysMessage(CastOn, Caster.name + " uzdrowil"+ggm(Caster,4)+" Cie kompletnie!",FONT_NORMAL,COLOR_BLUE);
+          endif
+        endif
+        if(DecreasePoison(CastOn,plvl,SFX_SPELL_ARCH_CURE))
+          if(Gained < 3)
+            Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+          endif
+        endif
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+

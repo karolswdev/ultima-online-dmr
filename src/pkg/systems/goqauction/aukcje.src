@@ -1,0 +1,760 @@
+use uo;
+use os;
+use storage;
+
+include "include/items";
+include "include/gumps";
+include ":goqauction:auction";
+include "include/clock";
+include "include/gumps";
+include "include/gumpboxes";
+include ":poczta:mailextensions";
+include ":banking:gold";
+include ":discord:outbound";
+
+var returnValue := 0;
+// returnValue -> 
+// 3 - Main gump
+// 4 - Choose category
+// 5 - Return to the category of the item
+
+program open_auctionWindow(who, theAuctionStone)
+
+    if(GetObjProperty(who, "#AucWindow"))
+        SendSysMessage(who, "Musisz zamknac stare okno aukcji aby uzywac nowego.", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+    
+    SetObjProperty(who, "#AucWindow", 1);
+    
+    ViewMainGump(who, who);
+    
+    /*
+    GPage(3);
+    GResPic(106, 51, 3500, 527, 381);
+    GTextLine(274, 64, 0, "A U K C J E  S W I A T A");
+    GGumpPic(123, 70, 113, 0); 
+    GGumpPic(578, 67, 113, 0); 
+    GGumpPic(124, 378, 113, 0); 
+    GGumpPic(575, 383, 113, 0); 
+    GTextLine(195, 111, 0, "Nazwa aukcji:");
+    GTextLine(234, 322, 0, "Przedmiot:");
+    GResPic(279, 102, 5054, 291, 39);
+    GTextEntry(287, 110, 270, 16, 0, 0, "Nazwa twojej aukcji");
+    GTextLine(195, 175, 0, "Czas trwania:");
+    GSetRadioGroup(0);
+    GRadioButton(314, 178, 208, 209, 0, 0);
+    GRadioButton(374, 178, 208, 209, 0, 0);
+    GRadioButton(433, 178, 208, 209, 0, 0);
+    GTextLine(316, 209, 0, "7d");
+    GTextLine(375, 209, 0, "14d");
+    GTextLine(432, 209, 0, "21d");
+    GTextLine(195, 268, 0, "Cena kup teraz:");
+    GResPic(295, 260, 5054, 287, 39);
+    GTextEntry(304, 270, 264, 16, 0, 0, "2500");
+    GResPic(307, 316, 5100, 114, 90);
+
+    GPage(5);
+    GResPic(106, 51, 3500, 527, 381);
+    GTextLine(274, 64, 0, "A U K C J E  S W I A T A ");
+    GGumpPic(123, 70, 113, 0); 
+    GGumpPic(578, 67, 113, 0); 
+    GGumpPic(124, 378, 113, 0); 
+    GGumpPic(575, 383, 113, 0); 
+    GTextLine(195, 111, 0, "Tytul aukcji:");
+    GTextLine(238, 319, 0, "Przedmiot:");
+    GResPic(279, 102, 5054, 291, 39);
+    GTextEntry(287, 110, 270, 16, 0, 0, "Nazwa twojej aukcji");
+    GTextLine(195, 176, 0, "Czas trwania:");
+    GRadioButton(314, 178, 208, 209, 0, 0);
+    GRadioButton(374, 178, 208, 209, 0, 0);
+    GRadioButton(433, 178, 208, 209, 0, 0);
+    GTextLine(316, 209, 0, "2d");
+    GTextLine(374, 209, 0, "7d");
+    GTextLine(432, 209, 0, "14d");
+    GTextLine(195, 268, 0, "Cena startowa:");
+    GResPic(295, 260, 5054, 287, 39);
+    GTextEntry(304, 270, 264, 16, 0, 0, "2500");
+    GResPic(307, 316, 5100, 114, 90);
+    GButton(491, 380, 247, 248, 0);
+    GButton(258, 345, 1209, 1210, 0);
+    GSend(who);
+    */
+    
+endprogram
+
+function ViewAuctions(who, theAuctionStone, auctionCategory, TYPE_AUCTION := "NORMAL")
+
+    returnValue := 4;
+    // return to Category 
+
+    var theCont := FindAndOpenCategoryContainer(auctionCategory);
+    
+        if(!theCont)
+            SendSysMessage(who, "Blad systemu aukcyjnego: kod 2", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+        
+    var theItems := array();
+        
+    foreach item in ListRootItemsInContainer(theCont)
+        if(TYPE_AUCTION == "INSTANT")
+            if(GetObjProperty(item, "ItemPrice"))
+                theItems.append(item);
+            endif
+        endif
+        if(TYPE_AUCTION == "AUCTIONS")
+            if(GetObjProperty(item, "CurrPrice"))
+                theItems.append(item);
+            endif
+        endif
+        
+        if(TYPE_AUCTION == "NORMAL")
+            theItems.append(item);
+        endif
+    endforeach
+    
+    GInit();
+    GPage();
+    GResPic(106, 50, 3500, 527, 381);
+    GTextLine(274, 64, 0, "A U K C J E  S W I A T A");
+    GGumpPic(123, 70, 113, 0); 
+    GGumpPic(578, 67, 113, 0); 
+    GGumpPic(124, 378, 113, 0); 
+    GGumpPic(575, 383, 113, 0); 
+    GResPic(167, 93, 5054, 98, 78);
+    GResPic(167, 193, 5054, 98, 78);
+    GResPic(167, 293, 5054, 98, 78);
+    
+    
+    var auctionNameModifier := 0;
+    var remainingTimeModifier := 0;
+    var currentPriceModifier := 0;
+    var detailsModifier := 0;
+    var tilePicModifier := 0;
+    
+    GAddPageData(508, 86, 250, 250, 508, 366, 252, 253);
+    
+    var itemName;
+    
+    var i := 1;
+    
+    foreach item in theItems
+    
+    GCheckNextPage(3);
+    
+    GTextLine(278, 92+auctionNameModifier, 0, "Aukcja:");
+    GTextLine(278, 112+remainingTimeModifier, 0, "Pozostalo czasu:");
+    GTextLine(278, 132+currentPriceModifier, 0, "Aktualna cena:");
+    GTextLine(278, 152+detailsModifier, 0, "Szczegoly:");
+    
+    // the info then
+    itemName := item.desc;
+    itemName["wyjatkowej jakosci"] := "wyj.";
+    itemName["Wyjatkowej jakosci"] := "wyj.";
+    itemName["umiejetnosci"] := "um.";
+    itemName["witalny"] := "wit.";
+    itemName["stabilny"] := "stab.";
+    itemName["witalna"] := "wit.";
+    itemName["stabilna"] := "stab.";
+    itemName["Bilet na zwierza"] := "bilet";
+    itemName["Wykonal"] := "";
+    
+    GTextLine(388, 92+auctionNameModifier, 0, itemName);
+    
+    GTextLine(388, 112+remainingTimeModifier, 0, RealTime(CInt(GetObjProperty(item, "ItemDuration")) - ReadGameClock()));
+    if(GetObjProperty(item, "ItemPrice"))
+     // dealing with instant buy here
+     GTextLine(388, 132+currentPriceModifier, 0, CInt(GetObjProperty(item, "ItemPrice")));
+    else
+     GTextLine(388, 132+currentPriceModifier, 0, CInt(GetObjProperty(item, "CurrPrice")));
+    endif
+    
+    GButton(388, 155+detailsModifier, 1209, 1210, 600+i);
+    
+    GTilePic(192, 115+tilePicModifier, item.graphic);
+    
+    i := i + 1;
+    
+    // reset the timers if necessary
+    
+    auctionNameModifier := auctionNameModifier + 100;
+    remainingTimeModifier := remainingTimeModifier + 100;
+    currentPriceModifier := currentPriceModifier + 100;
+    detailsModifier := detailsModifier + 100;
+    tilePicModifier := tilePicModifier + 100;
+    
+    // just need to check one since all of them are incremented the same way.. saves space
+    if(auctionNameModifier > 299)
+        auctionNameModifier := 0;
+        remainingTimeModifier := 0;
+        currentPriceModifier := 0;
+        detailsModifier := 0;
+        tilePicModifier := 0;
+    endif
+        
+    endforeach
+    
+    
+    // return <-
+    
+    returnValue := 4;
+    GButton(169, 384, 5538, 5538, 777);
+    GTextLine(196, 386, 0, "Wroc");
+
+    var res := GSend(who);
+    
+    if(!res)
+        EraseObjProperty(who, "#AucWindow");
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+    
+    if(res[0] > 600 && res[0] < 700)
+        // goqsane: very crucial here.. have to pass TYPE_AUCTION - won't be able to find otherwise
+        ViewAuctionItem(who, theAuctionStone, auctionCategory, TYPE_AUCTION, res[0]-600);
+    elseif(res[0] == 777)
+        processReturnValue(who, auctionCategory, TYPE_AUCTION);
+        // to return even further
+    else
+        EraseObjProperty(who, "#AucWindow");
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+        
+endfunction
+
+function ViewMainGump(who, theAuctionStone)
+
+    SendSysMessage(who, "Witamy!");
+
+    GInit(0, 0);
+    GResPic(105, 51, 3500, 527, 381);
+    GTextLine(274, 64, 0, "A U K C J E  S W I A T A");
+    GButton(221, 119, 2224, 2224, 2); 
+    GTextLine(257, 115, 0, "Przegladaj wszystkie aukcje");
+    GButton(221, 164, 2224, 2224, 3); 
+    GTextLine(257, 161, 0, "Przegladaj kup teraz");
+    GButton(221, 210, 2224, 2224, 4); 
+    GTextLine(257, 207, 0, "Przegladaj licytacje");
+    GTextLine(257, 284, 0, "Stworz licytacje");
+    GTextLine(257, 330, 0, "Stworz kup teraz");
+    
+    GButton(221, 287, 2224, 2224, 5);
+    GButton(221, 331, 2224, 2224, 6);    
+        
+    GGumpPic(123, 70, 113, 0); 
+    GGumpPic(578, 67, 113, 0); 
+    GGumpPic(124, 378, 113, 0); 
+    GGumpPic(575, 383, 113, 0); 
+    
+    var res := GSend(who);
+    
+    if(!res)
+        EraseObjProperty(who, "#AucWindow");
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        return;
+    else
+        ProcessViewMainGumpClick(who, theAuctionStone, res[0]);
+    endif
+
+endfunction
+
+function ProcessViewMainGumpClick(who, theAuctionStone, retValue)
+
+// 2 - view all auctions.. quick buy or auctions
+// 3 - only view quick buy
+// 4 - only view auctions
+// 5 - 6 - Create quick buy, create auction
+
+
+    returnValue := 3; 
+    // return to main menu
+
+    if(retValue > 1 && retValue < 5)
+        var Cat := ChooseCategory(who, theAuctionStone);
+            if(Cat == "error")
+                    EraseObjProperty(who, "#AucWindow");
+                    SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+                    return;
+            endif
+            
+            if(Cat == "BACK")
+                processReturnValue(who);
+                return;
+            endif
+            
+            SendSysMessage(who, "Szukam w " + Cat);
+            
+           
+            case(retValue)
+                2: ViewAuctions(who, theAuctionStone, Cat);
+                3: ViewAuctions(who, theAuctionStone, Cat, "INSTANT");
+                4: ViewAuctions(who, theAuctionStone, Cat, "AUCTIONS");
+            endcase
+    endif
+    
+    if(retValue == 5)
+        CreateAuction(who, theAuctionStone, "AUCTIONS");
+    endif
+    
+    if(retValue == 6)
+        CreateAuction(who, theAuctionStone, "INSTANT");
+    endif
+    
+endfunction
+
+function CreateAuction(who, theAuctionStone, AUCTION_TYPE, attachment := 0, Category := 0)
+
+    if(!Category)
+    Category := ChooseCategory(who, theAuctionStone);
+        if(Category == "error")
+            EraseObjProperty(who, "#AucWindow");
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+            return;
+        endif
+    endif
+        
+    
+    var timeDays := 1;
+        
+    GResPic(106, 51, 3500, 527, 381);
+    GTextLine(274, 64, 0, "A U K C J E  S W I A T A");
+    GGumpPic(123, 70, 113, 0); 
+    GGumpPic(578, 67, 113, 0); 
+    GGumpPic(124, 378, 113, 0); 
+    GGumpPic(575, 383, 113, 0); 
+    
+    if(AUCTION_TYPE == "INSTANT")
+         GTextLine(316, 126, 0, "KUP T E R A Z   !");
+    else
+         GTextLine(316, 126, 0, "L I C Y T A C J A");
+    endif
+ //   GTextLine(195, 111, 0, "Nazwa aukcji:");
+    GTextLine(234, 322, 0, "Przedmiot:");
+//    GResPic(279, 102, 5054, 291, 39);
+//    GTextEntry(287, 110, 270, 16, 0, 0, "Nazwa twojej aukcji");
+    GTextLine(195, 175, 0, "Czas trwania:");
+    
+    GSetRadioGroup(1);
+    GRadioButton(314, 178, 208, 209, 2);
+    GRadioButton(374, 178, 208, 209, 3);
+    GRadioButton(433, 178, 208, 209, 4);
+    
+    GTextLine(316, 209, 0, "2d");
+    GTextLine(375, 209, 0, "7d");
+    GTextLine(432, 209, 0, "14d");
+    
+    if(AUCTION_TYPE == "INSTANT")
+        GTextLine(195, 268, 0, "Cena kup teraz:");
+    else
+        GTextLine(195, 268, 0, "Cena startowa:");
+    endif
+    
+    GResPic(295, 260, 5054, 287, 39);
+    GTextEntry(304, 270, 264, 16, 0, 10, "0");
+    GResPic(307, 316, 5100, 114, 90);
+    
+    
+    GButton(258, 345, 1209, 1210, 140); // add the idiot
+    GButton(491, 380, 247, 248, 150); // okay - confirm
+    
+    if(attachment)
+        GTilePic(351, 355, attachment.graphic); 
+        GTextLine(255, 405, 0, attachment.desc);
+    endif
+    
+    var res := GSend(who);
+    
+    if(!res[0])
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        EraseObjProperty(who, "#AucWindow");
+        return;
+    endif
+    
+    if(res[0] == 140)
+       
+        SendSysMessage(who, "Wskaz przedmiot ktory chcesz dodac:", FONT_NORMAL, RED_COLOR);
+        var Targ := Target(who);
+        
+        if(who.getgottenitem())
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+        
+        if(!Targ || Targ.ip || !Targ.isA(POLCLASS_ITEM))
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+        
+        if(Targ.container != who.backpack)
+            SendSysMessage(who, "Tylko przedmioty z plecaka.", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+        
+        //LogCommand(who, "Dodal przedmiot do aukcji " + Targ.serial, 1);
+        // deedyhandlowe.txt
+        
+        CreateAuction(who, theAuctionStone, AUCTION_TYPE, Targ, Category);
+        
+        return;
+        
+    elseif(res[0] == 150)
+        
+        if(res[2][0] == 1)
+            timeDays := 2;
+        endif
+        
+        if(res[3][0] == 1)
+            timeDays := 7;
+        endif
+        
+        if(res[4][0] == 1)
+            timeDays := 14;
+        endif
+        
+        var price := CInt(CroppedId(res[10]));
+    
+        if(!price || price < 0 || price > 99999999)
+    
+        
+        SendSysMessage(who, "Blad w cenie.", FONT_NORMAL, RED_COLOR);
+        EraseObjProperty(who, "#AucWindow");
+        return;
+        
+        endif
+     
+        
+        if(!YesNo(who, "Na pewno wyslac dany przedmiot?"))
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+
+        
+        timeDays := timeDays * 86400;
+        
+        if(MoveItemToContainer(attachment, FindAndOpenCategoryContainer(Category)))
+            SetObjProperty(attachment, "ItemSeller", who.serial);       
+            case(AUCTION_TYPE)
+                "INSTANT": SetObjProperty(attachment, "ItemPrice", price); break;
+                "AUCTION": SetObjProperty(attachment, "CurrPrice", price); break;
+            endcase
+            
+            SetObjProperty(attachment, "ItemDuration", ReadGameClock()+timeDays);
+            SendSysMessage(who, "Zrobione! Sprawdz " + Category + " by zobaczyc swoj przedmiot!");
+            EraseObjProperty(who, "#AucWindow");
+			BroadCast("[Aukcje]: Nowy przedmiot " + attachment.name + " trafil na aukcje w kategorii " + Category + " .", FONT_NORMAL, COLOR_BLUE); 
+			PresetDiscordMessage("Nowy przedmiot **" + attachment.name + "** trafil na aukcje w kategorii **" + Category + "** .", "Auction");
+
+            
+        endif
+        
+    endif
+         
+    EraseObjProperty(who, "#AucWindow");
+ endfunction
+ 
+ function ViewAuctionItem(who, theAuctionStone, auctionCategory, TYPE_AUCTION, itemNumber)
+ 
+    SendSysMessage(who, "Szukamy numeru: " + itemNumber);
+ 
+     var theCont := FindAndOpenCategoryContainer(auctionCategory);
+    
+        if(!theCont)
+            SendSysMessage(who, "Blad systemu aukcyjnego: kod 2", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+ 
+    var theItems := array();
+        
+    foreach item in ListRootItemsInContainer(theCont)
+        if(TYPE_AUCTION == "INSTANT")
+            if(GetObjProperty(item, "ItemPrice"))
+                theItems.append(item);
+            endif
+        endif
+        if(TYPE_AUCTION == "AUCTIONS")
+            if(GetObjProperty(item, "CurrPrice"))
+                theItems.append(item);
+            endif
+        endif
+        
+        if(TYPE_AUCTION == "NORMAL")
+            theItems.append(item);
+        endif
+    endforeach
+    
+    var theItem := theItems[itemNumber];
+    
+    SendSysMessage(who, "Szukamy numeru: " + itemNumber);
+    
+    SendSysMessage(who, "Znaleziono taki item: " + theItem.serial);
+    
+    if(!theItem)
+        SendSysMessage(who, "Blad systemu akcyjnego: kod 4", FONT_NORMAL, RED_COLOR);
+        EraseObjProperty(who, "#AucWindow");
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+    
+    GInit();
+    
+    GResPic(105, 51, 3500, 527, 381);
+    GTextLine(274, 64, 0, "A U K C J E  S W I A T A");
+    GGumpPic(123, 70, 113, 0); 
+    GGumpPic(578, 67, 113, 0); 
+    GGumpPic(124, 378, 113, 0); 
+    GGumpPic(575, 383, 113, 0); 
+    GResPic(154, 113, 5100, 143, 115);
+    GTilePic(204, 148, theItem.graphic); 
+    GTextLine(317, 117, 0, "Nazwa aukcji:");
+    
+    var itemName := theItem.desc;
+    itemName["wyjatkowej jakosci"] := "wyj.";
+    itemName["Wyjatkowej jakosci"] := "wyj.";
+    itemName["umiejetnosci"] := "um.";
+    itemName["wital"] := "wit.";
+    itemName["stabiln"] := "stab.";
+    itemName["Bilet na zwierza"] := "bilet";
+    itemName["Wykonal"] := "";
+    
+    
+    GTextLine(428, 117, 0, itemName);
+    
+    GTextLine(317, 147, 0, "Pozostalo czasu:");
+    
+    GTextLine(428, 147, 0, RealTime(CInt(GetObjProperty(theItem, "ItemDuration")) - ReadGameClock()));
+    
+    GTextLine(317, 177, 0, "Sprzedawca:");
+    
+    GTextLine(428, 177, 0, SystemFindObjectBySerial(CInt(GetObjProperty(theItem, "ItemSeller"))).name);
+    
+    GTextLine(317, 207, 0, "Cena:");
+    
+    if(GetObjProperty(theItem, "CurrPrice"))
+    
+    GTextLine(317, 237, 0, "Najwyzsza oferta:");
+    
+    var theHighBidder := SystemFindObjectBySerial(CInt(GetObjProperty(theItem, "HighBidder")));
+    if(!theHighBidder)
+        theHighBidder := "Brak";
+    else
+        theHighBidder := theHighBidder.name;
+    endif
+    
+    GTextLine(428, 237, 0, theHighBidder);
+    
+    endif
+    
+    GButton(468, 209, 1209, 2104, 555);
+    
+    if(TYPE_AUCTION == "AUCTIONS")
+        GTextLine(487, 206, 0, "Przebij");
+    else
+        GTextLine(487, 206, 0, "Kup");
+    endif
+    
+    if(GetObjProperty(theItem, "ItemPrice"))
+     // dealing with instant buy here
+     GTextLine(428, 207, 0, CInt(GetObjProperty(theItem, "ItemPrice")));
+    else
+     GTextLine(428, 207, 0, CInt(GetObjProperty(theItem, "CurrPrice")));
+    endif
+    
+    GResPic(171, 256, 3500, 416, 105);
+    GTextLine(307, 270, 0, "Komentarz sprzedajacego:");
+    if(!GetObjProperty(theItem, "SellerComment"))
+        GTextLine(193, 300, 0, "Brak komentarza");
+    else
+        GTextLine(193, 300, 0, CStr(GetObjProperty(theItem, "SellerComment")));
+    endif
+    
+    
+    
+    GButton(169, 384, 5538, 5538, 777);
+    GTextLine(196, 386, 0, "Wroc");
+    
+    var res := GSend(who);
+    
+    // - 555 - buy or bid
+    
+        if(res[0] == 777)
+            processReturnValue(who, auctionCategory, TYPE_AUCTION);
+            return;
+        endif
+    
+        if(res[0] == 555)
+            PurchaseAuctionItem(who, theAuctionStone, auctionCategory, itemNumber, TYPE_AUCTION);
+        else
+            EraseObjProperty(who, "#AucWindow");
+            SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+            return;
+        endif
+    
+ 
+ endfunction
+ 
+ function PurchaseAuctionItem(who, theAuctionStone, auctionCategory, itemNumber, TYPE_AUCTION)
+ 
+      var theCont := FindAndOpenCategoryContainer(auctionCategory);
+    
+        if(!theCont)
+            SendSysMessage(who, "Blad systemu aukcyjnego: kod 2", FONT_NORMAL, RED_COLOR);
+            EraseObjProperty(who, "#AucWindow");
+            return;
+        endif
+ 
+    var theItems := array();
+        
+    foreach item in ListRootItemsInContainer(theCont)
+        if(TYPE_AUCTION == "INSTANT")
+            if(GetObjProperty(item, "ItemPrice"))
+                theItems.append(item);
+            endif
+        endif
+        if(TYPE_AUCTION == "AUCTIONS")
+            if(GetObjProperty(item, "CurrPrice"))
+                theItems.append(item);
+            endif
+        endif
+        
+        if(TYPE_AUCTION == "NORMAL")
+            theItems.append(item);
+        endif
+    endforeach
+    
+    var theItem := theItems[itemNumber];
+    
+    if(!theItem)
+        SendSysMessage(who, "Blad systemu akcyjnego: kod 5", FONT_NORMAL, RED_COLOR);
+        EraseObjProperty(who, "#AucWindow");
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+    
+    var itemSeller := SystemFindObjectBySerial(CInt(GetObjProperty(theItem, "ItemSeller")), 1);
+    
+    if(!itemSeller)
+        SendSysMessage(who, "Nie mozna bylo znalezc sprzedawcy! Blad kod 6!", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+    
+    if(GetObjProperty(theItem, "ItemPrice"))
+        if(YesNo(who, "Zaplacic " + CInt(GetObjProperty(theItem, "ItemPrice")) + " za " + theItem.desc + "?"))
+            if(Spendgold(who, CInt(GetObjProperty(theItem, "ItemPrice"))))
+                // placeholder for a function to post the item to the bidder
+                SendPostItem(itemSeller, who.name, "Aukcje DMR", "Wygrales aukcje kup teraz " + theItem.desc, 0, theItem);
+                
+                 var theDeed := CreateItemAtLocation(5849, 1169, 0, 5359);
+    
+                    if(theDeed)
+        
+                        theDeed.color := 53;
+                        SetName(theDeed, "Deed na " + CInt(GetObjProperty(theItem, "ItemPrice")) + " zlota");
+                        SetObjProperty(theDeed, "Value", CInt(GetObjProperty(theItem, "ItemPrice")));
+                        SendPostItem(who, ItemSeller.name, "Aukcje DMR", "Zaplata za " + theItem.desc, 0, theDeed);
+                    
+                    else
+                    
+                        syslog("Blad systemu - nie mozna bylo stworzyc czeku za zaplate dla " + itemSeller.serial + " na kwote " + CInt(GetObjProperty(theItem, "ItemPrice")));
+                    endif
+                    
+                ClearAuctionItem(theItem);
+                EraseObjProperty(who, "#AucWindow");
+                SendSysMessage(who, "Nowa poczta!", FONT_NORMAL, COLOR_BLUE);
+            else
+                SendSysMessage(who, "Nie masz tyle zlota.", FONT_NORMAL, RED_COLOR);
+                EraseObjProperty(who, "#AucWindow");
+                return;
+            endif
+        endif
+    else
+        // we are bidding
+        
+            if(who == ItemSeller)
+                SendSysMessage(who, "Nie sadzisz ze dziwnie jest podbijac stawke swojej wlasnej aukcji?", FONT_NORMAL, RED_COLOR);
+                return;
+            endif
+           
+            var minimumIncrementation := 1000;
+            var currPrice := CInt(GetObjProperty(theItem, "CurrPrice"));
+            
+            var yourPrice := CInt(SendTextEntryGump(who, "Wpisz swoja cene"));
+            
+            if(!yourPrice)
+                        SendSysMessage(who, "Musisz wpisac liczbe!", FONT_NORMAL, RED_COLOR);
+                        EraseObjProperty(who, "#AucWindow");
+                        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+                        return;
+            endif
+            
+            if(yourPrice - currPrice < minimumIncrementation)
+                        SendSysMessage(who, "Minimalna przebitka to 1000", FONT_NORMAL, RED_COLOR);
+                        EraseObjProperty(who, "#AucWindow");
+                        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+                        return;
+            else
+                if(!YesNo(who, "Na pewno " + yourPrice + "?"))
+                        EraseObjProperty(who, "#AucWindow");
+                        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+                        return;
+                endif
+                // we are bidding 
+                    SetObjProperty(theItem, "CurrPrice", yourPrice);
+                    SetObjProperty(theItem, "HighBidder", who.serial);
+                    SendSysMessage(who, "Przyjeto twoja oferte", FONT_NORMAL, COLOR_BLUE);
+                    EraseObjProperty(who, "#AucWindow");
+                
+            endif
+            
+    endif
+                    
+                    
+                    
+            
+                
+ 
+// 
+
+endfunction
+
+function processReturnValue(who, AUCTION_CATEGORY := 0, TYPE_AUCTION := 0)
+
+    // quick hack
+    if(who.cmdlevel)
+        SendSysMessage(who, "ReturnValue to: " + returnValue);
+    endif
+    
+    var theAuctionStone := who;
+
+    case(returnValue)
+        3: ViewMainGump(who, who);
+        4: 
+        
+            var Cat := ChooseCategory(who, theAuctionStone);
+            if(Cat == "error")
+                    EraseObjProperty(who, "#AucWindow");
+                    SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+                    return;
+            endif
+            
+            if(Cat == "BACK")
+                returnValue := returnValue - 1;
+                processReturnValue(who);
+                return;
+            endif
+            SendSysMessage(who, "Szukam w " + Cat);
+            ViewAuctions(who, theAuctionStone, Cat, TYPE_AUCTION);
+        5: 
+            returnValue := 4;
+            ViewAuctions(who, theAuctionStone, AUCTION_CATEGORY, TYPE_AUCTION); 
+           
+    endcase
+    
+endfunction

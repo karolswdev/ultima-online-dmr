@@ -1,0 +1,96 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/calc";
+include "include/dirs";
+include "include/objects/location";
+
+include ":wearwolf:wearwolf";
+include ":tracking:tracking";
+include ":detecthidden:common";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 16;
+
+//-----------------------------------------------------------------------------
+
+program WwSmell(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var WWSkill  := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  var Range    := CInt((WWSkill + ALSkill) * 0.30);
+  var NearMobs := array;
+  var Mobs     := array;
+  var ReqVaAmt := CInt(WWSkill / 4);
+  var Volcanic;
+
+  GetTrackNearbyMobs(Caster, Range, NearMobs, SKILLID_WEARWOLF);
+
+  foreach Mob in NearMobs
+    if(Mob != Caster)
+      Volcanic := FindObjTypeInContainer(Mob.backpack, UOBJ_VOLCANIC_ASH);
+      if(!Volcanic)
+        Mobs.append(Mob);
+      elseif(Volcanic.amount < ReqVaAmt)
+        Mobs.append(Mob);
+      endif
+    endif
+  endforeach
+
+  if(Mobs.size())
+    var MobId := SelectTrackMob(Caster, Mobs);
+
+    if(!MobId)
+      WcFizzle(Caster, "Anulowano", GetWcType(WW_WCID));
+      return 0;
+    endif
+
+    TrackMobile(Caster, Range, Mobs[MobId], TRACKF_HALF_EFFICENT, SKILLID_WEARWOLF);
+  else
+    WcFizzle(Caster, "Nie czujesz by ktos byl w poblizu.", GetWcType(WW_WCID));
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SelectTrackMob(Caster, byref Mobs)
+
+  GInit(50, 50);
+  GResPic(0, 0, 3600, 340, 470);
+  GTextLine(100, 20, 999, "Wybierz osobe");
+  GPage();
+  GAddPageData(305,15,2650,2651,305,435,2648,2647);
+
+  foreach Mob in Mobs
+    GCheckNextPage(20);
+    GButton(25, 50+GNPCount()*20, 2714, 2715, _Mob_iter);
+    GTextLine(50, 50+GNPCount()*20, 999, _Mob_iter+".");
+
+    if(IsPlayer(Mob))
+      GTextCrop(80, 50+GNPCount()*20, 210, 20, 1419, Mob.name);
+    else
+      GTextCrop(80, 50+GNPCount()*20, 210, 20, 550, Mob.name);
+    endif
+  endforeach
+
+  return GSend(Caster)[0];
+
+endfunction
+
+//--------------------------------------------------------------------------------

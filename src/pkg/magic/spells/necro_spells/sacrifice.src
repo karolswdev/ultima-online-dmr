@@ -1,0 +1,56 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/reputation/murderer";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 69;
+
+//-----------------------------------------------------------------------------
+
+program CastSacrifice( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NPC, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(GetMaster(CastOn) != Caster)
+    Fizzle(Caster, "To nie twoje zwierze.");
+    return;
+  endif
+
+  var Range := CInt(GetMagicSkillValue(Caster, SpellGlob.Type) / 20) + CInt(GetMindSkillValue(Caster, SpellGlob.Type) / 20);
+  var Dmg   := 0;
+  var Gained := 0;
+
+  foreach mobile in ListMobilesNearLocation(CastOn.x,CastOn.y,CastOn.z,Range,Caster.realm)
+    if(CanDamage(Caster,mobile, 0, CastOn))
+      PlaySoundEffect(mobile, SFX_SPELL_ENERGY_BOLT);
+      PlaySoundEffect(mobile, SFX_SPELL_EXPLOSION);
+      PlayPcMovEffect(Caster, Mobile, FX_FIREBALL, 42, 5, 1, 1, 0, 3);
+      Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type);
+      var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType[1], SpellGlob.Type);
+      AddMurdReport(mobile, Caster);
+
+      if(Gained < 3 and DmgRes > 0)
+        Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE);
+      endif
+    endif
+  endforeach
+
+  PlayLightningBoltEffect(CastOn);
+  if(DoMagicDamage(CastOn, Caster, GetMaxHp(CastOn)+3, SpellGlob.Circle, SpellGlob.DmgType[2], SpellGlob.Type) > 0)
+    if(Gained < 3)
+      Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

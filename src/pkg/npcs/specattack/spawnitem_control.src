@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/move";
+include "include/events";
+include "include/client/effects";
+include "include/items/temp_storage";
+include "include/mobile/npcs/attack";
+include "include/mobile/npcs/specs";
+include "include/mobile/npcs/properties";
+
+//-----------------------------------------------------------------------------
+
+program SpawnItemControl(Bones)
+
+  var SpawnComing := GetObjProperty(Bones, "SpawnComing");
+  var SpawnText := GetObjProperty(Bones, "SpawnText");
+
+  StopSpawnBaseItemControl(Bones);
+  SetObjProperty(Bones, "#SpawnBaseItemPid", GetPID());
+  Bones.movable := 0;
+  sleep(RandomInt(3)+5);
+  UniPrintTextAbove(Bones, SpawnComing);
+  sleep(RandomInt(3)+3);
+
+  if(HaveChance(98))
+
+    var Loc := GetLocStruct(Bones);
+  
+    var Group := GetObjProperty(Bones, "SpawnBaseGroup");
+
+    var Template := GetNpcTemplateFromGroup(Group);
+
+    if(ReturnTempItem(Bones) == 0)
+      DestroyItem(Bones);
+    endif
+
+    if(!Template)
+      LogError("[SpawnItemControl] Blad tworzenia npeca: "+Template.errortext);
+    else
+      PlayPcStEffect(Loc.x, Loc.y, Loc.z, Loc.realm, FX_FLAMESTRIKE, 999, 24, 30, 2);
+      var Npc := CreateNpc(Template, Loc.x, Loc.y, Loc.z, Loc.realm);
+      PlaySoundEffect(Npc, SFX_SPELL_SUMMON_ELEMENTAL);
+      NpcAttackRandomMobile(Npc);
+      
+      UniPrintTextAbove(Npc, SpawnText);
+    endif
+
+  else
+    sleep(Randomint(10)+10);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

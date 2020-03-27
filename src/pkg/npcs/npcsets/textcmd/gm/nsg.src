@@ -1,0 +1,410 @@
+//-----------------------------------------------------------------------------
+// Created: 2011-04-21
+// Modified: 2011-04-21
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/packets";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/effects";
+include "include/finding";
+include "include/objects/location";
+
+include ":npcsets:sets";
+include ":npcsets:global_sets";
+include ":npcsets:sets_ctrl";
+include ":npcsets:gmp_defs";
+
+include ":itemsets:sets";
+include ":itemsets:gmp_defs";
+
+//-----------------------------------------------------------------------------
+
+program GlobalNpcSetsCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+
+    "add":       AddContainerSet(who, text[2], text[3]);
+                 return;
+                 
+    "addloc":    AddLocationSet(who, text[2], text[3]);
+                 return;
+
+    "c":         CmdCreateNpcFromSet(who, text[2]);
+                 return;
+                 
+    "ga":        CmdGroupAdd(who, text[2]);
+                 return;
+    
+    "q":         if(IsQuestMaster(who))
+                   CmdCreateNpcFromSet(who, text[2], CNSF_PLAYER_NPCS);
+                 else
+                   SendSysMessage(who, "Tylko QM moze tworzyc przedmoty oznaczone jako questowe.", FONT_NORMAL, COLOR_RED);
+                 endif
+                 return;
+                 
+    "cq":        if(IsQuestMaster(who))
+                   CmdCreateNpcFromSet(who, text[2],  CNSF_QUEST_NPCS);
+                 else
+                   SendSysMessage(who, "Tylko QM moze tworzyc przedmoty oznaczone jako questowe.", FONT_NORMAL, COLOR_RED);
+                 endif
+                 return;
+
+    "?":         SendSysMessage(who, ".is [add/addloc/ga/c/b/t/q/cq]", FONT_NORMAL, COLOR_RED);
+                 return;
+
+  endcase
+
+  var Groups, Group;
+
+  while(IsLoggedIn(who))
+
+    Groups := GetNsgGroups();
+    Group  := SelectNpcSetGroup(who, Groups);
+
+    if(Group == 0)
+      break;
+    elseif(!Group)
+      continue;
+    endif
+
+    if(!SelectNpcSetFromGroup(who, Group))
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SelectNpcSetFromGroup(who, gName)
+
+  var Sets, SelSet;
+  
+  while(IsLoggedIn(who))
+
+    Sets := GetNsgs(gName);
+    SelSet := SelectNpcSet(who, Sets, gName);
+
+    if(SelSet == 0)
+      return 1;
+    elseif(!SelSet)
+      continue;
+    endif
+
+    var Set := GetNsg(SelSet);
+    ShowNpcDefinitionDetails(who, SelSet, Set.GetProp("Npcs"));
+
+  endwhile
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectNpcSetGroup(who, Groups)
+
+  BQGInit("Grupy globalnych setow: "+Groups.size(), 650, 500, 0, 1);
+  GAddPageData(615,18,2650,2651,615,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Nazwa");
+  GTextLine(200, 40, 999, "Dodal");
+  GTextLine(300, 40, 999, "Czas");
+  GMultiPage();
+
+  var i := 1;
+
+  foreach gName in Groups
+
+    var Group := GetNsgGroup(gName);
+
+    GCheckNextPage(20);
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GTextLine(100,60+GNPCount()*20, 550, Group.GetProp("Name"));
+    GTextLine(200,60+GNPCount()*20, 550, Group.GetProp("Creator"));
+    GTextLine(300,60+GNPCount()*20, 1321, CUnixTime(Group.GetProp("AddTime")));
+//    GTextLine(440,60+GNPCount()*20, COLOR_YELLOW, Set.Count);
+
+    GButton(550, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(567,60+GNPCount()*20, 990, "Rm");
+
+    i := i + 1;
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(Res.butid > 10000)
+    CmdGroupDel(who, Groups[Res.butid-10000]);
+  elseif(Res.butid)
+    return Groups[Res.butid];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectNpcSet(who, Sets, gName)
+
+  BQGInit("Sety w grupie: "+gName+" Ilosc: "+Sets.size(), 650, 500, 0, 1);
+  GAddPageData(615,18,2650,2651,615,467,2648,2647);
+
+  GTextLine(30,  40, 999, "Wybierz");
+  GTextLine(100, 40, 999, "Nazwa");
+  GTextLine(200, 40, 999, "Dodal");
+  GTextLine(300, 40, 999, "Czas");
+  GTextLine(440, 40, 999, "Przedmiotow");
+  GMultiPage();
+
+  var i := 1;
+
+  foreach NameSet in Sets
+
+    var Set := GetNsg(NameSet);
+    GCheckNextPage(20);
+    GTextLine(25,  60+GNPCount()*20, 560, Set.GetProp("Type"));
+    GButton(70, 63+GNPCount()*20, 2117, 2118, i);
+    GTextLine(100,60+GNPCount()*20, 550, Set.GetProp("Name"));
+    GTextLine(200,60+GNPCount()*20, 550, Set.GetProp("Creator"));
+    GTextLine(300,60+GNPCount()*20, 1321, CUnixTime(Set.GetProp("AddTime")));
+    GTextLine(440,60+GNPCount()*20, COLOR_YELLOW, Set.GetProp("NpcCount"));
+
+    GButton(510, 63+GNPCount()*20, 2117, 2118, 10000+i);
+    GTextLine(527,60+GNPCount()*20, 990, "Cr");
+
+    GButton(550, 63+GNPCount()*20, 2117, 2118, 20000+i);
+    GTextLine(567,60+GNPCount()*20, 990, "Rm");
+
+    i := i + 1;
+
+  endforeach
+
+  var Res := GSend(who);
+
+  if(Res.butid > 20000)
+    CmdRemoveNpcSet(who, Sets[Res.butid-20000]);
+    return error;
+  elseif(Res.butid > 10000)
+    CmdCreateNpcFromSet(who, Sets[Res.butid-10000]);
+  elseif(Res.butid)
+    return Sets[Res.butid];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdCreateNpcFromSet(who, Name, Flags := 0)
+
+  if(!Name)
+    SendSysMessage(who, "Nie podales nazwy seta!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var SetData := GetNsgDataStruct(Name);
+
+  if(!SetData)
+    SendSysMessage(who, SetData.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  CreateNpcFromSet(who, SetData, Flags);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectNsgGroup(who, gName)
+
+  var exGroup := GetNsgGroup(gName);
+
+  if(exGroup)
+    return gName;
+  endif
+
+  var Groups := GetNsgGroups();
+
+  var gIdx := BQSelectEntry(who, Groups);
+
+  if(gIdx)
+    return Groups[gIdx];
+  else
+    SendSysMessage(who, "Nie wybrano grupy.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddContainerSet(who, Name, gName)
+
+  if(!Name)
+    SendSysMessage(who, "Nie wpisales nazwy seta.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetNsg(Name))
+
+    SendSysMessage(who, "Set o nazwie "+Name+" juz istnieje. Nadpisac?", FONT_NORMAL, COLOR_GREEN);
+
+    if(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+
+  endif
+
+  var Targ := Target(who);
+
+  if(!Targ.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie npc.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  gName := SelectNsgGroup(who, gName);
+
+  if(!gName)
+    return;
+  endif
+
+  var Data := GetNpcSetDefinitionFromNpc(who, Name, Targ);
+
+  AddGlobalSet(Name, Data, gName);
+  SendSysMessage(who, "Dodano nowy set: "+Name+" do grupy: "+gName, FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddLocationSet(who, Name, gName)
+
+  if(!Name)
+    SendSysMessage(who, "Nie wpisales nazwy seta.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(GetNsg(Name))
+
+    SendSysMessage(who, "Set o nazwie "+Name+" juz istnieje. Nadpisac?", FONT_NORMAL, COLOR_GREEN);
+
+    if(!YesNo(who, "Na pewno?"))
+      return;
+    endif
+
+  endif
+
+  var nwLoc, seLoc, midLoc;
+
+  SendSysMessage(who, "Stan w rogu NW.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog NW?"))
+    return;
+  endif
+
+  nwLoc := GetLocStruct(who);
+  SendSysMessage(who, "NW: "+nwLoc.x+","+nwLoc.y+","+nwLoc.z+" "+nwLoc.realm, FONT_NORMAL, COLOR_GREEN);
+  
+  SendSysMessage(who, "Stan w rogu SE.", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Rog SE?"))
+    return;
+  endif
+
+  seLoc := GetLocStruct(who);
+  SendSysMessage(who, "SE: "+seLoc.x+","+seLoc.y+","+seLoc.z+" "+seLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  SendSysMessage(who, "Stan na srodku (podczas tworzenia set stworzy sie we wskazanek lokacji jakby to byl srodek).", FONT_NORMAL, COLOR_WHITE);
+
+  if(!YesNo(who, "Srodek?"))
+    return;
+  endif
+
+  midLoc := GetLocStruct(who);
+  SendSysMessage(who, "Mid: "+midLoc.x+","+midLoc.y+","+midLoc.z+" "+midLoc.realm, FONT_NORMAL, COLOR_GREEN);
+
+  var Data := GetNpcSetDefinitionFromLoc(who, Name, nwLoc, seLoc, midLoc);
+
+  if(Data)
+  
+    gName := SelectNsgGroup(who, gName);
+
+    if(!gName)
+      return;
+    endif
+
+    AddGlobalSet(Name, Data, gName);
+    SendSysMessage(who, "Dodano nowy set: "+Name+" do grupy: "+gName, FONT_NORMAL, COLOR_BLUE);
+  else
+    SendSysMessage(who, "Blad: "+Data.errortext, FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdRemoveNpcSet(who, Name)
+
+  SendSysMessage(who, "Chcesz usunac set o nazwie "+Name+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  if(!DelGlobalSet(Name))
+    SendSysMessage(who, "Set "+Name+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Usunieto set "+Name+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGroupAdd(who, gName)
+
+  var Res := AddNsgGroup(who, gName);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Dodano nowa grupe setow: "+gName+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdGroupDel(who, gName)
+
+  SendSysMessage(who, "Chcesz usunac grupe setow o nazwie "+gName+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Res := DelNsgGroup(gName);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Usunieto grupe setow: "+gName+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

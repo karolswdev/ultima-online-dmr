@@ -1,0 +1,82 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/npcs";
+include "include/std";
+include "include/checks/stdchecks";
+
+include "../pkg/systems/spawnnet/spawnrune";
+
+//-----------------------------------------------------------------------------
+
+program FreeNpcKill(who,Time)
+
+  SetLogRunCycles(LST_CMD);
+
+  Time := CInt(TIme);
+  if(!Time)
+    Time := 2;
+  endif
+
+  var Rlms := Realms();
+  var Tam := 0,Spn := 0,Mer := 0,Qus := 0,Pass,Creat,num := 0,x,y,Total := 0,UnTam := 0, Width, Height;
+
+  foreach RlmInfo in Rlms
+    if(_RlmInfo_iter == "britannia_alt")
+      continue;
+    endif
+
+    Width  := RlmInfo.width;
+    Height := RlmInfo.height;
+
+    for(x:=Width; x>=32; x:=x -32)
+      if(!(x % 256))
+        SendSysMessage(who, "Niszczenie dla X=" + x + " D:"+num+" Rlm: "+_RlmInfo_iter+" PID: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+      endif
+      for(y:=Height; y>=32; y:=y-32)
+        foreach npc in ListObjectsInBox(x - 32, y - 32, -127, x-1, y-1, 127 )
+          if(npc.isa(POLCLASS_NPC))
+            Pass := 0;
+            if(IsTamed(Npc))
+              Tam  := Tam + 1;
+              Pass := 1;
+            elseif(GetObjProperty(Npc,"UnTamed"))
+              UnTam  := UnTam + 1;
+              Pass := 1;
+            elseif(GetObjProperty(Npc,"Spawnnet"))
+              Creat := CheckExistingObjects(FindRuneByNr(GetObjProperty(Npc,"Spawnnet")));
+              if(Npc.serial in Creat)
+                Spn  := Spn + 1;
+                Pass := 1;
+              endif
+            elseif(GetObjProperty(Npc,"QuestSerial") or GetObjProperty(Npc,"QuestTarget"))
+              Qus  := Qus + 1;
+              Pass := 1;
+            elseif(Npc.script == "playermerchant" or Npc.script == "majormerchant")
+              Mer  := Mer + 1;
+              Pass := 1;
+            endif
+            if(!Pass)
+              num := num + 1;
+              KillNPC(Npc);
+            endif
+          endif
+          if(Npc.isa(POLCLASS_MOBILE))
+            Total := Total + 1;
+          endif
+        endforeach
+        sleepms(Time);
+      endfor
+    endfor
+
+  endforeach
+  SendSysMessage(who,"Zniszczono ["+num+"], Tamed ["+Tam+"], UnTamed ["+UnTam+"], Quest ["+Qus+"], Merchants ["+Mer+"], Spawnnet ["+Spn+"], All ["+Total+"]",FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

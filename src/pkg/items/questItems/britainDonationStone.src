@@ -1,0 +1,106 @@
+use uo;
+use os;
+
+include "include/gumps";
+include "include/items";
+include "include/bits";
+include "include/finding";
+
+const FIRST_ITEM_OBJTYPE := 0x6543;
+const SECOND_ITEM_OBJTYPE := 0x6706;
+const THIRD_ITEM_OBJTYPE := 0xEED;
+
+program use_donationStone(who, stone)
+	
+	InitializeVariables(stone);
+	
+	var first := GetObjProperty(stone, "FirstItem");
+	var second := GetObjProperty(stone, "SecondItem");
+	var third := GetObjProperty(stone, "ThirdItem");
+
+
+    GInit(0, 0);
+    GPage(1);
+    GResPic(75, 40, 2600, 468, 266);
+    GTextLine(252, 61, 0, "Zbiorka na ekspedycje");
+    GResPic(101, 96, 83, 126, 103);
+    GResPic(383, 96, 83, 126, 103);
+    GResPic(243, 96, 83, 126, 103);
+    GTilePic(144, 127, 7141); 
+    GTilePic(285, 117, 7135); 
+    GTilePic(424, 128, 3820); 
+    GButton(153, 203, 2708, 2708, 1);
+	GButton(294, 203, 2708, 2708, 2);
+    GButton(438, 203, 2708, 2708, 3);
+    
+    GTextLine(131, 81, 33, "sztaby royalu");
+    GTextLine(282, 81, 40, "klody ohii");
+    GTextLine(432, 81, 55, "zloto");
+    GTextLine(94, 230, 0, "Zlozono:");
+    GTextLine(95, 252, 0, "Brakuje");
+    GTextLine(147, 230, 53, first.donated);
+    GTextLine(147, 252, 33, first.needed);
+    GTextLine(290, 230, 53, second.donated);
+    GTextLine(290, 252, 33, second.needed);
+    GTextLine(430, 230, 55, third.donated);
+	GTextLine(430, 252, 33, third.needed);
+	
+    var result := GSend(who)[0];
+	
+	case(result)
+		1: DonateItem(first, stone, who, "FirstItem"); break;
+		2: DonateItem(second, stone, who, "SecondItem"); break;
+		3: DonateItem(third, stone, who, "ThirdItem"); break;
+		default: SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+	endcase
+	
+	
+
+endprogram
+
+function DonateItem(itemStruct, stone, who, PROP_NAME)
+
+	var neededItem := FindItemInContainer(who.backpack, itemStruct.objtype);
+	var amount := neededItem.amount;
+	
+	if(!neededItem)
+		SendSysMessage(who, "Nie posiadasz tego przedmiotu w plecaku.", FONT_NORMAL, COLOR_RED);
+		return;
+	endif
+	
+	if(DestroyItem(neededItem))
+		itemStruct.donated += amount;
+		itemStruct.needed -= amount;
+		SetObjProperty(stone, PROP_NAME, itemStruct);
+		SendSysMessage(who, "Dziekujemy.", FONT_NORMAL, COLOR_BLUE);
+	endif
+
+endfunction
+
+function InitializeVariables(stone)
+
+	if(!GetObjProperty(stone, "FirstItem"))
+		var firstItem := struct;
+		firstItem.+objtype := FIRST_ITEM_OBJTYPE;
+		firstItem.+donated := 0;
+		firstItem.+needed := 5000;
+		SetObjProperty(stone, "FirstItem", firstItem);
+	endif
+	
+	if(!GetObjProperty(stone, "SecondItem"))
+		var secondItem := struct;
+		secondItem.+objtype := SECOND_ITEM_OBJTYPE;
+		secondItem.+donated := 0;
+		secondItem.+needed := 8000;
+		SetObjProperty(stone, "SecondItem", secondItem);
+	endif
+	
+	if(!GetObjProperty(stone, "ThirdItem"))
+		var thirdItem := struct;
+		thirdItem.+objtype := THIRD_ITEM_OBJTYPE;
+		thirdItem.+donated := 0;
+		thirdItem.+needed := 18000000;
+		SetObjProperty(stone, "ThirdItem", thirdItem);
+	endif
+
+endfunction

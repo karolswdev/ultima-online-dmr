@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 23;
+
+//-----------------------------------------------------------------------------
+
+program VwBatMorph(Parms)
+
+  VampireRuneCast(Parms, VW_WCID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Duration := GetVampireWarSpDur(Caster);
+  var ModAmt   := GetEffectiveSkill(Caster, SKILLID_VAMPIRE) * 2;
+  var ModFlags := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  if(!CanMod(Caster, MOD_GRAPHIC))
+    if(Caster.graphic == CID_VAMP_BAT)
+      UndoMod(Caster,MOD_GRAPHIC);
+      UndoMod(Caster,MOD_INCO);
+      UndoMod(Caster,MOD_TPREFIX);
+      UndoMod(Caster,MOD_TSUFFIX);
+      UndoMod(Caster,MOD_TGUILD);
+      UndoMod(Caster,MOD_TRACE);
+      UndoMod(Caster,MOD_STATUS);
+      UndoMod(Caster,MOD_UNTOUCHABLE);
+    elseif(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+      WcFizzleId(Caster, "Na wierzchowcu ciezko Ci bedzie zmienic ksztalt!", VW_WCID);
+      return 0;
+    else
+      WcFizzleId(Caster, "Jestes juz pod wplywem czaru!", VW_WCID);
+      return 0;
+    endif
+  else
+  
+    DoMod(Caster,MOD_GRAPHIC, CID_VAMP_BAT,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_INCO,   "nietoperz wampir" ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TPREFIX, ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TSUFFIX, ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TGUILD,  ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_TRACE,   ""        ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_STATUS, 3          ,Duration, 0, ModFlags);
+    DoMod(Caster,MOD_UNTOUCHABLE, array(ModAmt, array),Duration, 0, ModFlags);
+  endif
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

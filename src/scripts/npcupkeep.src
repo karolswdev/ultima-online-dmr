@@ -1,0 +1,179 @@
+//-----------------------------------------------------------------------------
+
+include "include/npcs";
+include "include/logerror";
+include "include/skills/misc";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+var ColorsCfg,ClothsCfg,EquipCfg,LastColor,ObjType,Color,EqpItem;
+
+//-----------------------------------------------------------------------------
+
+program NpcKeep(Npc)
+
+  if(!Npc)
+    return;
+  endif
+
+  NpcKeeper(Npc);
+
+  if(Npc.concealed and !GetNpcConfig(Npc).CrHidden)
+    Npc.concealed := 0;
+  endif
+  
+  CheckNpcAttackSkill(Npc);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function NpcKeeper(Npc)
+
+  var Elem   := GetNpcConfig(Npc);
+
+  var Equipt := Elem.Equipt;
+
+  if(!Npc.backpack)
+    var NewPack := CreateItemAtTempLoc(UOBJ_NPCPACK);
+    if(!EquipItem(Npc, NewPack))
+      DestroyItem(NewPack);
+    endif
+  endif
+
+  if(Equipt)
+    EquipNpc(Npc,Equipt);
+  endif
+
+  if(Elem.mount)
+    var Mount      := CreateItemAtTempLoc(UOBJ_MOUNT);
+    var MountParms := SplitWords(Elem.mount);
+    Mount.graphic  := CInt(MountParms[1]);
+    Mount.color    := CInt(MountParms[2]);
+    EquipItem(Npc, Mount);
+  endif
+
+  return Npc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EquipNpc(Npc,EqpGroup)
+
+  ColorsCfg := ReadConfigFile(COLORS_CFG);
+  ClothsCfg := ReadConfigFile(CLOTHS_CFG);
+  EquipCfg  := ReadConfigFile(EQUIP_CFG);
+  LastColor := 0;
+
+  if(IsHuman(Npc))
+    case(Npc.gender)
+      0: EqpGroup := EqpGroup + "M";
+      1: EqpGroup := EqpGroup + "F";
+    endcase
+  endif
+  
+  if(!EquipCfg[EqpGroup])
+    LogError("EquipNpc: Nie mozna znalezc grupy "+EqpGroup+" "+EQUIP_CFG);
+    return 0;
+  endif
+  EqpGroup  := EquipCfg[EqpGroup];
+
+  foreach EqpString in GetConfigStringArray(EqpGroup, "Equip")
+    EquipItemString(Npc, EqpString);
+  endforeach
+
+  foreach EqpString in GetConfigStringArray(EqpGroup, "Armor")
+    EquipItemString(Npc, EqpString);
+  endforeach
+
+  foreach EqpString in GetConfigStringArray(EqpGroup, "Weapon")
+    EquipItemString(Npc, EqpString);
+  endforeach
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EquipItemString(Npc, EqpString)
+
+  EqpString    := SplitWords(EqpString);
+  ObjType      := ClothsCfg[EqpString[1]];
+  
+  if(ObjType)
+    ObjType := GetConfigStringArray(ObjType,"Item");
+    ObjType := ObjType[RandomInt(len(ObjType))+1];
+  else
+    ObjType := EqpString[1];
+  endif
+  
+  if(!CInt(ObjType))
+    ObjType := GetObjTypeByName(ObjType);
+  endif
+  
+  ObjType := CInt(ObjType);
+
+  if(!ObjType)
+    LogError("EquipItemString: ObjType nie prawidlowy "+EqpString[1]);
+    return;
+  endif
+  
+  Color := ColorsCfg[EqpString[2]];
+
+  if(Color)
+    Color := GetConfigStringArray(Color,"Color");
+    Color := Color[RandomInt(len(Color))+1];
+  elseif(EqpString[2] == "lastcolor")
+    Color := LastColor;
+  else
+    Color := EqpString[2];
+  endif
+
+  Color   := CInt(Color);
+  
+  EqpString[3] := CInt(EqpString[3]);
+  if(!EqpString[3])
+    EqpString[3] := 100;
+  endif
+  
+  LastColor := Color;
+  
+  if(RandomInt(100) < EqpString[3])
+    if(!Npc)
+      exit;
+    endif
+
+    EqpItem := CreateItemAtTempLoc(ObjType);
+    if(!EqpItem)
+      LogError("EquipItemString: nie mozna bylo stworzyc przedmiotu "+ObjType+"/"+EqpString[1]+" na Npc "+Npc.serial);
+      return;
+    endif
+
+    if(Color)
+      EqpItem.color := Color;
+    endif
+
+    if(!EquipItem(Npc, EqpItem))
+      DestroyItem(EqpItem);
+    endif
+    
+    if(CInt(EqpString[4]) == 1)
+      SetFlag(EqpItem, ITEMF_NO_LOOT);
+    endif
+
+    var NewName := ClStr(EqpString[5]);
+
+    if(NewName)
+      while(NewName["_"])
+        NewName["_"] := " ";
+      endwhile
+      SetName(EqpItem, NewName);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

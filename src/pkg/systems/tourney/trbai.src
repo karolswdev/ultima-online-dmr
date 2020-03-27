@@ -1,0 +1,135 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "ai/include/ainpcs";
+
+include "tourney";
+
+//-----------------------------------------------------------------------------
+
+var me := Self();
+var ItmAllowed := ReadConfigFile(TR_CFG);
+var Team,Class,Stat;
+
+//-----------------------------------------------------------------------------
+
+check_alignment();
+
+//-----------------------------------------------------------------------------
+
+program TourneyBagGuardAI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,2);
+
+  Team := GetMeTrStat();
+
+  while(me)
+    ev := wait_for_event(120);
+    case(ev.type)
+      EVID_DAMAGED:
+      EVID_ENGAGED:  TurnToward(ev.source);
+                     Say(ev.source.name+", uwazaj...");
+      EVID_SPEECH:   CheckSpeech(ev.source,lower(ev.text));
+    endcase
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetMeTrStat()
+
+  return CInt(GetNpcConfig(me).TrStat);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(who,text)
+
+  if(text["wita"] or text["daj"])
+    TurnToward(who);
+    Say("Witam");
+    if(CheckPack(who))
+      Say("Jaka jest twoja profesja?");
+      Say("Wojownik, Mag czy Lucznik?");
+    endif
+  elseif(text["wojownik"] or text["mag"] or text["lucznik"])
+    TurnToward(who);
+    CreateBag(who,text);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateBag(who,text)
+
+  if(CheckPack(who))
+    Say("Wybierz swoj styl walki.");
+    if(text["wojownik"])
+      Class := 1;
+    elseif(text["lucznik"])
+      Class := 2;
+    elseif(text["mag"])
+      Class := 3;
+    endif
+    
+    if(CreateTrPack(who,Class,Team))
+      Say("Prosze.");
+      SetObjProperty(who,"TourneyProps",-1);
+    endif
+  else
+    Say("Juz otrzymal"+ggm(who,3)+" ekwipunek.");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckPack(who)
+
+  Stat := GetTourneyProp(TR_STATUS);
+  
+  if(Stat != TR_STAT_STARTED)
+    return 0;
+  endif
+
+  if(GetTrFightProps(who) == -1)
+    return 0;
+  endif
+
+  if(GetTrTeam(who) == TRLOC_RED_ROOM and Team == 2)
+    return 1;
+  elseif(GetTrTeam(who) == TRLOC_BLUE_ROOM and Team == 1)
+    return 1;
+  else
+    return 0;
+  endif
+
+/*  foreach Item in ListRootItemsInContainer(who.backpack)
+    if(!ItmAllowed[lower(hex(Item.objtype))])
+      return 0;
+    endif
+  endforeach
+
+  for i:=1 to 25
+    if(!(i in {LAYER_ROBE,LAYER_CAPE,LAYER_PACK,LAYER_BEARD,LAYER_HAIR}))
+      Class := GetEquipmentByLayer(who,i);
+      if(Class)
+        return 0;
+      endif
+    endif
+  endfor*/
+
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------

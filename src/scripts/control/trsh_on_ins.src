@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+program OnTrashItemInsert(who, backpack, movetype, inserttype, adding_item, existing_stack)
+
+  // Malloc here as well
+  Malloc(who);
+  __ParamUnused(who);
+  __ParamUnused(backpack);
+  __ParamUnused(movetype);
+
+  var Item := adding_item;
+
+  if(inserttype == INSERT_INCREASE_STACK)
+    Item := existing_stack;
+  endif
+  
+  var DestroyTime := 300;                   //miejski smietnik lub z komendy: od 5 do 6 min czas oproznienia.                   
+  if (GetObjProperty(backpack,"DeedObjType"))   
+   DestroyTime := 60;                       //smietnik z deeda:               od 1 do 2 min czs oproznienia.
+  endif
+  SetObjProperty(Item, "#DestroyAt", ReadGameClock() + DestroyTime);
+
+endprogram
+
+//-----------------------------------------------------------------------------

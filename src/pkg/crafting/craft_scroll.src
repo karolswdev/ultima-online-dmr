@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include ":crafting:common";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+
+program CraftScroll(who, Scroll)
+
+  if(!StandardItemCheck(who, Scroll, NO_BUSY_CHECK))
+    return;
+  endif
+
+  Detach();
+  NoLongerBusy(who);
+
+  var SkId    := CInt(GetObjProperty(Scroll, "SkillId"));
+  var ItemObj := CInt(GetObjProperty(Scroll, "ItemObjType"));
+  var SkReq   := CInt(GetObjProperty(Scroll, "SkillReq"));
+
+  if(!SkId or !ItemObj)
+    SendBad(who, "Ten zwoj jest nieczytelny... na nic sie nie przyda.");
+    return;
+  endif
+
+  if(GetBaseSkill(who, SkId) < 50)
+    SendBad(who, "Twa wiedza w umiejetnosci "+GetSkillConfigElem(SkId).Name+" jest jeszcze bardzo mala, musisz sie wiecej poduczyc.");
+    return;
+  endif
+
+  if(GetBaseSkill(who, SkId) < SkReq)
+    SendBad(who, "Twa wiedza w umiejetnosci "+GetSkillConfigElem(SkId).Name+" jest zbyt mala, by pojac ta recepture.");
+    return;
+  endif
+
+  if(!AddCraftRecepture(who, SkId, ItemObj))
+    SendBad(who, "Znasz juz ta recepture.");
+    return;
+  else
+    DestroyItem(Scroll);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

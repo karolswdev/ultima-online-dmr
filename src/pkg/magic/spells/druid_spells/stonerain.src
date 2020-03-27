@@ -1,0 +1,219 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/buildings";
+include "include/items/temp_storage";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+include ":wearwolf:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 88;
+
+//-----------------------------------------------------------------------------
+
+program CastStoneRain( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BadRockLoc(byref rock, Caster, byref rockLocs)
+
+  if(rock[2] == Caster.x and rock[3] == Caster.y)
+    return 1;
+  endif
+
+  foreach Loc in rockLocs
+    if(Loc[2] == rock[2] and rock[3] == Loc[3])
+      return 1;
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  if(IsWearWolfMorphed(Caster))
+    Fizzle(Caster, "Nie mozesz w tej formie rzucic tego czaru.");
+    return;
+  endif
+
+  var CasterDruid      := GetEffectiveSkill( Caster, SKILLID_DRUID );
+  var CasterAl         := GetEffectiveSkill( Caster, SKILLID_ANIMALLORE );
+  var number_of_rocks  := (CasterDruid + CasterAl)/20;
+  var Dmg              := 0;
+
+  var location_x       := caster.x;
+  var location_y       := caster.y;
+  var location_z       := caster.z;
+  var rock_array       := {};
+  var rock             := {};
+  var created_rock;
+  var i := 0;
+  var random_number;
+  var Mobs             := ListMobilesNearLocation(location_x,location_y,location_z,10,Caster.realm);
+  var sMax;
+  var Rlm              := Caster.realm;
+  var Gained;
+
+  while(i < number_of_rocks)
+    rock := {};
+    random_number := RandomInt (8);
+    case (random_number)
+      0:       rock[1] := 0x1363;
+      1:       rock[1] := 0x1364;
+      2:       rock[1] := 0x1365;
+      3:       rock[1] := 0x1366;
+      4:       rock[1] := 0x1368;
+      5:       rock[1] := 0x1369;
+      6:       rock[1] := 0x136b;
+      7:       rock[1] := 0x136c;
+      default: rock[1] := 0x1363;
+    endcase;
+
+    rock[2] := Caster.x;
+    rock[3] := Caster.y;
+    rock[6] := 0;
+
+    if(Mobs[i])
+      if(CanDamage(Caster,Mobs[i]))
+        rock[2] := Mobs[i].x;
+        rock[3] := Mobs[i].y;
+        rock[4] := Mobs[i].z + 100;
+        rock[6] := GetStand(rock[2], rock[3], Rlm, Mobs[i].z);
+        DoMod(Mobs[i],MOD_PARA,1,5);
+      endif
+    endif
+
+    sMax := 0;
+
+    while(BadRockLoc(rock, Caster, rock_array))
+      rock[2] := location_x + RandomInt (20) - 10;
+      rock[3] := location_y + RandomInt (20) - 10;
+      rock[4] := location_z + 100;
+      rock[6] := GetStand(rock[2], rock[3], Rlm);
+
+      if(sMax > 25)
+        break;
+      endif
+      sMax := sMax + 1;
+      sleepms(3);
+    endwhile
+
+    if(sMax > 25)
+      number_of_rocks := number_of_rocks - 1;
+      continue;
+    endif
+
+    sMax := 0;
+
+    if(rock[4] > 127)
+      rock[4] := 127;
+    endif
+
+    while(rock[6].multi or IsInBuilding(rock[2],rock[3],Rlm) or rock[6].z == error or rock[6] == error)
+      rock[2] := location_x + RandomInt (20) - 10;
+      rock[3] := location_y + RandomInt (20) - 10;
+      rock[4] := location_z + 100;
+      rock[6] := GetStand(rock[2], rock[3], Rlm);
+
+      if(sMax > 25)
+        break;
+      endif
+      sMax := sMax + 1;
+      sleepms(3);
+    endwhile
+
+    if(sMax > 25)
+      number_of_rocks := number_of_rocks - 1;
+      continue;
+    endif
+
+    rock[6] := CInt(rock[6].z);
+
+    created_rock           := PullTempItemAtLoc (rock[2],rock[3],rock[4], 0x708F, Rlm);
+    created_rock.graphic   := CInt(rock[1]);
+    created_rock.invisible := 0;
+    created_rock.movable   := 0;
+
+    rock[5] := created_rock;
+
+    rock_array.append (rock);
+
+    i := i + 1;
+  endwhile
+
+  if(!number_of_rocks)
+    return;
+  endif
+
+  var aFall := 0;
+
+  while(aFall < number_of_rocks)
+    aFall := 0;
+    foreach rock in rock_array
+      created_rock := rock[5];
+
+      if(!created_rock)
+        aFall := aFall + 1;
+        continue;
+      endif
+
+      if(rock[4] == rock[6])
+        aFall := aFall + 1;
+        continue;
+      elseif(rock[4] - 4 < rock[6])
+        aFall := aFall + 1;
+        rock[4] := rock[6];
+      else
+        rock[4] := rock[4] - 4;
+      endif
+
+      MoveObject(created_rock, rock[2], rock[3], rock[4], created_rock.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+    endforeach
+    sleepms(50);
+  endwhile
+
+  foreach rock in rock_array
+    created_rock := rock[5];
+
+    foreach mobile in ListMobilesNearLocation(cint(rock[2]),cint(rock[3]),cint(rock[4]),0,Rlm)
+      if(CanDamage(Caster,mobile,NO_DIST_CHECK))
+        Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type);
+        var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+        AddMurdReport(mobile, Caster);
+        
+        if(Gained < 3 and DmgRes > 0)
+          Gained += GainSpellPoints(Caster, mobile, MAGICGAIN_OFFENSIVE); 
+        endif
+
+      endif
+    endforeach
+  endforeach
+
+  sleep (20);
+
+  foreach rock in rock_array
+    if(rock[5])
+      ReturnTempItem (rock[5]);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

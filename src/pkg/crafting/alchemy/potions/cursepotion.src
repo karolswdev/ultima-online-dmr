@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseCursePotion(who,potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var Mob := ObjTarget(who);
+
+  if(!StandardMobCheck(who,Mob,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+  var Duration := CInt(STANDARD_POTION_MOD_DUR/3 * QualMod) + (ExpMod * 10);
+
+  if(!ThrowPotion(who,Mob,potion,NO_SLEEP))
+    return;
+  endif
+
+  PlaySoundEffect(Mob, SFX_SPELL_CURSE );
+  PlayStationaryEff( Mob.x, Mob.y, Mob.z, FX_CURSE_EFFECT, 0xa, 0xa );
+
+  Strength     := CalcPotStrength(Strength,ExpMod);
+  
+  DoMod(Mob,MOD_STR, 0 - Strength, Duration);
+  DoMod(Mob,MOD_DEX, 0 - Strength, Duration);
+  DoMod(Mob,MOD_INT, 0 - Strength, Duration);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,20 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+program DestroyForge(Forge)
+
+  var Fire := SystemFindObjectBySerial(CInt(GetObjProperty(Forge,"FireSer")));
+  
+  if(Fire)
+    ReleaseItem(Fire);
+    DestroyItem(Fire);
+  endif
+  
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

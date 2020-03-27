@@ -1,0 +1,60 @@
+//--------------------------------------------------------------------------------
+// Modified: 2006-11-22
+//--------------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/msgs";
+include "include/player/misc";
+include "tip_data";
+
+//--------------------------------------------------------------------------------
+
+program ShowTipScroll(who, Scroll)
+
+  var tId := GetObjProperty(Scroll, "TipId");
+
+  if(!who or !tId)
+    SendBad(who, "Ten zwoj nie jest do niczego przydatny...");
+    return;
+  endif
+
+  var Tip;
+  AssignTipData(tId, Tip);
+
+  if(!Tip)
+    SendBad(who, "Ta wskazowka juz nie istnieje...");
+    return;
+  endif
+
+  BuildTip(Tip);
+
+  GSend(who);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function BuildTip(byref Tip)
+
+  GInit(300, 150);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GPage();
+  GResPic(0, 0, 0x24A4, 365, 430);
+  GGumpPic(325, 3, 0x4cb);
+  GAddPageData(325,60,0x824,0x824,325,382,0x825,0x825);
+
+  GResPic(30, 35, 0x2454, 310, 25);
+  GResPic(30, 65, 0x2454, 310, 325);
+
+  GTextLine(150, 5, 999, "Wskazówka");
+  GTextLine(40, 37, 670, Tip.Name);
+
+  foreach Line in (Tip.Text)
+    GCheckNextPage(16);
+    GTextLine(35, 67+GNPCount()*20, 0, Line);
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------

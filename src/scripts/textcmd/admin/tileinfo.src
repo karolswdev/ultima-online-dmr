@@ -1,0 +1,23 @@
+use uo;
+use os;
+
+include "include/player/target";
+
+program textcmd_tileinfo(who)
+
+var Loc := LocTarget(who);
+
+var Info;
+
+  if(Loc)
+
+  Info         := GetMapInfo(Loc.x,Loc.y,who.realm);
+  var Landtile := Info.landtile;
+  var SObjType := Loc.objtype;
+  
+  SendSysMessage(who, "Landtile: " + Landtile);
+  
+  endif
+  
+
+endprogram

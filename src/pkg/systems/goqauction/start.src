@@ -1,0 +1,10 @@
+use uo;
+use os;
+
+program startAuction()
+
+syslog(":: New Auction by goqsane started ::");
+
+start_script("auctionDecay");
+
+endprogram

@@ -1,0 +1,49 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/misc";
+include "include/items";
+include "include/msgs";
+
+include "spawnrune";
+include "spawnchest";
+
+//-----------------------------------------------------------------------------
+
+program UseSpawnChest(who, item)
+
+  var Res := IsStaff(who) or CanOpenSpawnChest(item);
+  if(Res)
+    SendViewContainer( who, item );
+  else
+    SendSysMessage( who, "Nie mozesz tego otworzyc. ",FONT_NORMAL,COLOR_RED);
+
+    if(Res == error)
+      SendSysMessage( who, Res.errortext,FONT_NORMAL,COLOR_ORANGE);
+    endif
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CanOpenSpawnChest(Chest)
+
+  var Rune := GetChestRuneFromLink(Chest);
+
+  if(Rune)
+    if(HaveRuneLiveSpawns(Rune))
+      return RetError("Straznicy skrzyni wciaz zyja!!");
+    endif
+  endif
+
+  return 1;
+
+endfunction 
+
+//-----------------------------------------------------------------------------

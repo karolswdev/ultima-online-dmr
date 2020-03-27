@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 128;
+
+//-----------------------------------------------------------------------------
+
+program KnMobilization(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 1111, 0xF, 0xF, 3);
+  PlaySoundEffect(Caster, 0xFD);
+
+  var SkBKensai := GetBaseSkill(Caster, SKILLID_KENSAI);
+  var SkEfKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+
+  var Range    := CInt(SkEfKensai / 25) + 2;
+  var Duration := CInt(GetWarCastDuration(Caster, WCT_KENSAI) / 5);
+                  //+5 za 100%          +1 za 105                     +1 za kazde 5% powyzej 110        +losowe -1,0,+1;
+  var ModAmt   := CInt(SkBKensai/20) + CInt(ToMin(SkBKensai-104,0)) + CInt(ToMin(SkEfKensai-105,0)/5) + RandomInt(3)-1;
+  var Gained   := 0;
+
+  foreach Mob in ListMobilesNearLocation(Caster.x,Caster.y,Caster.z,Range,Caster.realm)
+    if(IsFriend(Caster, Mob) and Mob != Caster)
+      PlaySoundEffect(Mob, 0xFD);
+      PlayPcEffect(Mob, FX_MARK_EFFECT, 1111, 0xF, 0xF, 3);
+
+      DoSkillMod(Mob, GetFightSkId(Mob), ModAmt, Duration);
+      
+      if(Gained < 3)
+        Gained += GainWarcastPoints(Caster, CastOn, KN_WCID, WCGAIN_DEFENSIVE);
+      endif
+
+    endif
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

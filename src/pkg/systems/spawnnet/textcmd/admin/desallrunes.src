@@ -1,0 +1,52 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumpboxes";
+
+include ":spawnnet:spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program DestroyWorldRunes(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!YesNo(who,"Na pewno?"))
+    return;
+  endif
+  
+  var Rlms := Realms();
+  var num  := 0,x,y,Width, Height, Err := 0;
+
+  foreach RlmInfo in Rlms
+    if(_RlmInfo_iter == "britannia_alt")
+      continue;
+    endif
+
+    Width  := RlmInfo.width;
+    Height := RlmInfo.height;
+
+    for(x:=Width; x>=32; x:=x -32)
+      SendSysMessage(who, "Restartowanie dla X=" + x + " R:"+num+" Rlm: "+_RlmInfo_iter+" PID: "+GetPid(),FONT_NORMAL,COLOR_GREEN);
+      for(y:=Height; y>=32; y:=y-32)
+        foreach item in ListObjectsInBox(x - 32, y - 32, -127, x, y, 127 )
+          if(item.objtype == UOBJ_SRUNE and item.isa(POLCLASS_ITEM))
+            SetStopped(item);
+            if(DestroyItem(item))
+              num := num + 1;
+            else
+              Err := Err + 1;
+            endif
+          endif
+        endforeach
+      endfor
+    endfor
+  endforeach
+  
+  SendSysMessage(who,"Zniszczono "+num+" runow, bledow "+Err,FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,176 @@
+//-----------------------------------------------------------------------------
+
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumpboxes";
+include "include/clock";
+include "include/unicode";
+include "include/cmds/cancmd";
+
+//-----------------------------------------------------------------------------
+
+program SpeechLog(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  var Names := array;
+  var Date, Hour, Srch;
+  
+  if(Text)
+    Text := SplitWords(Text);
+    Srch := text[1] == "srch";
+    if(Srch)
+      text.erase(1);
+    endif
+
+    if(len(Text[1]) == 8)
+      Date := Text[1];
+    endif
+
+    if(Text[2])
+      Hour := CTTime(Text[2]);
+    endif
+
+    var i;
+
+    for(i:=3;i<=Text.size();i:=i+1)
+      Names.append(Text[i]);
+    endfor
+  endif
+
+  SendSysMessage(who, "Szukanie logow z dnia "+Date+" "+Hour[1]+"-"+Hour[2]+"h, Godz: "+(Hour[2]-Hour[1]), FONT_NORMAL, COLOR_GREEN);
+
+  if(Srch)
+    SendSysMessage(who, "Szukane wyrazy ("+Names.size()+"):", FONT_NORMAL, COLOR_GREEN_LIGHT);
+  else
+    SendSysMessage(who, "Szukane imiona ("+Names.size()+"):", FONT_NORMAL, COLOR_GREEN_LIGHT);
+  endif
+
+  foreach Name in Names
+    SendSysMessage(who, Name, FONT_NORMAL, COLOR_BLUE);
+  endforeach
+
+  if(!Date or !Hour or !Names)
+    SendSysMessage(who,".log [srch] [%Data (05-03-24)] [%HourSet-HourEnd (5-10)] [%Name %Name]",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(who,"[srch] - jesli zostanie uzyte na poczatku, okreœla, ¿e wpisane %Name to szukane wyrazy. Brak srch okreœla szukanie osób o danym imieniu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(IsAdmin(who))
+    if(text[1] == "era")
+      if(YesNo(who,"Na pewno?"))
+        WriteFile(SPEECH_LOG+"_"+Date,{});
+        SendSysMessage(who,"Skasowano dane z dnia "+Date+".",FONT_NORMAL,COLOR_GREEN);
+      endif
+      return;
+    elseif(text[1] == "on")
+      SetGlobalProperty("GlobalLoging",1);
+      SendSysMessage(who,"Wlaczono logowanie.",FONT_NORMAL,COLOR_GREEN);
+      return;
+    elseif(text[1] == "off")
+      EraseGlobalProperty("GlobalLoging");
+      SendSysMessage(who,"Wylaczono logowanie.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  var MainData := {};
+  var THour,TTime;
+  var dFile := ReadFile(SPEECH_LOG+"_"+Date+".log");
+  
+  if(!dFile)
+    SendSysMessage(who,"Plik z daty "+Date+" nie istnieje.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var n := 1, lPrc := 0, Prc, Add;
+  
+  foreach Data in dFile
+    Data := UnPack(Data);
+    Add  := 0;
+
+    foreach Name in Names
+      if(Srch)
+        ConvPlLettersRef(Data[5]);
+        ConvToAscii(Data[5]);
+        Data[5] := lower(Data[5]);
+
+        if(Data[5][Name])
+          Add := Add + 1;
+        endif
+      else
+        if(lower(Data[2])[Name] or lower(Data[3])[Name])
+          Add := Names.size();
+        endif
+      endif
+
+      if(Add == Names.size())
+        if(!(Data in MainData))
+          TTime := CUnixTime(Data[4],RLT_DAYTIME);
+          THour := CInt(TTime / 3600);
+        
+          if(THour >= Hour[1] and THour <= Hour[2])
+            MainData.append(Data);
+          endif
+        endif
+      endif
+    endforeach
+
+    n := n + 1;
+    Prc := (n * 100) / dFile.size();
+    if( !(Prc % 10) and lPrc != Prc)
+      SendSysMessage(who, CStr(Prc)+"%", FONT_NORMAL, COLOR_GREEN);
+      lPrc := Prc;
+    endif
+  endforeach
+
+  if(!MainData.size())
+    SendSysMessage(who,"Nic nie znaleziono.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  GInit(20, 30);
+  GMode(GMODE_MULTIHD, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,3600,703,560);
+  GPage();
+  GAddPageData(670,18,2650,2651,670,526,2648,2647);
+  GMultiPage();
+  
+  foreach Data in MainData
+    GCheckNextPage(25);
+    GTextLine(20 ,20+(GNPCount()*20),560,CUnixTime(Data[4]));
+    GTextLine(160,20+(GNPCount()*20),550,Data[2]+"/"+Data[3]);
+    GTextLine(380,20+(GNPCount()*20),550,Data[5]);
+  endforeach
+
+  if(GSend(who) == error)
+    SendSysMessage(who,"Dane za duze, zmniejsz zasieg czasu.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CTTime(Time)
+
+  var St := find(Time,"-",1);
+  
+  if(!St)
+    if(!CInt(Time))
+      return 0;
+    else
+      return {CInt(Time),CInt(Time)};
+    endif
+  else
+    return {CInt(Time[1,St-1]),CInt(Time[St+1,len(Time)])};
+  endif
+  
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

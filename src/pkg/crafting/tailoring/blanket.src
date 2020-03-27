@@ -1,0 +1,68 @@
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/effects";
+
+include ":carpentry:bed";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program Blanket(who,Blanket)
+
+  if(!StandardItemCheck(who,Blanket))
+    return;
+  endif
+  
+  var Bed := ObjTarget(who);
+  
+  if(!StandardItemCheck(who,Bed,NO_MOVABLE_CHECK | NO_OWNER_CHECK))
+    return;
+  endif
+  
+  if(Distance(who,Bed) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!CheckBed(who,Bed))
+    return;
+  endif
+
+  if(GetObjProperty(Bed,"Blanket"))
+    SendSysMessage(who,"To lozko jest juz poscielone.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  if(BlankOn(who,Bed))
+    DestroyItem(Blanket);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckBed(who,Bed)
+
+  if(CInt(ItemCfg[Bed.objtype].Blanket))
+    if(CInt(ItemCfg[Bed.objtype].Blanket) == Bed.objtype)
+      SendSysMessage(who,"Tego lozka nie trzeba scielic.",FONT_NORMAL,COLOR_GREEN);
+      SetObjProperty(Bed,"Blanket",who.serial);
+      return 0;
+    else
+      return 1;
+    endif
+  endif
+  
+  SendSysMessage(who,"To nie lozko.",FONT_NORMAL,COLOR_RED);
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------

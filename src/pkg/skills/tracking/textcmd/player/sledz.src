@@ -1,0 +1,68 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/gumps";
+include "include/misc";
+include "include/objects/location";
+include "include/calc";
+include "include/client/fonts";
+include "include/attributes/main";
+
+include ":tracking:tracking";
+include ":detecthidden:common";
+include ":tourney:tourney";
+
+//-----------------------------------------------------------------------------
+
+program TrackCmd(who, text)
+
+  if(who.dead)
+    SendSysMessage(who, "Jestes martwy.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(IsBusy(who,NO_BUSY_CHECK | NO_COMBAT_CHECK | NO_WORK_BREAK))
+    return;
+  endif
+  
+  SetBusyTime(who,GetSkillDelay(SKILLID_TRACKING));
+
+  if(!text)
+    SendSysMessage(who, "Nie wpisal"+ggm(who,3)+" imienia osoby.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(text == "#")
+    StopTracking(who);
+    return;
+  endif
+
+  if(!CheckSkill(who, SKILLID_TRACKING, -1, 0))
+    SendSysMessage(who, "Nie udalo Ci sie znalazc stworzen w poblizu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  text := lower(text); 
+
+  var Nearby   := array;
+  var Range    := GetTrackingRange(who);
+  var TrackMob := 0;
+
+  GetTrackNearbyMobs(who, Range, Nearby, SKILLID_TRACKING, TRACKF_HIDDEN_CHANCE);
+
+  foreach Mob in Nearby
+    if(lower(Mob.name)[text])
+      TrackMob := Mob;
+      break;
+    endif
+  endforeach
+
+  if(!TrackMob)
+    SendSysMessage(who, "Nie wyczuwasz by osoba "+text+" byla w poblizu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  TrackMobile(who, Range, TrackMob, TRACKF_HIDDEN_CHANCE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

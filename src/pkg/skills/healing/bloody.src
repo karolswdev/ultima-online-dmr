@@ -1,0 +1,99 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/effects";
+include "include/objtypes/misc";
+
+//-----------------------------------------------------------------------------
+
+const GFX_UNSHORN_SHEEP := 0xcf;
+const GFX_SHORN_SHEEP   := 0xdf;
+const UOBJ_BARREL       := 0x154d;
+const UOBJ_TUB          := 0x0e7b;
+const UOBJ_TROUGHA      := 0x0b41;
+const UOBJ_TROUGHB      := 0x0b42;
+const UOBJ_TROUGHC      := 0x0b43;
+const UOBJ_TROUGHD      := 0x0b44;
+
+//-----------------------------------------------------------------------------
+
+var config;
+var elem;
+
+//-----------------------------------------------------------------------------
+
+program use_bloody( who, bloody )
+
+  SendSysmessage( who, "Gdzie chcial"+ggm(who,1)+" umyc te bandaze ?",FONT_NORMAL,COLOR_GREEN);
+
+  var Loc := LocTarget( who );
+
+  if(Loc.item)
+    Loc := Loc.item;
+  endif
+
+  if(Loc.isa(POLCLASS_ITEM) and Loc.objtype == UOBJ_BARREL or Loc.objtype == UOBJ_TUB or Loc.objtype == UOBJ_TROUGHA or Loc.objtype == UOBJ_TROUGHB or Loc.objtype == UOBJ_TROUGHC or Loc.objtype == UOBJ_TROUGHD)
+    if(!StandardItemCheck(who,Loc,NO_MOVABLE_CHECK | NEW_DIST_CHECK | NO_OWNER_CHECK, 1))
+      return;
+    endif
+    sleep(3);
+    WashBloody(who, Bloody);
+  elseif(IsWater(Loc.x, Loc.y, Loc.z, who.realm))
+    
+    if(!StandardLocCheck(who, Loc, NEW_DIST_CHECK | NO_CHECK_SPECLOS, 3))
+      return;
+    endif
+
+    if(!MakeWaterSplash(who,Loc))
+      return;
+    endif
+
+    WashBloody(who, bloody);
+  else
+    SendSysmessage( who, "W tym nie umyjesz bandaza!",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function WashBloody(who, Bloody)
+
+  var Amount := GetEffectiveSkill(who,SKILLID_HEALING);
+
+  if(GetEffectiveSkill(who, SKILLID_VETERINARY) > Amount)
+    Amount := GetEffectiveSkill(who, SKILLID_VETERINARY);
+  endif
+
+  Amount := CInt(Amount / 5);
+
+  if(!Amount)
+    Amount := 1;
+  endif
+
+  if(Amount > Bloody.amount)
+    Amount := Bloody.amount;
+  endif
+
+  if(SubtractAmount(Bloody, Amount))
+    CreateItemInPack(who, UOBJ_BANDAGE, Amount);
+  else
+    return;
+  endif
+
+  var Msg := "";
+
+  case(Amount)
+    1:       msg := "Umyl"+ggm(who,3)+" bandaz.";
+    2:
+    3:
+    4:       msg := "Umyl"+ggm(who,3)+" "+Amount+" bandaze.";
+    default: msg := "Umyl"+ggm(who,3)+" "+Amount+" bandazy.";
+  endcase
+
+  SendSysmessage(who,msg,FONT_NORMAL,COLOR_BLUE);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,170 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/magic";
+include ":magic:magicbag";
+include "include/gumps";
+include "include/start";
+include ":magic:magicatt";
+
+//-----------------------------------------------------------------------------
+
+var gSpellsCfg := ReadConfigFile (SPELLS_CFG);
+var Res, gDesc, Amount, DruidIds, h := 0;
+
+//-----------------------------------------------------------------------------
+
+program DruidBag(who, bag)
+
+  if(!StandardItemCheck(who,bag,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(ExPid(GetObjProperty(bag, "#ViewDrBag")))
+    SendSysMessage(who, "Ten worek ktos juz przeglada...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Detach();
+  NoLongerBusy(who);
+  SetObjProperty(bag, "#ViewDrBag", GetPid());
+
+  GetSpellIdsSortedByDiff(DruidIds, DRUID_SPELL_START, DRUID_SPELL_END);
+
+  while(IsLoggedIn(who) and bag)
+    BuildGump(who, bag);
+    Res := GSend(who)[0];
+    if(!Res)
+      break;
+    endif
+
+    if(Res == 9999 and who.cmdlevel)
+      AddAllRunes(who,bag);
+    elseif(Res >= 200)
+      DisplayReagentRequirements(who,Res-200);
+    elseif(Res >= 100)
+      TakeRuneOutOfBag(bag, gSpellsCfg[Res-100].rune_objtype);
+      CreateItemInPack(who, gSpellsCfg[Res-100].rune_objtype, 1);
+      SendSysMessage(who, "Wyj"+ggm(who,5)+" runo z worka.",FONT_NORMAL,COLOR_GREEN);
+    elseif(Res >= 81)
+      StartSpellCast(who,Res);
+      break;
+    endif
+  endwhile
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StartSpellCast(who,SpID)
+
+  if(!IsEquippedStaff(who))
+    SendSysMessage (who, "Musisz zalozyc laske druida by moc czarowac.",FONT_NORMAL,COLOR_RED);
+  else
+    if(IsBusy(who,NO_BUSY_DELAY_CHECK | NO_COMBAT_CHECK))
+      return;
+    else
+      NoLongerBusy(who);
+    endif
+    
+    if(who.hidden)
+      who.hidden := 0;
+    endif
+    
+    if(GetEquipmentByLayer(who,LAYER_RING).objtype == UOBJ_DRUID_RING)
+      StartSpell(who, SpID, CAST_WAND, GetEquipmentByLayer(who,LAYER_RING));
+    else
+      StartSpell(who, SpID, CAST_WAND, who.weapon);
+    endif
+  endif
+    
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildGump (who, bag)
+
+  GInit();
+  GPage();
+  GNoDispose();
+  GResPic(130,60,3500,300,300);
+  GGumpPic(20,20,61);
+  
+  if(who.cmdlevel)
+    GButton(250,310,2462,2461,9999);
+  endif
+
+  GAddPageData(160,310,5603,5607,380,310,5601,5605);
+
+  foreach Id in DruidIds
+    if(CheckForRuneInBag (bag, gSpellsCfg[Id].rune_objtype))
+      GCheckNextPage(8);
+      GButton(200,105+(GNPCount()*25),2103,2104,Id);
+      GButton(370,103+(GNPCount()*25),5401,5401,100+Id);
+      GButton(390,103+(GNPCount()*25),4033,4033,200+Id);
+      GTextLine(220,100+(GNPCount()*25),94,gSpellsCfg[Id].Name);
+    endif
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsEquippedStaff (who)
+
+  if(who.weapon.objtype == UOBJ_DRUID_STAFF or GetEquipmentByLayer(who,LAYER_RING).objtype == UOBJ_DRUID_RING)
+    return 1;
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddAllRunes (who, bag)
+
+  for i := DRUID_SPELL_START to DRUID_SPELL_END
+    if(gSpellsCfg[i].rune_objtype)
+      PutRuneInBag(bag,gSpellsCfg[i].rune_objtype);
+    endif
+  endfor
+  SendSysMessage (who, "Wszystkie runy zostaly dodane.", FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisplayReagentRequirements (who, SpID)
+
+  GInit();
+  GPage();
+  GResPic(130,60,3500,300,300);
+  GGumpPic(20,20,61);
+  GGumpPic(220,105,41);
+  GTextLine(220,80,94,gSpellsCfg[SpID].name);
+  GTextLine(220,120,0,"Slowa");
+  GTextLine(240,140,32,gSpellsCfg[SpID].PowerWords);
+  GTextLine(220,160,0,"Skladniki:");
+
+  h := 0;
+  foreach Reagent in GetSpellValue(SpID,"SReagent",ARRAY_ID)
+    Reagent  := SplitWords(Reagent);
+    gDesc     := GetDescForItem(Reagent[1]);
+    Amount   := Cint(Reagent[2]);
+    if(!Amount)
+      Amount := 1;
+    endif
+    if(!gDesc)
+      gDesc := "nieznany skladnik";
+    else
+      gDesc := Amount + " " + gDesc;
+    endif
+    GTextLine(240,180+(h*15),0,gDesc);
+    h := h + 1;
+  endforeach
+  
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

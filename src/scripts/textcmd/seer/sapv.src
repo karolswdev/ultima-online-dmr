@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/checks/stdchecks";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program SayAbovePrivateCmd(who, text)
+
+  if(!text)
+    SendSysMessage(who, "Wpisz tekst.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage( who, "Nad czym powiedziec?", FONT_NORMAL, COLOR_GREEN);
+
+  var OnObj := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  if(OnObj)
+    SendSysMessage( who, "Kto ma zobaczyc wiadomosc prywatnie?", FONT_NORMAL, COLOR_GREEN);
+    var ToObj := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+    if(IsPlayer(ToObj))
+      PrintTextAbovePrivate(OnObj, text, ToObj);
+    else
+      SendSysMessage(who, "To nie gracz.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

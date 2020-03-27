@@ -1,0 +1,240 @@
+//--------------------------------------------------------------------------------
+
+include "include/start";
+include "include/clock";
+include "include/std";
+include "include/proc";
+include "include/gumpboxes";
+include "include/player/hooks";
+
+//--------------------------------------------------------------------------------
+
+var gCtlList := GetGlobalProperty(PROP_GCTRL_LIST);
+var gChkList := GetGlobalProperty(PROP_GCHK_LIST);
+
+//--------------------------------------------------------------------------------
+
+const GCGF_NORESTART         := 0x00000001;
+
+//--------------------------------------------------------------------------------
+
+program GlobalControlCmd(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "ctl":     ShowGlobalScripts(who, gCtlList, 0, PROP_GCTRL_SCRIPT, 0);
+    "chk":     ShowGlobalScripts(who, gChkList, 1000, PROP_GCHK_SCRIPT, GCGF_NORESTART);
+    "ph":      RestartPlayersHook(who, text[2]);
+    "?":       SendSysMessage(who, ".glob [ctl/chk/ph]", FONT_NORMAL, COLOR_RED);
+    default:   SendSysMessage(who, "Zla opcja [.glob ?]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function ShowGlobalScripts(who, byref List,setId, PropName, Flags := 0)
+
+  BuildGlobalScriptsGump(List, setId, PropName, Flags);
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+
+    if(Res[0] > 100 and Res[0] < 200)
+      StartGCtrlScriptCmd(who, Res[0]-100);
+    elseif(Res[0] > 200 and Res[0] < 300)
+      StopGCtrlScriptCmd(who, Res[0]-200);
+    elseif(Res[0] > 300 and Res[0] < 400)
+      RestartGCtrlScriptCmd(who, Res[0]-300);
+    elseif(Res[0] > 1100 and Res[0] < 1200)
+      StartGChkScriptCmd(who, Res[0]-1100);
+    elseif(Res[0] > 1200 and Res[0] < 1300)
+      StopGChkScriptCmd(who, Res[0]-1200);
+    else
+      case(Res[0])
+        1:         ;
+        default:   return;
+      endcase
+    endif
+
+    BuildGlobalScriptsGump(List, setId, PropName, Flags);
+  endwhile
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function BuildGlobalScriptsGump(byref List, setId, PropName, Flags := 0)
+
+  GInit(20, 20);
+  GResPic(0, 0, 3600, 750, 400);
+  GAddPageData(715,16,2650,2651,715,366,2648,2647);
+  GButton(30, 23, 2117, 2118, 1);
+  GTextLine(50, 20,550, "Odswiez");
+
+  if(PropName == PROP_GCHK_SCRIPT)
+    GTextLine(200,20,999, "Global Check");
+  else
+    GTextLine(200,20,999, "Global Control");
+  endif
+
+  GTextLine(15,  50, 999, "St");
+  GTextLine(35,  50, 999, "Sp");
+  if(!(Flags & GCGF_NORESTART))
+    GTextLine(55,  50, 999, "Rs");
+  endif
+  GTextLine(75,  50, 999, "Nazwa");
+  GTextLine(240, 50, 999, "Czas");
+  GTextLine(350, 50, 999, "Pid");
+  GTextLine(430, 50, 999, "State");
+  GTextLine(490, 50, 999, "Instr");
+  GTextLine(570, 50, 999, "Sleeps");
+  GTextLine(640, 50, 999, "VarNum");
+  GPage();
+
+  var Info, Proc, i := 1;
+
+  foreach Script in List
+    GCheckNextPage(15);
+    GButton(15, 77+GNPCount()*20, 2117, 2118, setId+100+i);
+    GButton(35, 77+GNPCount()*20, 2117, 2118, setId+200+i);
+    if(!(Flags & GCGF_NORESTART))
+      GButton(55, 77+GNPCount()*20, 2117, 2118, setId+300+i);
+    endif
+
+    GTextLine(75,  75+GNPCount()*20, 1000, Script);
+    Info := GetGlobalProperty(PropName+Script);
+    Proc := GetProc(Info[3]);
+
+    if(Info[2])
+      GTextLine(240, 75+GNPCount()*20, 670, CUnixTime(Info[2], RLT_MONTH));
+    endif
+
+    if(Proc)
+      GTextLine(350, 75+GNPCount()*20, 550,  Proc.pid);
+      GTextLine(430, 75+GNPCount()*20, 1419, Proc.state);
+      GTextLine(490, 75+GNPCount()*20, 560,  Proc.instr_cycles);
+      GTextLine(570, 75+GNPCount()*20, 560,  Proc.sleep_cycles*-1);
+      GTextLine(640, 75+GNPCount()*20, 560,  Proc.var_size);
+    else
+      GTextLine(350, 75+GNPCount()*20, 1205, "Brak");
+    endif
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StartGCtrlScriptCmd(who, Idx)
+
+  var cRes := StartGlobCtrlScript(gCtlList[Idx]);
+
+  if(cRes == error)
+    SendSysMessage(who, "Nie udalo sie uruchomic skryptu "+gCtlList[Idx]+".", FONT_NORMAL, COLOR_RED);
+  elseif(!cRes)
+    SendSysMessage(who, "Skrypt ["+gCtlList[Idx]+"] jest juz uruchiomiony.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Skrypt ["+gCtlList[Idx]+"] zostal uruchiomiony.", FONT_NORMAL, COLOR_GREEN);
+    sleepms(50);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StopGCtrlScriptCmd(who, Idx)
+
+  var cRes := StopGlobCtrlScript(gCtlList[Idx]);
+
+  if(!cRes)
+    SendSysMessage(who, "Skrypt ["+gCtlList[Idx]+"] nie jest uruchiomiony.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Skrypt ["+gCtlList[Idx]+"] zostal zatrzymany.", FONT_NORMAL, COLOR_GREEN);
+    sleepms(50);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function RestartGCtrlScriptCmd(who, Idx)
+
+  var cRes := RestartGlobCtrlScript(gCtlList[Idx]);
+
+  if(!cRes)
+    SendSysMessage(who, "Nie udalo sie zrestartowac skryptu ["+gCtlList[Idx]+"].", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Skrypt ["+gCtlList[Idx]+"] zostal zrestartowany.", FONT_NORMAL, COLOR_GREEN);
+    sleepms(50);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StartGChkScriptCmd(who, Idx)
+
+  var cRes := StartGlobChkScript(gChkList[Idx]);
+
+  if(cRes == error)
+    SendSysMessage(who, "Nie udalo sie uruchomic skryptu "+gChkList[Idx]+".", FONT_NORMAL, COLOR_RED);
+  elseif(!cRes)
+    SendSysMessage(who, "Skrypt ["+gChkList[Idx]+"] jest juz uruchiomiony.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Skrypt ["+gChkList[Idx]+"] zostal uruchiomiony.", FONT_NORMAL, COLOR_GREEN);
+    sleepms(50);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StopGChkScriptCmd(who, Idx)
+
+  var cRes := StopGlobChkScript(gChkList[Idx]);
+
+  if(!cRes)
+    SendSysMessage(who, "Skrypt ["+gChkList[Idx]+"] nie jest uruchiomiony.", FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Skrypt ["+gChkList[Idx]+"] zostal zatrzymany.", FONT_NORMAL, COLOR_GREEN);
+    sleepms(50);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function RestartPlayersHook(who, ScName)
+
+  var HookNames := GetPlayerHooksNames();
+
+  if(!(ScName in HookNames))
+    SendSysMessage(who, "Bledna nazwa hooka.", FONT_NORMAL, COLOR_RED);
+    foreach Name in HookNames
+      SendSysMessage(who, _Name_iter+". "+Name, FONT_NORMAL, COLOR_RED);
+    endforeach
+    return;
+  endif
+
+  SetScriptController(0);
+
+  var All := 0, Num := 0;
+
+  foreach Player in EnumerateOnlineCharacters()
+    All := All + 1;
+    if(RestartPlayerHook(Player, ScName))
+      Num := Num + 1;
+    endif
+  endforeach
+
+  SendSysMessage(who, "ResHook: ["+Num+"/"+All+"] ["+ScName+"]", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//--------------------------------------------------------------------------------

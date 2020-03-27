@@ -1,0 +1,188 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-28
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumps";
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program CmdScript(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  text := SplitWords(text);
+
+  case(text[1])
+    "st":      if(!text[2])
+                 SendSysMessage(who,"Brak nazwy skryptu.",FONT_NORMAL,COLOR_RED);
+               else
+                 var res;
+
+                 if(text[3] == "trg")
+                   var Targ := ObjTarget(who);
+
+                   if(Targ)
+                     res := start_script(text[2], Targ);
+                   else
+                     SendSysMessage(who, "Anulowano", FONT_NORMAL, COLOR_RED);
+                   endif
+                 else
+                   res := start_script(text[2]);
+                 endif
+
+                 if(res)
+                   SendSysMessage(who,"Skrypt "+text[2]+" zostal uruchomiony.",FONT_NORMAL,COLOR_GREEN);
+                 else
+                   SendSysMessage(who,"Blad podczas uruchamiania: "+res.errortext,FONT_NORMAL,COLOR_RED);
+                 endif
+               endif
+
+    "inf":     ShowScriptInfo(who, CInt(text[2]));
+
+    "?":       SendSysMessage(who, ".script [st/inf]", FONT_NORMAL, COLOR_RED);
+
+    default:   SendSysMessage(who, "Zla opcja [.script ?]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ShowScriptInfo(who, Pid)
+
+  var Proc := GetProc(Pid);
+
+  if(Proc == 0)
+    SendSysMessage(who, "Bledny Pid.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(Proc == error)
+    SendSysMessage(who, "Proces nie istnieje.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  BuildMainScriptGump(Proc);
+
+  var Res;
+
+  while(IsLoggedIn(who) and Proc)
+    Res := GSend(who);
+    if(!Proc)
+      SendSysMessage(who, "Proces nie istnieje.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    case(Res[0])
+      1:         ;
+      2:         BuildScriptGlobalsGump(Proc);
+                 continue;
+      default:   return;
+    endcase
+
+    BuildMainScriptGump(Proc);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainScriptGump(Proc)
+
+  GInit(50, 50);
+  GResPic(0, 0, 0xA3C, 400, 300);
+
+  GTextLine(30, 20, 999, "Process ID: "+Proc.pid);
+
+  GButton(200, 23, 2117, 2118, 1);
+  GTextLine(220, 20, 550, "Odswiez");
+
+  GButton(300, 23, 2117, 2118, 2);
+  GTextLine(320, 20, 550, "Globals");
+
+  GTextLine(30, 50, 1000, "Name");
+  GTextLine(120, 50, 560, Proc.name);
+
+  GTextLine(30, 70, 1000, "State");
+  GTextLine(120, 70, 1419, Proc.state);
+
+  GTextLine(30, 90, 1000, "Instructions");
+  GTextLine(120, 90, 560, Proc.instr_cycles);
+
+  GTextLine(30, 110, 1000, "Sleeps");
+  GTextLine(120, 110, 560, Proc.sleep_cycles*-1);
+
+  GTextLine(30, 130, 1000, "ConCycles");
+  GTextLine(120, 130, 560, Proc.consec_cycles);
+
+  GTextLine(30, 150, 1000, "PC");
+  GTextLine(120, 150, 560, Proc.PC);
+
+  GTextLine(30, 170, 1000, "CallDepth");
+  GTextLine(120, 170, 560, Proc.call_depth);
+
+  GTextLine(30, 190, 1000, "NumGlobals");
+  GTextLine(120, 190, 560, Proc.num_globals);
+  
+  GTextLine(30, 210, 1000, "VarSize");
+  GTextLine(120, 210, 560, Proc.var_size);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildScriptGlobalsGump(Proc)
+
+  GInit(50, 50);
+  GMultiHeaderInit();
+  GResPic(0, 0, 0xA3C, 650, 460);
+  GAddPageData(625,7,2650,2651,625,431,2648,2647);
+  
+  GTextLine(30, 20, 999, "Globals Process ID: "+Proc.pid);
+  GMultiPage();
+
+  GButton(300, 23, 2117, 2118, 2);
+  GTextLine(320, 20, 550, "Odswiez");
+
+  var Word, sGlobal, n;
+
+  foreach Global in (Proc.globals)
+
+    GCheckNextPage(20);
+    GTextLine(30, 50+GNPCount()*20, 1000, _Global_iter);
+
+    n       := 0;
+
+    if(Global == error)
+      GTextLine(100, 50+GNPCount()*20, 1204, "Brak");
+    else
+
+      sGlobal := CStr(Global);
+
+      while(sGlobal)
+        if(n >= 1)
+          GCheckNextPage(20);
+        endif
+
+        if(len(sGlobal) > 80)
+          Word := sGlobal[1,80];
+          sGlobal[1,80] := "";
+        else
+          Word    := sGlobal;
+          sGlobal := "";
+        endif
+
+        GTextLine(100, 50+GNPCount()*20, 550, Word);
+        n := n + 1;
+      endwhile
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

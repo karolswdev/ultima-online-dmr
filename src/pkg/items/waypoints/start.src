@@ -1,0 +1,14 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobChkScript(":waypoints:checkpoints", "Waypoints");
+  StartGlobChkScript(":teleporters:checkpoints");
+
+endprogram
+
+//-----------------------------------------------------------------------------

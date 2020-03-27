@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+program AlwaysRestrictedLogonOnOff(who,text)
+
+  text := SplitWords(text);
+
+  case(text[1])
+   "on":     var Value := Cint(text[2]);
+             if(Value <= 0)
+               SendSysMessage(who,"Brak czasu.",FONT_NORMAL,40);
+               return;
+             else
+               SetGlobalProperty(PROP_ARLOGON, Value);
+               SendSysMessage(who,"ResLogon OnStart [On "+value+" min].",FONT_NORMAL,COLOR_GREEN);
+             endif
+
+   "off":    EraseGlobalProperty(PROP_ARLOGON);
+             SendSysMessage(who,"ResLogon OnStart [Off]",FONT_NORMAL,COLOR_GREEN);
+
+   "ever":   SetGlobalProperty(PROP_ARLOGON, -1);
+             SendSysMessage(who,"ResLogon OnStart [On Forever]",FONT_NORMAL,COLOR_GREEN);
+
+   "?":      SendSysMessage(who,".arlogon [on/off/ever]",FONT_NORMAL,COLOR_RED);
+ 
+   default:  SendSysMessage(who,"Zla opcja. [.arlogon ?]",FONT_NORMAL,COLOR_RED);
+
+ endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

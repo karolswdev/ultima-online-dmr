@@ -1,0 +1,45 @@
+//--------------------------------------------------------------------------------
+
+include "arena";
+
+//--------------------------------------------------------------------------------
+
+program DestroyArenaStone(stone)
+
+  var ArenaChest := FindArenaChest(stone);
+  var i;
+  if(!GetObjProperty(stone,"CanDestroyArena"))
+    return 0;
+  endif
+  if(IsArenaInUse(stone))
+    return 0;
+  endif
+  
+  if(ArenaChest)
+    if(!DestroyItem(ArenaChest))
+      return 0;
+    endif
+  endif
+  DestroyArenaFence(stone);
+  var ArenaSers := GetGlobalProperty(ARENASER_FLAG);
+  if(!ArenaSers)
+    ArenaSers := {};
+  endif
+  var Nr := CInt(GetObjProperty(stone,"ArenaNr"));
+  if(!Nr)
+    for(i:=1;i<=len(ArenaSers);i:=i+1)
+      if(ArenaSers[i] == stone.serial)
+        Nr := i;
+        break;
+      endif
+    endfor
+  endif
+  if(Nr)
+    ArenaSers[Nr] := "Empty";
+  endif
+  SetGlobalProperty(ARENASER_FLAG,ArenaSers);
+  return 1;
+  
+endprogram
+
+//--------------------------------------------------------------------------------

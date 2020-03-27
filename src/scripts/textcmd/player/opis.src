@@ -1,0 +1,213 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/tempmods";
+include "include/speech";
+include "include/std";
+include "include/const/props";
+
+include ":qmtools:possess";
+
+//-----------------------------------------------------------------------------
+
+program OpisPostaci(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(text == "zmien")
+
+    if(who.cmdlevel)
+      var Targ := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+      if(!Targ)
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      elseif(!Targ.isa(POLCLASS_MOBILE))
+        SendSysMessage(who, "To nie MOB.", FONT_NORMAL, COLOR_RED);
+      else
+        ChangeDiscription(who, Targ);
+      endif
+    else
+      ChangeDiscription(who, who);
+    endif
+
+  elseif(text)
+    SendSysMessage(who, ".opis [zmien]", FONT_NORMAL, COLOR_RED);
+  else
+
+    ShowDesc(who);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BackGround(lines)
+
+  Ginit( 30, 30 );
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0,0,0xa3c,800,130+lines*20);
+
+  GGumpPic(5,   50,0xBB9);
+  GGumpPic(200, 50,0xBB9);
+  GGumpPic(303, 50,0xBB9);
+  GGumpPic(5,   70+lines*20,0xBB9);
+  GGumpPic(200, 70+lines*20,0xBB9);
+  GGumpPic(303, 70+lines*20,0xBB9);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeDiscription(who, Targ)
+
+  var Opis := GetObjProperty(Targ, PROP_DESCRIPTION), Res;
+  
+  if(!Opis)
+    Opis := {"","",""};
+  endif
+  
+  var Length;
+
+  
+  while(IsLoggedIn(who))
+    Length := CInt(Opis.size());
+    BackGround(Length);
+    GButton(10,85 + Length*20,2640,2641,1);
+    GTextLine(40,85 + Length*20, 680, "Kasuj Opis");
+    if(who == Targ)
+      GTextLine(200,15, 680, "Opis Twojej Postaci");
+    else
+      GTextLine(200,15, 680, "Opis Osoby: "+Targ.name);
+    endif
+
+    
+
+    for i:= 1 to Length
+      GTextEntry( 10, (40+(i*20)),  525, 20, 500,i, ClUniStr(Opis[i]));
+    endfor
+    GButton( 200, 80 + Length*20, 0x47B, 0x47C, 2);
+    GButton( 280, 80 + Length*20, 0x478, 0x479, 3);
+    GButton( 450, 88 + Length*20, 0x25E4, 0x25E5, 4);
+    GButton( 470, 88 + Length*20, 0x25E8, 0x25E9, 5);
+    Res := GSend(who);
+
+    case(res.butid)
+
+      1: EraseObjProperty(Targ,PROP_DESCRIPTION);
+         if(who == Targ)
+           SendSysMessage(who,"Skasowal"+ggm(who,3)+" swoj opis.",FONT_NORMAL,COLOR_GOOD);
+         else
+           SendSysMessage(who,"Skasowal"+ggm(who,3)+" opis "+Targ.name+".", FONT_NORMAL, COLOR_GOOD);
+         endif
+         return;
+
+      2: Opis := array;
+         for i:= 1 to Length
+           Opis.append(res.unitext[i]);
+         endfor
+
+         if(!CenCheckLines(who, Opis))
+           continue;
+         endif
+
+         SetObjProperty(Targ,PROP_DESCRIPTION,Opis);
+         if(who == Targ)
+           SendSysMessage(who,"Zmienil"+ggm(who,3)+" swoj opis.",FONT_NORMAL,COLOR_GOOD);
+         else
+           SendSysMessage(who,"Zmienil"+ggm(who,3)+" opis "+Targ.name+".", FONT_NORMAL, COLOR_GOOD);
+         endif
+         return;
+
+      3: SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_BAD);
+         return;
+
+      4:  Opis := array;
+            for i:= 1 to Length
+            Opis.append(res.unitext[i]);
+          endfor
+
+          if(Opis.size() > 1)
+            Opis.erase(Opis.size());
+          endif
+      
+      5: Opis := array;
+         for i:= 1 to Length
+           Opis.append(res.unitext[i]);
+         endfor
+
+         if(Opis.size() < 20)  
+            Opis.append("");
+         endif
+
+    endcase
+    
+  endwhile
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowDesc(who)
+
+  var Targ := ObjTarget(who);
+  if(!Targ)
+    SendSysMessage(who,"Anulowano",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!IsPlayer(targ) and !targ.npctemplate)
+    SendSysMessage(who,"To nie ma opisu!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(!who.cmdlevel)
+    if(!CheckLineOfSight(who, targ))
+      SendSysMessage(who,"Nie widzisz go!",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+
+    if(Distance(who, targ) > 3)
+      SendSysMessage(who,"Jestes za daleko!",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+  endif
+
+  
+  var Opis := {"","",""};
+  if(IsPlayer(targ) or (targ.npctemplate and who.cmdlevel))
+    if(targ.cmdlevel)
+      var PossNpc := IsPossessing(Targ);
+      if(!PossNpc)
+        Opis := GetObjProperty(targ, PROP_DESCRIPTION);
+      endif
+    elseif(CanMod(targ,MOD_INCO) or targ.npctemplate)
+      Opis := GetObjProperty(targ, PROP_DESCRIPTION);
+    endif
+    if(!Opis)
+      Opis := {"","",""};
+    endif
+  elseif(targ.npctemplate)
+    
+    Opis := GetConfigStringArray(GetNpcConfig(targ),"Opis");
+    if(!Opis or Opis == error or !Opis[1])
+      Opis := {"","",""};
+    endif
+  endif
+
+  BackGround(Opis.size());
+
+  GTextLine(170,15, 680, "Opis Osoby: "+Targ.name);
+  var i;
+
+  for(i:=1;i<=Opis.size();i:=i+1)
+    GTextCrop( 10, (40+(i*20)),  529, 20, 490, ClUniStr(Opis[i]));
+  endfor
+
+  GButton( 250, 80+Opis.size()*20, 0x47B, 0x47C, 2);
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

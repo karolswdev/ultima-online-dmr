@@ -1,0 +1,40 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 74;
+
+//-----------------------------------------------------------------------------
+
+program CastBoneArmor( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var Duration  := GetNecroSpellDur( Caster );
+  var CasterSk  := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var CasterSp  := GetMindSkillValue(Caster, SpellGlob.Type);
+  var Mod       := CInt((CasterSk + CasterSp) / 2);
+
+  if(CanMod(Caster, MOD_MONSTER_AR))
+    GainSpellPoints(Caster, Caster, MAGICGAIN_DEFENSIVE);
+  endif
+  
+  DoMod(Caster, MOD_MONSTER_AR, Mod, Duration);
+
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 1152, 0x10, 0x10, 5);
+  PlaySoundEffect(Caster, SFX_SPELL_WALL_OF_STONE);
+  PlaySoundEffect(Caster, SFX_SPELL_BLADE_SPIRITS);
+
+endfunction
+
+//-----------------------------------------------------------------------------

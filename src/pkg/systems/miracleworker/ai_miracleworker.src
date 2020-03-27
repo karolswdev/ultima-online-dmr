@@ -1,0 +1,185 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include ":banking:common";
+include ":banking:gold";
+include "include/cmds/misc";
+include "ai/include/ainpcs";
+include "ai/include/npch";
+include "ai/include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+include ":miracleworker:miracles";
+
+//-----------------------------------------------------------------------------
+
+var NextCheck  := ReadGameClock();
+var CurItems;
+
+//-----------------------------------------------------------------------------
+
+program Miracleworker_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+  EnableEvents(EVID_ITEM_GIVEN);
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdCityNpcHandleEvent(ev);
+
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+    if(NextWander < ReadGameClock())
+      DefWander();
+      CityNpcLookAround();
+    endif
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(lower(who.name)["oszust"])
+    Say("Z oszustami nie gadam...Precz!");
+    return;
+  endif
+
+  if(text["wita"])
+
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      Say("Witam witam, czego chce?");
+      Say("Przysz"+ggm(who,17)+" sie na mnie gapic czy moze chcesz cos konkretnego? Hee?");
+    endif
+
+  elseif(text["lecz"])
+  
+    TurnToward(who);
+
+    if(CanNpcSpeakWith(who))
+      if(len(text) < 15)
+        Say("Mow wyrazniej a nie cos belkoczesz! Bo zaraz poszczuje Cie jakims piekielnym trollem!");
+      elseif(text["wampir"])
+        CureVampire(who);
+      elseif(text["likant"])
+        CureWearwolf(who);
+      endif
+    endif
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CureVampire(who)
+
+  if(!IsVampire(who))
+    case(RandomInt(4))
+      0:  Say("Nie zawracaj mi glowy. Do wampira Ci daleko a przychodzisz i cos chcesz ode mnie...");
+      1:  Say("Czy ja wygladam na dobroczynce? Spadaj stad, bo zawolam prawdziwego wampira!");
+      2:  Say("K³y Ci nie wystaja z twej paskudnej geby...");
+      default: Say("Czego chcesz odemnie? Nie widze bys byl"+ggm(who,4)+" bialoskor"+ggm(who,6)+".");
+    endcase
+
+    return;
+  endif
+
+  Say(who.name+" czyzbys chcial"+ggm(who,4)+" abym Cie uzdrowil"+ggm(me,4)+" z wampiryzmu?");
+  Say("Dnia sie chce? Co? Opalenizny troche czy jak?");
+
+  if(!NpcYesNo(who))
+    if(RandomInt(100) < 50)
+      Say("Czemu zawracasz mi gitare w takim razie?!");
+    else
+      Say("Nie chcesz to spadaj, a nie trujesz mi zad.");
+    endif
+    return;
+  endif
+
+  var Res := CreateMiracleOrder(who, me, SKILLID_VAMPIRE);
+
+  if(Res)
+    Say("Jesli tego chcesz, mozemy sprobowac.");
+    Say("Przynies mi wszystkie rzeczy z tego zamowienia i pomyslimy nad toba.");
+    Say("Moze jescze jest dla Ciebie szansa, okaze sie czy da rade wyrwac Ci te brudne kly.");
+  elseif(Res == error)
+    if(Res.errortext)
+      Say(Res.errortext);
+    else
+      Say("Ekhm.. y.. mm.. przyjdz pozniej, nie mam czasu teraz, spadaj stad.");
+    endif
+  elseif(Res == 0)
+    Say("Eeee... dal"+ggm(me,8)+" Ci juz zamowionko, jak postepy? Przyniesiesz mi w koncu te rzeczy czy bedziesz sie tak obijac? Heee?");
+    Say("*czeka*");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CureWearwolf(who)
+
+  if(!IsWearwolf(who))
+    case(RandomInt(4))
+      0:  Say("Zawracasz mi gitare a wilkolak z Ciebie zaden! Idz stad.");
+      1:  Say("Likantropii nie sprawie bys zapomnial"+ggm(who,4)+", bo jej nie umiesz! Ale zaraz moge sprawic bys zapomnial"+ggm(who,4)+" wszystko jak stad nie pojdziesz!");
+      2:  Say("Nie widze by z twojej oblesnej skory wystawaly jakies klaki.");
+      default: Say("Czego chcesz odemnie? Nie widze bys byl"+ggm(who,4)+" zarazon"+ggm(who,6)+" noca. Spadaj stad bo zaraz zawolam prawdziwego wilkolaka.");
+    endcase
+
+    return;
+  endif
+
+  Say(who.name+" czyzbys chcial"+ggm(who,4)+" abym Cie uzdrowil"+ggm(me,4)+" z likantropii?");
+  Say("Czyzby znudzily Ci sie wystajace klaki z twojej brudnej skory?");
+
+  if(!NpcYesNo(who))
+    if(RandomInt(100) < 50)
+      Say("Czemu zawracasz mi gitare w takim razie?!");
+    else
+      Say("Moze sam sobie wyrwij z zada te klaki, jak sie nie umiesz zdecydowac.");
+    endif
+    return;
+  endif
+
+  var Res := CreateMiracleOrder(who, me, SKILLID_WEARWOLF);
+
+  if(Res)
+    Say("No dobrze, mozemy sprobowac.");
+    Say("Przynies mi wszystkie rzeczy z tego zamowienia i pomyslimy nad toba.");
+    Say("Moze jeszcze jest dla Ciebie szansa, okaze sie oblesniuchu.");
+  elseif(Res == error)
+    if(Res.errortext)
+      Say(Res.errortext);
+    else
+      Say("Ekhm.. y.. mm.. przyjdz pozniej, nie mam czasu teraz, spadaj stad.");
+    endif
+  elseif(Res == 0)
+    Say("Eeee... dal"+ggm(me,8)+" Ci juz zamowionko, jak postepy? Przyniesiesz mi w koncu te rzeczy czy bedziesz sie tak obijac? Heee?");
+    Say("*czeka*");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

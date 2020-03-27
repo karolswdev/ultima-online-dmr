@@ -1,0 +1,287 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/npcspeech";
+include "include/buildings";
+include "include/client/anims";
+include "include/mobile/misc";
+include "include/portals";
+
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+include ":teleporters:teleporters";
+include ":magicitems:magicitems";
+include ":waypoints:waypoints";
+
+//-----------------------------------------------------------------------------
+
+EnableEvents( EVID_ITEM_GIVEN);
+EnableEvents( EVID_SPEECH,SPEECH_RANGE);
+EnableEvents( EVID_DAMAGED + EVID_ENGAGED);
+
+//-----------------------------------------------------------------------------
+
+const RUNE_PRICE    := 1000; // cena pojedynczego runa powrotu bez portalu
+
+
+program Traveler_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  while (me)
+
+    if(!ev)
+      ev := wait_for_event( waittime );
+    endif
+
+    StdCityNpcHandleEvent(ev);
+    StdCityNpcEventLoop();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["przewiez"] or text["podroz"])
+    TurnToward(who);
+ 
+    if(CanNpcSpeakWith(who))
+      BuyGateTravel(who);
+    endif
+	
+  elseif(text["kupic"])
+  
+    if(CanNpcSpeakWith(who))
+      BuyReturnRune(who);
+    endif
+	
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuyReturnRune(who)
+
+  Say("Czy chcial"+ggm(who,1)+" zakupic runo powrotu?");
+
+  var bWantReturn := NpcYesNo(who);
+
+  var Cost := RUNE_PRICE;
+
+  if(!bWantReturn)
+
+    Say("Nie to nie, wrocisz zatem na piechote!");
+    return 0;
+  else
+
+    if(!ReturnRune(who))
+      Say("Oops.. cos sie tu popsulo! Runo sie rozpryslo na naszych oczach! Niech to szlag...");
+      return 0;
+    else
+      Say("Dziekuje i zapraszam ponownie].");
+    endif
+
+  endif
+
+  if(!GetPayment(who, Cost ))
+    return 0;
+  endif
+  
+  //SetWaypointDelay(who);
+
+  
+endfunction
+//-----------------------------------------------------------------------------
+
+function BuyGateTravel(who)
+
+  /*
+  if(!CanUseWaypoint(who))
+    Say("Przykro mi, ale nie moge tak czesto przywolywac portali. Przyjdz pozniej!");
+    return;
+  endif
+  */
+
+  var Locations := GetTravelLocations(who, me);  
+
+  // obnizenie kosztow portalu w przypadku przynaleznosci do gildii
+  var RepLvl   := GetPlayerNpcGuildCityLvl(who, FindCity(me));
+
+  if (RepLvl and Locations.size())
+    var i;
+    var discount := 1 - ( RepLvl * 0.1 );  
+
+    for(i:=1; i<=Locations.size(); i+=1)
+      Locations[i].Price *= discount;
+    endfor
+  endif
+
+
+  if(!Locations.size())
+    Say("Niestety nie odkryl"+ggm(who,4)+" zadnych lokacji w naszej krainie.");
+    return;
+  endif
+
+  Say("Gdzie chcial"+ggm(who,1)+" sie udac?");
+  var Res := struct;
+
+  Res.+type   := EVID_NH_TRAVEL_GUMP;
+  Res.+source := who;
+  Res.+npc    := me;
+  Res.+Locations := Locations;
+
+  start_script("::handle_npc", Res);
+
+  Res := -100;
+
+  var Time := ReadGameClock() + NH_WAIT_TIME;
+
+  while(Time > ReadGameClock())
+    ev := wait_for_event(10);
+    case(ev.type)
+      EVID_SPEECH:         var text := lower(ev.text);
+
+                           if(text["przewiez"] or text["kupic"] or text["podroz"])
+                             if(who == ev.source)
+                               Say("Czekam az wybierzesz cel...");
+                             else
+                               Say("Czekaj cierpliwie na swoja kolej.");
+                             endif
+                           endif
+
+      EVID_NH_TRAVEL_GUMP: if(who == ev.source)
+                             Res := ev.res;
+                           endif
+
+      EVID_ITEM_GIVEN:     MoveToPack(ev.item, ev.source);
+
+      EVID_QUEST_MSG:      var Data := struct;
+                           Data.+npc := me;
+                           Data.+param := ev;
+                           
+                           start_script(":ngd_npcs:quest_msg", Data);
+    endcase
+
+    if(Res != -100)
+      break;
+    endif
+  endwhile
+
+  if(!IsLoggedIn(who))
+    return 0;
+  endif
+
+  if(Res <= 0)
+    Say("Zawitaj czasem.");
+    return;
+  endif
+
+  var DestData := Locations[Res];
+
+  Say("Czy chcial"+ggm(who,1)+" zakupic runo powrotu?");
+
+  var bWantReturn := NpcYesNo(who);
+
+  var Cost := DestData.Price;
+
+  if(bWantReturn)
+    Cost := Cost + CInt(DestData.Price*WP_RETURN_COST_MULT);
+  endif
+
+  // pobieramy koszt calkowity - inaczej moze dojsc do sytuacji, ze pobierze 500 za portal, a na powrotne runo zabraknie i bysmy mieli zonk!
+  if(!GetPayment(who, Cost ))
+    return;
+  endif
+
+  if(!bWantReturn)
+
+    Say("Nie to nie, wrocisz zatem na piechote!");
+
+  else
+
+    if(!ReturnRune(who))
+      Say("Oops.. cos sie tu popsulo! Runo sie rozpryslo na naszych oczach! Niech to szlag...");
+    else
+      Say("Czekam wiec na znak az bedziesz chci"+ggm(who,2)+" wrocic.");
+    endif
+
+  endif
+
+  //SetWaypointDelay(who);
+  BuildGate(DestData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildGate(DestData)
+
+  sleepms(500);
+  Say("Vas Rel Por");
+  PerformAction( me, ANIM_CAST_DIR );
+  sleepms(4500);
+
+  var a := -1;
+  var mz := GetStandZ(me.x, me.y-1, me.realm, me.z);
+
+  if(mz == error)
+    a := 1;
+    mz := GetStandZ(me.x, me.y+1, me.realm, me.z);
+  endif
+
+  if(!CreateGateTravel(me.x , me.y+a, mz, me.realm, DestData.Loc.x, DestData.Loc.y, DestData.Loc.z, DestData.Loc.realm, CGTF_NO_DISPEL_ABLE | CGTF_ONE_WAY))
+    Say("Hm, jakas dziwna sila mi przeszkadza...");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetPayment(who, price)
+
+  if(Spendgold(who, price))
+    return 1;
+  else
+    Say("Niestety nie masz " + price + " zlotych monet!");
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ReturnRune(who)
+
+  var rrune := CreateItemInPack(who, UOBJ_RETURN_RUNE, 1);
+
+  if(rrune)
+    var meCity := FindCity(me);
+    if(meCity)
+      SetName(rrune, GetDescForItem(rrune.objtype)+" do "+meCity);
+    endif
+    SetObjProperty(rrune,"BuyTime", ReadGameClock());
+    SetObjProperty(rrune, "x", who.x);
+    SetObjProperty(rrune, "y", who.y);
+    SetObjProperty(rrune, "z", who.z);
+    SetObjProperty(rrune, "Rlm", who.realm);
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

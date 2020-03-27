@@ -1,0 +1,70 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/finding";
+include "include/move";
+include "include/misc";
+include "include/log";
+include "include/cmds/misc";
+include "include/coords";
+
+//-----------------------------------------------------------------------------
+
+program Tracing(who,text)
+
+  if(text == "off")
+    EraseObjProperty(who,"#Tracing");
+    SendSysMessage(who,"Koniec sledzenia.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  var Targ;
+  if(CInt(text))
+    Targ := FindPlayerBySerial(CInt(text));
+    if(!Targ)
+      SendSysMessage(who,"Postac "+text+" nie istnieje.",FONT_NORMAL,COLOR_GREEN);
+      return;
+    endif
+  elseif(text)
+    Targ := FindCharacterByName(text);
+    if(!Targ)
+      SendSysMessage(who,"Postac "+text+" nie istnieje.",FONT_NORMAL,COLOR_GREEN);
+      return;
+    endif
+  endif
+
+  if(!Targ)
+    Targ := ObjTarget(who);
+  endif
+  
+  SetObjProperty(who,"#Tracing",GetPid());
+  SendSysMessage(who,"Sledzenie "+GetName(Targ),FONT_NORMAL,COLOR_GREEN);
+
+  GoToPlayer(who, Targ);
+
+  if(Targ.concealed > who.cmdlevel)
+    return;
+  endif
+
+  if(Targ.x and Targ.y)
+  
+    while(GetObjProperty(who,"#Tracing") == GetPid())
+      if(coordist(Targ.x,Targ.y,who.x,who.y) > 6)
+        LogMsg(GOTO_LOG,who,{who,Targ.x,Targ.y,Targ.z,Targ.realm});
+        MoveObject(who,Targ.x,Targ.y,Targ.z,Targ.realm,MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+      endif
+      sleepms(700);
+    endwhile
+  
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

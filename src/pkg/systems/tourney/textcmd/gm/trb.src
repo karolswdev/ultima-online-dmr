@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/items";
+include "include/logerror";
+include "include/gumps";
+
+include "../../tourney";
+
+//-----------------------------------------------------------------------------
+
+program CreateTourBag(who,Props)
+
+  Props := SplitWords(Props);
+  var Class := CInt(Props[1]);
+  var Team  := CInt(Props[2]);
+  var FSk   := CInt(Props[3]);
+
+  CreateTrPack(who,Class,Team,FSk);
+
+endprogram
+
+//-----------------------------------------------------------------------------

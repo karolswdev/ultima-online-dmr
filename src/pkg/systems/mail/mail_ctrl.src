@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+// Modified: 2007-11-24
+//-----------------------------------------------------------------------------
+
+include "mail";
+include "include/player/misc";
+include ":banking:gold";
+include "include/unicode";
+
+//=============================================================================
+//-----------------------------------------------------------------------------
+// Mail Control
+//-----------------------------------------------------------------------------
+//=============================================================================
+
+program MailControl(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  var Storages;
+  var WorldMail;
+
+  while(1)
+    Storages := StorageAreas();
+    WorldMail := Storages[MAIL_STORAGE];
+
+    foreach MailBox in WorldMail
+      CheckMailBox(MailBox);
+      sleep(1);
+    endforeach
+
+    sleep(60);
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMailBox(MailBox)
+
+  var Serial := GetName(MailBox);
+  Serial[MAILBOX_PREFIX] := "";
+
+  var Owner := FindPlayerBySerial(Serial);
+
+  if(!Owner)
+    DestroyRootItemInStorageArea(MAIL_STORAGE, GetName(MailBox));
+    return;
+  endif
+
+  var Mails;
+  GetMails(Owner, Mails);
+
+  var delIds := array;
+  var timeLeft;
+
+  foreach mailProps in Mails
+    timeLeft := (mailProps.sendTime - ReadGameClock()) + mailProps.existTime;
+
+    if(timeLeft < 0)
+      delIds.append(_mailProps_iter);
+    endif
+  endforeach
+
+  foreach Id in delIds
+    DeleteMail(Owner, Id);
+  endforeach
+  
+endfunction
+
+//-----------------------------------------------------------------------------

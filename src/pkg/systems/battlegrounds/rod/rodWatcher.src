@@ -1,0 +1,17 @@
+use uo;
+use os;
+
+program rod_Watcher()
+
+    print("--- Ring of Death by goqsane started");
+    
+    while(1)
+    
+	sleep(30);
+	    if(GetGlobalProperty("StartROD"))
+			start_script("phases/begin");
+			EraseGlobalProperty("StartROD");
+	    endif
+    endwhile
+    
+endprogram

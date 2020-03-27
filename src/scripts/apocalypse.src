@@ -1,0 +1,100 @@
+//-----------------------------------------------------------------------------
+
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "include/logerror";
+include "include/player/basic";
+
+//-----------------------------------------------------------------------------
+
+const MAX_TIME      := 20;
+
+//-----------------------------------------------------------------------------
+
+program Apocalypse(Params)
+
+  var time := Params[1];
+  var save := Params[2];
+
+  Time := CInt(Time);
+
+  if(time > MAX_TIME)
+    return;
+  endif
+
+  if(GetGlobalProperty("#ShutDown"))
+    return;
+  endif
+
+  SetGlobalProperty("#ShutDown", 1);
+
+  var TimeSec := Time * 60;
+
+  LogNotice("[CmdSd] ShutDown initialized...", LOGF_NOTE_INFO);
+
+  while(1)
+
+    if(!GetGlobalProperty("#ShutDown"))
+      BroadCast("Cud uratowal swiat przed apokalipsa!",FONT_NORMAL,COLOR_BLUE);
+      LogNotice("[CmdSd] ShutDown stopped.", LOGF_NOTE_INFO);
+      EraseGlobalProperty("#ShutDown");
+      break;
+    elseif(GetGlobalProperty("#ShutDown") == 2)
+      AlertGms("Ciche zatrzymanie apokalipsy.",FONT_NORMAL,COLOR_BLUE);
+      LogNotice("[CmdSd] ShutDown stopped quietly.", LOGF_NOTE_INFO);
+      EraseGlobalProperty("#ShutDown");
+      break;
+    endif
+
+    if(TimeSec <= 0)
+      if(save != "nosave")
+        LogNotice("[CmdSd] Zapisywanie...", LOGF_NOTE_INFO);
+        BroadCast("Zapisywanie Stanu Swiata.",FONT_NORMAL,COLOR_BLUE);
+        sleep(1);
+        SaveWorldState();
+      endif
+      BroadCast("Swiat ogarnia zapomnienie!", FONT_NORMAL, COLOR_RED);
+      LogNotice("[CmdSd] ShutDown now!", LOGF_NOTE_INFO);
+      SetServerStatus(SERV_ST_DOWN);
+      Sleepms(300);
+      foreach Player in EnumerateOnlineCharacters()
+        InstantDisconnect(Player);
+        Sleepms(20);
+      endforeach
+      Sleepms(700);
+      ShutDown();
+      exit;
+    endif
+
+    TimeSec := TimeSec - 1;
+    if(CInt(TimeSec / 60) < (Time))
+      LogNotice("[CmdSd] ShutDown za "+Time+" min.", LOGF_NOTE_INFO);
+      BroadCast("Apokalipsa nastapi za "+GetTimeDesc(Time)+".",FONT_BOLD,COLOR_ORANGE);
+      Time := Time - 1;
+    endif
+    sleep(1);
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetTimeDesc(Time)
+
+  case(CInt(Time))
+    0: return "chwile";
+    1: return "minute";
+    2:
+    3:
+    4: return CStr(Time)+" minuty";
+    default: return CStr(CInt(Time))+" minut";
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

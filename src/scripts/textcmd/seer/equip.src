@@ -1,0 +1,103 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/misc";
+include "include/move";
+include "include/client/misc";
+include "include/client/fonts";
+include "include/finding";
+include "include/checks/stdchecks";
+
+include "include/equipment";
+
+//-----------------------------------------------------------------------------
+
+program textcmd_equip( who, text)
+
+  case(text)
+    "list":      ListEqpItems(who);
+
+    "unequip":   if(!IsGm(who))
+                   return;
+                 endif
+                 
+                 SendSysMessage( who, "Z kogo zdjac wszystko?",FONT_NORMAL, COLOR_GREEN );
+
+                 var Targ := ObjTarget( who );
+                 if (!Targ.isa(POLCLASS_MOBILE))
+                   SendSysMessage(who, "To nie mob.", FONT_NORMAL, COLOR_RED);
+                   return;
+                 endif
+                 
+                 SendSysMessage(who, "Zdjeto "+UnEquipAll(Targ)+" przedmiotow z "+Targ.name+".", FONT_NORMAL, COLOR_GREEN);
+
+    default:     if(!IsGm(who))
+
+                   ListEqpItems(who);
+
+                 else
+                 
+                   var what;
+
+                   if(CInt(text))
+                     what := FindItemBySerial(text);
+                   endif
+
+                   if(!what.isa(POLCLASS_ITEM))
+                     SendSysMessage( who, "Co nalozyc?",FONT_NORMAL, COLOR_GREEN );
+  
+                     what := ObjTarget( who );
+                     if(!what.isa(POLCLASS_ITEM))
+                       SendSysMessage(who, "To nie przedmiot.", FONT_NORMAL, COLOR_RED);
+                       return;
+                     endif
+                   endif
+
+                   SendSysMessage( who, "Na kim zalozyc " + what.desc + "?" ,FONT_NORMAL, COLOR_GREEN );
+                   var Targ := ObjTarget( who );
+                   if (!Targ.isa(POLCLASS_MOBILE))
+                     SendSysMessage(Targ, "To nie mob.", FONT_NORMAL, COLOR_RED);
+                     return;
+                   endif
+
+                   var res := EquipItem( Targ, what );
+                   if (res)
+                     SendSysMessage( who, what.desc+ " zalozony na "+Targ.name, FONT_NORMAL, COLOR_GREEN );
+                   else
+                     SendSysMessage( who, "Nie udalo sie zalozyc przedmiotu: " + res.errortext, FONT_NORMAL,COLOR_RED );
+                   endif
+                 endif
+
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ListEqpItems(who)
+
+  SendSysMessage( who, "Wskaz cel.",FONT_NORMAL, COLOR_GREEN );
+
+  var Targ := ObjTarget( who );
+  if(!Targ.isa(POLCLASS_MOBILE))
+    SendSysMessage(who, "To nie mob.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Item,i,n := 0;
+
+  for(i:=0;i<=LAYER_TRADE;i:=i+1)
+    Item := GetEquipmentByLayer(Targ,i);
+    if(Item)
+      SendSysMessage(who,i+" N: "+Item.desc+" S: "+Item.serial,FONT_NORMAL,COLOR_GREEN);
+      n := n + 1;
+    endif
+  endfor
+
+  SendSysMessage(who, Targ.name+" ma zalozonych "+n+" przedmiotow.", FONT_NORMAL, COLOR_BLUE);
+  SendSysMessage(who,"WeapN: "+Targ.weapon.desc+" WeapS: "+Targ.weapon.serial,FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------

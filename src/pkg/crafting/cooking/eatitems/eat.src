@@ -1,0 +1,166 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/nutrition";
+include "include/poison";
+include "include/attack";
+include "include/checks/objchecks";
+include "../pkg/systems/wearwolf/common";
+
+//-----------------------------------------------------------------------------
+
+var gItemCfg   := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program EatItem(who, Item)
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+  
+  var ItemObjType := Item.objtype;
+  if(!gItemCfg[ItemObjType].DonateFood)
+    if(IsVampire(who))
+      if(!gItemCfg[ItemObjType].VampEatAble)
+        SendSysMessage(who, "Nie uda Ci sie tego zjesc...", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    elseif(IsWolfMorphed(who))
+      if(!gItemCfg[ItemObjType].WolfEatAble)
+        SendSysMessage(who, "Nie uda Ci sie tego zjesc...", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    else
+      if(gItemCfg[ItemObjType].VampEatAble or gItemCfg[ItemObjType].WolfEatAble)
+        SendSysMessage(who, "Nie uda Ci sie tego zjesc...", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+  endif
+
+
+  var Sound     := CInt(gItemCfg[ItemObjType].EatSound);
+  var Anim      := CInt(gItemCfg[ItemObjType].EatAnim);
+  var poison    := GetItemPoisonLvl(Item);
+  var Qual      := GetFoodQual(Item);
+
+  if(!Sound)
+    Sound := SOUND_EFFECT_EAT1 + RandomInt(3);
+  endif
+
+  if(!Anim)
+    Anim  := ACTION_EAT;
+  endif
+  
+  var ItemSerial := Item.serial;
+  var ItemRealm  := Item.realm;
+
+  if(gItemCfg[ItemObjType].DonateFood)
+    if(SubItemUses(Item, 1))
+      SetNutrValue(who, NVI_VITAMIN, CInt(gItemCfg[ItemObjType].Vitamin));
+      SetNutrValue(who, NVI_PROTEIN, CInt(gItemCfg[ItemObjType].Protein));
+      SetNutrValue(who, NVI_HUNGER,  CInt(gItemCfg[ItemObjType].Hunger));
+      SetNutrValue(who, NVI_SUGAR,   CInt(gItemCfg[ItemObjType].Sugar));
+      PlayPcEffect(who, FX_HEAL_EFFECT, 0x489, 0x1F, 0x1F, 3);
+    else
+      SendSysMessage(who, "Cos nie tak z tym jedzeniem...", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+    if(IsFullNutrVals(who, Item))
+      SendSysMessage(who, "Masz juz tego dosc...", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    UpdNutrVals(who, Item);
+
+    if(!SubItemUses(Item, 1))
+      UpdNutrVals(who, Item, -1);
+      SendSysMessage(who, "Cos nie tak z tym jedzeniem...", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+ 
+  if(!Item and who.realm != ItemRealm)
+    SendDeleteObjectPacket(who, ItemSerial);
+  endif
+
+  PerformAction(who, Anim);
+  PlaySoundEffect(who, Sound);
+
+  UpdHungerTime(who, (Qual - 3) * 4, CInt(gItemCfg[ItemObjType].DonateFood));
+  SendEatMsg(who, Qual);
+
+  sleep(1);
+
+  if(poison > 0)
+    if(Item)
+      CheckItemPoisonCharges(Item);
+    endif
+    SetPoison(who,poison);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendEatMsg(who, Qual)
+ 
+  var Msgs := array;
+
+  case(Qual)
+    0:            Msgs.append("Wolisz nie myslec co to bylo...");
+                  Msgs.append("Zastanawiasz sie czy kucharz nie znalazl tego na smietniku...");
+                  Msgs.append("Obrzydliwe!");
+                  Msgs.append("Pamietasz smaczniejsze mikstury!");
+                  Msgs.append("Wolal"+ggm(who,1)+" lizac stope Trolla.");
+                  Msgs.append("Dziwisz sie ze to przezyl"+ggm(who,3)+".");
+
+    1:            Msgs.append("Przymierajac glodem jadl"+ggm(who,3)+" gorsze rzeczy.");
+                  Msgs.append("Smakuje jak stary filet.");
+                  Msgs.append("Wolal"+ggm(who,1)+" nie robic tego nigdy wiecej!");
+                  Msgs.append("Paskudztwo!");
+                  Msgs.append("Z dwojga zlego wolalbys smierc glodowa...");
+                  Msgs.append("Slyszal"+ggm(who,3)+" o smaczniejszych szczurach.");
+
+    2:            Msgs.append("Z braku laku ...");
+                  Msgs.append("Jadl"+ggm(who,3)+" smaczniejsze rzeczy.");
+                  Msgs.append("Nienajlepsze.");
+                  Msgs.append("Raczej nie poprosisz o dokladke.");
+                  Msgs.append("Wolal"+ggm(who,1)+" zjesc cos innego.");
+
+    3:
+    4:            Msgs.append("Smaczne.");
+                  Msgs.append("Calkiem niezle.");
+                  Msgs.append("Dobre.");
+                  Msgs.append("Nic nadzwyczajnego.");
+                  Msgs.append("Nie masz nic do zarzucenia.");
+
+    5:            Msgs.append("Naprawde dobre!");
+                  Msgs.append("Chcesz jeszcze!");
+                  Msgs.append("Bardzo smaczne!");
+                  Msgs.append("Bardzo dobre!");
+                  Msgs.append("Mniam!");
+
+    6:            Msgs.append("Pyszne!");
+                  Msgs.append("Jak u Babuni!");
+                  Msgs.append("Dawno nie jadl"+ggm(who,3)+" czegos rownie dobrego!");
+                  Msgs.append("Palce lizac!");
+                  Msgs.append("Rozplywa sie w ustach!");
+
+    default:      Msgs.append("Wysmienite!");
+                  Msgs.append("Rozkosz dla podniebienia!");
+                  Msgs.append("Przepyszne!");
+                  Msgs.append("Niebo w gebie!");
+                  Msgs.append("Prawdziwe dzielo sztuki!");
+  endcase
+
+  SendSysMessage(who, Msgs[RandomInt(Msgs.size())+1], FONT_NORMAL, COLOR_ORANGE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

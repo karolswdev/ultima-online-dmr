@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/objtypes/skills";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 82;
+
+//-----------------------------------------------------------------------------
+
+program CastStingingSwarm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  foreach Mob in ListMobilesNearLocation(CastLoc.x, CastLoc.y, CastLoc.z, 1, Caster.realm)
+    if(GainSpellPoints(Caster, Mob, MAGICGAIN_OFFENSIVE))
+      break;
+    endif
+  endforeach
+
+  PlaySoundEffect (caster, SFX_SPELL_SUMMON_ELEMENTAL);
+  var swarm := CreateItemAtLoc (CastLoc.x, CastLoc.y, CastLoc.z, UOBJ_BIGBEES, 1,Caster.realm);
+  SetObjProperty (swarm, "creator", caster.serial);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

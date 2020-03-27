@@ -1,8 +1,0 @@
-use uo;
-use os;
-
-program start()
-
-    start_script("rodWatcher");
-    
-endprogram

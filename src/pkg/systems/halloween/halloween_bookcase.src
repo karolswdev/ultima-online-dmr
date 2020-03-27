@@ -1,0 +1,11 @@
+use uo;
+use os;
+use util;
+
+program use_halloweenBookcase(who, theCase)
+
+	var randomColor := RandomInt(1400)+1;
+	
+	PrintTextAbove(theCase, "*boo*", 3, randomColor);
+	
+endprogram

@@ -1,0 +1,24 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/finding";
+include "include/checks/stdchecks";
+
+//--------------------------------------------------------------------------------
+
+program CanOpenArenaPack(who,ArenaPack)
+
+  if(FindItemOwner(ArenaPack) != who and !IsAdmin(who))
+    SendSysMessage(who,"Nie mozesz tego otworzyc!",FONT_NORMAL,COLOR_RED);
+  else
+    SendViewContainer( who, ArenaPack );
+  endif
+  
+endprogram
+
+//--------------------------------------------------------------------------------

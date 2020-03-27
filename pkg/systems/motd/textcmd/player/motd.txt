@@ -1,3 +1,0 @@
-<center><BASEFONT COLOR=#00BB00"><C>Wiadomosci:</center>
-<center><BASEFONT COLOR=#111111"><C><b>Witamy!</b></center>
-<center>Te okno posluzy jako centrum wiadomosci</center>

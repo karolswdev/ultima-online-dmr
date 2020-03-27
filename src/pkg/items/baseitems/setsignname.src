@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/misc";
+include "include/const/cfgs";
+include "include/checks/stdchecks";
+include "include/move";
+include "baseitems";
+
+//-----------------------------------------------------------------------------
+
+program SetSignName(who, sign)
+
+  if(!IsGm(who))
+    return;
+  endif
+
+  var Name := SendTextEntryGump(who,"Wpisz nazwe",TE_CANCEL_ENABLE);
+  if(!Name)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" nazwe znaku z ["+sign.desc+"] na ["+Name+"]",FONT_NORMAL,COLOR_GREEN);
+  SetName(sign,Name);
+  
+  if(sign.objtype >= UOBJ_DIR_SIGN_START and sign.objtype <= UOBJ_DIR_SIGN_END)
+    CheckRoadSign(sign);
+  endif
+  
+  if(GetItemBINr(sign))
+    UpdateBaseItem(sign,who);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckRoadSign(byref sign)
+
+  var Post,Pz := GetMapInfo(sign.x,sign.y).z;
+  foreach item in ListItemsNearLocationOfType(sign.x,sign.y,sign.z,0,UOBJ_ROADPOST)
+    Post := item;
+    break;
+  endforeach
+
+  if(Post)
+    Pz := Post.z;
+  endif
+
+  MoveObject(sign,sign.x,sign.y,CInt(Pz+16),sign.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+  sign.movable := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

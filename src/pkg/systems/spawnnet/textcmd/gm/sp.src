@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+
+include "../../spawnnet";
+include "include/log";
+include "include/findcity";
+include "include/cmds/cancmd";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program CreateSpawnRune(who,text)
+
+  if(!CanUseCmd(who, "sp"))
+    return;
+  endif
+
+  var rune;
+
+  if(!GetGlobalProperty("CanCreateSpawnRunes"))
+    SendSysMessage(who, "Nie mozna tworzyc runow. Globalna opcja jest wylaczona.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  case(text)
+    "l":       rune := CreateItemAtLoc(who.x,who.y,who.z,UOBJ_SRUNE,1,who.realm);
+               rune.invisible := 1;
+               rune.hidden := 1;
+               LoadSpawnData(who,rune);
+			   
+	"la":	   rune := CreateItemAtLoc(who.x,who.y,who.z,UOBJ_SRUNE,1,who.realm);
+               rune.invisible := 1;
+               rune.hidden := 1;
+               LoadSpawnData(who,rune);
+			   RunSpawn(rune, who);
+			   ForceSpawn(rune, who);
+    default:   rune := CreateItemAtLoc(who.x,who.y,who.z,UOBJ_SRUNE,1,who.realm);
+               rune.invisible := 1;
+               rune.hidden := 1;
+  endcase
+
+  if(rune)
+    LogMsg(SPAWN_LOG,who,{GetRuneNr(rune),FindCity(rune), {who.x, who.y, who.z, who.realm}});
+    SendSysMessage(who, "Stworzono SpawnRune Nr: "+GetRuneNr(rune), FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

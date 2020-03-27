@@ -1,0 +1,468 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/merc";
+include "ai/main/sleepmode";
+include "include/buildings";
+include "ai/include/npch";
+include "ai/include/mspeech";
+include "ai/include/def_merc";
+include "ai/setup/citynpcsetup";
+include "include/clock";
+include "ai/include/smartrun";
+
+include ":crafting:mat_groups";
+//-----------------------------------------------------------------------------
+
+EnableEvents( EVID_ITEM_GIVEN );
+EnableEvents( EVID_SPEECH , SPEECH_RANGE );
+
+//-----------------------------------------------------------------------------
+
+program Scribe_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  MerchantInit();
+
+  while (me)
+
+    if(!ev)
+      ev := wait_for_event( waittime );
+    endif
+
+    StdHandleEvent(ev);
+    StdMercEventLoop();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_SPEECH:             if(CheckNpcSpeech(ev.source, ev.text) == 0)
+                               if(CheckScribeSpeech(ev.source, ev.text))
+                                 if(IsWalking())
+                                   SetWalkPause(SHORT_WALK_PAUSE);
+                                 endif
+                                 ev := 0;
+                                 return 1;
+                               endif
+                             endif
+
+    default:                 return StdMercHandleEvent(ev);
+  endcase
+
+  ev := 0;
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckScribeSpeech(who, text)
+
+  text := lower(text);
+
+  if(text["zabezpiecz"])
+
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      SecureBook(ev.source);
+    endif
+
+  elseif(text["odbezpiecz"])
+
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      UnsecureBook(ev.source);
+    endif
+
+  elseif(text["poblogoslaw"])
+
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      BlessBook(ev.source);
+    endif
+
+  elseif(text["przepisz"])
+
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      RewriteBook(ev.source);
+    endif
+
+  elseif(text["odebrac"])
+
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      GetBooksBack(ev.source);
+    endif
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SecureBook(who)
+
+  Say("Jaka ksiege chcial"+ggm(who, 1)+" bym zabezpieczyl"+ggm(me, 4)+"?");
+
+  ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+  if(ev)
+    var Book := Ev.item;
+    if(book)
+      if(book.objtype >= UOBJ_BOOK_START and book.objtype <= UOBJ_BOOK_END)
+        SetObjProperty(book, "NoWrite", 1);
+        SetObjProperty(book, "Lock", who.serial);
+        Say("Zabezpieczyl"+ggm(me,3)+" twa ksiege przed zapisem");
+      else
+        Say("Moge dla ciebie zabezpieczyc ksiege... ale nie to!");
+      endif
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UnsecureBook(who)
+  
+  Say("Jaka ksiege chcial"+ggm(who, 1)+" bym odbezpieczyl"+ggm(me, 4)+"?");
+
+  ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+  if(ev)
+    var Book := Ev.item;
+    if(book)
+      if(book.objtype >= UOBJ_BOOK_START and book.objtype <= UOBJ_BOOK_END)
+        if(GetObjProperty(book, "Lock") == who.serial)
+          EraseObjProperty(book, "NoWrite");
+          EraseObjProperty(book, "Lock");
+          Say("Twa ksiega zostala odbezpieczona");
+        else
+          Say("Nie pamietam zebym zabezpieczal"+ggm(me,4)+" dla ciebie ta ksiege");
+        endif
+      else
+        Say("Moge dla ciebie odbezpieczyc ksiege... ale nie to!");
+      endif
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BlessBook(who)
+  
+  Say("Jaka ksiege chcial"+ggm(who, 1)+" bym poblogoslawil"+ggm(me, 4)+"?");
+
+  ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who, me);
+
+  if(ev)
+    var Book := Ev.item;
+    if(book)
+      if(book.objtype >= UOBJ_BOOK_START and book.objtype <= UOBJ_BOOK_END)
+        if(book.newbie)
+          Say("Ta ksiega jest juz poblogoslawiona!");
+        else
+          if(!SpendGold(who, 4000))
+            Say("Potrzebujesz 4000gp jako zaplate dla mnie, za poblogoslawienie ksiegi.");
+          else
+            PerformAction(me, ANIM_CAST_AREA);
+            sleep(1);
+            PlaySoundEffect(ev.source, SFX_SPELL_HEAL);
+            PlayPcEffect(ev.source, FX_MARK_EFFECT, 99, 0x10, 0x10, 2);
+            book.newbie := 1;
+            IncRevision(book);
+            Say("Prosze, ksiega zostala poblogoslawiona!");
+          endif
+        endif
+      else
+        Say("Moge dla ciebie poblogoslawic ksiege... ale nie to!");
+      endif
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RewriteBook(who)
+  
+  Say("Jaka ksiege chcial"+ggm(who, 1)+" bym przepisal"+ggm(me, 4)+"?");
+
+  ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+  if(ev)
+    var Book := Ev.item;
+    if(book)
+      if(book.objtype >= UOBJ_BOOK_START and book.objtype <= UOBJ_BOOK_END)
+        var Delay    := CalcRewriteDelay();
+        var BookTime := GetRewriteBookTime(book);
+
+        if(!BookTime)
+          Say("Ta ksiazka jest pusta! Po co mi dajesz pusta ksiazke do przepisania?!");
+          GiveBookBack(who, book);
+          return;
+        elseif(BookTime < 300)
+          Say("Ta ksiazka zawiera ledwo kilka slow! Szkoda mojego czasu na przepisywanie tego.");
+          GiveBookBack(who, book);
+          return;
+        endif
+
+        if(Delay > 0)
+          Delay += BookTime;
+          Say("Teraz jestem troche zawalon"+Ggm(me,4)+" praca. Mam jeszcze kilka ksiazek do przepisania.");
+          Say("Jesli chcesz poczekac dluzej, to mozesz zostawic u mnie ksiazke.");
+          Say("Powiedzmy ze mogl"+ggm(me,4)+"bym to wszystko skonczyc gdzies za "+GetTimeDesc(Delay)+", moze byc?");
+
+          if(!NpcYesNo(who))
+            Say("Ah.. to wpadnij innym razem, moze bedzie troche luzniej.");
+            return;
+          endif
+        endif
+
+        DoRewrite(who, book);
+      else
+        Say("Moge dla ciebie przepisac ksiege... ale nie to!");
+      endif
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetLastWriteTime()
+
+  var LastTime := 0;
+  var BookTime;
+
+  foreach Book in ListRootItemsInContainer(me.backpack)
+    BookTime := CInt(GetObjProperty(Book, "LastTime"));
+    if(BookTime > LastTime)
+      LastTime := BookTime;
+    endif
+  endforeach
+
+  return LastTime;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcRewriteDelay()
+
+  var LastTime := GetLastWriteTime();
+
+  if(LastTime > ReadGameClock())
+    return LastTime - ReadGameClock();
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoRewrite(who, book)
+
+  SetObjProperty(book, "Newbie", book.newbie);
+  book.newbie := 0;
+  IncRevision(book);
+  var LastTime := GetLastWriteTime();
+
+  if(!MoveItemToContainer(book, me.backpack))
+
+    Say("Przykro mi, ale jednak nie moge wziac tej ksiazki.");
+    GiveBookBack(who, book);
+
+  else
+
+    if(LastTime < ReadGameClock())
+      LastTime := ReadGameClock();
+    endif
+
+    var BookTime := GetRewriteBookTime(book);
+
+    LastTime += BookTime;
+    var LeftTime := LastTime - ReadGameClock();
+
+    SetObjProperty(book, "TookTime", ReadGameClock());
+    SetObjProperty(book, "LastTime", LastTime);
+    SetObjProperty(book, "RewriteTime", BookTime);
+    SetObjProperty(book, "GivenOwner", who.serial);
+    Say("Dobrze, przepisze ta ksiazke kiedy bede mogl"+ggm(me,4)+".");
+    Say("Wpadnij gdzies za "+GetTimeDesc(LeftTime)+", razem z moja zaplata wynoszaca "+ToMin(CInt(BookTime/2), 500)+"gp.");
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBooksBack(who)
+
+  var Books := array;
+  foreach Book in ListRootItemsInContainer(me.backpack)
+    if(CInt(GetObjProperty(Book, "GivenOwner")) == who.serial)
+      Books.append(Book);
+    endif
+  endforeach
+
+  if(!Books.size())
+    Say("Nie widze, bys zostawial"+ggm(who,4)+" jakies ksiazki dla mnie do przepisania.");
+    return;
+  endif
+
+  var LastTime  := 0;
+  var GiveBooks := array;
+  var Price     := 0;
+  var BookLastTime;
+
+  foreach Book in Books
+    BookLastTime := CInt(GetObjProperty(Book, "LastTime"));
+    if(BookLastTime < ReadGameClock())
+      GiveBooks.append(Book);
+      Price += ToMin(CInt(GetObjProperty(Book, "RewriteTime") / 2), 500);
+    elseif(BookLastTime > LastTime)
+      LastTime := BookLastTime;
+    endif
+  endforeach
+
+  if(GiveBooks.size())
+    if(!SpendGold(who, Price))
+      var BookDesc := "tej ksiegi";
+      if(GiveBooks.size() > 1)
+        BookDesc := "tych ksiag";
+      endif
+
+      Say("Moja stawka to "+Price+"gp, za przepisanie "+BookDesc+".");
+
+    else
+ 
+      if(GiveBooks.size() == 1)
+        Say("Prosze, mam twoja jedna ksiege, przepisana i gotowa.");
+      else
+        Say("Prosze, mam twoich "+GiveBooks.size()+" ksiag, wszystkie przepisane i gotowe.");
+      endif
+
+      foreach Book in GiveBooks
+        GiveBookBack(who, Book);
+        var NewBook := CreateItemCopyAtLoc(CR_TEMP_ITEM_X, CR_TEMP_ITEM_Y, CR_TEMP_ITEM_Z, Book, CR_TEMP_ITEM_REALM);
+        var Title   := GetObjProperty(NewBook, "title");
+        if(!Title)
+          Title := "kopia";
+        else
+          Title += " - kopia";
+        endif
+        SetObjProperty(NewBook, "title", Title);
+        SetName(NewBook, Title);
+
+        MoveToPack(NewBook, who);
+      endforeach
+
+      Say("Koszt przepisania wyniosl "+Price+"gp.");
+    endif
+  endif
+
+  if(LastTime)
+    Say("Mam jeszcze kilka twoich ksiag, wykonam wszystkie gdzies za "+GetTimeDesc(LastTime - ReadGameClock())+".");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GiveBookBack(who, book)
+
+  MoveToPack(book, who);
+  book.newbie := GetObjProperty(book, "Newbie");
+  IncRevision(book);
+  EraseObjProperty(book, "Newbie");
+  EraseObjProperty(book, "TookTime");
+  EraseObjProperty(book, "RewriteTime");
+  EraseObjProperty(book, "GivenOwner");
+  EraseObjProperty(book, "LastTime");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetRewriteBookTime(book)
+
+  var Contents := GetObjProperty(book, "contents");
+
+  if(!Contents)
+    return 0;
+  endif
+
+  var Time := 0;
+
+  foreach Content in Contents
+    Time += GetLineTime(Content);
+    sleepms(2);
+  endforeach
+
+  return Time;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetLineTime(Line)
+
+  var i;
+  var Time := 0;
+
+  for(i:=1; i<=len(Line); i+=1)
+    if(Line[i] != " ")
+      Time += 2;
+    endif
+  endfor
+
+  return Time;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTimeDesc(Time)
+
+  var DLen  := GetDayLength();
+  var Days  := CInt(Time / DLen);
+  var Hours := CInt((Time % DLen) / (DLen / 24));
+  var Desc;
+
+  if(Days > 0)
+    if(Days > 1)
+      Desc := Days+" dni";
+    else
+      Desc := "jeden dzien";
+    endif
+  elseif(Hours > 1)
+    Desc := "kilka godzin";
+  elseif(Hours > 0)
+    Desc := "godzine";
+  else
+    Desc := "chwilke";
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------

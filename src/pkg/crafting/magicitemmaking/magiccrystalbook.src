@@ -1,0 +1,217 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//--------------------------------------------------------------------------------
+
+include "crystals";
+include "include/checks/objchecks";
+include "include/tempmods";
+include "include/gumps";
+include "include/gump_utils";
+include "include/regs";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/skills/gumps";
+
+include ":crafting:creation";
+include ":crafting:receptures";
+include ":magicitems:magicitems";
+include ":crafting:exceptional";
+include ":quests:quest_ctrl";
+
+//--------------------------------------------------------------------------------
+  
+program MagicCrystalBook(who, book)
+
+  if(!StandardItemCheck(who,book))
+    return;
+  endif
+  
+  TriggerTipEvent(who, TEID_CRAFT_MAGICITEM);
+  var CraftData := MagicCrystalGump(who, Book);
+
+  if(CraftData)
+    start_script(":magicitemmaking:craft_item", array(who, Book, CraftData));
+  endif
+  
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function MagicCrystalGump(who, Book)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_MAGICITEMMAKING);
+   
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":magicitemmaking:crystals", SKILLID_MAGICITEMMAKING);
+
+    BuildMainCrystalGump(who, LastCraft.iters);
+    BuildMagicCrystalsGump(Book);
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      98:
+        if(!SkillGlob.cfg[LastCraft.objtype] or !IsSkillReceptureAvail(LastCraft.objtype))
+          SendSysMessage(who,"Jeszcze nic nie robil"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+        
+      97: 
+        AddCrystals(Book);
+
+      0:
+      1:
+      99:
+      
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+          LastCraft.objtype := butRes;
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_MAGICITEMMAKING, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype] and IsSkillReceptureAvail(LastCraft.objtype))
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function BuildMainCrystalGump(who, ProdIters)
+
+  GInit(0,0);
+  GPage();
+  GGumpPic(100,100,500);
+  GAddPageData(100, 100, 0x1FF, 0x1FF, 456, 100, 0x200, 0x200);
+
+  GResPic(165, 110, 0x2454, 130, 40);
+  GTextLine(180, 118, 999, "Ksiega krysztalow");
+  
+  GButton(330, 112, 2104, 2103, 98);
+  GTextLine(350, 108, 999, "To co ostatnio");
+
+  GTextLine(328, 132, 655, "Powtorz:");
+  BQGAddTextBox(395, 132, 60, 20, 1410, ProdIters, BQG_EDITABLE | BQG_BACK_PAPER, 1, 1);
+  
+  if(IsGm(who))
+    GButton(288,122,2104,2103,97);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function BuildMagicCrystalsGump(Book)
+
+  var defPreCrystals  := GetPrefixCrystals();
+  var defSufCrystals  := GetSuffixCrystals();
+  var PreCrScrolls := GetPrefixCrystalsScrolls();
+  var SufCrScrolls := GetSuffixCrystalsScrolls();
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  var s,CrName := "";
+  var PrefixBookCr := GetObjProperty(Book,"PrefixCrystals");
+  var SuffixBookCr := GetObjProperty(Book,"SuffixCrystals");
+
+  var PreCrystals := array;
+  var SufCrystals := array;
+
+  for(s:=1; s<=defPreCrystals.size(); s+=1)
+   
+    if(PreCrScrolls[s] in PrefixBookCr)
+      PreCrystals.append(defPreCrystals[s]);
+    endif
+
+  endfor
+  
+  for(s:=1; s<=defSufCrystals.size(); s+=1)
+   
+    if(SufCrScrolls[s] in SuffixBookCr)
+      SufCrystals.append(defSufCrystals[s]);
+    endif
+
+  endfor
+
+  var maxLen := Max(SufCrystals.size(), PreCrystals.size());
+  var iColor;
+
+  for(s:=1; s<=maxLen; s+=1)
+
+    GCheckNextPage(5);
+
+    if(s <= PreCrystals.size())
+      if(!IsSkillReceptureAvail(PreCrystals[s]))
+        iColor := 999;
+        GTilePic(124, (160+(GNPCount()*25)), 0xE39);
+      else
+        iColor := 650;
+        GButton(135,(165+(GNPCount()*25)),2104,2103,PreCrystals[s]);
+        GTilePic(135, (165+(GNPCount()*25)),ItemCfg[PreCrystals[s]].Graphic);
+        GCraftGumpDot(141, (156+(GNPCount()*25)), SkillGlob.cfg[PreCrystals[s]].CraftLevel);
+      endif
+
+      CrName := GetDescForItem(PreCrystals[s]);
+      CrName["magiczny krysztal "] := "";
+      GTextLine(167,(160+(GNPCount()*25)),iColor,CrName);
+      SkillGlob.avObjTypes.append(PreCrystals[s]);
+    endif
+
+    if(s <= SufCrystals.size())
+    
+      if(!IsSkillReceptureAvail(SufCrystals[s]))
+        iColor := 999;
+        GTilePic(309, (160+(GNPCount()*25)), 0xE39);
+      else
+        iColor := 650;
+        GButton(320,(165+(GNPCount()*25)),2104,2103,SufCrystals[s]);
+        GTilePic(320, (165+(GNPCount()*25)),ItemCfg[SufCrystals[s]].Graphic);
+        GCraftGumpDot(326, (156+(GNPCount()*25)), SkillGlob.cfg[SufCrystals[s]].CraftLevel);
+      endif
+
+      CrName := GetDescForItem(SufCrystals[s]);
+      CrName["magiczny krysztal "] := "";
+      GTextLine(352,(160+(GNPCount()*25)),iColor,CrName);
+      SkillGlob.avObjTypes.append(SufCrystals[s]);
+    endif
+
+  endfor
+  
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function AddCrystals(Book)
+
+  foreach Scroll in GetPrefixCrystalsScrolls()
+    AddScrollToCrBook(Book,Scroll);
+  endforeach
+  
+  foreach Scroll in GetSuffixCrystalsScrolls()
+    AddScrollToCrBook(Book,Scroll);
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------

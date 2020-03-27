@@ -1,0 +1,391 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+include "include/proc";
+include "include/coords";
+include "include/log";
+include "include/finding";
+include "include/checks/stdchecks";
+
+
+//-----------------------------------------------------------------------------
+
+program ObjectProperties(who, text)
+
+  var txt := Splitwords(text);
+
+  case(txt[1])
+    "hex":           SendSysMessage(who, "Liczba : I: "+CInt(txt[2])+" H: "+Hex(txt[2])+".",FONT_NORMAL,COLOR_GOOD);
+                     return;
+    "osetfe":        if(ExPid(GetObjProperty(who,"#osetfprop")))
+                       EraseObjProperty(who,"#osetfprop");
+                       SendSysMessage(who,"Koniec petli przypisywania wartosci.",FONT_NORMAL,COLOR_GREEN);
+                     else
+                       SendSysMessage(who,"Nie zainicjowano petli przypisywania wartosci.",FONT_NORMAL,COLOR_RED);
+                     endif
+                     return;
+
+    "?":             SendSysMessage(who, ".prop [oset/osetf/oget/hex] [propname] [value] .",FONT_NORMAL,COLOR_BAD);
+                     if(IsAdmin(who))
+                       SendSysMessage(who,"[set/era/get / setg/getg/erag / accg/accs/acce]",FONT_NORMAL,COLOR_RED);
+                       SendSysMessage(who,"[array] [set] [i/s]",FONT_NORMAL,COLOR_RED);
+                       SendSysMessage(who,"Aby ustawic prop liczbe [set [prop] [amount] i]",FONT_NORMAL,COLOR_RED);
+                     endif
+                     return;
+  endcase
+
+/*
+  if((!txt) or (!txt[2] and txt[1] != "so" and txt[1] != "loc" and txt[1] != "stc" and txt[1] != "sl" and txt[1] != "land" and txt[1] != "mser" and txt[1] != "height" and txt[1] != "stand" and txt[1] != "stmap") or ((txt[1] == "set" or txt[1] == "setg" or txt[1] == "oset") and (!txt[3])) )
+    SendSysMessage(who, "Zla opcja ["+ClStr(txt[1])+"].", FONT_NORMAL, COLOR_RED);
+    return;
+  endif*/
+
+  if(IsAdmin(who) and txt[2])
+    case(CStr(txt[1]))
+
+     "getg":          SendSysMessage(who, "GProp : "+txt[2]+" - " + GetGlobalProperty(txt[2]),FONT_NORMAL,COLOR_GOOD);
+                      return;
+     "erag":          SendSysMessage(who, "GProp : "+txt[2]+" - " + GetGlobalProperty(txt[2])+" - skasowany" ,FONT_NORMAL,COLOR_BAD);
+                      EraseGlobalProperty(txt[2]);
+                      return;
+     "setg":          if(CInt(txt[3]) or txt[3] == "0")
+                        SetGlobalProperty(txt[2],CInt(txt[3]));
+                      else
+                        var i,text := txt[3];
+                        for(i:=4;i<=len(txt);i:=i+1)
+                          text := text + " " + txt[i];
+                        endfor
+                        SetGlobalProperty(txt[2],text);
+                      endif
+                      SendSysMessage(who, "GProp : "+txt[2]+" - "+GetGlobalProperty(txt[2])+" - Ustawiony.",FONT_NORMAL,COLOR_GOOD);
+                      return;
+     "accg":          if(!IsAdmin(who))
+                        return;
+                      endif
+                      var account := FindAccount(txt[2]);
+                      if(!account)
+                        SendSysMessage(who,"Konto - ["+txt[2]+"] - Nie istnieje.",FONT_NORMAL,COLOR_RED);
+                        return;
+                      endif
+                      SendSysMessage(who, "AccProp :" + txt[3] + " : " + account.GetProp( txt[3] ) ,FONT_NORMAL,COLOR_GOOD);
+                      return;
+     "acce":          if(!IsAdmin(who))
+                        return;
+                      endif
+                      var account := FindAccount(txt[2]);
+                      if(!account)
+                        SendSysMessage(who,"Konto - ["+txt[2]+"] - Nie istnieje.",FONT_NORMAL,COLOR_RED);
+                        return;
+                      endif
+                      SendSysMessage(who, "AccProp :" + txt[3] + " : " + account.GetProp( txt[3] ) +" - skasowany." ,FONT_NORMAL,COLOR_GOOD);
+                      account.EraseProp( txt[3] );
+                      return;
+     "accs":          if(!IsAdmin(who))
+                        return;
+                      endif
+                      var account := FindAccount(txt[2]);
+                      if(!account)
+                        SendSysMessage(who,"Konto - ["+txt[2]+"] - Nie istnieje.",FONT_NORMAL,COLOR_RED);
+                        return;
+                      endif
+                      account.SetProp( txt[3] , txt[4]);
+                      SendSysMessage(who, "AccProp :" + txt[3] + " : " + txt[4] +" - ustawiony." ,FONT_NORMAL,COLOR_GOOD);
+                      return;
+    endcase
+  endif
+
+  var n;
+  var targ,loc;
+  
+  for(n:=1;n<=txt.size();n:=n+1)
+    if(txt[n] == "iser")
+      Targ := FindItemBySerial(txt[n+1]);
+      break;
+    elseif(txt[n] == "ser")
+      Targ := FindPlayerBySerial(txt[n+1]);
+      break;
+    endif
+  endfor
+
+  if(!targ)
+    loc  := LocTarget(who);
+    targ := loc.item;
+    if(!targ)
+      targ := loc.mobile;
+    endif
+  endif
+  
+  if(text["multi"])
+    targ := targ.multi;
+  endif
+
+  if(!targ)
+    SendSysMessage(who, "Anulowano.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  case(txt[1])
+    "array":          if(txt[2] == "set")
+                        SetArray(who,targ,txt);
+                      endif
+    "marray":         SetMultiArray(who,targ,txt);
+
+    "set":            if(CanSetProp(who, txt[2]))
+                        if(CInt(txt[3]) or txt[3] == "0")
+                          SetObjProperty(targ,txt[2],CInt(txt[3]));
+                        else
+                          var i,text := txt[3];
+                          for(i:=4;i<=len(txt);i:=i+1)
+                            text := text + " " + txt[i];
+                          endfor
+                          SetObjProperty(targ,txt[2],text);
+                        endif
+
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: "+GetObjProperty(targ,txt[2])+" - Ustawiony.",FONT_NORMAL,COLOR_GOOD);
+                      else
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: Nie mozesz ustawic tej wlasciwosci lub taka nie istnieje.",FONT_NORMAL,COLOR_ORANGE);
+                      endif
+
+     "era":           var Prop := GetObjProperty(targ, txt[2]);
+                      if(Prop == error)
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: Nie przypisany.",FONT_NORMAL,COLOR_ORANGE);
+                      elseif(!CanSetProp(who, txt[2]))
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: Nie mozesz usunac tej wlasciwosci lub taka nie istnieje.",FONT_NORMAL,COLOR_ORANGE);
+                      else
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: '"+GetObjProperty(targ,txt[2])+"' - skasowany.",FONT_NORMAL,COLOR_BAD);
+                        EraseObjProperty(targ, txt[2]);
+                      endif
+
+     "get":           var Prop := GetObjProperty(targ, txt[2]);
+                      if(Prop == error or !CanSetProp(who, txt[2]))
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: Nie przypisany.",FONT_NORMAL,COLOR_BAD);
+                      else
+                        SendSysMessage(who, "Prop ["+txt[2]+"]: "+Prop,FONT_NORMAL,COLOR_GOOD);
+                      endif
+
+     "oget":          if(!CanSetObjProp(who, txt[2]))
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: Nie istnieje.", FONT_NORMAL, COLOR_RED);
+                        return;
+                      endif
+
+                      var ObjProp;
+                      if(txt[2]["."])
+                        var Pos := 1;
+                        while(Pos < len(txt[2]) and Pos)
+                          Pos  := find(txt[2], ".", 1);
+                          if(Pos < len(txt[2]))
+                            Targ := Targ.get_member(txt[2][1,Pos-1]);
+                            if(!Targ.isa(POLCLASS_UOBJECT))
+                              break;
+                            endif
+                          endif
+                          txt[2] := txt[2][Pos+1,len(txt[2])-Pos+1];
+                        endwhile
+
+                        if(Targ.isa(POLCLASS_UOBJECT))
+                          ObjProp := Targ.get_member(txt[2]);
+                        else
+                          ObjProp := error;
+                        endif
+                      else
+                        ObjProp := targ.get_member(txt[2]);
+                      endif
+                      if(ObjProp == error)
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: Nie istnieje.",FONT_NORMAL,COLOR_BAD);
+                      elseif(CStr(CInt(ObjProp)) == CStr(ObjProp))
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: I: "+CInt(ObjProp)+" H: "+Hex(ObjProp)+".",FONT_NORMAL,COLOR_GOOD);
+                      else
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: "+CStr(ObjProp)+".",FONT_NORMAL,COLOR_GOOD);
+                      endif
+
+     "oset":          if(!CanSetObjProp(who, txt[2]))
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: Nie istnieje.", FONT_NORMAL, COLOR_RED);
+                        return;
+                      endif
+
+                      if(txt[2] == "graphic")
+                        if(targ.container.isa(POLCLASS_MOBILE))
+                          SendSysMessage(who, "Nie mozna zmienic grafiki przedmiotu poki jest on zalozony!", FONT_NORMAL, COLOR_RED);
+                          return;
+                        endif
+                      endif
+
+                      var ObjProp := targ.get_member(txt[2]);
+                      if(ObjProp == error)
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: Nie istnieje.",FONT_NORMAL,COLOR_BAD);
+                      elseif(CInt(ObjProp) or CStr(ObjProp) == "0")
+                        LogMsg(INFO_LOG,who,{targ,txt[2],targ.get_member(txt[2]), CInt(txt[3])});
+                        targ.set_member(txt[2],CInt(txt[3]));
+                        SendSysMessage(who,"ObjProp ["+txt[2]+"]: I: "+targ.get_member(txt[2])+" H: "+hex(targ.get_member(txt[2]))+" ustawiony.",FONT_NORMAL,COLOR_GOOD);
+                      else
+                        var i,text := txt[3];
+                        for(i:=4;i<=len(txt);i:=i+1)
+                          text := text + " " + txt[i];
+                        endfor
+                        LogMsg(INFO_LOG,who,{targ,txt[2],targ.get_member(txt[2]), CInt(txt[3])});
+                        targ.set_member(txt[2],text);
+                        SendSysMessage(who,"ObjProp ["+txt[2]+"]: "+targ.get_member(txt[2])+" ustawiony.",FONT_NORMAL,COLOR_GOOD);
+                      endif
+
+     "osetf":         if(!CanSetObjProp(who, txt[2]))
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: Nie istnieje.", FONT_NORMAL, COLOR_RED);
+                        return;
+                      endif
+                      var ObjProp := targ.get_member(txt[2]);
+                      if(ObjProp == error)
+                        SendSysMessage(who, "ObjProp ["+txt[2]+"]: Nie istnieje.",FONT_NORMAL,COLOR_BAD);
+                      elseif(CInt(ObjProp) or CStr(ObjProp) == "0")
+                        txt[3] := CInt(txt[3]);
+                        txt[4] := CInt(txt[4]);
+                        txt[5] := CInt(txt[5]);
+                        txt[6] := CInt(txt[6]);
+                        if(!txt[5])
+                          txt[5] := 1;
+                        endif
+                        if(!txt[6])
+                          txt[6] := 2000;
+                        endif
+                        var i;
+                        
+                        SetObjProperty(who,"#osetfprop",GetPid());
+
+                        if(txt[3] and txt[4])
+                          for(i:=txt[3];i<=txt[4];i:=i+txt[5])
+                            if(GetObjProperty(who,"#osetfprop") != GetPid())
+                              break;
+                            endif
+                            targ.set_member(txt[2],i);
+                            SendSysMessage(who,i+". ["+txt[2]+"] I: "+targ.get_member(txt[2])+" H: "+hex(targ.get_member(txt[2]))+" ustawiony.",FONT_NORMAL,COLOR_GOOD);
+                            sleepms(txt[6]);
+                          endfor
+                        else
+                          SendSysMessage(who,"Bledne dane.",FONT_NORMAL,COLOR_RED);
+                        endif
+                      else
+                        SendSysMessage(who,"Tylko liczbowe wlasciwosci.",FONT_NORMAL,COLOR_GOOD);
+                      endif
+     default:         SendSysMessage(who, "Zle dane .prop [set/era/get] [prop] [amount] .",FONT_NORMAL,COLOR_BAD);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SetArray(who,targ,txt)
+
+  var i,value,newarray := {};
+
+  if(txt[4] == "i" or txt[4] == "s")
+    if(cint(txt[5])!= 0)
+      if(cint(txt[5]) <= 15)
+        for(i:=1;i<=cint(txt[5]);i:=i+1)
+          value := RequestInput(who,who.backpack,"Wprowadz zmienna wierszu "+i+" arraya.");
+          if(!value)
+            value := 0;
+          endif
+          case(txt[4])
+            "i": newarray.append(cint(value));
+            "s": newarray.append(cstr(value));
+          endcase
+        endfor
+        Setobjproperty(targ,txt[3],newarray);
+        SendSysMessage(who,"Prop - "+txt[3]+" - "+GetObjProperty(targ,txt[3])+" Ustawiony",FONT_NORMAL,COLOR_GOOD);
+      else
+        SendSysMessage(who,"Za duzo wierszy!");
+        return;
+      endif
+    else
+      SendSysMessage(who,"Musisz podac liczbe wierszy! .prop array set [nazwa] [i/s] [wiersze]",FONT_NORMAL,COLOR_BAD);
+    endif
+  else
+    SendSysMessage(who,"Zle dane. .prop array set [nazwa] [i/s] [wiersze]",FONT_NORMAL,COLOR_BAD);
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetMultiArray(who,targ,txt)
+
+  if(!CInt(txt[3]))
+    EndMAr(who);
+    return;
+  endif
+  
+  var NewArr := {};
+  var SubArr := {};
+  var i1,i2,SubArrayNr,value;
+  
+  for(i1:=1;i1<=CInt(txt[3]);i1:=i1+1)
+    SubArrayNr := SendTextEntryGump(who,"Ile wierszy SubArraya "+i1+" ?",TE_CANCEL_ENABLE);
+    if(!CInt(SubArrayNr))
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+    for(i2:=1;i2<=cint(SubArrayNr);i2:=i2+1)
+      value := RequestInput(who,who.backpack,"Wprowadz zmienna wierszu "+i2+" arraya.");
+      if(!value)
+        value := 0;
+      endif
+      if(CInt(value))
+        SubArr.append(CInt(value));
+      else
+        SubArr.append(Cstr(value));
+      endif
+    endfor
+    NewArr.append(SubArr);
+  endfor
+
+  SetObjProperty(targ,txt[2],NewArr);
+  SendSysMessage(who,"Ustawiono Arraya : "+txt[2]+".",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,NewArr+".",FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EndMAr(who)
+
+  SendSysMessage(who,".prop marray [prop] [nr sub-wierszy]");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanSetProp(who, propName)
+
+  __ParamUnused(propName);
+
+  if(who.cmdlevel < 4)
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CanSetObjProp(who, txt)
+
+  if(!IsAdmin(who))
+    txt := Lower(txt);
+
+    case(txt)
+      "color":   
+      "graphic": 
+      "newbie":
+      "facing":  return 1;
+    endcase
+
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

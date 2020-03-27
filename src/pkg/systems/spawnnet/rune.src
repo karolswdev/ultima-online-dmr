@@ -1,0 +1,634 @@
+//-----------------------------------------------------------------------------
+
+include "spawnrune";
+include "spawnnet";
+include "include/gumpboxes";
+include "include/finding";
+include "include/bits";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/coords";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+var who,Rune,RuneNr;
+
+//-----------------------------------------------------------------------------
+
+program Rune(who1,rune1)
+
+  who  := who1;
+  rune := rune1;
+
+  if(!who.cmdlevel)
+    HideRune(rune);
+    PlaySoundEffect(who, CLICK_SOUND);
+    return;
+  endif
+
+  if(!CanUseCmd(who, "sp"))
+    return;
+  endif
+
+  RuneNr := GetRuneNr(Rune);
+  if(!RuneNr)
+    SendSysMessage(who,"Runo nie posiada numeru!",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  MainRuneGump();
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MainRuneGump()
+
+  BuildMainRuneGump();
+
+  var res;
+
+  while(who)
+    if(!Rune)
+      SendSysMessage(who, "Runo nie istnieje.",FONT_NORMAL,COLOR_BAD);
+      return;
+    endif
+    res := GSend(who);
+
+    if(IsSpawning(Rune) and res[0] != 47 and res[0])
+      SendSysMessage(who,"Runo teraz respawnuje!",FONT_NORMAL,COLOR_BAD);
+    else
+      case(res[0])
+        1:        ChangeData(who,Rune,PROP_RESTIME);
+        2:        ChangeData(who,Rune,PROP_MAXAMOUNT);
+        3:        ChangeData(who,Rune,PROP_RANGE);
+        4:        ChangeData(who,Rune,PROP_COLOR);
+        21:       ChangeType();
+        22:       SetGumpTemplate();
+        23:       ChangeData(who,Rune,PROP_TEMPLATE);
+        24:       ChangeData(who,Rune,PROP_AMOUNT);
+        25:       ShowRuneSpawns();
+        26:       RefreshNpcs();
+
+        31:       ChangeOption(RUNEF_FROZEN);
+        32:       ChangeOption(RUNEF_BASE_Z);
+        33:       ChangeOption(RUNEF_NOCITY);
+        34:       ChangeOption(RUNEF_ONLYCITY);
+        35:       ChangeOption(RUNEF_NOWANDER);
+        36:       ChangeOption(RUNEF_GUARDIGNORE);
+
+        40:       SaveLastRuneData(who,Rune);
+        41:       ChangeNote(who,Rune);
+        42:       RunSpawn(rune,who);
+        43:       ResetTime(who,rune);
+        44:       AnnihilateSpawns(rune);
+        46:       LoadSpawnData(who,rune);
+        48:       if(YesNo(who,"Zniszczyc?"))
+                    SetStopped(Rune);
+                    Destroyitem(Rune);
+                  endif
+        49:       case(rune.invisible)
+                    0:HideRune(rune);
+                    1:ShowRune(rune);
+                  endcase
+        51:       ChangeOption(RUNEF_BITEMS);
+
+        61:       ForceSpawn(Rune,who);
+        62:       SetWalkDestination();
+        63:       ShowWalkDest();
+        80:       EraseRuneFacing(Rune);
+        47:
+      endcase
+    endif
+    
+    if(Res[0] >= 70 and Res[0] < 80)
+      SetRuneFacing(Rune,Res[0] - 70);
+    endif
+
+    if(!res[0])
+      break;
+    endif
+    BuildMainRuneGump();
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainRuneGump()
+
+  var TimeToRespawn := (GetSpawnTime(Rune) + GetRuneRespawnTime(Rune) * 60) - ReadGameClock();
+  var KindTemp      := "Grupa";
+  var Status        := "Start";
+  if(IsRunning(Rune))
+    Status := "Stop";
+  endif
+  if(TimeToRespawn <= 0)
+    TimeToRespawn := "End";
+  else
+    TimeToRespawn := RealTime(TimeToRespawn);
+  endif
+  if(!IsRunning(Rune))
+    TimeToRespawn := "Stopped";
+  endif
+  if(GetRuneType(Rune) == NPC_SPAWN)
+    KindTemp := "Template";
+  endif
+
+  GInit(0,0);
+  GPage();
+  GResPic(30,100,5120,270,151);
+  
+  GTextLine(100,105,270,"Opcje Runa Nr "+RuneNr);
+  
+  GTextLine(40, 125,590,"Czas respawnu:");
+  GTextLine(180,125,355,RealTime(GetRuneRespawnTime(Rune)*60));
+  GButton(264,  128,2117,2118,1);
+
+  GTextLine(40, 145,590,"Max. ilosc:");
+  GTextLine(180,145,355,GetRuneMaxAmount(Rune));
+  GButton(264,  148,2117,2118,2);
+  
+  GTextLine(40, 165,590,"Zasieg:");
+  GTextLine(180,165,355,GetRuneRange(Rune));
+  GButton(264,  168,2117,2118,3);
+  
+  GTextLine(40, 185,590,"Czas do respawnu:");
+  GTextLine(180,185,355,TimeToRespawn);
+
+  GTextLine(40, 205,590,"Liczba spawnow");
+  GTextLine(180,205,355,CInt(len(CheckExistingObjects(Rune))));
+  GButton(264,  208,2117,2118,25);
+
+  GTextLine(40, 225,590,"Odswiez Npece");
+  GButton(264,  228,2117,2118,26);
+
+  GResPic(302,100,5120,300,151);
+  GTextLine(390,105,270,"Opcje Spawnu");
+  
+  GTextLine(320,125,590,"Typ spawnu:");
+  GTextLine(430,125,355,GetRuneType(Rune));
+  GButton(564,  128,2117,2118,21);
+
+  GTextLine(320,145,590,KindTemp);
+  GTextLine(430,145,355,GetRuneTemplate(Rune));
+  GButton(544,  148,2117,2118,22);
+  GButton(564,  148,2117,2118,23);
+
+  GTextLine(320,165,590,"Ilosc:");
+  GTextLine(430,165,355,GetRuneAmount(Rune));
+  GButton(564,  168,2117,2118,24);
+
+  GTextLine(320,185,590,"Flagi:");
+  GTextLine(430,185,355,"Z:"+IsSetFlag(Rune,RUNEF_FROZEN)+" B:"+IsSetFlag(Rune,RUNEF_BASE_Z)+" N:"+IsSetFlag(Rune,RUNEF_NOCITY)+ " O:"+IsSetFlag(Rune,RUNEF_ONLYCITY));
+  GButtonPage(564,  188,2117,2118,2);
+
+  GTextLine(320,210,590,"Obchod");
+  if(GetObjProperty(Rune,PROP_ROUND_DESTS))
+    GButton(430,  213,2117,2118,63);
+    GTextLine(380,210,355,"Tak");
+  else
+    GTextLine(380,210,355,"Nie");
+  endif
+  GTextLine(454,210,590,"Ustaw");
+  GButton(564,  213,2117,2118,62);
+
+  GResPic(30,253,5120,572,85);
+  
+  GTextLine(40, 260,590,"Notatka");
+  GButton(  91, 263,2117,2118,41);
+  GTextLine(40, 280,550,GetRuneNote(Rune));
+  
+  GTextLine(60, 300,270,Status);
+  GButton(  40 ,303,2117,2118,42);
+  
+  GTextLine(130,300,270,"Resetuj Czas");
+  GButton(110,  303,2117,2118,43);
+
+  GTextLine(285,300,270,"Zniszcz spawny");
+  GButton(265,  303,2117,2118,44);
+
+  GTextLine(420,300,270,"Odswiez");
+  GButton(400,  303,2117,2118,47);
+
+  GTextLine(520,300,270,"Load");
+  GButton(500,  303,2117,2118,46);
+
+  GTextLine(340,260,270,"Kasuj");
+  GButton(320,  263,2117,2118,48);
+
+  case(Rune.invisible)
+    0: GTextLine(420,260,1204,"Ukryj");
+    1: GTextLine(420,260,1419,"Odkryj");
+  endcase
+  
+  GButton(400,  263,2117,2118,49);
+
+  GTextLine(520,260,270,"Last");
+  GButton(500,  263,2117,2118,40);
+
+  GTextLine(240,260,270,"Spawn");
+  GButton(220,  263,2117,2118,61);
+
+  GPage();
+  GPage();
+  
+  GResPic(604,100,5120,240,211);
+  GTextLine(680,105,270,"Flagi");
+
+  case(GetRuneType(Rune))
+    NPC_SPAWN:
+    NPCGROUP_SPAWN:
+                    GTextLine(620,125,590,GetRuneOPropName(RUNEF_FROZEN));
+                    GTextLine(740,125,355,IsSetFlag(Rune,RUNEF_FROZEN));
+                    GButton(  804,128,2117,2118,31);
+    ITEM_SPAWN:
+                    GTextLine(620,125,590,GetRuneOPropName(RUNEF_BITEMS));
+                    GTextLine(740,125,355,IsSetFlag(Rune,RUNEF_FROZEN));
+                    GButton(  804,128,2117,2118,51);
+  endcase
+
+  GTextLine(620,145,590,GetRuneOPropName(RUNEF_BASE_Z));
+  GTextLine(740,145,355,IsSetFlag(Rune,RUNEF_BASE_Z));
+  GButton(  804,148,2117,2118,32);
+
+  GTextLine(620,165,590,GetRuneOPropName(RUNEF_NOCITY));
+  GTextLine(740,165,355,IsSetFlag(Rune,RUNEF_NOCITY));
+  GButton(  804,168,2117,2118,33);
+
+  GTextLine(620,185,590,GetRuneOPropName(RUNEF_ONLYCITY));
+  GTextLine(740,185,355,IsSetFlag(Rune,RUNEF_ONLYCITY));
+  GButton(  804,188,2117,2118,34);
+  
+  GTextLine(620,205,590,GetRuneOPropName(RUNEF_NOWANDER));
+  GTextLine(740,205,355,IsSetFlag(Rune,RUNEF_NOWANDER));
+  GButton(  804,208,2117,2118,35);
+  
+  GTextLine(620,225,590,GetRuneOPropName(RUNEF_GUARDIGNORE));
+  GTextLine(740,225,355,IsSetFlag(Rune,RUNEF_GUARDIGNORE));
+  GButton(  804,228,2117,2118,36);
+
+  GTextLine(620,245,590,"Facing");
+  GTextLine(740,245,355,GetRuneFacing(Rune));
+  GButtonPage(  804,248,2117,2118,3);
+
+  GTextLine(620,265,590,"Color");
+  GTextLine(740,265,355,GetRuneOverColor(Rune));
+  GButton(  804,268,2117,2118,4);
+
+  GTextLine(620,285,270,"Anuluj");
+  GButton(  804,288,2117,2118,1000);
+
+  GPage();
+
+  GResPic(604,100,5120,240,171);
+  GTextLine(680,105,270,"Facing");
+
+  GButton(645,140,2117,2118,77);
+  GButton(715,140,2117,2118,70);
+  GButton(785,140,2117,2118,71);
+
+  GTextLine(735,138,560,"N");
+
+  GButton(645,180,2117,2118,76);
+  GButton(715,180,2117,2118,80);
+  GButton(785,180,2117,2118,72);
+
+  GTextLine(665,178,560,"W");
+  GTextLine(805,178,560,"E");
+
+  GButton(645,220,2117,2118,75);
+  GButton(715,220,2117,2118,74);
+  GButton(785,220,2117,2118,73);
+
+  GTextLine(735,218,560,"S");
+
+  GTextLine(620,245,270,"Anuluj");
+  GButton(  804,248,2117,2118,1000);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeOption(WhatOProp)
+
+  if(IsSetFlag(Rune,RUNEF_ONLYCITY) and WhatOProp == RUNEF_NOCITY)
+    SendSysMessage(who, "Nie mozesz wlaczyc No City kiedy wlaczone jest Only City.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(IsSetFlag(Rune,RUNEF_NOCITY) and WhatOProp == RUNEF_ONLYCITY)
+    SendSysMessage(who, "Nie mozesz wlaczyc Only City kiedy wlaczone jest No City.",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  if(WhatOProp == RUNEF_BASE_Z)
+    SetRuneRange(Rune,0);
+  endif
+
+  if(IsSetFlag(Rune,WhatOProp))
+    SendSysMessage(who, "Wylaczyl"+ggm(who,3)+" - "+GetRuneOPropName(WhatOProp),FONT_NORMAL,COLOR_BAD);
+  else
+    SendSysMessage(who, "Wlaczyl"+ggm(who,3)+" - "+GetRuneOPropName(WhatOProp),FONT_NORMAL,COLOR_GOOD);
+  endif
+
+  SwitchFlag(Rune,WhatOProp,!IsSetFlag(Rune,WhatOProp));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeType()
+
+  var Types := GetRuneSpawnTypes();
+  if(!GetRuneType(Rune))
+    SetRuneType(Rune,Types[1]);
+    return;
+  endif
+  
+  var i := 1;
+  foreach Type in Types
+    i := i + 1;
+    if(Type == GetRuneType(Rune))
+      break;
+    endif
+  endforeach
+  
+  if(i > len(Types))
+    i := 1;
+  endif
+  
+  SetRuneType(Rune,Types[i]);
+  SetCheckedType(Rune,0);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetGumpTemplate()
+
+  var Choice := ShowTemplates(who,GetRuneType(Rune));
+  if(Choice)
+    if(CheckSpawn(Rune,GetRuneType(Rune),Choice,who))
+      SendSysMessage(who,"Ustawil"+ggm(who,3)+" Templata Typu "+GetRuneType(Rune)+" na "+Choice+".",FONT_NORMAL,COLOR_GOOD);
+      SetRuneTemplate(Rune,Choice);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowRuneSpawns()
+
+  var Creatures, i;
+ 
+  while(IsLoggedIn(who))
+    Creatures := CheckExistingObjects(Rune);
+    i         := 1;
+
+    GInit(30,100);
+    GMultiHeaderInit();
+    GResPic(0, 0,5120,450,460);
+    GTextLine(20, 10, 999, "Runo Nr: "+GetRuneNr(Rune)+" - "+Rune.x+","+Rune.y+","+Rune.z+" "+Rune.realm);
+    GAddPageData(430, 15, 2435, 2436, 430, 440, 2437, 2438);
+    GMultiPage();
+  
+    foreach Crit in Creatures
+      Crit := FindNpcBySerial(Crit);
+      if(Crit)
+        GCheckNextPage(20);
+        GButton(20, GNPCount()*20+43, 2117, 2118, i);
+        GTextLine(40, GNPCount()*20+40, 998, i);
+        GTextLine(80, GNPCount()*20+40, 670, GetName(Crit));
+        GTextLine(300, GNPCount()*20+40, 550, Crit.x + "," + Crit.y + "," + Crit.z);
+        i := i + 1;
+      endif
+    endforeach
+
+    var res := CInt(GSend(who)[0]);
+
+    if(!res)
+      break;
+    elseif(Creatures[res])
+      MoveObject(who, Creatures[res].x, Creatures[res].y, Creatures[res].z, Creatures[res].realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    else
+      break;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetWalkDestination()
+
+  var Dests := SetWalkDest(who);
+  if(Dests)
+    SetObjProperty(Rune,PROP_ROUND_DESTS,Dests);
+  else
+    EraseObjProperty(Rune,PROP_ROUND_DESTS);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowWalkDest()
+
+  var Dests := GetObjProperty(Rune,PROP_ROUND_DESTS);
+  if(!Dests)
+    return;
+  endif
+
+  var i := 1;
+
+  GInit(30,100);
+  GMode(GMODE_MULTIHD, GSMODE_NORMAL);
+  GResPic(0, 0,5120,550,460);
+  GTextLine(20, 10, 999, "WalkDest Rune Nr: "+GetRuneNr(Rune));
+  GButton(400, 13, 2117, 2118, 2000);
+  GTextLine(420, 10, 560, "Pokaz");
+  GAddPageData(530, 15, 2435, 2436, 530, 440, 2437, 2438);
+  GMultiPage();
+
+  foreach Dest in Dests
+    GCheckNextPage(20);
+    GButton(20,    GNPCount()*20+43, 2117, 2118, i);
+    GTextLine(40,  GNPCount()*20+40, 1419, i);
+    GTextLine(80,  GNPCount()*20+40, 670, Dest[1]);
+    GTextLine(160, GNPCount()*20+40, 670, Dest[2]);
+    i := i + 1;
+  endforeach
+
+  var Res, CurPage := 1, Dest;
+
+  while(IsLoggedIn(who))
+
+    SetCurMultiPage(CurPage);
+    Res := GSend(who);
+    CurPage := GetCurMultiPage();
+
+    if(Res[0])
+      if(Res[0] == 2000)
+        foreach Dest in Dests
+          MoveObject(who, Dest[1], Dest[2], GetStandZ(Dest[1], Dest[2], who.realm), who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+          sleepms(300);
+        endforeach
+      else
+        Dest := Dests[Res[0]];
+        MoveObject(who, Dest[1], Dest[2], GetStandZ(Dest[1], Dest[2], who.realm), who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+      endif
+    else
+      break;
+    endif
+
+  endwhile
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetWalkDest(who)
+
+  var Loc,Dests := {},i := 1;
+  while(who)
+    SendSysMessage(who,"Wskaz "+i+" miejsce, Esc - koniec.",FONT_NORMAL,COLOR_GREEN);
+    Loc := LocTarget(who);
+    if(!Loc)
+      break;
+    endif
+    Dests.append({Loc.x,Loc.y});
+    foreach D in Dests
+      SendSysMessage(who,"X : "+D[1]+", Y: "+D[2],FONT_NORMAL,COLOR_BLUE);
+    endforeach
+    i := i + 1;
+  endwhile
+
+  if(Dests.size() < 2)
+    SendSysMessage(who,"Musza byc conajmniej 2 miejsca docelowe.",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"Ustawiono miejsca obchodu.",FONT_NORMAL,COLOR_GREEN);
+    foreach D in Dests
+      SendSysMessage(who,"X : "+D[1]+", Y: "+D[2],FONT_NORMAL,COLOR_BLUE);
+    endforeach
+    return Dests;
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RefreshNpcs()
+
+  var Npcs := CheckExistingObjects(Rune);
+
+  if(!Npcs.size())
+    SendSysMessage(who, "Runo nie posiada npecow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Num := 0;
+
+  foreach Npc in Npcs
+    Npc := FindNpcBySerial(Npc);
+    if(RefreshNpc(Npc))
+      Num := Num + 1;
+    endif
+  endforeach
+
+  SendSysMessage(who, "Odswiezono "+Num+" Npcow.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RefreshNpc(Creature)
+
+  var Refresh := 0;
+
+  if(IsSetFlag(Rune,RUNEF_FROZEN))
+    if(!IsSetFlag(Creature,NPCF_FROZEN) or !Creature.frozen)
+      SetFlag(Creature, NPCF_FROZEN);
+      Creature.frozen := 1;
+      Refresh := 1;
+    endif
+  else
+    if(IsSetFlag(Creature,NPCF_FROZEN) or Creature.frozen)
+      UnSetFlag(Creature, NPCF_FROZEN);
+      Creature.frozen := 0;
+      Refresh := 1;
+    endif
+  endif
+
+  if(IsSetFlag(Rune,RUNEF_GUARDIGNORE))
+    if(!IsSetFlag(Creature,NPCF_GUARDIGNORE))
+      SetFlag(Creature, NPCF_GUARDIGNORE);
+      Refresh := 1;
+    endif
+  else
+    if(IsSetFlag(Creature,NPCF_GUARDIGNORE))
+      UnSetFlag(Creature, NPCF_GUARDIGNORE);
+      Refresh := 1;
+    endif
+  endif
+
+  var rWalkDests := GetObjProperty(Rune,PROP_ROUND_DESTS);
+  var cWalkDests := GetObjProperty(Creature,PROP_ROUND_DESTS);
+
+  if(rWalkDests != cWalkDests)
+    if(!rWalkDests)
+      EraseObjProperty(Creature, PROP_ROUND_DESTS);
+    else
+      SetObjProperty(Creature, PROP_ROUND_DESTS, rWalkDests);
+    endif
+
+    EraseObjProperty(Creature, "WalkDest");
+    EraseObjProperty(Creature, "NextWalkPoint");
+    EraseObjProperty(Creature, "Anchor");
+    EraseObjProperty(Creature, "WalkPause");
+    MoveObject(Creature, Rune.x, Rune.y, Rune.z, Rune.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    RestartScript(Creature);
+    Refresh := 1;
+  elseif(GetNpcConfig(Creature).CityNpc and !IsSetFlag(Creature, NPCF_NO_ANCHOR))
+    EraseObjProperty(Creature, "Anchor");
+    MoveObject(Creature, Rune.x, Rune.y, Rune.z, Rune.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    RestartScript(Creature);
+    Refresh := 1;
+  endif
+  
+  if(IsSetFlag(Rune,RUNEF_NOWANDER))
+    if(!IsSetFlag(Creature,NPCF_NO_WANDER))
+      SetFlag(Creature, NPCF_NO_WANDER);
+      Refresh := 1;
+    endif
+  else
+    if(IsSetFlag(Creature,NPCF_NO_WANDER))
+      UnSetFlag(Creature, NPCF_NO_WANDER);
+      Refresh := 1;
+    endif
+  endif
+
+  if(GetRuneFacing(Rune) != "N/A")
+    if(Creature.facing != GetRuneFacing(Rune))
+      Creature.SetFacing(GetRuneFacing(Rune), 1);
+      Refresh := 1;
+    endif
+  endif
+
+  if(GetRuneOverColor(Rune))
+    if(Creature.color != GetRuneOverColor(Rune))
+      Creature.color := GetRuneOverColor(Rune);
+      SetObjProperty(Creature,"SetColor",GetRuneOverColor(Rune));
+      Refresh := 1;
+    endif
+  endif
+
+  return Refresh;
+
+endfunction
+
+//-----------------------------------------------------------------------------

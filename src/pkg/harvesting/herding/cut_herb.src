@@ -1,0 +1,153 @@
+//-----------------------------------------------------------------------------
+
+include "include/getobj";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/items";
+include "include/dirs";
+
+include ":crafting:creation";
+include ":crafting:materials";
+include ":crafting:iterations";
+include ":harvesting:harvest";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program CutHerbHarvest(Params)
+
+  var who := Params[1];
+  var Scissors := Params[2];
+  var Herb := Params[3];
+
+  if(!StandardItemCheck(who,Herb))
+    return;
+  endif
+
+  if(!StandardItemCheck(who,Scissors))
+    return;
+  endif
+
+  var Materials;
+
+  if(!PrepareHarvest(Herb, Materials))
+    return;
+  endif
+
+  SendSysMessage(who, "Rozpoczal"+ggm(who,3)+" obcinanie ziol...", FONT_NORMAL, COLOR_GREEN);
+  var IterData := DefineCraftIterations(who, SKILLID_HERDING, Params[4], Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CutHerb(who, Herb, IterData, Materials))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareHarvest(Herb, byref Materials)
+
+  Materials := DefineCraftMaterials();
+  Materials.maxIterAmount := HARVEST_MAX_AMOUNT;
+  AddCraftMaterialItem(Materials, Herb, 1);
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetHerbElem(Herb)
+
+  var HerbCfg   := ReadConfigFile(":herding:herding");
+
+  if(HerbCfg[Herb.objtype])
+    return HerbCfg[Herb.objtype];
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CutHerb(who, Herb, byref IterData, byref Materials)
+
+  var HerbElem := GetHerbElem(Herb);
+
+  if(!HerbElem)
+    SendSysMessage(who, "Nie wiesz jak to obciac.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var ProdObj      := CInt(HerbElem.Product);
+  var Diff         := CInt(HerbElem.Skill);
+  var harvData     := GetHarvested(Herb);
+  var ProdAmount   := GetHarvestAmount(who, SKILLID_HERDING);
+  var Points       := GetHarvestProcessPoints(SKILLID_HERDING, Diff);
+  var cont;
+
+  if(Herb.container)
+    cont := Herb.container;
+  else
+    cont := who.backpack;
+  endif
+
+ 
+
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+
+  
+  if(HarvestOverflowed(who))
+
+    SendSysMessage(who, "Prawie cos zerwal"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+
+  elseif(!CheckSkill(who, SKILLID_HERDING, Diff, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Zniszczyl"+ggm(who,3)+" troche ziol!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, SCISSORS_SOUND))
+    return 0;
+  endif
+
+
+  SendQuestEvent(who, EVQID_HARVEST, SKILLID_HERDING, Herb);
+  
+  var itmDesc := GetHarvestDescriptorForData(ProdObj, harvData);
+  var Herbs := CreateItemInCont(cont, itmDesc, ProdAmount, who);
+
+  if(Herbs)
+    AwardPoints(who, SKILLID_HERDING, Points, NO_STAT_AWARD | GAIN_RESTRICT, Diff);
+    SendSysmessage(who, GetCraftIterDesc(IterData) + " Obcial"+ggm(who,3)+" "+ProdAmount+" ziol i wlozyl"+ggm(who,3)+" je do plecaka.", FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w pojemniku!",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

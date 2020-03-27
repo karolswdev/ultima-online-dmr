@@ -1,0 +1,69 @@
+//-----------------------------------------------------------------------------
+
+include "include/coords";
+include "include/checks/objchecks";
+include "include/gumps";
+include "include/logerror";
+include "fishing";
+
+//-----------------------------------------------------------------------------
+
+program SOSMessage( who, message )
+
+  if(!StandardItemCheck(who,message))
+    return;
+  endif
+
+  var tox      := CInt(GetObjProperty(message, "tileX"));
+  var toy      := CInt(GetObjProperty(message, "tileY"));
+  var toRlm    := GetObjProperty(message, "tileRlm");
+  var msgindex := CInt(GetObjProperty(message, "msgnum"));
+  
+  if(!tox or !toy or !toRlm)
+    if(!AssignSosMsgData(message))
+      SendSysMessage(who, "Cos jest nie tak z ta wiadomoscia...", FONT_NORMAL, COLOR_RED);
+      DestroyItem(message);
+    endif
+
+    tox      := CInt(GetObjProperty(message, "tileX"));
+    toy      := CInt(GetObjProperty(message, "tileY"));
+    toRlm    := GetObjProperty(message, "tileRlm");
+    msgindex := CInt(GetObjProperty(message, "msgnum"));
+  endif
+  
+  GInit(150, 150);
+  GMode(GMODE_NORMAL, GSMODE_PACKET);
+  GSetUnicode();
+  GResPic(0, 0, 0x24A4, 370, 220);
+  GResPic(30, 37, 0x2454, 310, 30);
+  GResPic(30, 70, 0x2454, 310, 115);
+  GTextLine(140, 40, 670, ToUnicode("Wiadomoœæ S.O.S."));
+  GButton(320, 170, 0xFB1, 0xFB3, 0);
+  
+  var coords := ToSextant(tox, toy, toRlm);
+
+  case (msgindex)
+    1:        GTextLine(40,75,0,  ToUnicode("Zostaliœmy zaatakowani przez wielkiego"));
+              GTextLine(40,95,0,  ToUnicode("wê¿a morskiego! Jesteœmy na wspó³rzêdnych"));
+              GTextLine(40,115,0, coords + "!");
+              GTextLine(40,135,0, ToUnicode("Prosze pomó¿ nam!"));
+              
+    2:        GTextLine(40,75,0,ToUnicode("Dzika bestia przedziurawi³a nam statek!"));
+              GTextLine(40,95,0,ToUnicode("Jesteœmy w miejscu " + coords + "!"));
+              GTextLine(40,115,0,ToUnicode("Utrzymamy sie tak d³ugo jak to mo¿liwe."));
+              GTextLine(40,135,0,ToUnicode("Prosimy o pomoc jak najszybciej!"));
+              
+    3:        GTextLine(40,75,0,ToUnicode("Trafiliœmy na przera¿aj¹c¹ burzê!"));
+              GTextLine(40,95,0,ToUnicode("na wspó³rzêdnych " + coords + "!"));
+              GTextLine(40,115,0,ToUnicode("Statek mo¿e zaton¹æ nied³ugo! Pospiesz siê!"));
+
+    default:  GTextLine(40,75,0,ToUnicode("Pomocy nasza ³ódz tonie! Jesteœmy"));
+              GTextLine(40,95,0,ToUnicode("na wspó³rzednych " + coords + "!"));
+              GTextLine(40,115,0,ToUnicode("Prosimy pospiesz siê, nied³ugo zatoniemy!"));
+  endcase
+  
+  GSend(who);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

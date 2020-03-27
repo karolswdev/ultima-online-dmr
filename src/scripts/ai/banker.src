@@ -1,0 +1,421 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/buildings";
+include ":banking:gold";
+include "ai/include/ainpcs";
+include "ai/include/npcspeech";
+include "ai/include/npch";
+include "ai/setup/citynpcsetup";
+include "ai/include/tamed";
+include "ai/include/smartrun";
+include "../pkg/systems/renthouse/renthouse";
+
+include ":banking:operations";
+
+//-----------------------------------------------------------------------------
+
+const ITEM_SECURE_COST    := 100000;
+const ITEM_SECURE_CRYSAMT := 500;
+const ITEM_SECURE_MLVL    := 5;
+
+//-----------------------------------------------------------------------------
+
+program Banker_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+  EnableEvents(EVID_ITEM_GIVEN);
+
+  while(me)
+
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+
+    StdCityNpcEventLoop();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  case(ev.type)
+    EVID_ITEM_GIVEN:         
+      if(!CheckNpcTakeItem(me, ev.source, ev.Item, CNTIF_DONT_TAKEGOLD))
+        var Res := PutToBankAccount(ev.source, ev.Item);
+        
+        if(!Res)
+          UniPrintTextAbove(me, Res.errortext);
+        else
+          PlaySoundEffect(ev.source, 0x38);
+          UniPrintTextAbovePrivate(me, "Przyj"+ggm(me,26)+" "+FormatSize(Res, ".")+" gp z³ota na Twoje konto.", ev.source);
+        endif
+      endif      
+
+      ev := 0;
+      return 1;
+  endcase
+
+  return StdCityNpcHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who,text)
+
+  text := lower(text);
+
+  if(text["bank"] or text["skrzyn"])
+
+    TurnToward(who);
+    if(len(text) < 8)
+      Say("Co z bankiem?");
+      return 1;
+    elseif(!CanNpcSpeakWith(who))
+      return 1;
+    endif
+
+    var Sx  := who.x;
+    var Sy  := who.y;
+    var Sz  := who.z;
+    var Rgc := ReadGameClock();
+
+    TurnToward(who);
+    Say("*szuka skrzyni*");
+
+    while(Rgc + 4 > ReadGameClock())
+      ev := wait_for_event(5);
+
+      case(ev.type)
+        EVID_SPEECH:                 if(lower(ev.text)["bank"])
+                                       if(ev.source == who)
+                                         Say("Przeciez otwieram...");
+                                       else
+                                         Say("Poczekaj chwile...");
+                                       endif
+                                     endif
+
+        EVID_ITEM_GIVEN:             MoveToPack(ev.item,ev.source);
+
+        EVID_RUN:
+        EVID_WALK:                   Rgc := ReadGameClock() - 5;
+
+        default:                     StdHandleEvent(ev);
+      endcase
+    endwhile
+
+
+    var bankTime := CInt(GetObjProperty(who, "FastBanking"));
+
+    if(bankTime > ReadGameClock())
+	Say("Oh. Porzadny klient!");
+    else
+	sleepms(2000);
+	Say("O! jest...");
+	Say("*otwiera skrzynie*");
+	sleepms(500);
+	if(Sx != who.x or Sy != who.y or Sz != who.z)
+        Say("Gdzie on"+ggm(who,4)+" uciekl"+ggm(who,4)+"?");
+        Say("*zamyka skrzynie*");
+        return;
+	endif
+    endif
+    
+
+    OpenBank(who);
+
+  elseif(text["odzyska"] and text["przedmiot"])
+
+    TurnToward(who);
+    if(len(text) < 25)
+      Say("Co takiego odzyskac?");
+      Say("*zastanawia sie*");
+      return 1;
+    elseif(!CanNpcSpeakWith(who))
+      return 1;
+    endif
+
+    HandleEscrow(who);
+
+  elseif(text["zaloz"] and text["konto"])
+
+    TurnToward(who);
+    if(!CanNpcSpeakWith(who))
+      return 1;
+    endif
+  
+    ProcessCreateBankAccount(ev.source);
+
+  elseif(text["bilans"])
+
+    TurnToward(who);
+    if(!CanNpcSpeakWith(who))
+      return 1;
+    endif
+  
+    var Data := struct;
+    Data.+npc := me;
+    Data.+source := who;
+    start_script(":banking:bank_stats", Data);
+
+  elseif(text["zabezpiecz"])
+
+    TurnToward(who);
+    if(CanNpcSpeakWith(who))
+      SecureItem(ev.source);
+    endif
+
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HandleEscrow(who)
+
+  var EscrBoxes := FindEscrowBoxes(who);
+
+  if(!EscrBoxes)
+    Say("Nie ma nic do odzyskania dla Ciebie. Przykro mi.");
+    return 0;
+  else
+    EscrBoxes := GetEscrowBoxes(who);
+  endif
+
+  var Sx  := who.x;
+  var Sy  := who.y;
+  var Sz  := who.z;
+  var Rgc := ReadGameClock();
+
+  var NotPayed := GetNotPayedEscrow(EscrBoxes);
+
+  if(NotPayed)
+
+    var Payment := (NotPayed*ESCROW_PAY_AMOUNT);
+    Say("Skrzynie powiernicze w ilosci "+NotPayed+" nie zostaly jeszcze oplacone.");
+    Say("Oplata wynosi "+Payment+"gp, czy chcesz abym pobral"+ggm(me,4)+" ja teraz z twojego banku?");
+    var bDone := 0;
+
+    while(Rgc + 15 > ReadGameClock() and !bDone)
+      ev := wait_for_event(15);
+
+      case(ev.type)
+        EVID_SPEECH:                 if(ev.source == who)
+                                       var lText := lower(ev.text);
+
+                                       if(lText["tak"])
+                                         var Bank := FindBankBox(who);
+                                         var Spent := SpendGold(who, Payment);
+
+                                         if(!Spent)
+                                           Spent := SubtractGold(Bank, Payment);
+                                         endif
+
+                                         if(!Spent)
+                                           Say("Nie masz "+Payment+"gp na oplate. Przykro mi. Wroc jak bedziesz mial"+ggm(who,4)+" zloto przy sobie lub w banku.");
+                                           return 0;
+                                         else
+                                           Say("Pobral"+ggm(me,8)+" oplate! Juz szukam twojej skrzyni powierniczej...");
+                                           bDone := 1;
+                                           SetEscrowPayed(EscrBoxes);
+                                         endif
+                                       elseif(lText["nie"])
+                                         Say("Dobrze "+who.name+". Wroc w takim razie, jak bedziesz chcial"+ggm(who,4)+" oplacic skrzynke powiernicza.");
+                                         return 0;
+                                       endif
+                                     else
+                                       Say("Jestem zajet"+ggm(me,6));
+                                     endif
+
+        EVID_ITEM_GIVEN:             MoveToPack(ev.item,ev.source);
+
+        EVID_RUN:
+        EVID_WALK:                   Rgc := ReadGameClock() - 5;
+
+        default:                     StdHandleEvent(ev);
+      endcase
+    endwhile
+
+    if(!bDone)
+      Say(who.name+", wroc jak sie zdecydujesz!");
+      return 0;
+    endif
+
+  endif
+
+  Sx  := who.x;
+  Sy  := who.y;
+  Sz  := who.z;
+  Rgc := ReadGameClock();
+
+  TurnToward(who);
+  Say("*szuka skrzyni powierniczej*");
+
+  while(Rgc + 4 > ReadGameClock())
+    ev := wait_for_event(5);
+
+    case(ev.type)
+      EVID_SPEECH:                 if(lower(ev.text)["odzyska"])
+                                     if(ev.source == who)
+                                       Say("Przeciez otwieram...");
+                                     else
+                                       Say("Poczekaj chwile...");
+                                     endif
+                                   endif
+
+      EVID_ITEM_GIVEN:             MoveToPack(ev.item,ev.source);
+
+      EVID_RUN:
+      EVID_WALK:                   Rgc := ReadGameClock() - 5;
+
+      default:                     StdHandleEvent(ev);
+    endcase
+  endwhile
+
+  Say("O! jest...");
+  Say("*otwiera skrzynie*");
+  sleepms(500);
+
+  if(Sx != who.x or Sy != who.y or Sz != who.z)
+    Say("Gdzie on"+ggm(who,4)+" uciekl"+ggm(who,4)+"?");
+    Say("*zamyka skrzynie*");
+    return;
+  endif
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  TurnToward(who);
+
+  ShowEscrowBoxes(who, who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function OpenBank(you)
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  TurnToward(you);
+
+  var bankbox := FindBankBox(you);
+  if(bankbox)
+    SendOpenSpecialContainer(you, bankbox);
+  else
+    say("Nie masz skrzynki bankowej, "+ you.name);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SecureItem(who)
+
+  PrintTextAbovePrivate(me, "Jaki przedmiot chcial"+ggm(who,1)+" zabezpieczyc?", who);
+  ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+  if(ev)
+    var Trg := Ev.item;
+    if(!Trg)
+      PrintTextAbovePrivate(me, "Rozmyslil"+ggm(who,3)+" sie?", who);
+      return;
+    endif
+
+    if(Trg.container != who.backpack)
+      PrintTextAbovePrivate(me, "To nie twoje!", who);
+      return;
+    endif
+
+    if(Trg.newbie)
+      PrintTextAbovePrivate(me, "Ten przedmiot nie potrzebuje zabezpieczenia.", who);
+      return;
+    elseif((Trg.objtype < UOBJ_ART_START or Trg.objtype > UOBJ_ART_END) and !GetItemConfig(Trg.objtype).CanBeSecured and !GetObjProperty(Trg, "CanBeSecured"))
+      PrintTextAbovePrivate(me, "Tego nie moge zabezpieczyc.", who);
+      return;
+    endif
+
+    var BankBox := FindBankBox(who);
+    var AmtGold := CountGoldInCont(BankBox);
+
+    if(AmtGold < ITEM_SECURE_COST)
+      PrintTextAbovePrivate(me,"Masz za malo zlota, potrzebujesz "+ITEM_SECURE_COST+" gp.",who);
+      return;
+    endif
+
+    var Crystals := FindItemInContainer(BankBox, UOBJ_CRYSTAL, 0, ITEM_SECURE_CRYSAMT);
+
+    if(!Crystals)
+      PrintTextAbovePrivate(me, "Nie moge znalezc odpowiedniej ilosci krysztalow w twej skrzyni...",who);
+      return;
+    endif
+
+    if(Crystals.amount < ITEM_SECURE_CRYSAMT)
+      PrintTextAbovePrivate(me, "Potrzebujesz "+ITEM_SECURE_CRYSAMT+" krysztalow by zabezpieczyc przedmiot.",who);
+      return;
+    endif
+
+    if(!SubtractGold(BankBox, ITEM_SECURE_COST))
+      PrintTextAbovePrivate(me, "Brakuje Ci zlota...", who);
+      return;
+    endif
+
+    if(!SubtractAmount(Crystals,ITEM_SECURE_CRYSAMT))
+      PrintTextAbovePrivate(me, "Brakuje Ci krysztalow...", who);
+      return;
+    endif
+
+    SetObjProperty(Trg, PROP_ISECURED, ITEM_SECURE_MLVL);
+    Trg.newbie := 1;
+    IncRevision(Trg);
+    PrintTextAbovePrivate(me, "Zabezpieczyl"+ggm(me,3)+" przedmiot "+GetName(Trg)+", teraz nie stracisz go tak szybko.", who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessCreateBankAccount(who)
+
+  if(HaveBankAccount(who))
+    UniSay("Masz ju¿ za³o¿one konto bankowe przyjacielu!");
+    return;
+  endif
+
+  UniSay("Ah.. chcesz za³o¿yæ konto bankowe? Nie ma sprawy. Koszt za³o¿enia to jednorazowo "+FormatSize(CREATE_BANK_ACCOUNT_COST, ".")+" gp.");
+  UniSay("Zgadzasz siê? Tak czy nie?");
+
+  if(!NpcYesNo(who))
+    UniSay("Jakie¿ to niezdecydowane..");
+    return;
+  endif
+
+  if(!SpendGold(who, CREATE_BANK_ACCOUNT_COST))
+    UniSay("Nie masz wystarczaj¹cej iloœci z³ota przy sobie. Wróæ jak bêdziesz mieæ.");
+    return;
+  endif
+
+  CreateBankAccount(who);
+  UniSay("Znakomicie! Proszê bardzo, konto za³o¿one!");
+
+endfunction
+
+//-----------------------------------------------------------------------------

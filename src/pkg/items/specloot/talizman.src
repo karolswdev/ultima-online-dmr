@@ -1,0 +1,52 @@
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include "include/effects";
+include "include/resurrect";
+include "include/move";
+
+program TalizmanIlhamaris(Data)
+
+  var who := Data[1];
+  var Item := Data[2];
+
+  if(!ReserveItem(Item))
+    SendSysmessage(who, "Nie mozesz uzyc talizmanu!", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(who.multi.isa(POLCLASS_HOUSE))
+    SendSysmessage(who, "Nie mozesz sie wskrzesic w domu!", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(IsInChampLoc(who.x, who.y, who.realm))
+    SendSysmessage(who, "Nie mozesz sie tutaj wskrzesic!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Twoje modly zostaly wysluchane.", FONT_NORMAL, COLOR_WHITE);
+
+  var Counter := 12;
+  var Loc := GetLocString(GetLocStruct(who));
+
+  while(Counter > 0)
+    PlayPcStEffect(who.x, who.y, who.z, who.realm, FX_HEAL_EFFECT, 90, 0x1f, 0x1f, 4);
+    PlaySoundEffect(who, SFX_SPELL_CUNNING);
+
+    sleep(1);
+    
+    if(GetLocString(GetLocStruct(who)) != Loc)
+      SendSysMessage(who, "Przerwano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    Counter := Counter - 1;
+  endwhile
+  
+  PlaySoundEffect(who, SFX_SPELL_RESSURECTION);
+
+  if(Resurrection(who,1))
+    SetStamina(who, GetMaxStamina(who)/2);
+    SetHp(who, GetMaxHp(who)/2);
+    DestroyItem(Item);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

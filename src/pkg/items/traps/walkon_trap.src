@@ -1,0 +1,126 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/attack";
+include "include/tempmods";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const TRAP_DEF_HIDE_TIME     := 900;
+const TRAP_DELAY             := 5;
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+var TrapCfg := ReadConfigFile("traps");
+
+//-----------------------------------------------------------------------------
+
+program WalkOnTrap(who, Trap)
+
+  if(who.concealed or who.dead or who.isa(POLCLASS_NPC))
+    return;
+  endif
+
+  if(CInt(GetObjProperty(Trap, "#Delay")) > ReadGameClock())
+    return;
+  endif
+
+  SetObjProperty(Trap, "#Delay", ReadGameClock() + TRAP_DELAY);
+
+  if(Trap.invisible)
+    Trap.invisible := 0;
+    SendSysMessage(who, "Wpadl"+ggm(who,3)+" w pulapke!", FONT_NORMAL, COLOR_RED_LIGHT);
+  else
+    SendSysMessage(who, "W"+ggm(who,21)+"sz"+ggm(who,17)+" w pulapke!", FONT_NORMAL, COLOR_RED_LIGHT);
+  endif
+
+  DoAnimation(who, Trap);
+  DoDamage(who, Trap);
+
+  start_script(":traps:hide_trap", array(Trap, TRAP_DEF_HIDE_TIME));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DoAnimation(who, Trap)
+
+  var BaseEffect := CInt(TrapCfg[Trap.objtype].BaseEffect);
+  var BaseEffSpd := CInt(TrapCfg[Trap.objtype].BaseEffSpd);
+  var BaseEffDur := CInt(TrapCfg[Trap.objtype].BaseEffDur);
+
+  var Effect := CInt(TrapCfg[Trap.objtype].Effect);
+  var EffClr := CInt(TrapCfg[Trap.objtype].EffClr);
+  var EffRnd := CInt(TrapCfg[Trap.objtype].EffRnd);
+
+  var tAnim  := CInt(TrapCfg[Trap.objtype].TargAnim);
+  var Light  := CInt(TrapCfg[Trap.objtype].Lightning);
+
+  if(tAnim)
+    PerformAction(who, tAnim);
+  endif
+  
+  if(BaseEffect)
+    if(BaseEffSpd <= 0)
+      BaseEffSpd := 0xF;
+    endif
+
+    if(BaseEffDur <= 0)
+      BaseEffDur := 0x14;
+    endif
+
+    PlayPcStEffect(Trap.x, Trap.y, Trap.z, Trap.realm, BaseEffect, Trap.color, BaseEffSpd, BaseEffDur);
+  endif
+
+  if(Effect)
+    PlayPcEffect(who, Effect, EffClr, 0x10, 0x10, EffRnd);
+  endif
+
+  if(Light)
+    PlayLightningBoltEffect(who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoDamage(who, Trap)
+
+  var Curse := TrapCfg[Trap.objtype].Curse;
+
+  if(Curse)
+    Curse := RandomDiceRoll(Curse);
+    if(Curse)
+      DoMod(who, MOD_STR, 0 - Curse, Curse*10);
+      DoMod(who, MOD_DEX, 0 - Curse, Curse*10);
+      DoMod(who, MOD_INT, 0 - Curse, Curse*10);
+    endif
+  endif
+
+  var Dmg := TrapCfg[Trap.objtype].Damage;
+
+  if(Dmg)
+    Dmg := RandomDiceRoll(Dmg);
+    if(Dmg)
+      DealDamage(who, Dmg);
+    endif
+  endif
+
+  var Para := TrapCfg[Trap.objtype].Paralyze;
+
+  if(Para)
+    Para := RandomDiceRoll(Para);
+    if(Para)
+      DoMod(who, MOD_PARA, 1, Para);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

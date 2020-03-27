@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/checks/objchecks";
+include "../pkg/systems/spawnnet/spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program UseMushRoom(who, Item)
+
+  if(!StandardItemCheck(who, Item, NO_MOVABLE_CHECK | NEW_DIST_CHECK, 1))
+    return;
+  endif
+
+  if(!Item.movable)
+    EraseFromSpawnnet(Item);
+    Item.movable := 1;
+    MoveToPack(Item, who);
+    EraseObjProperty(Item, "OldSpawnnet");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

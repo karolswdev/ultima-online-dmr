@@ -1,0 +1,109 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/finding";
+include "include/checks/objchecks";
+include "include/attack";
+include "include/move";
+include "include/calc";
+include "include/objtypes/misc";
+
+//-----------------------------------------------------------------------------
+
+const TIME_BETWEEN_ATTACKS := 5;
+const ATTACK_DAMAGE        := 3;
+const ATTACK_LENGTH        := 30;
+
+//-----------------------------------------------------------------------------
+
+var Victims := {};
+
+//-----------------------------------------------------------------------------
+
+sleepms(500);
+
+//-----------------------------------------------------------------------------
+
+program angry_bees (bees)
+
+  var start_time     := ReadGameClock();
+  var creator        := FindPlayerBySerial(GetObjProperty (bees, "creator"));
+  var Damage         := ATTACK_DAMAGE;
+
+  if (creator)
+    Damage += CInt(CalcSkillExponential(creator, SKILLID_DRUID, 7));
+    SetScriptController(creator);
+  endif
+
+  bees.movable       := 0;
+
+  var MainVictim     := SearchNewVictim(bees,Creator);
+  var lastattack     := 0;
+
+  repeat
+  
+    if(ReadGameClock() > lastattack)
+      foreach item in ListItemsNearLocationOfType (bees.x, bees.y, bees.z, 1, UOBJ_CAMPFIRE,bees.realm)
+        SetObjProperty (item, "disturbed", 1);
+        PrintTextAbove (item,  "*pszczoly niszcza obozowisko!*");
+      endforeach
+      PlaySoundEffect (bees, 0x5CD);
+      foreach mobile in ListMobilesNearLocation( bees.x, bees.y, bees.z, 1 ,bees.realm)
+        if(CanBite(mobile,Creator))
+          DealDamage (mobile, Damage + RandomInt(CInt(Damage / 2)), creator);
+        endif
+      endforeach
+      lastattack   := ReadGameClock() + TIME_BETWEEN_ATTACKS;
+    endif
+    sleepms(250);
+    if(mainvictim and !mainvictim.dead and mainvictim.realm == bees.realm)
+      if(bees.x != mainvictim.x or bees.y != mainvictim.y)
+        MoveObject (bees, mainvictim.x, mainvictim.y, mainvictim.z+1, mainvictim.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+      endif
+    else
+      MainVictim := SearchNewVictim(bees,Creator);
+    endif
+    
+  until ( ReadGameClock() > start_time + ATTACK_LENGTH );
+  DestroyItem (bees);
+    
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CanBite(mobile,Creator)
+
+  if(!Creator)
+    return 1;
+  endif
+
+  return CanDamage(Creator,mobile);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SearchNewVictim(bees,Creator)
+
+  Victims := {};
+  foreach Vic in ListMobilesNearLocation (bees.x, bees.y, bees.z, 2, bees.realm)
+    if(CheckSpecialLos(bees,Vic))
+      if(CanBite(Vic,Creator))
+        Victims.append(Vic);
+      endif
+    endif
+  endforeach
+  
+  if(!Victims.size())
+    return 0;
+  endif
+  
+  return Victims[RandomInt(Victims.size())+1];
+
+endfunction
+
+//-----------------------------------------------------------------------------

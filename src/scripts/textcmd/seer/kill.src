@@ -1,0 +1,80 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/sounds";
+include "include/attributes/main";
+include "include/npcs";
+include "include/checks/stdchecks";
+include "include/log";
+
+//-----------------------------------------------------------------------------
+
+program KillCmd(who, text)
+
+  if(text == "place")
+    MoveToKillingPlace(who);
+    return;
+  endif
+
+  var Targ := ObjTarget(who);
+
+  if(Targ.isa(POLCLASS_MOBILE))
+    if(text["light"])
+      PlayLightningBoltEffect(Targ);
+      PlaySoundEffect(Targ, SFX_SPELL_LIGHTNING);
+    endif
+
+    if(text["corpse"])
+      SetObjProperty(Targ, "NoCorpseDestroy", who.serial);
+      SendSysMessage(who, "Niszczenie zwlok wylaczone.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+    if(IsPlayer(Targ) and !Targ.dead)
+      LogMsg(KILL_LOG,who,Targ);
+      DealDamage(Targ, GetMaxHp(Targ) + 1, who);
+    elseif(Targ.isa(POLCLASS_NPC))
+      if(!IsGmCreated(Targ))
+        if(GetNpcConfig(Targ).CityNpc)
+          if(!text["city"] or !IsAdmin(who))
+            SendSysMessage(who, "Nie mozesz zabic miastowego npeca. Gromadzi on wazne dane dla graczy. W razie potrzeby skontaktuj sie z adminem.", FONT_NORMAL, COLOR_RED);
+            return;
+          endif
+        elseif(IsPlayerVendor(Targ))
+          if(!text["pv"] or !IsGm(who))
+            SendSysMessage(who, "Nie mozesz zabic kupca.", FONT_NORMAL, COLOR_RED);
+            return;
+          else
+            LogMsg(KILL_LOG,who,Targ);
+            SetObjProperty(Targ, "KillMe", 1);
+            SendSysMessage(who, "Kupiec za chwile umrze.", FONT_NORMAL, COLOR_GREEN);
+            return;
+          endif
+        endif
+       
+        LogMsg(KILL_LOG,who,Targ);
+      endif
+
+      if(text["norm"] or text["corpse"])
+        if(text["noloot"])
+          SetFlag(Targ, NPCF_NO_LOOT);
+        endif
+        DealDamage(Targ, GetMaxHp(Targ) + 1, who);
+      else
+        KillNPC(Targ, 0, who);
+      endif
+      sleepms(5);
+      if(Targ)
+        SendSysMessage(who,"Nie udalo sie zabic "+Targ.name+".",FONT_NORMAL,COLOR_RED);
+      endif
+    else
+      SendSysMessage(who,"Ta osoba juz nie zyje!",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

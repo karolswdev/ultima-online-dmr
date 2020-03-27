@@ -1,0 +1,195 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magicatt";
+include "include/objtypes/magic";
+include "include/checks/objchecks";
+include "include/gumps";
+include "necrobook";
+
+//-----------------------------------------------------------------------------
+
+var h := 0, s := 0, NecroIds;
+
+//-----------------------------------------------------------------------------
+
+program CodexDamnorum(who, tome)
+
+  if(GetObjProperty(who, "#ViewNcBook"))
+    var Proc := GetProc(GetObjProperty(who, "#ViewNcBook"));
+    if(Proc)
+      CloseGumpEx(who, Proc.pid);
+      Proc.kill();
+    endif
+    EraseObjProperty(who, "#ViewNcBook");
+  endif
+
+  if(!StandardItemCheck(who, tome, NO_BUSY_DELAY_CHECK | NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  Detach();
+  NoLongerBusy(who);
+  SetObjProperty(who, "#ViewNcBook", GetPid());
+  
+  GetSpellIdsSortedByDiff(NecroIds, NECRO_SPELL_START, NECRO_SPELL_END);
+
+  BuildGump(tome);
+
+  var Res;
+
+  while(tome and IsLoggedIn(who))
+
+    Res := GSend(who)[0];
+
+    if(Res >= NECRO_SPELL_START and res <= NECRO_SPELL_END)
+      if(StartSpellCast(who, Res))
+        sleep(2);
+      endif
+      BuildMiniGump();
+      continue;
+    elseif(res >= 100 + NECRO_SPELL_START and res <= 100 + NECRO_SPELL_END)
+      DescribeReagents(who,Res-100);
+    elseif(Res == 1)
+      BuildMiniGump();
+      continue;
+    elseif(Res != 2)
+      break;
+    endif
+
+    BuildGump(tome);
+  endwhile
+
+  EraseObjProperty(who, "#ViewNcBook");
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildGump(tome)
+
+  GInit(50, 50);
+  GPage();
+  GNoDispose();
+  GGumpPic(0, 0, 0x2B00);
+  GTextLine(80, 15,999,"Pierwszy Krag");
+  GTextLine(250,15,999,"Drugi Krag");
+
+  h := 0;
+  s := 0;
+
+  foreach Id in NecroIds
+    if(h >= 8)
+      s := 160;
+      h := 0;
+    endif
+
+    if(CheckNecroSpellInBook(tome,Id))
+      GButton(55+s,42+(h*20),2104,2103,Id);
+      GButton(70+s,39+(h*20),4033,4033,100+Id);
+      GTextCrop(88+s,37+(h*20), 105, 20, 650,GetSpellValue(Id,"Name",STRING_ID));
+      h := h + 1;
+    endif
+  endforeach
+
+  GButton(3, 103, 0x8B0, 0x8B0, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMiniGump()
+
+  GInit(30, 30);
+  GGumpPic(0, 0, 0x2B03);
+  GButton(32, 20, 0x8AF, 0x8AF, 2);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StartSpellCast(who, Res)
+
+  if(!IsEquippedStaff(who))
+    SendSysMessage (who, "Musisz zalozyc hebanowa laske by moc czarowac.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  else
+    if(IsBusy(who,NO_BUSY_DELAY_CHECK | NO_COMBAT_CHECK))
+      return 0;
+    else
+      NoLongerBusy(who);
+    endif
+    if(who.hidden)
+      who.hidden := 0;
+    endif  
+    
+    if(GetEquipmentByLayer(who,LAYER_RING).objtype == UOBJ_NECRO_RING)
+      StartSpell(who, Res, CAST_WAND, GetEquipmentByLayer(who,LAYER_RING));
+    else
+      StartSpell(who, Res, CAST_WAND, who.weapon);
+    endif
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DescribeReagents(who,SpellID)
+
+  GInit(50, 50);
+  GPage();
+  GGumpPic(0, 0, 0x2B00);
+  
+  var Reagents := GetSpellValue(SpellID,"SReagent",ARRAY_ID);
+  var Words    := SplitWords(GetSpellValue(SpellID,"PowerWords",STRING_ID));
+  var Amount   := 0;
+  var sName    := GetSpellValue(SpellID,"Name",STRING_ID);
+  var Desc;
+  h := 0;
+
+  GTextLine(135-len(sName)*4,15,999, sName);
+  GTextLine(265,20,650,"Slowa");
+
+  foreach Word in Words
+    GTextLine(220,45+(h*20),605,Word);
+    h := h + 1;
+  endforeach
+  
+  h := 0;
+
+  GTextLine(100,40,650,"Skladniki");
+
+  foreach Reagent in Reagents
+    Reagent  := SplitWords(Reagent);
+    Desc     := GetDescForItem(Reagent[1]);
+    Amount   := Cint(Reagent[2]);
+    if(!Amount)
+      Amount := 1;
+    endif
+    if(!Desc)
+      Desc := "nieznany skladnik";
+    else
+      Desc := Amount + " " + Desc;
+    endif
+    GTextLine(65,65+(h*20),500,Desc);
+    h := h + 1;
+  endforeach
+
+  GButton(3, 103, 0x8B0, 0x8B0, 2);
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsEquippedStaff (who)
+
+  if(who.weapon.objtype == UOBJ_NECRO_STAFF or GetEquipmentByLayer(who,LAYER_RING).objtype == UOBJ_NECRO_RING)
+    return 1;
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

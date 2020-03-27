@@ -1,0 +1,292 @@
+//---------------------------------------------------------------------
+// Modified: 2005-05-04
+//---------------------------------------------------------------------
+
+use util;
+
+//---------------------------------------------------------------------
+
+include "include/std";
+include "include/coords";
+include "include/items";
+include "include/dirs";
+include "include/cmds/cancmd";
+
+//---------------------------------------------------------------------
+
+var lObj;
+
+//---------------------------------------------------------------------
+
+program WaterCreation(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!CanUseCmd(who, "wtcr"))
+    return;
+  endif
+
+  if(text == "end")
+    if(GetObjProperty(who,"#WaterCr"))
+      EraseObjProperty(who,"#WaterCr");
+      SendSysMessage(who,"Koniec tworzenia wody.",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Nie zaczeto tworzenia wody.",FONT_NORMAL,COLOR_RED);
+    endif
+    return;
+  endif
+  
+  SendSysMessage(who,"Tworzenie wody rozpoczete.",FONT_NORMAL,COLOR_GREEN);
+
+  var Lpf := array,Lps := array;
+  
+  SetObjProperty(who,"#WaterCr",GetPid());
+
+  Lpf[1] := who.x;
+  Lpf[2] := who.y;
+
+  Lps[1] := who.x;
+  Lps[2] := who.y;
+
+  foreach Item in ListItemsAtLocation(who.x,who.y,who.z,who.realm)
+    if(Item.objtype >= 6045 and Item.objtype <= 6060)
+      lObj := Item.objtype;
+      break;
+    endif
+  endforeach
+  
+  if(!lObj)
+    SendSysMessage(who,"Musi istniec poczatek wody.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  while(GetObjProperty(who,"#WaterCr") == GetPid())
+    if(who.x != Lps[1] or who.y != Lps[2])
+      if(coordist(Lps[1],Lps[2],who.x,who.y) > 1)
+        SendSysMessage(who,"Za daleko.",FONT_NORMAL,COLOR_RED);
+        break;
+      endif
+      
+      if(Lpf[1] != who.x or Lpf[2] != who.y)
+        var fDir := GetDirFromLocToLoc(Lpf[1],Lpf[2],Lps[1],Lps[2]);
+        var sDir := GetDirFromLocToLoc(Lps[1],Lps[2],who.x,who.y);
+        if(lObj and fDir != error and sDir != error)
+          CheckWaterObj(fDir,sDir);
+          foreach Item in ListItemsAtLocation(Lps[1],Lps[2],who.z,who.realm)
+            DestroyItem(Item);
+          endforeach
+          var Water := CreateItemAtLoc(Lps[1],Lps[2],who.z,lObj,1,who.realm);
+          Water.movable := 0;
+        endif
+      endif
+      
+      if(!lObj)
+        SendSysMessage(who,"Bledne posuniecie.",FONT_NORMAL,COLOR_RED);
+        break;
+      endif
+      
+      Lpf[1] := Lps[1];
+      Lpf[2] := Lps[2];
+
+      Lps[1] := who.x;
+      Lps[2] := who.y;
+    endif
+    sleepms(200);
+  endwhile
+
+endprogram
+
+//---------------------------------------------------------------------
+
+function CheckWaterObj(fDir,sDir)
+
+  case(lObj)
+    6045:
+    6046:   case(fDir)
+              DIR_N:   case(sDir)
+                         DIR_W:   lObj := 6053;
+                         DIR_E:   lObj := 6058;
+                         DIR_N:   lObj := 6045+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              DIR_S:   case(sDir)
+                         DIR_W:   lObj := 6055;
+                         DIR_E:   lObj := 6057;
+                         DIR_S:   lObj := 6045+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6047:
+    6048:   case(fDir)
+              DIR_W:   case(sDir)
+                         DIR_N:   lObj := 6057;
+                         DIR_S:   lObj := 6054;
+                         DIR_W:   lObj := 6047+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              DIR_E:   case(sDir)
+                         DIR_N:   lObj := 6060;
+                         DIR_S:   lObj := 6053;
+                         DIR_E:   lObj := 6047+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6049:
+    6050:   case(fDir)
+              DIR_W:   case(sDir)
+                         DIR_N:   lObj := 6056;
+                         DIR_S:   lObj := 6058;
+                         DIR_W:   lObj := 6049+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              DIR_E:   case(sDir)
+                         DIR_N:   lObj := 6055;
+                         DIR_S:   lObj := 6059;
+                         DIR_E:   lObj := 6049+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6051:
+    6052:   case(fDir)
+              DIR_N:   case(sDir)
+                         DIR_W:   lObj := 6059;
+                         DIR_E:   lObj := 6054;
+                         DIR_N:   lObj := 6051+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              DIR_S:   case(sDir)
+                         DIR_W:   lObj := 6060;
+                         DIR_E:   lObj := 6056;
+                         DIR_S:   lObj := 6051+RandomInt(2);
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6053:
+    6066:   case(fDir)
+              DIR_W:   case(sDir)
+                         DIR_W:   lObj := 6047+RandomInt(1);
+                         DIR_N:   lObj := 6057;
+                         default: lObj := 0;
+                       endcase
+              DIR_S:   case(sDir)
+                         DIR_S:   lObj := 6045+RandomInt(1);
+                         DIR_E:   lObj := 6057;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6054:
+    6063:   case(fDir)
+              DIR_E:   case(sDir)
+                         DIR_E:   lObj := 6047+RandomInt(1);
+                         DIR_N:   lObj := 6060;
+                         default: lObj := 0;
+                       endcase
+              DIR_S:   case(sDir)
+                         DIR_S:   lObj := 6051+RandomInt(1);
+                         DIR_W:   lObj := 6060;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6055:
+    6065:   case(fDir)
+              DIR_W:   case(sDir)
+                         DIR_W:   lObj := 6049+RandomInt(1);
+                         DIR_N:   lObj := 6058;
+                         default: lObj := 0;
+                       endcase
+              DIR_N:   case(sDir)
+                         DIR_N:   lObj := 6045+RandomInt(1);
+                         DIR_E:   lObj := 6058;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6056:
+    6064:   case(fDir)
+              DIR_E:   case(sDir)
+                         DIR_E:   lObj := 6049+RandomInt(1);
+                         DIR_S:   lObj := 6059;
+                         default: lObj := 0;
+                       endcase
+              DIR_N:   case(sDir)
+                         DIR_N:   lObj := 6051+RandomInt(1);
+                         DIR_W:   lObj := 6059;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+    
+    6057:   case(fDir)
+              DIR_E:   case(sDir)
+                         DIR_E:   lObj := 6047+RandomInt(1);
+                         DIR_S:   lObj := 6053;
+                         default: lObj := 0;
+                       endcase
+              DIR_N:   case(sDir)
+                         DIR_N:   lObj := 6045+RandomInt(1);
+                         DIR_W:   lObj := 6053;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+
+    6058:   case(fDir)
+              DIR_E:   case(sDir)
+                         DIR_E:   lObj := 6049+RandomInt(1);
+                         DIR_N:   lObj := 6055;
+                         default: lObj := 0;
+                       endcase
+              DIR_S:   case(sDir)
+                         DIR_S:   lObj := 6045+RandomInt(1);
+                         DIR_W:   lObj := 6055;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+
+    6059:   case(fDir)
+              DIR_W:   case(sDir)
+                         DIR_W:   lObj := 6049+RandomInt(1);
+                         DIR_N:   lObj := 6056;
+                         default: lObj := 0;
+                       endcase
+              DIR_S:   case(sDir)
+                         DIR_S:   lObj := 6051+RandomInt(1);
+                         DIR_E:   lObj := 6056;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+
+    6060:   case(fDir)
+              DIR_W:   case(sDir)
+                         DIR_W:   lObj := 6047+RandomInt(1);
+                         DIR_S:   lObj := 6054;
+                         default: lObj := 0;
+                       endcase
+              DIR_N:   case(sDir)
+                         DIR_N:   lObj := 6051+RandomInt(1);
+                         DIR_E:   lObj := 6054;
+                         default: lObj := 0;
+                       endcase
+              default: lObj := 0;
+            endcase
+
+  endcase
+
+endfunction
+
+//---------------------------------------------------------------------

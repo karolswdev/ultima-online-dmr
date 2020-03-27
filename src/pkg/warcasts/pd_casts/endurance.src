@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const PD_WCID                := 34;
+
+//-----------------------------------------------------------------------------
+
+program PdEndurance(Parms)
+
+  WarCast(Parms, PD_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Mod := CInt(GetEffectiveSkill(Caster, SKILLID_PALADINISM) / 10 + GetEffectiveSkill(Caster, SKILLID_ZEAL) / 10);
+
+  PlaySoundEffect(Caster, SFX_FEINT);
+  PlayPcMovEffect(Caster, CastOn, FX_SPARK_EFFECT, 50, 0xF, 0x10, 4);
+  HealStamina(Caster, Mod, Caster);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

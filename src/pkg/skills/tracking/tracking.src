@@ -1,0 +1,150 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/checks/objchecks";
+include "include/checks/locchecks";
+include "include/objects/location";
+include "include/dirs";
+include "include/misc";
+include "include/gumps";
+include "include/calc";
+
+include "tracking";
+include ":detecthidden:common";
+include ":tourney:tourney";
+
+//-----------------------------------------------------------------------------
+
+var Points  := cint(GetDefaultPointsValue(SKILLID_TRACKING));
+var MainCfg := ReadConfigFile("tracking");
+
+//-----------------------------------------------------------------------------
+
+program Tracking(who)
+
+  if(IsBusy(who, NO_BUSY_CHECK | NO_COMBAT_CHECK | NO_WORK_BREAK))
+    return;
+  endif
+  
+  var lDelay := GetSkillDelay(SKILLID_TRACKING);
+  SetBusyTime(who, lDelay); // to tak ogolnie, tutaj i tak nie jest sprawdzany BusyTime (NO_BUSY_CHECK)
+
+  if(!CheckSkill(who, SKILLID_TRACKING, -1, 0))
+    SendSysMessage(who, "Nie udalo Ci sie znalazc stworzen w poblizu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  Track(who);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Track(who)
+
+  var range       := GetTrackingRange(who);
+  var nearby      := array;
+
+  GetTrackNearbyMobs(who, Range, Nearby, SKILLID_TRACKING, TRACKF_HIDDEN_CHANCE);
+
+  if(!Nearby.size())
+    SendSysMessage(who, "Nikogo nie ma w poblizu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var LastLoc := GetLocStruct(who);
+  var Data := SelectTrackTrg(who, Nearby);
+  var Dist := GetLocDist(GetLocStruct(who), LastLoc);
+
+  if(!Data)
+    return;
+  elseif(Dist < 0 or Dist > 4)
+    SendSysMessage(who, "Oddalil"+ggm(who,3)+" sie od miejsca rozpoczecia sledzenia!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if((Data.hidden != Data.mob.hidden and Data.mob.hidden) or !Data.mob or Data.mob.dead)
+    SendSysMessage(who, "Stracil"+ggm(who,3)+" trop. Stworzenie musialo gdzies zaginac...", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  var lTrackDelay := CInt(GetObjProperty(who, "#TrackDelay_"+Data.mob.serial));
+
+  if(lTrackDelay > ReadGameClock())
+    SendSysMessage(who, "Trop zatarl sie. Nie mozesz znalezc nic w tym momencie...", FONT_NORMAL, COLOR_ORANGE);
+    return;
+  endif
+
+  AwardPoints(who, SKILLID_TRACKING, GetDefaultPointsValue(SKILLID_TRACKING));
+  TrackMobile(who, Range, Data.mob, TRACKF_HIDDEN_CHANCE);
+
+  var lDelay := GetSkillDelay(SKILLID_TRACKING);
+  SetObjProperty(who, "#TrackDelay_"+Data.mob.serial, ReadGameClock() + lDelay );
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SelectTrackTrg(who, Nearby)
+
+  var People     := dictionary;
+  var Creatures  := dictionary;
+
+  foreach Mob in Nearby
+    var Data := struct{"mob" := Mob, "hidden" := Mob.hidden};
+
+    if(IsPlayer(Mob))
+      People[GetName(Mob)+"_"+Mob.serial] := Data;
+    else
+      Creatures[GetName(Mob)+"_"+Mob.serial] := Data;
+    endif
+  endforeach
+
+  GInit(20,20);
+  GPage();
+  GResPic(0,0,3600,400,400);
+  GTextLine(120,20,550,"Wybierz obiekt do sledzenia");
+  GGumpPic(16, 45, 0xBB9);
+  GGumpPic(146, 45, 0xBB9);
+  GCheckerTrans(16, 46, 369, 338);
+  GAddPageData(366,48,2650,2651,366,366,2648,2647);
+  
+  var i := 1;
+
+  foreach Data in People
+    GCheckNextPage(16);
+    GTextLine(40,52+(GNPCount()*20),1000,"osoba");
+    GButton(105,52+(GNPCount()*20),2714,2715,i);
+    GTextLine(130,52+(GNPCount()*20),550,i+".");
+
+    GTextLine(150,52+(GNPCount()*20),1320,Data.mob.name);
+    i := i + 1;
+  endforeach
+
+  i := 1;
+
+  foreach Data in Creatures
+    GCheckNextPage(16);
+    GTextLine(35,52+(GNPCount()*20),999,"stworzenie");
+    GButton(105,52+(GNPCount()*20),2714,2715,1000+i);
+    GTextLine(130,52+(GNPCount()*20),550,i+".");
+    GTextLine(150,52+(GNPCount()*20),__IfElse(Data.mob.murderer, 1219, 1420),Data.mob.name);
+    i := i + 1;
+  endforeach 
+  
+  var Res := GSend(who)[0];
+  var Data;
+  
+  if(Res > 1000)
+    var Keys := Creatures.keys();
+    Data := Creatures[Keys[Res-1000]];
+  elseif(Res > 0)
+    var Keys := People.keys();
+    Data := People[Keys[Res]];
+  endif
+  
+  return Data;
+
+endfunction
+
+//-----------------------------------------------------------------------------

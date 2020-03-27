@@ -1,0 +1,124 @@
+//-----------------------------------------------------------------------------
+
+use boat;
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "ai/include/ainpcs";
+include "ai/include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include "include/objects/location";
+include ":character:common";
+include "ai/include/tamed";
+
+include ":carrier:const";
+include ":carrier:common";
+
+//-----------------------------------------------------------------------------
+
+const DEF_PAYMENT    := 50;
+
+//-----------------------------------------------------------------------------
+
+check_alignment();
+drop_anchor();
+check_frozen();
+
+EnableEvents( EVID_SPEECH,SPEECH_RANGE);
+
+//-----------------------------------------------------------------------------
+
+program Przewoznik_AI()
+
+  SetLogRunCycles(LST_AI);
+
+  while(me)
+
+    if(!ev)
+      ev := os::wait_for_event(120);
+    endif
+
+    StdCityNpcHandleEvent(ev);
+
+ endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetPayment()
+
+  var pay := CInt(GetObjProperty(me, "Payment"));
+
+  if(pay)
+    return pay;
+  endif
+
+  return DEF_PAYMENT;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who,text)
+
+  if(text["przewiez"])
+    if(!CheckLineOfSight(me, who) or Distance(me, who) > 2)
+      return 1;
+    endif
+
+    var pay := GetPayment();
+
+    if(!pay)
+      Say("Nie moge cie teraz przewiezc...");
+      return 1;
+    endif
+
+    var Res := CanCarrier(me, who);
+
+    if(!Res)
+      PrintTextAbove(me, Res.errortext);
+      return 1;
+    endif
+
+    if(SpendGold(who, pay))
+
+      var ShipLoc := GetObjProperty(me, "ShipLoc");
+      var Tillerman := FindItemBySerial(GetObjProperty(me, "Tillerman"));
+      MoveBoatXY(Tillerman.multi, ShipLoc[1], ShipLoc[2]);
+
+      Say("Dobrze wiec, wsiadaj na lodz.");
+      sleepms(500);
+      Say("Sternik przewiezie Cie na druga strone.");
+
+      var DestLoc := GetObjProperty(me, "DestPos");
+      var ShipDestLoc := GetObjProperty(me, "ShipDestLoc");
+
+      SendCarrierEvent(me, who, DestLoc, ShipDestLoc);
+
+    else
+      Say("Jesli chcesz bym Cie przewiozl, musisz mi zaplacic "+pay+" zlota.");
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveToLoc(who, pos)
+
+  if(pos == 1)
+    return MoveToStartPlace(who, GetCharClass(who));
+  else
+    return MoveObject(who, CInt(pos[1]), CInt(pos[2]), CInt(pos[3]), pos[4]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

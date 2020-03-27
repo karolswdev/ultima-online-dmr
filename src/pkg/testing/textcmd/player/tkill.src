@@ -1,0 +1,78 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/npcs";
+include "include/gumpboxes";
+include "include/command_func";
+
+include "../../testing"; // nie uzywamy :testing:
+
+//-----------------------------------------------------------------------------
+
+program TKillCmd(who, text)
+  
+  if(text["?"])
+    SendSysMessage(who, ".tkill [near]", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var sp := SplitWords(text);
+  var range,Targ,n := 0;
+  
+  if(sp[1] == "near")
+    range := CInt(sp[2]);
+    
+    if(!range)
+      range := 0;
+    endif
+    
+    if(range > 49)
+      SendSysMessage(who, "Maksymalnie zasieg to 50.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+     
+    if(range > 20)
+      SendSysMessage(who, "Zasieg wiekszy od 20.", FONT_NORMAL, COLOR_GREEN);
+      if(!YesNo(who,"Na pewno?"))
+        return;
+      endif
+    endif
+    
+    foreach Npc in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+      if(Npc.isa(POLCLASS_NPC))
+        if(CanInteract(who, Npc))
+          if(!IsPlayerVendor(Npc) or !IsTamed(Npc))
+            n += KillNPC(Npc);
+          endif
+        endif
+      endif
+    endforeach
+
+    SendSysMessage(who,"Zabito "+n+" NPC w zasiegu "+Range+".",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  Targ := Target(who);
+
+  if(Targ.isa(POLCLASS_NPC))
+    if(!CanInteract(who, Targ))
+      SendSysMessage(who,"To nie ty stworzyles tego npc.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+    
+    if(!Targ.enabled("invul"))
+      DealDamage(Targ,GetMaxHp(Targ) + 1);
+    else
+      KillNPC(Targ);
+    endif
+    
+    return;
+  elseif(IsPlayer(Targ) and !Targ.dead and Targ == who)
+    DealDamage(Targ,GetMaxHp(Targ) + 1);
+  else
+    SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+        
+endprogram

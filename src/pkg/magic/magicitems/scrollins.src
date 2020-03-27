@@ -1,0 +1,23 @@
+//-----------------------------------------------------------------------------
+
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program ScrollInsert(who,book,movetype, inserttype, adding_item, existing_stack)
+
+  var scroll := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    scroll := existing_stack;
+  endif
+
+  if(scroll.amount > 1)
+    CreateItemInPack(who,scroll.objtype,scroll.amount - 1);
+    SubtractAmount(scroll,scroll.amount - 1);
+  endif
+  
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

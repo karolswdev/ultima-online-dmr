@@ -1,0 +1,59 @@
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/client/misc";
+include "include/client/fonts";
+
+include "include/move";
+include "include/items";
+include "include/resurrect";
+include "include/misc";
+include "include/finding";
+include "include/getobj";
+
+//-----------------------------------------------------------------------------
+
+program ResMeCmd(who, text)
+
+  if(who.dead)
+
+    ResurrectPlayer(who);
+    SetHp(who, GetMaxHP(who));
+    SetMana(who, GetMaxMana(who));
+    SetStamina(who, GetMaxStamina(who));
+
+    var dRobe := GetEquipmentByLayer(who, LAYER_ROBE);
+    if(dRobe)
+      DestroyItem(dRobe);
+    endif
+
+    if(text != "nocorpse")
+      var Corpse := FindItemBySerial(GetObjProperty(who, PROP_CORPSESER));
+
+      if(Corpse)
+        foreach sItem in ListRootItemsInContainer(Corpse)
+          if(!EquipItem(who, sItem))
+            var Res := MoveToPack(sItem, who);
+            if(!Res)
+              if(sItem.objtype in GetBeardsObjTypes() or sItem.objtype in GetMustach() or IsHairs(sItem))
+                DestroyItem(sItem);
+              else
+                SendSysMessage(who, "Nie mozna bylo przeniesc "+sItem.desc+": "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                return;
+              endif
+            endif
+          endif
+        endforeach
+        DestroyItem(Corpse);
+      endif
+    endif
+
+  else
+
+    SendSysMessage(who, "Nie jestes martw"+ggm(who,6)+".", FONT_NORMAL, COLOR_RED );
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,10 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+
+program custom_house_commit(who, house, elements)
+
+	start_script(":housing:customhousegump", {who, house, elements});
+
+endprogram

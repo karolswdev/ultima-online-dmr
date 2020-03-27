@@ -1,0 +1,100 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+use cfgfile;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/attributes/main";
+include "include/gumpboxes";
+include "include/log";
+include "include/move";
+include "include/coords";
+include "include/const/cfgs";
+include "include/client/fonts";
+include "include/misc";
+include "include/command_func";
+include "include/finding";
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+UnloadConfigFile(GOLOC_CFG);
+var GoLocCfg := ReadConfigFile(GOLOC_CFG);
+
+//-----------------------------------------------------------------------------
+
+program GoToLocationCmd(who,text)
+  var LocN, whom;
+  var sp := SplitWords(text);
+  if(sp[1] == "go")
+    if(GoLocCfg[lower(sp[2])])
+      LocN := sp[2];
+    else
+      if(sp[2])
+        foreach Elem in GetConfigStringKeys(GoLocCfg)
+          if(Elem[sp[2]])
+            LocN := Elem;
+            break;
+          endif
+        endforeach
+      endif
+      if(!LocN)
+        LocN := BuildGoLocGump(who);
+      endif
+    endif
+
+    if(LocN)
+      GoToLoc(who,LocN);
+    else
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    endif
+    
+  return;
+  endif
+  
+  if(sp[1] == "goto")
+    if(sp[2])
+      whom := FindCharacterByName(CStr(sp[2]));
+      if(!whom)
+        SendSysMessage(who,"Nie znaleziono osoby "+text,FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+      
+      GoToPlayerBySerial(who,whom.serial);
+    endif
+  return; 
+  endif
+  
+  SendSysMessage(who, "Kogo lub co?",FONT_NORMAL,COLOR_GREEN);
+  var what := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+
+  if(!what)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Gdzie?",FONT_NORMAL,COLOR_BLUE);
+  var where := LocTarget(who);
+
+  if(!where)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var z := GetStandZ(where.x, where.y, who.realm, where.z);
+
+  if(z == error)
+    z := where.z;
+  endif
+  
+  SendSysMessage(who, GetName(what)+ " ["+what.x+","+what.y+","+what.z+","+what.realm+"] - ["+where.x+","+where.y+","+where.z+","+who.realm+"]",FONT_NORMAL, COLOR_GREEN);
+  MoveObject(what, where.x, where.y, z, who.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+
+endprogram
+

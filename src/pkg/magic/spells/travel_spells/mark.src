@@ -1,0 +1,79 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/buildings";
+include "include/move";
+
+include ":waypoints:waypoints";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 45;
+
+//-----------------------------------------------------------------------------
+
+program CastMark( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_RUNE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(CastOn.amount > 1)
+    Fizzle(Caster, "Zaznaczyc mozesz tylko jedno runo!");
+    return;
+  endif
+  
+  /* to na kiedys, gdy moze zrobimy pare runek z mozliwoscia zaznaczenia gdziekolwiek
+  if(Caster.multi or NoTeleportZone(Caster.x,Caster.y,Caster.z,Caster.realm))
+    Fizzle(Caster,"W tym miejscu magia nie dziala.");
+    return;
+  endif
+  */
+  
+/*
+  SendGood(Caster, "Wskaz krysztal lokacji.");
+
+  var Stone := Target(Caster);
+
+  if(!StandardItemCheck(Caster, Stone, NO_MOVABLE_CHECK | NEW_DIST_CHECK, 2))
+    return;
+  elseif(!Stone)
+    SendBad(Caster, "Anulowano.");
+    return;
+  elseif(Stone.objtype != UOBJ_WAYSTONE)
+    SendBad(Caster, "To nie krysztal lokacji!");
+    return;
+  endif
+
+  var WayCfg := GetWaypointElem(Stone);
+
+  if(!WayCfg)
+    SendBad(Caster, "Ten krysztal zdaje sie nie jest juz aktywny...");
+    return;
+  endif
+
+  var Loc := GetLocFromString(WayCfg.Coords);
+*/
+
+  SendGood(Caster, "Zaznacz miejsce na ziemi, ktore chcesz zaznaczyc");
+  var Loc := TargetCoordinates(Caster);
+  if(!Loc)
+    SendSysMessage(Caster, "Anulowano.");
+    return;
+  endif
+
+  PlayObjectCenteredEffect(  Caster, FX_MARK_EFFECT, 10, 10);
+  PlaySoundEffect( Caster, SFX_SPELL_MARK );
+  SetObjProperty(CastOn, "x", Loc.x);
+  SetObjProperty(CastOn, "y", Loc.y);
+  SetObjProperty(CastOn, "z", Loc.z);
+  SetObjProperty(CastOn, "Rlm", Loc.realm);
+  //SetName(CastOn, ToAscii(ToUnicode(WayCfg.Desc)));
+  
+endfunction
+
+//-----------------------------------------------------------------------------

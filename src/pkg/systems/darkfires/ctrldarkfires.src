@@ -1,0 +1,271 @@
+include "include/finding";
+include "include/items";
+include "include/objtypes/skills";
+
+
+use uo;
+use util;
+
+const UOBJ_DF_EXPLO_POTION := 0xDC1A;
+const UOBJ_DF_SLOW_POTION  := 0xDC1B;
+const UOBJ_DF_PARAL_POTION := 0xDC1C;
+const UOBJ_DF_POIS_POTION  := 0xDC1D;
+
+var chest;
+var explo_chance;
+var poison_chance;
+var paral_chance;
+var blind_chance;
+var slow_chance;
+var explo_amt;
+var cur_round;
+var max_rounds;
+var time;
+var state := 1;
+var potions := array;
+
+
+program darkfire_control(item)
+
+  chest := FindItemBySerial(item);
+  explo_chance := 5;
+  poison_chance := 10;
+  paral_chance := 10;
+  blind_chance := 15;
+  slow_chance := 20;
+  explo_amt := 45;
+  cur_round := 1;
+  max_rounds := 10;
+
+  while(cur_round <= max_rounds)
+      
+      var status;
+
+      time := readgameclock();
+      CreateNormalExploPotions();
+      CreateSpecialPotions();
+      
+      status := WaitForNextRound();
+
+      if(status == 0)
+        break;
+      endif
+      
+      explo_chance := explo_chance*2;
+      poison_chance := poison_chance*2;
+      paral_chance := paral_chance*2;
+      slow_chance := slow_chance*2;
+      cur_round := cur_round + 1;
+
+      
+
+
+  endwhile
+
+  DestroyPotions();
+  chest.locked := 0;
+
+
+endprogram
+
+//---------------------------------------------
+
+function DestroyPotions()
+
+  foreach potion in potions
+    DestroyItem(potion);
+  endforeach
+
+endfunction
+
+//------------------------------------------------
+
+function CreateSpecialPotions()
+
+  if(cur_round >= 10)
+    return;
+  endif
+  
+  if(cur_round < 6)
+    if(explo_chance >= 100)
+      var amt := explo_chance/100;
+      var chance := explo_chance - (amt*100);
+      potions.append(CreateItemInContainer(chest,UOBJ_DF_EXPLO_POTION,amt));
+      if(RandomInt(100)+1 <= chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_EXPLO_POTION));
+      endif
+    else
+      if(RandomInt(100)+1 <= explo_chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_EXPLO_POTION));
+      endif
+    endif
+
+    if(blind_chance >= 100)
+      var amt := blind_chance/100;
+      var chance := blind_chance - (amt*100);
+      potions.append(CreateItemInContainer(chest,UOBJ_BLIND_POTION,3));
+      if(RandomInt(100)+1 <= chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_BLIND_POTION,3));
+      endif
+    else
+      if(RandomInt(100)+1 <= blind_chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_BLIND_POTION));
+      endif
+    endif
+
+    if(paral_chance >= 100)
+      var amt := paral_chance/100;
+      var chance := paral_chance - (amt*100);
+      potions.append(CreateItemInContainer(chest,UOBJ_DF_PARAL_POTION,amt));
+      if(RandomInt(100)+1 <= chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_PARAL_POTION));
+      endif
+    else
+      if(RandomInt(100)+1 <= paral_chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_PARAL_POTION));
+      endif
+    endif
+
+    if(poison_chance >= 100)
+      var amt := poison_chance/100;
+      var chance := poison_chance - (amt*100);
+      potions.append(CreateItemInContainer(chest,UOBJ_DF_POIS_POTION,amt));
+      if(RandomInt(100)+1 <= chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_POIS_POTION));
+      endif
+    else
+      if(RandomInt(100)+1 <= poison_chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_POIS_POTION));
+      endif
+    endif
+
+    if(slow_chance >= 100)
+      var amt := slow_chance/100;
+      var chance := slow_chance - (amt*100);
+      potions.append(CreateItemInContainer(chest,UOBJ_DF_SLOW_POTION,amt));
+      if(RandomInt(100)+1 <= chance)
+        potions.append(CreateItemInContainer(chest,UOBJ_DF_SLOW_POTION));
+      endif
+    else
+      if(RandomInt(100)+1 <= slow_chance)
+         potions.append(CreateItemInContainer(chest,UOBJ_DF_SLOW_POTION));
+      endif
+    endif
+    return;
+  endif
+
+  if(cur_round > 5)
+    potions.append(CreateItemInContainer(chest,UOBJ_DF_SLOW_POTION,6));
+    potions.append(CreateItemInContainer(chest,UOBJ_DF_POIS_POTION,3));
+    potions.append(CreateItemInContainer(chest,UOBJ_DF_PARAL_POTION,3));
+    potions.append(CreateItemInContainer(chest,UOBJ_DF_EXPLO_POTION,2));
+    potions.append(CreateItemInContainer(chest,UOBJ_BLIND_POTION,3));
+    return;
+  endif
+    
+endfunction
+
+//---------------------------------------------
+
+function WaitForNextRound()
+
+  if(cur_round <= 5)
+    time := readgameclock() + 150;
+    while(readgameclock() < time and state == 1)
+      sleep(3);
+      state := CheckEventState();
+    endwhile
+
+    if(state != 1 or !state)
+      return 0;
+    endif
+
+    chest.locked := 1;
+    PrintTextAbove(chest,"*Zamyka sie*",FONT_NORMAL,COLOR_RED);
+    time := readgameclock() + 30;
+    while(readgameclock() < time and state == 1)
+      sleep(3);
+      state := CheckEventState();
+    endwhile
+
+    if(state != 1 or !state)
+      return 0;
+    endif
+
+    chest.locked := 0;
+    PrintTextAbove(chest,"*Otwiera sie*",FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+  if(cur_round > 5)
+    time := readgameclock() + 180;
+
+    while(readgameclock() < time and state == 1)
+      sleep(3);
+      state := CheckEventState();
+    endwhile
+
+    if(state != 1 or !state)
+      return 0;
+    endif
+
+    chest.locked := 1;
+    PrintTextAbove(chest,"*Zamyka sie*",FONT_NORMAL, COLOR_RED);
+    time := readgameclock() + 60;
+
+    while(readgameclock() < time and state == 1)
+      sleep(3);
+      state := CheckEventState();
+    endwhile
+
+    if(state != 1 or !state)
+      return 0;
+    endif
+
+    chest.locked := 0;
+    PrintTextAbove(chest,"*Otwiera sie*",FONT_NORMAL, COLOR_GREEN);
+    return;
+  endif
+
+
+endfunction
+
+
+//---------------------------------------------
+
+function CreateNormalExploPotions()
+
+  var explo_potions := array;
+
+  if(cur_round == 1)
+     explo_potions.append(CreateItemInContainer(chest,UOBJ_LESSER_EXPLOSION_POTION,explo_amt));
+    
+  endif
+
+  if(cur_round == 2)
+     explo_potions.append(CreateItemInContainer(chest,UOBJ_EXPLOSION_POTION,explo_amt));
+  endif
+
+  if(cur_round > 2)
+    explo_potions.append(CreateItemInContainer(chest,UOBJ_GREATER_EXPLOSION_POTION,explo_amt));
+  endif
+
+  foreach potion in explo_potions
+    potions.append(potion);
+  endforeach
+
+endfunction
+
+//---------------------------------------------
+
+function CheckEventState()
+
+  var st := GetGlobalProperty("Df_state");
+
+  if(!st)
+    return 0;
+  endif
+
+  return 1;
+
+endfunction

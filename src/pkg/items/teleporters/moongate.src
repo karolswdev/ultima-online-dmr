@@ -1,0 +1,160 @@
+//poprawki 15-01-2010
+//sfx
+
+use os;
+use uo;
+use cfgfile;
+
+include "include/gumps";
+include "ai/include/tamed";
+include ":teleporters:moongates";
+include "include/effects";
+include "include/portals";
+include "include/finding";
+
+
+var MoonCfg := ReadConfigFile(MOONGATE_CFG);
+
+program WalkOnMoonGate(who, MoonGate)
+
+    if(!IsPlayer(who))
+        return;
+    endif
+
+    if(!CanPortalTele(who))
+        return;
+    endif
+	
+	
+    
+    /*
+    if(!who.cmdlevel && !FindObjtypeInContainer(who.backpack, 0x3334))
+	SendSysMessage(who, "Ta brama nie moze polaczyc sie z twoim kamieniem ksiezycowym.", FONT_NORMAL, RED_COLOR);
+	return;
+    else
+	SendSysMessage(who, "Jestes GM - ale nie znalazlem u ciebie moonstone.", FONT_NORMAL, GREEN_COLOR);
+    endif
+
+    */
+
+    var MoonCity := GetObjProperty(MoonGate, "City");
+    
+    if(!MoonCity)
+        return;
+    endif
+    
+    
+
+    var Cities  := GetConfigStringKeys(MoonCfg);
+    var i       := 1;
+    var c       := 1;
+
+    GInit(0, 0);
+    GPage(0);
+
+	GResPic( 100 , 100 , 3600 , 450 , 450  );
+	GResPic( 107 , 108 , 5100 , 435 , 435  );
+
+//czerwony
+
+	GTilePic(145,185,0x0dda);
+
+//bialy
+
+	GTilePic(205,185,0x1fe7);
+
+//niebieski
+
+	GTilePic(175,200,0x0f6c);
+
+	GTextLine( 115, 112, 920 , "Wybierz miejsce:" );
+
+	GGumpPic( 390 , 116 , 2529, 0 );
+
+    foreach City in Cities
+        if(City != MoonCity)
+            GButton(285,140+(c*25),210,211,i);
+            GTextLine(315,140+(c*25),95,City);
+            c := c + 1;
+        endif
+        i := i + 1;
+    endforeach
+
+
+    GButton(113,390,4005,4007,0);
+    GTextLine(147,390,0,"Anuluj");
+    if(IsGm(who))
+        GButton(113,415,4005,4007,99);
+        GTextLine(147,415,0,"Wlacz/Wylacz teleport");
+    endif
+
+    var Res := GSend(who)[0];
+    if(!Res)
+        SendSysMessage(who, "Anulowano.",FONT_NORMAL,RED_COLOR);
+        return;
+    endif
+
+    if(IsGm(who) and Res == 99)
+        if(GetObjProperty(MoonGate,"Disabled"))
+            EraseObjProperty(MoonGate, "Disabled");
+            SendSysMessage(who, "Moongate wlaczony",FONT_NORMAL,GREEN_COLOR);
+        else
+          SetObjProperty(Moongate, "Disabled", 1);
+          SendSysMessage(who, "Moongate wylaczony",FONT_NORMAL,RED_COLOR);
+        endif
+        return;
+    endif
+
+    var DestCity := Cities[Res];
+    if(MoonGate.x != who.x or MoonGate.y != who.y or !DestCity)
+        return;
+    endif
+
+    for(i:=1;i<=10;i:=i+1)
+	PlayStationaryEff(MoonGate.x, MoonGate.y, MoonGate.z, FX_HEAL_EFFECT, 0x1F, 0x1F);
+        sleep(1);
+        if(MoonGate.x != who.x or MoonGate.y != who.y)
+	SendSysMessage(who, "Anulowano.",FONT_NORMAL, RED_COLOR);
+            return;
+        endif
+    endfor
+
+    SendSysMessage(who, "Udajesz sie do " + DestCity + ".",FONT_NORMAL, GREEN_COLOR);
+    AlertGMs("Postac " + who.name + " udala sie do " + DestCity + ".");
+
+    var x := MoonCfg[DestCity].X;
+    var y := MoonCfg[DestCity].Y;
+    var z := MoonCfg[DestCity].Z;
+    var realm := MoonCfg[DestCity].Realm;
+
+    if(GetObjProperty(MoonGate, "Disabled"))
+       return;
+    endif
+	
+	if(who.dead)
+		PortalTele(who, x, y, z, realm, MOVETYPE_PORTAL);
+		return;
+	endif
+    
+    var moonstone := FindItemInContainer(who.backpack, 0x0f13);
+	if(!moonstone)
+		if(!who.dead)
+			SendSysMessage(who, "Nie posiadasz rubinow, ktore potrzebne sa do odbycia podrozy.", FONT_NORMAL, RED_COLOR);
+			return;
+		endif
+	else
+		if(!who.dead)
+			if(SubtractAmount(moonstone, 1))
+				PortalTele(who, x, y, z, realm, MOVETYPE_PORTAL);
+			endif
+		else
+				PortalTele(who, x, y, z, realm, MOVETYPE_PORTAL);
+		endif
+	endif
+
+    who := SystemFindObjectBySerial(who.serial);
+    while(who.x == x and who.y == y and who.z == z)
+     Sleepms(100);
+    endwhile
+
+endprogram

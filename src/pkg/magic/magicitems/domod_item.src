@@ -1,0 +1,108 @@
+//-----------------------------------------------------------------------------
+
+include "include/misc";
+include "include/tempmods";
+include "include/packets";
+include "include/itemuses";
+include "include/items/containers";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program DoModItem(who, Item)
+
+  if(!StandardItemCheck(who, Item, NO_COMBAT_CHECK))
+    return;
+  endif
+
+  var SkillReq := ItemCfg[Item.objtype].SkillReq;
+  var Mod      := ItemCfg[Item.objtype].Mod;
+  var SkMod    := ItemCfg[Item.objtype].SkMod;
+
+  if(!Mod and !SkMod)
+    SendSysMessage(who, "Nie bardzo wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Mod)
+    Mod    := SplitWords(Mod);
+    Mod[1] := CInt(Mod[1]);
+
+    if(!Mod[1] or !Mod[2])
+      SendSysMessage(who, "Nie bardzo wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+    SkMod    := SplitWords(SkMod);
+    SkMod[1] := CInt(SkMod[1]);
+
+    if(!SkMod[1] or !SkMod[2])
+      SendSysMessage(who, "Nie bardzo wiesz co z tym zrobic.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(SkillReq)
+    SkillReq := SplitWords(SkillReq);
+
+    if(GetEffectiveSkill(who, SkillReq[1]) < CInt(SkillReq[2]))
+      SendSysMessage(who, "Twa wiedza jest zbyt mala by pojac ta moc.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(Mod)
+    if(!CanModifyMod(who, Mod[1]))
+      SendSysMessage(who, "Jestes juz pod wplywem czaru!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  else
+    if(!CanSkillMod(who, SkMod[1]))
+      SendSysMessage(who, "Jestes juz pod wplywem czaru!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  var Dur := 900 + RandomInt(300);
+  
+  if(Mod)
+    if(!CanMod(who, Mod[1]))
+      Dur := CInt(Dur / 2);
+    endif
+  endif
+
+  if(SkillReq)
+    Dur := Dur + CInt(GetEffectiveSkill(who, SkillReq[1]) * 2.4);
+  endif
+  
+  var Effect := ItemCfg[Item.objtype].Effect;
+  var Sound  := CInt(ItemCfg[Item.objtype].Sound);
+
+  if(Effect)
+    Effect := SplitWords(Effect);
+    if(Effect.size() == 3)
+      PlayPcEffect(who, CInt(Effect[1]), CInt(Effect[2]), 0x10, 0x10, CInt(Effect[3]));
+    endif
+  endif
+
+  if(Sound)
+    PlaySoundEffect(who, Sound);
+  endif
+
+  if(SubItemUses(Item, 1))
+    if(Mod)
+      ModifyMod(who, Mod[1], RandomDiceRoll(Mod[2]), Dur);
+    else
+      DoSkillMod(who, SkMod[1], RandomDiceRoll(SkMod[2]), Dur);
+    endif
+  else
+    SendSysMessage(who, "Cos jest nie tak z tym przedmiotem...", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,125 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/findcity";
+include "include/proc";
+include "include/std";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+const UOBJ_AUCBOARD  := 0x9670;
+const UOBJ_AUCBOARD2 := 0x9671;
+
+//-----------------------------------------------------------------------------
+
+program AucLink(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(text["city"] and IsAdmin(who))
+    LinkCities(who,SplitWords(text));
+    return;
+  endif
+
+  var Aucer;
+  
+  if(CInt(text))
+    Aucer := FindNpcBySerial(text);
+  endif
+
+  if(!Aucer)
+    SendSysMessage(who,"Wskaz aukcjonera.",FONT_NORMAL,COLOR_GREEN);
+    Aucer := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+  endif
+    
+  if(Aucer.script != ":auction:ai_auctioneer")
+    SendSysMessage(who,"To nie aukcjoner.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz tablice aukcyjna.",FONT_NORMAL,COLOR_GREEN);
+  var Board := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+  
+  if(Board.objtype == UOBJ_AUCBOARD or Board.objtype == UOBJ_AUCBOARD2)
+    SendSysMessage(who,"Tablica zlinkowana ["+Board.serial+"] do Auc ["+Aucer.serial+"]",FONT_NORMAL,COLOR_BLUE);
+    var Aucs := GetObjProperty(Board,"AucSerial");
+    if(!Aucs)
+      Aucs := array;
+    endif
+    Aucs.append(Aucer.serial);
+    SetObjProperty(Board,"AucSerial",Aucs);
+    SetObjProperty(Aucer,"AucBoard",Board.serial);
+  else
+    SendSysMessage(who,"To nie tablica aukcyjna.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function LinkCities(who,Cities)
+
+  var i,x,y;
+  var Aucs   := array;
+  var Boards := array;
+  var Realm;
+  var Coords;
+  var City;
+  
+  case(Cities[2])
+    "1":     Cities := array("britain","minoc","vesper","trinsic","yew","cove","wind","moonglow","lakeshire","mistas","ilshen","luna","umbra", "karak hirin", "skara brae","jhelom","magincia","nujelm","buccaneers den","ocllo","serpent's hold","delucia","papua","montor");
+    default: Cities.erase(1);
+  endcase
+  
+  for(i:=1;i<=Cities.size();i:=i+1)
+    City      := Cities[i];
+    City["_"] := " ";
+    Coords := GetCityCoords(City);
+    if(Coords)
+      SendSysMessage(who,"Sprawdzanie miasta "+City+".",FONT_NORMAL,COLOR_GREEN);
+      Realm := GetCityRealm(City);
+      for(x:=Coords[1];x<=Coords[3];x:=x+32)
+        for(y:=Coords[2];y<=Coords[4];y:=y+32)
+          foreach Obj in ListObjectsInBox(x,y,-127,x+31,y+31,127,Realm)
+            if(Obj.script == ":auction:ai_auctioneer" and !(Obj in Aucs))
+              Aucs.append(Obj);
+            elseif((Obj.objtype == 0x9670 or Obj.objtype == 0x9671) and !(Obj in Boards))
+              Boards.append(Obj);
+            endif
+          endforeach
+        endfor
+      endfor
+    else
+      SendSysMessage(who,"Bledne miasto "+City+".",FONT_NORMAL,COLOR_RED);
+    endif
+  endfor
+  
+  if(!Boards.size() or !Aucs.size())
+    SendSysMessage(who,"Nie znaleziono tablic lub aukcjonerow !",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Linkowanie...",FONT_NORMAL,COLOR_BLUE);
+  
+  var AucsSers := array;
+  foreach Auc in Aucs
+    AucsSers.append(Auc.serial);
+    SetObjProperty(Auc,"AucBoard",Boards[1].serial);
+  endforeach
+  
+  foreach Board in Boards
+    SetObjProperty(Board,"AucSerial",AucsSers);
+  endforeach
+  
+  foreach Auc in Aucs
+    RestartScript(Auc);
+  endforeach
+
+  SendSysMessage(who,"Zakonczono. Tablic ["+Boards.size()+"] Auc ["+Aucs.size()+"]",FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

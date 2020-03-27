@@ -1,0 +1,18 @@
+use uo;
+
+include ":marketplace:common";
+
+
+program boxaccesss(who,box)
+  
+  if(IsGM(who))
+    SendViewContainer( who, box );
+  elseif(Distance(who,box) > 1)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+  elseif(CInt(GetObjProperty(box, PROP_STALL_OWNER)) and GetObjProperty(box,PROP_STALL_OWNER) != who.serial)
+    SendSysMessage(who, "W tej chwili nie mozesz otworzyc tej skrzyni.", FONT_NORMAL, COLOR_RED);
+  else
+    SendViewContainer( who, box );
+  endif
+
+endprogram

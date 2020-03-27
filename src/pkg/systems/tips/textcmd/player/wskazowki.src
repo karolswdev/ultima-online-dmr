@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+// Modified: 2006-11-22
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/misc";
+
+include ":tips:tips";
+
+//-----------------------------------------------------------------------------
+
+program ShowTipsCmd(who)
+
+  var pData := GetTipPlayerData(who);
+
+  if(!pData.Showed.size())
+    SendSysMessage(who, "Brak wskazowek.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var tId := pData.Showed.keys()[pData.Showed.size()];
+  
+  TriggerTip(who, tId, TWPTF_FORCE | TWPTF_IMMED);
+
+endprogram
+
+//-----------------------------------------------------------------------------

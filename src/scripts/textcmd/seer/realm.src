@@ -1,0 +1,44 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+program MoveToRealm(who,RId)
+
+  if(!RId)
+    var i := 1;
+    foreach Realm in Realms()
+      SendSysMessage(who, Realm.mapid+". "+_Realm_iter, FONT_NORMAL, COLOR_GREEN+20);
+      i := i + 1;
+    endforeach
+    return;
+  endif
+
+  var Rlm := GetRealmById(RId);
+  
+  if(!Rlm)
+    SendSysMessage(who,"Bledny ID lub nazwa.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var x := who.x;
+  var y := who.y;
+  var z := who.z;
+  
+  if(x > Realms()[Rlm].width)
+    x := 0;
+  endif
+  
+  if(y > Realms()[Rlm].height)
+    y := 0;
+  endif
+
+  MoveObject(who,x,y,z,Rlm,MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+  
+  SendSysMessage(who,"Przenoszenie na mape "+Rlm+".",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

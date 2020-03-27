@@ -1,0 +1,86 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+program BattleShawl(Caster)
+
+  if(ExPid(GetObjProperty(Caster, "#BattleShawlPid")))
+    return 0;
+  endif
+
+  SetObjProperty(Caster, "#BattleShawlPid", GetPid());
+  SetScriptController(Caster);
+
+  var SkBarb   := GetEffectiveSkill(Caster, SKILLID_BARBARIAN);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+  var ModAmt   := 6 + RandomInt(7) + CInt(SkBarb / 10) + CInt(SkTact / 10);
+  var ArAmt    := CInt(SkBarb / 6.66) + CInt(SkTact / 20);
+  var Chance2H := CInt(SkBarb / 14) + CInt(SkTact / 33);
+  var Duration := GetWarCastDuration(Caster, WCT_BARBARIAN);
+
+  var ExtraDur := 300;
+  if(SkBarb > 100)
+    ExtraDur += CInt(((SkBarb - 100) / 2.0) * 54);  // 110% +4.5 min, 120% +9 min; 120% tact and 120% barb = 12 min + 9 min = 21 min.
+  endif
+
+  Duration += ExtraDur;
+
+  DoMod(Caster, MOD_STR, ModAmt, Duration);
+  DoMod(Caster, MOD_DEX, ModAmt, Duration);
+  DoMod(Caster, MOD_LIFE, ModAmt, Duration);
+  DoMod(Caster, MOD_STAMINA, ModAmt, Duration);
+
+  UndoMod(Caster, MOD_INT, UMDF_WAIT);
+  DoMod(Caster, MOD_INT, 1 - GetIntelligence(Caster), Duration);
+  DoSkillMod(Caster, SKILLID_MAGICRESISTANCE, ModAmt+RandomInt(5), Duration);
+
+  DoMod(Caster, MOD_AR, ArAmt, Duration);
+  DoMod(Caster, MOD_2H_DMG, Chance2H, Duration);
+
+  PlayPcEffect(Caster, FX_BLESS_EFFECT, 666, 0x10, 0x10, 3);
+  PlaySoundEffect(Caster, SFX_SPELL_BLESS);
+  PlaySoundEffect(Caster, SFX_KIATTACK);
+
+  var Time      := ReadGameClock() + Duration;
+  var CasterSer := Caster.serial;
+  var MsgTime   := Time - 60;
+
+  while(ReadGameClock() < Time)
+    if(!Caster)
+      Caster := FindPlayerBySerial(CasterSer);
+    endif
+
+    if(Caster.dead or !Caster)
+      EraseObjProperty(Caster, "#BattleShawlPid");
+      return;
+    endif
+
+    if(MsgTime)
+      if(ReadGameClock() >= MsgTime)
+        SendSysMessage(Caster, "Czujesz, ze powoli opadasz z sil.", FONT_NORMAL, COLOR_GREEN_LIGHT);
+        MsgTime := 0;
+      endif
+    endif
+
+    sleep(1);
+  endwhile
+
+  EraseObjProperty(Caster, "#BattleShawlPid");
+
+  PlayPcEffect(Caster, FX_BLESS_EFFECT, 666, 0x10, 0x10, 3);
+  PlaySoundEffect(Caster, SFX_KIATTACK);
+
+  UndoMod(Caster, MOD_STR, UMDF_WAIT);
+  UndoMod(Caster, MOD_DEX, UMDF_WAIT);
+
+  Duration := ToMin(300 - CInt((Duration - ExtraDur) / 3.333), 20);
+
+  DoMod(Caster, MOD_STR, -10, Duration);
+  DoMod(Caster, MOD_DEX, -10, Duration);
+
+endprogram
+
+//--------------------------------------------------------------------------------

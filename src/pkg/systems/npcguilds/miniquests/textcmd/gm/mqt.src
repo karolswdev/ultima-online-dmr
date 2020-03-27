@@ -1,0 +1,654 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-07-07
+//-----------------------------------------------------------------------------
+
+use  math;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/finding";
+include "include/bits";
+include "include/msgs";
+
+include ":quests:bq_gump";
+include ":miniquests:miniquests";
+include ":miniquests:mq_gump";
+include ":quests:quests";
+
+include ":npcguilds:shared";
+
+//-----------------------------------------------------------------------------
+
+var who, MQData, MQEData, QuestID;
+
+//-----------------------------------------------------------------------------
+
+InitMQuestData(MQData);
+InitMQuestData(MQEData);
+
+//-----------------------------------------------------------------------------
+
+program MiniQuestsTool(_who, text)
+
+      who     := _who;
+      text    := SplitWords(text);
+  var Started := 0;
+
+  case(text[1])
+    "aq":        ProcAddMQuest();
+    
+    "q":         ProcMQuests(CInt(text[2]), CInt(text[3]));
+
+    "vars":      DisplayMQuestTextVars(who);
+                 return;
+
+    "stat":      BuildQuestStatsGump();
+                 Started := 1;
+  endcase
+
+  if(!Started)
+    BuildMainMQtGump();
+  endif
+
+  var Res;
+  
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+
+    var Id := Res.butid;
+
+    if(Id == error)
+      Id := Res[0];
+    endif
+
+    if(!Res or !Id)
+      break;
+    endif
+
+    case(Id)
+      1:        ProcMQuests();
+
+      2:        ProcAddMQuest();
+
+      10:       BuildQuestStatsGump();
+                continue;
+    endcase
+
+    BuildMainMQtGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DisplayMQuestTextVars(who)
+
+  var Vars := GetMQuestTextVars();
+
+  GInit(20, 20);
+  GResPic(0, 0, 3600, 790, 530);
+  GTextLine(30, 25, 999, "Zmienne MiniQuestow");
+  GResPic(30, 50, 0xa3c, 540, 300);
+
+  GTextLine(580, 25, 999, "Koncowki wyrazow:");
+  GResPic(580, 50, 0xA3C, 180, 460);
+
+  var n := 0;
+
+  foreach TextVar in Vars
+    GTextLine(50, 60+n*20, 999, _TextVar_iter);
+    GTextLine(130, 60+n*20, 550, TextVar);
+    n := n + 1;
+  endforeach
+
+  for(n:=1;n<=22;n:=n+1)
+    GTextLine(590, 40+n*20, 999, n+".");
+    GTextLine(620, 40+n*20, 550, ggm(0, n));
+    GTextLine(670, 40+n*20, 550, ggm(1, n));
+  endfor
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainMQtGump()
+
+  GInit(20, 20);
+  GResPic(0, 0, 3600, 500, 320);
+  GTextLine(190, 20, 680, "MiniQuest Menu");
+
+  GButton(80,  63, 2117, 2118, 1);
+  GTextLine(100,  60, 550, "Lista questow");
+  GButton(240, 63, 2117, 2118, 2);
+  GTextLine(260, 60, 550, "Dodawanie questa");
+  
+  GButton(240, 88, 2117, 2118, 10);
+  GTextLine(260, 85, 550, "Statystyki Questow");
+
+  var GProps   := GetMQuestGlobalProps();
+  var QCrInfo  := GProps.GetProp(MQPROP_CRINFO);
+  var QUpInfo  := GProps.GetProp(MQPROP_UPINFO);
+  var QUseInfo := GProps.GetProp(MQPROP_USEINFO);
+
+  BuildQuestElemModSegInfo(QCrInfo,  "Ostatnio stworzony Quest:",     40, 150);
+  BuildQuestElemModSegInfo(QUpInfo,  "Ostatnio modyfikowany Quest:",  40, 200);
+  BuildQuestElemModSegInfo(QUseInfo, "Ostatnio uzywany Quest:",       40, 250);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildQuestStatsGump()
+
+  BQGInit("Statystyki", 620, 370, 100, 1);
+
+  var Stats, Keys, i;
+  var Data := GetMQuestData();
+
+  GResPic(35, 80, 0xA3C, 170, 250);
+  GTextLine(40, 60, 999, "Questy:");
+
+  Keys := GetDataKeys(Data, MQUEST_TITLE);
+  i    := 0;
+
+  FillQuestStats(Stats, Keys, MQUEST_TITLE);
+
+  foreach Stat in Stats
+    GTextLine(50,  90+i*20, 550,  _Stat_iter);
+    GTextLine(155, 90+i*20, 1419, Stat);
+    i := i + 1;
+  endforeach
+
+  GResPic(235, 80, 0xA3C, 340, 250);
+  GTextLine(240, 60, 999, "Typy Questow:");
+
+  Keys := GetDataKeys(Data, MQUEST_TITLE);
+
+  FillQuestTypesStats(Stats, Keys, MQUEST_TITLE);
+  DisplayQTypesStats(Stats);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DisplayQTypesStats(byref Stats)
+
+  GAddPageData(385,18,2650,2651,385,257,2648,2647);
+  GMultiPage();
+
+  foreach Stat in Stats
+    GCheckNextPage(10);
+    if(Stat)
+      GTextLine(250, 90+GNPCount()*20, 550, GetMQuestTypeName(_Stat_iter));
+      GTextLine(420, 90+GNPCount()*20, 1419, Stat);
+    else
+      GTextLine(250, 90+GNPCount()*20, 1204, GetMQuestTypeName(_Stat_iter));
+      GTextLine(420, 90+GNPCount()*20, 1206, Stat);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillQuestStats(byref Stats, byref Keys, ElemName)
+
+  Stats := dictionary;
+  var Data := GetMQuestData();
+  var Info, Elem;
+
+  foreach Key in Keys
+    Elem := Data.FindElement(ElemName+Key);
+    Info := Elem.GetProp(MQPROP_CRINFO);
+    if(Info[2])
+      Stats[Info[2]] := CInt(Stats[Info[2]]) + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function FillQuestTypesStats(byref Stats, byref Keys, ElemName)
+
+  Stats := dictionary;
+  var i;
+
+  for(i:=1;i<=MQTYPE_MAXID;i:=i+1)
+    Stats[i] := 0;
+  endfor
+
+  var Data := GetMQuestData();
+  var Type, Elem;
+
+  foreach Key in Keys
+    Elem := Data.FindElement(ElemName+Key);
+    Type := Elem.GetProp(MQPROP_TYPE);
+    Stats[Type] := CInt(Stats[Type]) + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcAddMQuest()
+
+  BuildAddMQuest();
+
+  var Res;
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+    SaveMQuestData(Res, MQData);
+
+    case(Res.butid)
+      11:         var Temp := SelectCityNpcTemplate(who);
+                  if(Temp)
+                    MQData.NpcTemp := Temp;
+                  endif
+
+      12:         var Type := SelectMQuestType(who);
+                  if(Type)
+                    MQData.Type := Type;
+                    InitMQuestTarg(MQData.Targ, Type);
+                  endif
+
+      13:         var Loc := SelectQuestLocGroupGump(who, 0, BQG_RETVAL);
+                  if(Loc)
+                    MQData.Loc := Loc;
+                  endif
+
+      15:         var nId := AddMiniQuest(MQData, who);
+                  if(nId)
+                    SendSysMessage(who, "Dodano nowy Quest, ID: "+nId, FONT_NORMAL, COLOR_GREEN);
+                    InitMQuestData(MQData);
+                  else
+                    SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+      16:         var Check := VerifyMiniQuest(MQData);
+                  if(Check)
+                    SendSysMessage(who, "Quest zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+      17:         SaveOPMQData(MQData);
+  
+      18:         SendSysMessage(who, "Chcesz zalodowac szablon questa?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    LoadOPMQData(MQData);
+                  endif
+      
+      19:         SendSysMessage(who, "Chcesz wyczyscic aktualny szablon Questa?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    InitMQuestData(MQData);
+                  endif
+
+      default:    return;
+    endcase
+
+    BuildAddMQuest();
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LoadOPMQData(byref qData)
+
+  var Data := GetObjProperty(who, MQPROP_CRINFO);
+
+  if(!Data or Data.Type == error)
+    SendSysMessage(who, "Nie zapisywal"+ggm(who,3)+" jeszcze szablonu questa lub zapisany jest bledny.", FONT_NORMAL, COLOR_RED);
+  else
+    qData := Data;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveOPMQData(byref Data)
+
+  SetObjProperty(who, MQPROP_CRINFO, Data);
+  SendSysMessage(who, "Zapisal"+ggm(who,3)+" szablon questa.", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SaveMQuestData(Res, byref Data)
+
+  Data.Title   := Res.unitext[5];
+  Data.NpcTemp := Res.text[6];
+
+  var i;
+
+  for(i:=1;i<=5;i:=i+1)
+    Data.EncrText[i] := Res.text[i+9];
+  endfor
+
+  for(i:=1;i<=5;i:=i+1)
+    Data.MainText[i] := Res.text[i+19];
+  endfor
+
+  for(i:=1;i<=5;i:=i+1)
+    Data.SuccText[i] := Res.text[i+29];
+  endfor
+
+  for(i:=1;i<=5;i:=i+1)
+    Data.DNpcText[i] := Res.text[i+39];
+  endfor
+
+  case(Data.Type)
+    MQTYPE_CARRYITEM:
+    MQTYPE_TAKEITEM:     Data.Targ.Template := Res.text[100];
+                         Data.Targ.Script   := Res.text[101];
+                         Data.Targ.Gender   := CInt(Res.text[102]);
+                         Data.Targ.ObjType  := CInt(Res.text[103]);
+                         Data.Targ.Color    := CInt(Res.text[104]);
+                         Data.Targ.Name     := Res.text[105];
+
+    MQTYPE_GOTONPC:      Data.Targ.Template := Res.text[100];
+                         Data.Targ.Script   := Res.text[101];
+                         Data.Targ.Gender   := CInt(Res.text[102]);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildAddMQuest()
+
+  BQGInit("Dodawanie MiniQuesta", 690, 570);
+
+  GButton(90, 533, 2117, 2118, 15);
+  GTextLine(110, 530, 999, "Dodaj");
+
+  GButton(190, 533, 2117, 2118, 16);
+  GTextLine(210, 530, 999, "Weryfikuj");
+
+  GButton(290, 533, 2117, 2118, 17);
+  GTextLine(310, 530, 999, "Zapisz");
+
+  GButton(390, 533, 2117, 2118, 18);
+  GTextLine(410, 530, 999, "Zaladuj");
+
+  GButton(490, 533, 2117, 2118, 19);
+  GTextLine(510, 530, 999, "Wyczysc");        
+
+  BuildMQuestInfo(MQData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMQuestInfo(byref Data, Flags := 0)
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Title, Flags, 1, 5, "Tytul:");
+
+  if(Flags & BQG_EDITABLE)
+    GNoClose();
+  endif
+  
+  GTextLine(25,  76,  560, "Zacheta:");
+  GTextLine(355, 76,  560, "Glowny:");
+  GTextLine(25,  206, 560, "Powodzenie:");
+  GTextLine(355, 206, 560, "Docelowy Npc:");
+
+  BQGAddTextBox(30,  100, 300, 20, FCLR_TEBOX, Data.EncrText, Flags, 5, 10);
+  BQGAddTextBox(360, 100, 300, 20, FCLR_TEBOX, Data.MainText, Flags, 5, 20);
+  BQGAddTextBox(30,  230, 300, 20, FCLR_TEBOX, Data.SuccText, Flags, 5, 30);
+  BQGAddTextBox(360, 230, 300, 20, FCLR_TEBOX, Data.DNpcText, Flags, 5, 40);
+
+  BQGAddTextBox(100, 350, 120, 20, FCLR_TEBOX, Data.NpcTemp, Flags, 1, 6, "NpcTemp:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 350, 2714, 2715, 11);
+  endif
+
+  BQGAddTextBox(100, 380, 120, 20, FCLR_TEBOX, GetMQuestTypeName(Data.Type), Flags, 1, 0, "Typ:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 380, 2714, 2715, 12);
+  endif
+
+  BQGAddTextBox(100, 410, 120, 20, FCLR_TEBOX, Data.Loc, Flags, 1, 0, "Lokacja:");
+  if(Flags & BQG_EDITABLE)
+    GButton(230, 410, 2714, 2715, 13);
+  endif
+
+  BuilfTargetWin(Data, Flags);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuilfTargetWin(byref Data, Flags)
+
+  if(!Data.Type)
+    return;
+  endif
+
+  GResPic(350, 345, 0xBB8, 320, 140);
+
+  case(Data.Type)
+    MQTYPE_CARRYITEM:
+    MQTYPE_TAKEITEM:         GTextLine(270, 350, 999, "Template%");
+                             GTextLine(270, 370, 999, "Skrypt%");
+                             GTextLine(270, 390, 999, "Plec");
+                             GTextLine(270, 410, 999, "ObjType*");
+                             GTextLine(270, 430, 999, "Kolor");
+                             GTextLine(270, 450, 999, "Nazwa");
+
+                             if(Flags & BQG_EDITABLE)
+                               GTextEntry(360, 350, 200, 20, FCLR_TEBOX, 100, Data.Targ.Template);
+                               GTextEntry(360, 370, 200, 20, FCLR_TEBOX, 101, Data.Targ.Script);
+                               GTextEntry(360, 390, 200, 20, FCLR_TEBOX, 102, Data.Targ.Gender);
+                               GTextEntry(360, 410, 200, 20, FCLR_TEBOX, 103, Data.Targ.ObjType);
+                               GTextEntry(360, 430, 200, 20, FCLR_TEBOX, 104, Data.Targ.Color);
+                               GTextEntry(360, 450, 200, 20, FCLR_TEBOX, 105, Data.Targ.Name);
+                             else
+                               GTextLine(360, 350, FCLR_TEBOX, Data.Targ.Template);
+                               GTextLine(360, 370, FCLR_TEBOX, Data.Targ.Script);
+                               GTextLine(360, 390, FCLR_TEBOX, Data.Targ.Gender);
+                               GTextLine(360, 410, FCLR_TEBOX, Data.Targ.ObjType);
+                               GTextLine(360, 430, FCLR_TEBOX, Data.Targ.Color);
+                               GTextLine(360, 450, FCLR_TEBOX, Data.Targ.Name);
+                             endif
+
+    MQTYPE_GOTONPC:          GTextLine(270, 350, 999, "Template%");
+                             GTextLine(270, 370, 999, "Skrypt%");
+                             GTextLine(270, 390, 999, "Plec");
+
+                             if(Flags & BQG_EDITABLE)
+                               GTextEntry(360, 350, 200, 20, FCLR_TEBOX, 100, Data.Targ.Template);
+                               GTextEntry(360, 370, 200, 20, FCLR_TEBOX, 101, Data.Targ.Script);
+                               GTextEntry(360, 390, 200, 20, FCLR_TEBOX, 102, Data.Targ.Gender);
+                             else
+                               GTextLine(360, 350, FCLR_TEBOX, Data.Targ.Template);
+                               GTextLine(360, 370, FCLR_TEBOX, Data.Targ.Script);
+                               GTextLine(360, 390, FCLR_TEBOX, Data.Targ.Gender);
+                             endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcMQuests(QId := 0, QRange := 0)
+
+  var Modif := 0;
+  
+  if(!QId or QRange > QId)
+    ShowMQuests(0, QId, QRange);
+    if(!QuestID)
+      return;
+    endif
+  else
+    QuestID := QId;
+  endif
+
+  var Res := AssignMQuestData(QuestID, MQEData);
+
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  BuildShowMQuest();
+
+  while(IsLoggedIn(who))
+    Res := GSend(who);
+    if(Modif)
+      SaveMQuestData(Res, MQEData);
+    endif
+
+    case(Res.butid)
+      4:          ShowMQuests();
+                  if(!QuestID)
+                    return;
+                  endif
+                  var Res := AssignMQuestData(QuestID, MQEData);
+                  if(!Res)
+                    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+                    return;
+                  endif
+                  Modif   := 0;
+
+      5:          ;
+        
+      6:          Modif   := 0;
+
+      7:          Modif   := 1;
+
+      11:         var Temp := SelectCityNpcTemplate(who);
+                  if(Temp)
+                    MQEData.NpcTemp := Temp;
+                  endif
+
+      12:         var Type := SelectMQuestType(who);
+                  if(Type)
+                    MQEData.Type := Type;
+                    InitMQuestTarg(MQData.Targ, Type);
+                  endif
+
+      13:         var Loc := SelectQuestLocGroupGump(who, 0, BQG_RETVAL);
+                  if(Loc)
+                    MQEData.Loc := Loc;
+                  endif
+
+      15:         var Res := SetMiniQuest(QuestID, MQEData, who);
+                  if(Res)
+                    SendSysMessage(who, "Zmieniono Quest, ID: "+QuestID, FONT_NORMAL, COLOR_GREEN);
+                    Modif := 0;
+                  else
+                    SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+      16:         var Check := VerifyMiniQuest(MQEData);
+                  if(Check)
+                    SendSysMessage(who, "Quest zweryfikowany pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+      17:         SaveOPMQData(MQEData);
+  
+      18:         SendSysMessage(who, "Chcesz zaladowac szablon questa?", FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Tak?"))
+                    LoadOPMQData(MQEData);
+                  endif
+      
+      19:         if(IsAdmin(who))
+                    SendSysMessage(who, "Chcesz skasowac Quest ID: ["+QuestID+"] ?", FONT_NORMAL, COLOR_GREEN);
+                    if(YesNo(who, "Tak?"))
+                      var Res := DeleteMiniQuest(QuestID);
+                      if(Res)
+                        SendSysMessage(who, "Skasowano Quest ID: "+QuestID+".", FONT_NORMAL, COLOR_GREEN);
+                        QuestID := 0;
+                        InitMQuestData(MQEData);
+                        return;
+                      else
+                      SendSysMessage(who, "Blad: "+Res.errortext, FONT_NORMAL, COLOR_RED);
+                      endif
+                    endif
+                  endif
+ 
+      default:    return;
+    endcase
+
+
+    if(Modif)
+      BuildModifyMQuest();
+    else
+      BuildShowMQuest();
+    endif
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShowMQuest()
+
+  BQGInit("Quest ID: "+QuestID, 690, 570, 4);
+
+  GButton(90, 533, 2117, 2118, 7);
+  GTextLine(110, 530, 999, "Modyfikuj");
+
+  GButton(290, 533, 2117, 2118, 17);
+  GTextLine(310, 530, 999, "Zapisz");
+
+  if(IsAdmin(who))
+    GButton(390, 533, 2117, 2118, 19);
+    GTextLine(410, 530, 999, "Usun");
+  endif
+
+  BuildMQuestInfo(MQEData, BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModifyMQuest()
+
+  BQGInit("Modyfikowanie Questa ID: "+QuestID, 690, 570, 6);
+
+  GButton(90, 533, 2117, 2118, 15);
+  GTextLine(110, 530, 999, "Zmien");
+
+  GButton(190, 533, 2117, 2118, 16);
+  GTextLine(210, 530, 999, "Weryfikuj");
+
+  GButton(290, 533, 2117, 2118, 17);
+  GTextLine(310, 530, 999, "Zapisz");
+
+  GButton(390, 533, 2117, 2118, 18);
+  GTextLine(410, 530, 999, "Zaladuj");
+
+  BuildMQuestInfo(MQEData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowMQuests(Flags := 0, QSet := 0, QEnd := 0)
+
+  var QId := SelectMQuest(who, QSet, QEnd);
+  if(QId)
+    if(Flags & BQG_RETVAL)
+      return QId;
+    else
+      QuestId := QId;
+    endif
+  elseif(!(Flags & BQG_RETVAL))
+    QuestId := 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

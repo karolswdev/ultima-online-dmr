@@ -1,0 +1,60 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":npcguilds:ngd_ctrl";
+include ":ngd_npcs:common";
+include ":ngd_npcs:membership";
+include ":ngd_npcs:quests";
+
+//-----------------------------------------------------------------------------
+
+program GuildNpcProcessQuest(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!IsGuildNpc(Data.npc))
+    return -1;
+  endif
+
+  var NpcData  := GetObjProperty(Data.npc, PROP_NGDDATA);
+  var NpcGuild := GetNpcGuild(Data.npc);
+  var Event    := Data.param;
+
+  if(!NpcData or !NpcGuild or !Event)
+    LogError("HandleQuestMsg: NPC: "+Data.npc.serial+" dostal FailQuestMsg ["+Event+"], a nie jest w zadnej Gildii lub Gildia ["+NpcGuild+"] nie istnieje QPl: "+Event.QPlayer.serial+".", LOGF_SCRIPTS);
+    return;
+  endif
+
+  var PlayerData := GetObjProperty(Event.QPlayer, PROP_NGDDATA);
+
+  if(!PlayerData)
+    LogError("HandleQuestMsg: NPC: "+Data.npc.serial+" dostal FailQuestMsg ["+Event+"], a Player nie ma GuildData. QPl: "+Event.QPlayer.serial+" Pl: "+Event.Player.serial+".", LOGF_SCRIPTS);
+    return;
+  endif
+
+  if(!PlayerData.Guilds[NpcData.GuildId].LastQuest.Ticket)
+    return;
+  endif
+
+  if(PlayerData.Guilds[NpcData.GuildId].Flags & NGPF_TEST_QUEST)
+    FailTestQuest(Data.npc, Event.QPlayer);
+    SendSysMessage(Event.QPlayer, "Nie udalo Ci sie dostac do Gildii "+ClStr(NpcGuild.GetProp(GDPROP_NAME))+".", FONT_NORMAL, COLOR_RED);
+  else
+    FailGivenQuest(Data.npc, Event.QPlayer, Event.QLvl, Event.QStNum);
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":npcguilds:ngd_ctrl";
+include ":ngd_npcs:common";
+include ":ngd_npcs:membership";
+include ":ngd_npcs:quests";
+
+//-----------------------------------------------------------------------------
+
+program GuildNpcProcessQuest(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!IsGuildNpc(Data.npc))
+    return -1;
+  endif
+
+  if(CheckPlayerMembership(Data.npc, Data.source, CPM_NOCHECK_MEMBER | CPM_NOCHECK_LEVEL))
+    if(!TakeFinishedQuest(Data.npc, Data.source))
+      GiveQuest(Data.npc, Data.source);
+    endif
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,587 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/npcs";
+include "include/gumpboxes";
+include "include/getobj";
+
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+var gItemsCfg := ReadConfigFile(ITEMS_CFG);
+var gPkgList := Packages();
+var gMaterials := array;
+var gProducts := dictionary;
+
+//-----------------------------------------------------------------------------
+
+program GenerateCraftPrices(who, text)
+
+  SetLogRunCycles(LST_CMD);
+  var xmlContent := array("<items>");
+  gMaterials := array;
+
+  case(Text)
+    "blacksmith":
+      xmlContent := GeneratePrices("blacksmith", who, GetBlacksmithObjTypes());
+    "tailor":
+      xmlContent := GeneratePrices("tailor", who, GetTailorObjTypes());
+    "alchemy":
+      xmlContent := GeneratePrices("alchemy", who, GetAlchemyObjTypes());
+    "bowcraft":
+      xmlContent := GeneratePrices("bowcraft", who, GetBowcraftObjTypes());
+    "carpentry":
+      xmlContent := GeneratePrices("carpentry", who, GetCarpentryObjTypes());
+    "cartography":
+      xmlContent := GeneratePrices("cartography", who, GetCartographyObjTypes());
+    "tinker":
+      xmlContent := GeneratePrices("tinker", who, GetTinkerObjTypes());
+    "magicitemmaking":
+      xmlContent := GeneratePrices("magicitemmaking", who, GetMagicMakeObjTypes());
+    "inscription":
+      xmlContent := GeneratePrices("inscription", who, GetInscriptionObjTypes());
+    "cooking":
+      xmlContent := GeneratePrices("cooking", who, GetCookingObjTypes());
+
+
+     "all": 
+     xmlContent += GeneratePrices("bowcraft", who, GetBowcraftObjTypes());
+     xmlContent += GeneratePrices("carpentry", who, GetCarpentryObjTypes());
+     xmlContent += GeneratePrices("cartography", who, GetCartographyObjTypes());
+     xmlContent += GeneratePrices("tinker", who, GetTinkerObjTypes());
+     xmlContent += GeneratePrices("magicitemmaking", who, GetMagicMakeObjTypes());
+     xmlContent += GeneratePrices("inscription", who, GetInscriptionObjTypes());
+     xmlContent += GeneratePrices("cooking", who, GetCookingObjTypes());
+     
+     
+     xmlContent += GeneratePrices("alchemy", who, GetAlchemyObjTypes());
+     xmlContent += GeneratePrices("blacksmith", who, GetBlacksmithObjTypes());
+     xmlContent += GeneratePrices("tailor", who, GetTailorObjTypes());
+    default: return;
+  endcase
+
+  xmlContent += array("</items>");
+
+  if(xmlContent)
+    WriteFile(":crafting:prices.xml", xmlContent);
+  endif
+
+  var Content := array("<items>");
+
+  foreach Material in gMaterials  
+    var pkgName := LocatePackageName(Material);
+    var sClass := GetItemClassName(Material);
+
+    if(!pkgName)
+      SendSysMessage(who, "Nie udalo sie ustalic pakietu dla "+hex(Material)+"/"+GetDescForItem(Material), FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    var Str := "  <item Type=\""+SpecHex(Material)+"\" Location=\""+pkgName+"\" Class=\""+sClass+"\"";
+    Str += " Name=\""+gItemsCfg[Material].Name+"\" Desc=\""+Clstr(gItemsCfg[Material].Desc)+"\"";
+    Str += " VendorBuysFor=\""+CInt(gItemsCfg[Material].VendorBuysFor)+"\"";
+    Str += " VendorSellsFor=\""+CInt(gItemsCfg[Material].VendorSellsFor)+"\" />";
+
+    Content.append(Str);
+
+  endforeach
+  
+  Content += array("</items>");
+  
+  if(Content)
+    WriteFile(":crafting:materials.xml", Content);
+    SendSYsMessage(who, "Zrzucono definicje "+(COntent.size()-2)+" materialow.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetDefinedMaterials(cfgElem, PropName := "material", bForce := 0)
+
+  var Materials :=array;
+  var Amount;
+
+  foreach strMat in GetConfigStringArray(cfgElem, PropName)
+    strMat := SplitWords(strMat);
+    var ObjType := GetItemObjType(strMat[1]);
+
+    if(!ObjType)
+      var Objtypes := GetCraftMatGroupObjTypes(strMat[1]);
+
+      if(ObjTypes)
+        ObjType := ObjTypes[1];
+      endif
+    endif
+
+    if(!ObjType)
+      if(bForce)
+        continue;
+      else
+        return error;
+      endif
+    endif
+
+    if(strMat.size() == 1)
+      Amount := 1;
+    else
+      Amount := CInt(strMat[2]);
+
+      if(!Amount)
+        continue;
+      endif
+    endif
+
+    Materials.append(array(ObjType, Amount));
+  endforeach
+
+  if(!Materials.size())
+    return error;
+  endif
+
+  return Materials;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBlacksmithObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":blacksmithy:blacksmithy");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+    Data.+materials := array(array(UOBJ_IRON_INGOT, CInt(CfgFIle[Obj].material)));
+    if(CfgFIle[Obj].ExtraMaterial)
+      var Extra := SplitWords(CfgFIle[Obj].ExtraMaterial);
+      Data.materials.append(array(GetItemObjType(Extra[1]), CInt(Extra[2])));
+    endif
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    ObjTypes.append(Data);
+  endforeach
+
+  CfgFIle := REadCOnfigFIle(":blacksmithy:armorer");
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+    Data.+materials := array(array(UOBJ_IRON_INGOT, CInt(CfgFIle[Obj].material)));
+    if(CfgFIle[Obj].ExtraMaterial)
+      var Extra := SplitWords(CfgFIle[Obj].ExtraMaterial);
+      Data.materials.append(array(GetItemObjType(Extra[1]), CInt(Extra[2])));
+    endif
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTailorObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":tailoring:tailoring");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+      if(gProducts.exists(Data.objtype))
+        continue;
+      endif
+      gProducts[Data.objtype] := 1;
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj]);
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCookingObjTypes()
+
+  var SkElem := GetSkillConfigELem(SKILLID_COOKING);
+  var Files := GetConfigStringArray(SkElem, "CraftConfig");
+  var ObjTypes := array;
+
+  foreach File in FIles
+    var CfgFIle := REadCOnfigFIle(FIle);
+
+    foreach Id in GetCOnfigStringKeys(CfgFIle)
+      var Data := struct;
+      var prod :=SplitWords(CfgFile[Id].Product);
+
+      Data.+objtype := GetItemObjType(Prod[1]);
+      if(gProducts.exists(Data.objtype))
+        continue;
+      endif
+      gProducts[Data.objtype] := 1;
+
+      Data.+materials := GetDefinedMaterials(CfgFIle[Id], "Ingredient", 1); // nie robimy force, bo sa grupy fillingsow w materialach, ktore nas nie obchodza.
+      Data.+diff := CInt(CfgFile[Id].Diff);
+      Data.+ProdAmount := CInt(prod[2]);
+      ObjTypes.append(Data);
+    endforeach
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBowcraftObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":bowcraft:bowcraft");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj]);
+    Data.+diff := CInt(CfgFile[Obj].skill);
+
+    if(CfgFile[Obj].MultAmount == "Skill")
+      Data.+ProdAmount := 10;
+    endif
+
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTinkerObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":tinkering:tinker");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+      if(gProducts.exists(Data.objtype))
+        continue;
+      endif
+      gProducts[Data.objtype] := 1;
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj]);
+
+    if(!Data.materials or !gItemsCfg[Obj])
+      continue;
+    endif
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    ObjTypes.append(Data);
+  endforeach
+
+  cfgfile := Readconfigfile(":tinkering:complex");
+  
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    var ELem := cfgfile[Obj];
+    
+    Data.+materials := array(array(CInt(Obj),1));
+    Data.+objtype := CInt(elem.cprod);
+      if(gProducts.exists(Data.objtype))
+        continue;
+      endif
+      gProducts[Data.objtype] := 1;
+
+    if(Elem.cpart)
+      Data.materials.append(array(CInt(Elem.cpart), 1));
+    endif
+
+    Data.+diff := CInt(Elem.skill);
+    ObjTypes.append(Data);
+
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCarpentryObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":carpentry:carpentry");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj]);
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    
+    case(CfgFile[Obj].MultAmount)
+      "Skill":
+        Data.+ProdAmount := 10;
+      "HalfSkill":
+        Data.+ProdAmount := 5;
+    endcase
+
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetCartographyObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":cartography:cartography");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj]);
+    Data.+diff := CInt(CfgFile[Obj].Diff);
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetMagicMakeObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":magicitemmaking:crystals");
+  var ObjTypes := array;
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj], "reagent");
+
+    if(!Data.materials)
+      continue;
+    endif
+    Data.+diff := CInt(CfgFile[Obj].Diff);
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetInscriptionObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":*:spells");
+  var Circles := REadCOnfigFIle(":*:circles");
+  var ObjTypes := array;
+  var Id;
+
+  for(Id:=1; Id<=64; Id+=1)
+    var Data := struct;
+    Data.+objtype := CInt(CfgFile[Id].scroll);
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Id], "SReagent");
+
+    if(!Data.materials)
+      continue;
+    endif
+
+    Data.+diff := CInt(Circles[CfgFile[Id].Circle].Diff);
+    ObjTypes.append(Data);
+  endfor
+
+  return ObjTypes;
+
+endfunction
+
+
+
+//-----------------------------------------------------------------------------
+
+function GetAlchemyObjTypes()
+
+  var CfgFIle := REadCOnfigFIle(":alchemy:alchemy");
+  var ObjTypes := array;
+  var SkELem := GetSkillConfigElem(SKILLID_ALCHEMY);
+  var PriceSource := SkElem.CraftPriceSource;
+
+  if(!PriceSource)
+    PriceSource := "Buy";
+  endif
+  
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+
+    Data.+materials := GetDefinedMaterials(CfgFIle[Obj], "reagent");
+    var EmptyBottle := CInt(CfgFile[Obj].EmptyBottle);
+    if(!EmptyBottle)
+      EmptyBottle := UOBJ_EMPTY_BOTTLE;
+    endif
+    Data.materials.append(array(EmptyBottle, 1));
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    Data.+PriceSource := PriceSource;
+    ObjTypes.append(Data);
+  endforeach
+
+  CfgFIle := REadCOnfigFIle(":alchemy:glassblow");
+
+  foreach Obj in GetCOnfigStringKeys(CfgFIle)
+    var Data := struct;
+    Data.+objtype := CInt(Obj);
+
+    Data.+materials := array(array(0xee20, CInt(CfgFIle[Obj].material)));
+    Data.+diff := CInt(CfgFile[Obj].skill);
+    ObjTypes.append(Data);
+  endforeach
+
+  return ObjTypes;
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+function LocatePackageName(ObjType)
+
+  foreach Package in gPkgList
+    var itemCfg := ReadConfigFile(":"+Package.name+":itemdesc");
+
+    if(itemCfg and itemCfg[ObjType])
+      return Package.name;
+    endif
+  endforeach
+
+  var gCfg := ReadConfigFile("::itemdesc");
+
+  if(gCfg[ObjType])
+    return "config";
+  endif
+
+  return error;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CalcItemPrice(byref Data)
+
+  var Price := 0;
+  
+  foreach Material in (Data.materials)
+    var matPrice;
+    if(Data.PriceSource == "Sell")
+      matPrice := CInt(gItemsCfg[Material[1]].VendorSellsFor);
+    else
+      matPrice := CInt(gItemsCfg[Material[1]].VendorBuysFor);
+    endif
+
+    var maxUses := CInt(gItemsCfg[Material[1]].MaxUses);
+
+    if(!matPrice)
+      return 0;
+    endif
+  
+    Price += matPrice * CInt(Material[2] / Max(maxUses, 1));
+
+    if(!RetIndex(gMaterials, Material[1]))
+      gMaterials.append(Material[1]);
+    endif
+  endforeach
+
+  Price += CInt(CDbl(Price) * (CDbl(Data.diff)*0.008));
+
+  if(Data.ProdAmount)
+    Price := Max(CInt(Price/Data.ProdAmount), 1);
+  endif
+
+  return Price;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetItemClassName(Obj)
+
+  var itmDesc := GetItemDescriptor(Obj);
+
+  return itmDesc.ObjClass;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GeneratePrices(groupName, who, ObjTypes)
+
+  var Text := array;
+  var iCount := 0;
+
+  foreach Data in ObjTypes
+
+    var itemPrice := CalcItemPrice(Data);
+    var pkgName := LocatePackageName(Data.objtype);
+    var sClass := GetItemClassName(Data.objtype);
+    var Mult := CDbl(gItemsCfg[Data.objType].SellPriceMultiplier);
+
+    if(!Mult)
+      Mult := 3.0;
+    endif
+
+    var sellPrice := CInt(itemPrice * Mult);
+
+    if(!itemPrice)
+      SendSysMessage(who, "Nie udalo sie ustalic ceny dla "+hex(data.objtype)+"/"+GetDescForItem(data.objtype), FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    if(!pkgName)
+      SendSysMessage(who, "Nie udalo sie ustalic pakietu dla "+hex(data.objtype)+"/"+GetDescForItem(data.objtype), FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+
+    Text.append("  <item Type=\""+SpecHex(Data.objtype)+"\" Location=\""+pkgName+"\" Class=\""+sClass+"\" Name=\""+gItemsCfg[Data.objtype].Name+"\" Desc=\""+CLStr(gItemsCfg[Data.objtype].Desc)+"\" VendorBuysFor=\""+itemPrice+"\" VendorSellsFor=\""+sellPrice+"\" />");
+    iCount += 1;
+  endforeach
+
+  SendSysMessage(who, "Wygenerowano "+iCOunt+" cen dla "+groupName, FONT_NORMAL, COLOR_GREEN);
+
+  return Text;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SpecHex(Obj)
+
+  var sHex := CStr(hex(CInt(Obj)));
+  sHex["0x"] := "";
+
+  var i;
+  for(i:=len(sHex); i<4; i+=1)
+    sHex := "0" + sHex;
+  endfor
+  
+  return "0x"+upper(sHex);
+
+endfunction 
+
+//-----------------------------------------------------------------------------

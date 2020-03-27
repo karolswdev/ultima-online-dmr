@@ -1,0 +1,530 @@
+//--------------------------------------------------------------------------------
+
+include "arena";
+include "include/coords";
+include "include/gumpboxes";
+include "include/clock";
+include "include/move";
+include ":banking:gold";
+include "include/checks/objchecks";
+
+//--------------------------------------------------------------------------------
+
+var alayout := array;
+var adata   := array;
+var who,stone,Fighter1,Fighter2;
+var res;
+
+//--------------------------------------------------------------------------------
+
+program ArenaStone(who1,stone1)
+  who := who1; stone := stone1;
+
+  var keeprun := 1;
+
+  while(who and stone and keeprun)
+    Fighter1 := 0;Fighter2 := 0;
+    BuildArenaGump();
+    if(IsArenaInUse(stone) and res and res != 6)
+      SendSysMessage(who,"Arena jest teraz zajeta.",FONT_NORMAL,COLOR_RED);
+      continue;
+    endif
+    if(res >= 5000)
+      ChangeFenceOt(stone,res-4999);
+      continue;
+    endif
+    case(res)
+      1:       if(PlayersFight())
+                 keeprun := 0;
+               endif
+      2:       WriteOnTour();
+      3:       SetTour(stone,who);
+      4:       if(YesNo(who,"Przerwac?"))
+                 EraseTour(stone,who);
+                 BroadCast("Przerwano Turniej Areny "+GetArenaName(Stone)+"!",FONT_NORMAL,COLOR_RED);
+               else
+                 SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+               endif
+      5:       if(TourFight())
+                 keeprun := 0;
+               endif
+      6:       TakeItemsFromChest(stone,who);
+      7:       MoveStoneToChLocation(stone,who);
+      8:       BuildScoreBoard(stone,who);
+      9:       UnLinkArenaWithBoard(stone,FindArenaScoreBoard(stone));
+      11:
+      12:
+      13:
+      14:
+      15:      if(NpcFight(res-10))
+                 keeprun := 0;
+               endif
+      21:
+      22:
+      23:
+      24:      
+      25:      if(MultiFight(res-20))
+                 keeprun := 0;
+               endif
+      90:      DestroyArenaStone(stone,who);
+      9999:    keeprun := 1;
+      101:     SetArenaCenter(stone,who);
+      102:     SetArenaOppPlace(stone,who);
+      103:     SetArenaFighterPlace(stone,who);
+      104:     SetArenaRange(stone,who);
+      105:     SetArenaChest(stone,who);
+      106:     var NewName := SendTextEntryGump(who,"Wpisz nowa nazwe",TE_CANCEL_ENABLE);
+               if(NewName)
+                 SetArenaName(stone,NewName);
+               endif
+      107:     BuildArenaFenceAround(stone);
+      108:     DestroyArenaFence(stone);
+      default: keeprun := 0;
+    endcase
+  endwhile
+  
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function BuildArenaGump()
+
+  alayout := array;
+  adata   := array;
+  alayout.append("resizepic 150 100 3600 400 400");
+  alayout.append("gumppic 100 110 10440");
+  alayout.append("gumppic 515 110 10441");
+  alayout.append("text    220 120 550 "+len(adata));
+  adata.append("Arena "+GetArenaName(stone));
+  if(IsGm(who))
+    alayout.append("text    470 120 550 "+len(adata));
+    adata.append("Nr "+CInt(GetObjProperty(stone,"ArenaNr")));
+  endif
+
+  alayout.append("page 1");
+  
+  if(!StartedTour(stone))
+    alayout.append("button 180 200 2714 2715 0 2");
+    alayout.append("text   200 200 660 "+len(adata));
+    adata.append("Jeden przeciwnik");
+
+    alayout.append("button 180 230 2714 2715 0 3");
+    alayout.append("text   200 230 660 "+len(adata));
+    adata.append("Paru przeciwnikow");
+
+    alayout.append("button 180 260 2714 2715 1 0 1");
+    alayout.append("text   200 260 660 "+len(adata));
+    adata.append("Pojedynek z czlowiekiem");
+
+    if(IsTour(stone))
+      alayout.append("button 180 290 2714 2715 1 0 2");
+      alayout.append("text   200 290 660 "+len(adata));
+      adata.append("Zapisz sie na turniej");
+    endif
+  else
+    alayout.append("text   255 170 540 "+(len(adata)));
+    adata.append("Turniej rozpoczety   Etap "+GetTourLvl(stone));
+    var Fighters := GetNextTourFight(stone);
+    Fighter1 := Fighters[1];
+    Fighter2 := Fighters[2];
+    alayout.append("text   180 220 550 "+len(adata));
+    alayout.append("text   320 220 660 "+(len(adata)+1));
+    adata.append("Pierwszy Smialek : ");
+    if(Fighter1.name)
+      adata.append(CStr(Fighter1.name));
+    else
+      adata.append("Nieznany");
+    endif
+
+    alayout.append("text   180 240 550 "+len(adata));
+    alayout.append("text   320 240 660 "+(len(adata)+1));
+    adata.append("Drugi Smialek : ");
+    if(Fighter1.name)
+      adata.append(CStr(Fighter2.name));
+    else
+      adata.append("Nieznany");
+    endif
+
+    var chk := {0,0};
+    foreach Mob in ListMobilesNearLocation(stone.x,stone.y,stone.z,1,stone.realm)
+      if(Mob == Fighter1)
+        chk[1] := 1;
+      elseif(Mob == Fighter2)
+        chk[2] := 1;
+      endif
+    endforeach
+    if(chk[1] and chk[2])
+      alayout.append("button 180 270 2714 2715 1 0 5");
+      alayout.append("text   200 270 660 "+len(adata));
+      adata.append("Rozpocznij walke");
+    endif
+  endif
+  
+  if(IsAdmin(who))
+    alayout.append("button 180 420 2714 2715 0 4");
+    alayout.append("text   200 420 660 "+len(adata));
+    adata.append("Ustawienia");
+    if(!IsTour(stone))
+      alayout.append("button 350 420 2714 2715 1 0 3");
+      alayout.append("text   370 420 660 "+len(adata));
+      adata.append("Rozpocznij Turniej");
+    elseif(!StartedTour(stone))
+      alayout.append("button 350 420 2714 2715 1 0 4");
+      alayout.append("text   370 420 660 "+len(adata));
+      adata.append("Przerwnij Turniej");
+    endif
+  endif
+  
+  if(GetObjProperty(stone,"TourCounting") and !StartedTour(stone))
+    var Time := 0;
+    alayout.append("text   225 450 540 "+len(adata));
+    Time := CInt((TOUR_START_TIME+GetObjProperty(stone,"TourCounting"))-ReadGameClock());
+    if(Time <= 0)
+      Time := "chwile";
+    else
+      Time := RealTime(Time);
+    endif
+    adata.append("Turniej rozpocznie sie za "+Time);
+  endif
+
+  if(FindArenaChest(stone))
+    alayout.append("button 180 390 2714 2715 1 0 6");
+    alayout.append("text   200 390 660 "+len(adata));
+    adata.append("Odbierz swoje przedmioty");
+  endif
+  
+  alayout.append("page 2");
+
+  FillInDiff(10);
+  
+  alayout.append("page 3");
+
+  FillInDiff(20);
+
+  if(IsAdmin(who))
+    alayout.append("page 4");
+  
+    alayout.append("button 180 160 2714 2715 1 0 101");
+    alayout.append("text   200 160 660 "+len(adata));
+    adata.append("Ustaw srodek areny");
+
+    alayout.append("button 180 190 2714 2715 1 0 102");
+    alayout.append("text   200 190 660 "+len(adata));
+    adata.append("Ustaw miejsce wroga");
+
+    alayout.append("button 180 220 2714 2715 1 0 103");
+    alayout.append("text   200 220 660 "+len(adata));
+    adata.append("Ustaw miejsce smialka");
+
+    alayout.append("button 180 250 2714 2715 1 0 104");
+    alayout.append("text   200 250 660 "+len(adata));
+    adata.append("Ustaw zasieg");
+  
+    alayout.append("button 180 280 2714 2715 1 0 105");
+    alayout.append("text   200 280 660 "+len(adata));
+    adata.append("Ustaw skrzynke areny");
+
+    alayout.append("button 180 310 2714 2715 1 0 106");
+    alayout.append("text   200 310 660 "+len(adata));
+    adata.append("Zmien nazwe areny");
+
+    alayout.append("button 180 340 2714 2715 1 0 107");
+    alayout.append("text   200 340 660 "+len(adata));
+    adata.append("Zbuduj plotek wokol areny");
+
+    alayout.append("button 180 370 2714 2715 1 0 108");
+    alayout.append("text   200 370 660 "+len(adata));
+    adata.append("Zniszcz plotek wokol areny");
+
+    alayout.append("button 180 400 2714 2715 0 5");
+    alayout.append("text   200 400 660 "+len(adata));
+    adata.append("Wybierz plotek");
+
+    alayout.append("button 515 340 2714 2715 1 0 9");
+    alayout.append("text   400 340 660 "+len(adata));
+    adata.append("Odlinkuj tablice");
+
+    alayout.append("button 515 370 2714 2715 1 0 8");
+    alayout.append("text   400 370 660 "+len(adata));
+    adata.append("Zbuduj tablice");
+
+    alayout.append("button 515 400 2714 2715 1 0 7");
+    alayout.append("text   400 400 660 "+len(adata));
+    adata.append("Przenies kamien");
+    
+    alayout.append("button 515 430 2714 2715 1 0 90");
+    alayout.append("text   400 430 660 "+len(adata));
+    adata.append("Zniszcz kamien");
+    
+    var Fence := GetArenaFenceOt(stone);
+    alayout.append("tilepic 410 160 "+Fence[1]);
+    alayout.append("text    400 240 660 "+len(adata));
+    adata.append("Aktualny Plotek");
+
+    alayout.append("button 180 430 2714 2715 1 0 9999");
+    alayout.append("text   200 430 550 "+len(adata));
+    adata.append("Wroc");
+
+    alayout.append("page 5");
+    
+    alayout.append("button 180 450 2714 2715 1 0 9999");
+    alayout.append("text   200 450 550 "+len(adata));
+    adata.append("Wroc");
+
+    UnloadConfigFile(ARENA_CFG);
+    var ArenaCfg := ReadConfigFile(ARENA_CFG);
+    var w := 0,h := 0,i := 5000,p := 6,Fences := GetConfigStringArray(ArenaCfg["ArenaFences"],"Fence");
+    foreach FType in Fences
+      if(i-4999 == len(Fences))
+        if(p > 6)
+          alayout.append("button 515 166 2650 2651 0 "+cint(p-2));
+        endif
+      endif
+      if(h >= 2)
+        if(p > 6)
+          alayout.append("button 515 166 2650 2651 0 "+cint(p-2));
+        endif
+        if((i-4999) <= CInt(len(Fences)+6))
+          alayout.append("button 515 410 2648 2647 0 "+cint(p));
+        endif
+        alayout.append("page "+p);
+        p := p + 1;
+        h := 0;
+        w := 0;
+      endif
+      Fence := GetConfigStringArray(ArenaCfg[FType],"FencePart");
+      alayout.append("button  "+(190+(w*120))+" "+(190+(h*120))+" 2714 2715 1 0 "+i);
+      alayout.append("tilepic "+(210+(w*120))+" "+(190+(h*120))+" "+Fence[1]);
+      alayout.append("text    "+(200+(w*120))+" "+(270+(h*120))+" 660 "+len(adata));
+      adata.append(FType);
+      w := w + 1;
+      i := i + 1;
+      if(w >= 3)
+        w := 0;
+        h := h + 1;
+      endif
+    endforeach
+
+  endif
+
+  res := SendDialogGump(who,alayout,adata)[0];
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function FillInDiff(Nr := 0)
+
+  alayout.append("button 180 200 2714 2715 1 0 "+(Nr+1));
+  alayout.append("text   200 200 660 "+len(adata));
+  adata.append("Slaby");
+
+  alayout.append("button 180 230 2714 2715 1 0 "+(Nr+2));
+  alayout.append("text   200 230 660 "+len(adata));
+  adata.append("Sredni");
+
+  alayout.append("button 180 260 2714 2715 1 0 "+(Nr+3));
+  alayout.append("text   200 260 660 "+len(adata));
+  adata.append("Dosc Mocny");
+
+  alayout.append("button 180 290 2714 2715 1 0 "+(Nr+4));
+  alayout.append("text   200 290 660 "+len(adata));
+  adata.append("Mocny");
+
+  alayout.append("button 180 320 2714 2715 1 0 "+(Nr+5));
+  alayout.append("text   200 320 660 "+len(adata));
+  adata.append("Potezny");
+
+  alayout.append("button 180 420 2714 2715 1 0 9999");
+  alayout.append("text   200 420 550 "+len(adata));
+  adata.append("Wroc");
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function PlayersFight()
+  SendSysMessage(who,"Wybierz osobe ktora chcesz wyzwac na pojedynek.",FONT_NORMAL,COLOR_GREEN);
+  var Opponent := ObjTarget(who);
+  
+  if(!StandardMobCheck(who,Opponent))
+    return 0;
+  endif
+  
+  if(!IsPlayer(Opponent))
+    SendSysMessage(who,"Tego nie mozesz wyzwac na pojedynek.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  SendSysMessage(Opponent,who.name + " wyzwal Cie na pojdynek, zgadasz sie ?",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(Opponent,"Tak ?"))
+    SendSysMessage(who,Opponent.name + " odmowil pojedynku.",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(Opponent,"Odmowil"+ggm(Opponent,3)+" pojedynku.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  if(!SetArenaFight(stone,who,Opponent,PLAYER_FIGHT))
+    SendSysMessage(who,"Arena nie jest jeszcze gotowa.",FONT_NORMAL,COLOR_RED);
+    SendSysMessage(Opponent,"Arena nie jest jeszcze gotowa.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  return 1;
+  
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function NpcFight(Diff)
+
+  return SetArenaFight(stone,who,Diff,NPC_FIGHT);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function MultiFight(Diff)
+
+  return SetArenaFight(stone,who,Diff,NPC_GROUP);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function TourFight()
+
+  if(IsPlayer(Fighter1) and IsPlayer(Fighter2) and Fighter1 != Fighter2)
+    if(!YesNo(Fighter1,"Gotowy?"))
+      PrintTextAbove(stone,"Smialek "+CStr(Fighter1.name)+" nie jest jeszcze gotowy",FONT_NORMAL,COLOR_BLUE);
+      return 0;
+    endif
+    if(!YesNo(Fighter2,"Gotowy?"))
+       PrintTextAbove(stone,"Smialek "+CStr(Fighter2.name)+" nie jest jeszcze gotowy",FONT_NORMAL,COLOR_BLUE);
+       return 0;
+    endif
+    return SetArenaFight(stone,Fighter1,Fighter2,TOUR_FIGHT);
+  endif
+  return 0;
+  
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function WriteOnTour()
+
+  if(IsTourFighter(stone,who))
+    SendSysMessage(who,"Jestes juz zapisany.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var ArenaCfg := ReadConfigFile(ARENA_CFG);
+  var Gold     := GetConfigInt(ArenaCfg["Gold"],"Tour");
+  if(!SubtractGold(who.backpack,Gold))
+    SendSysMessage(who,"Potrzebujesz "+Gold+"gp.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  SendSysMessage(who,"Czy napewno chcesz zapisac sie na turniej ?",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(who,"Tak?"))
+    SendSysMessage(who,"Innym razem wiec.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  if(GetStrength(who) < REQ_STR_ON_TOUR)
+    SendSysMessage(who,"Niestety jestes za slab"+ggm(who,3)+" by moc uczestniczyc w turnieju.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return AddTourFighter(stone,who);
+  
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function TakeItemsFromChest(stone,who)
+
+  var ArenaChest := FindArenaChest(stone),C:=0;
+  var ArenaPack  := FindArenaPack(ArenaChest,who,0);
+  
+  if(ArenaPack and who.backpack)
+    foreach item in ListRootItemsInContainer(ArenaPack)
+      MoveItemToContainer(item,who.backpack);
+      C := C + 1;
+    endforeach
+  endif
+  
+  if(!len(ListRootItemsInContainer(ArenaPack)))
+    DestroyItem(ArenaPack);
+  endif
+
+  var msg := "";
+  case(C)
+   0: SendSysMessage(who,"Nie ma zadnych twoich przedmiotow w skrzynce areny.",FONT_NORMAL,COLOR_RED);
+      return 0;
+   1: msg := "przedmiot";
+   2:
+   3:
+   4: msg := "przedmioty";
+   default: msg := "przedmiotow";
+  endcase
+  SendSysMessage(who,"Odebral"+ggm(who,3)+" "+C+" "+msg+".",FONT_NORMAL,COLOR_BLUE);
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function MoveStoneToChLocation(stone,who)
+
+  SendSysMessage(who,"Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var NewPlace := LocTarget(who);
+  if(!NewPlace)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  SendSysMessage(who,"Przenoszenie kamienia areny z miejsca x: "+stone.x+" y: "+stone.y+" z: "+stone.z+" na x: "+NewPlace.x+" y: "+NewPlace.y+" z: "+NewPlace.z+".",FONT_NORMAL,COLOR_GREEN);
+  MoveObject(stone,NewPlace.x,NewPlace.y,NewPlace.z,who.realm,MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+  stone.movable := 0;
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function BuildScoreBoard(stone,who)
+
+  if(FindArenaScoreBoard(stone))
+    SendSysMessage(who,"Ta arena ma zlinkowana tablice.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  SendSysMessage(who,"Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var NewPlace := LocTarget(who);
+  if(!NewPlace)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+  var Board := CreateItemAtLoc(NewPlace.x,NewPlace.y,NewPlace.z,UOBJ_ARENABOARD,1,who.realm);
+  if(Board)
+    LinkArenaWithBoard(stone,board);
+    SendSysMessage(who,"Postawil"+ggm(who,3)+" Tablice Wynikow.",FONT_NORMAL,COLOR_GREEN);
+    return 1;
+  else
+    SendSysMessage(who,"Nie mozna bylo postawic Tablice Wynikow.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+  
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function DestroyArenaStone(stone,who)
+
+  if(!YesNo(who,"Zniszczyc?"))
+    return 0;
+  endif
+  SetObjProperty(stone,"CanDestroyArena",1);
+  DestroyItem(stone);
+  return 1;
+  
+endfunction
+
+//--------------------------------------------------------------------------------

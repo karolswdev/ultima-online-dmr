@@ -1,0 +1,245 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/npcspeech";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+include ":msgboard:msgboard";
+
+//-----------------------------------------------------------------------------
+
+var _News, _curNewsIdx, _NewsAlign, g_MsgBoard, NewsTicker := 0;
+
+//-----------------------------------------------------------------------------
+
+program TownCrier_AI()
+
+  SetLogRunCycles(LST_AI);
+  
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+  EnableEvents(EVID_ENGAGED);
+  EnableEvents(EVID_DAMAGED);
+
+  g_MsgBoard := FindItemBySerial(GetObjProperty(me, "MsgBoard"));
+
+  case(CityAl)
+    CITYAL_NEUTRAL:   _NewsAlign := CNF_ORDER | CNF_CHAOS;
+    CITYAL_GOOD:      _NewsAlign := CNF_ORDER;
+    CITYAL_EVIL:      _NewsAlign := CNF_CHAOS;
+  endcase
+
+  if(me.realm == BRITA_REALM)
+    _NewsAlign := CNF_BRIT_ALT;
+  endif
+
+  GetNews();
+
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    if(!StdCityNpcHandleEvent(ev))
+      if(ReadGameClock() >= NextWander)
+        DefWander();
+        SpoutTheNews();
+        CityNpcLookAround();
+        InformMsgBoard();
+      elseif(RandomInt(100) < 3)
+        case(RandomInt(5))
+          1:        Say("*podspiewuje*");
+          2:        Say("*pogwizduje*");
+          3:        Say("*rozglada sie*");
+          default:  Say("*ziewa*");
+        endcase
+      endif
+    endif
+    
+    if(IsWalking())
+      if(!IsWalkPause())
+        WalkToDest();
+      endif
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["nowosci"] or text["wiesci"])
+    if(who)
+      if(!_News.size() or !_curNewsIdx)
+        case(RandomInt(3))
+          1:       Say("Nie ma nowych wiadomosci.");
+          2:       Say("Nic nowego nie slychac ostatnio.");
+          default: Say("Ah.. dawno juz nie slyszal"+ggm(me, 8)+" nic ciekawego.");
+        endcase
+      else
+        SayNews(_curNewsIdx);
+      endif
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SpoutTheNews()
+
+  NewsTicker := NewsTicker + 1;
+
+  if(NewsTicker < 2)
+    return;
+  endif
+
+  NewsTicker := 0;
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  GetNews();
+
+  if(_News.size())
+    if(_curNewsIdx <= 0 or _curNewsIdx + 1 > _News.size())
+      _curNewsIdx := 1;
+    else
+      _curNewsIdx := _curNewsIdx + 1;
+    endif
+  endif
+  
+  if(!_curNewsIdx)
+    if(RandomInt(100) < 10)
+      case(RandomInt(3))
+        1:       Say("Brak wiadomosci jest czasem dobra czasem zla wiadomoscia.");
+        default: Say("Brak wiadomosci jest dobra wiadomoscia.");
+      endcase
+    endif
+
+    if(RandomInt(100) < 5)
+      Say("*pogwizduje*");
+    endif
+  else
+
+    SayNews(_curNewsIdx);
+
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function InformMsgBoard()
+
+  if(!g_MsgBoard)
+    return;
+  endif
+  
+  sleep(2);
+  var Num := GetBoardMessageCount(g_MsgBoard);
+  
+  case(Num)
+    0: if(HaveChance(20))
+         Say("Na razie brak wiadomosci na tablicy ogloszen!");
+       endif
+    
+    1: Say("Jest jedna wiadomosc na tablicy ogloszeniowej!");
+    2:
+    3:
+    4: Say("Sa "+Num+" wiadomosci na tablicy ogloszeniowej!");
+    default: Say("Jest "+Num+" wiadomosci na tablicy ogloszeniowej!");
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SayNews(Idx)
+
+  if(!Idx)
+    return;
+  endif
+
+  var i;
+  for(i := 1; i <= _News[Idx].Lines.size(); i := i + 1)
+    if(_News[Idx].Lines[i])
+      if(_News[Idx].Color)
+        PrintTextAbove(me, _News[Idx].Lines[i], FONT_NORMAL, _News[Idx].Color);
+      else
+        Say(_News[Idx].Lines[i]);
+      endif
+      sleepms(600 + len(_News[Idx].Lines[i]) * 90);
+    endif
+  endfor
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetNews()
+
+  _News  := GetGlobalProperty(PROP_NPCNEWS);
+  var i := _News.size();
+
+  while(i > 0)
+    if(!(_News[i].Flags & _NewsAlign))
+      _News.erase(i);
+    endif
+    i := i - 1;
+  endwhile
+
+  if(!_News.size())
+    _curNewsIdx := 0;
+    return;
+  elseif(_curNewsIdx <= 0 or _curNewsIdx > _News.size())
+    _curNewsIdx := 1;
+  endif
+
+  CheckNewsExpire();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckNewsExpire()
+
+  if(_News[_curNewsIdx].ExpTime)
+    if(_News[_curNewsIdx].Time + _News[_curNewsIdx].ExpTime < ReadGameClock())
+      EraseNews(_News[_curNewsIdx].Id);
+      if(_curNewsIdx > _News.size())
+        _curNewsIdx := 1;
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseNews(Id)
+
+  var gNews := GetGlobalProperty(PROP_NPCNEWS);
+  var i;
+
+  for(i:=1;i<=gNews.size();i:=i+1)
+    if(gNews[i].Id == Id)
+      gNews.erase(i);
+      break;
+    endif
+  endfor
+
+  SetGlobalProperty(PROP_NPCNEWS, gNews);
+
+endfunction
+
+//-----------------------------------------------------------------------------

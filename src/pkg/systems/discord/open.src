@@ -1,0 +1,49 @@
+use uo;
+use os;
+
+include "include/www";
+include "include/gumps";
+include "include/misc";
+include ":discord:outbound";
+
+program discord_onLogon(who)
+
+	var i := 0;
+	foreach Player in EnumerateOnlineCharacters()
+		if(Malloc(Player))
+			PresetDiscordMessage("Dokonano niemozliwego!", "Default");
+		endif
+		i := i + 1;
+	endforeach
+
+	var message := "Kolejna dusza budzi sie na swiecie. (" + i + " online)";
+	
+	if(!GetObjProperty(who, "online_anonymous") && !who.cmdlevel)
+		message := "**" + who.name + "** budzi sie na swiecie.";
+	endif
+
+	PresetDiscordMessage(message, "Default");
+
+	var res := SendDiscordGump(who);
+	
+	if(!res)
+		return;
+	else
+		OpenWebSite(who, "https://discord.gg/3KTupxh");
+	endif
+		
+
+endprogram
+
+function SendDiscordGump(who)
+
+    GInit(0, 0);
+    GPage(1);
+    GResPic(74, 17, 9270, 355, 89);
+    GCheckerTrans( 68, 11, 371, 103); 
+    GGumpPic(357, 43, 113, 0); 
+    GButton(285, 49, 247, 248, 1);
+    GTextLine(130, 53, 65, "Dolacz na Discord DM:R");
+    return GSend(who)[0];
+	
+endfunction

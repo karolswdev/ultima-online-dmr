@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+program TrashCanControl(item)
+
+  sleep(120);
+  var count := 0;
+
+  while(item)
+    foreach trashitem in EnumerateItemsInContainer(item)
+      if(CInt(GetObjProperty(trashitem, "#DestroyAt")) <= ReadGameClock())
+        count := count + 1;
+        DestroyItem(trashitem);
+      endif
+    endforeach
+
+    if(count)
+      PrintTextAbove(item, "*niszczenie*");
+    endif
+    count := 0;
+    sleep(60);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

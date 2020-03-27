@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 6;
+const SPELL_POWER_INLOR :=5;
+//-----------------------------------------------------------------------------
+
+program CastNightSight( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  PlaySoundEffect(CastOn, SFX_SPELL_NIGHT_SIGHT );
+  var Duration := GetSpellDur(Caster, SpellGlob.Circle) * 10;
+  PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 10,10);
+  
+  PlaySoundEffect(Caster, SFX_SPELL_NIGHT_SIGHT );
+  
+  DoMod( CastOn, MOD_LIGHT, SPELL_POWER_INLOR, Duration);
+
+endfunction
+
+//-----------------------------------------------------------------------------

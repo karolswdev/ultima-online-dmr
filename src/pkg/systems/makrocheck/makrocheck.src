@@ -1,0 +1,31 @@
+//--------------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "makro";
+
+//--------------------------------------------------------------------------------
+
+var ev;
+
+//--------------------------------------------------------------------------------
+
+program MakroCheck(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  EraseMakroData();
+
+  while(1)
+    ev := wait_for_event(360);
+    case(ev.type)
+      EVID_REPORTMAKRO:  SendMakroGump(ev.source);
+    endcase
+  endwhile
+
+endprogram
+
+
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,162 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+include "include/attributes/skills";
+include "include/mobile/npcs/utils";
+include "include/findcity";
+include "include/move";
+include "include/gumps";
+include "ai/include/citynpcs";
+include "include/items/groups";
+include ":banking:gold";
+include "include/npcs";
+
+include "craftquests";
+include ":npcguilds:guilds";
+include ":crafting:recep_gumps";
+include ":crafting:receptures";
+
+//-----------------------------------------------------------------------------
+
+program HandlerCraftProcessCompletion(Data)
+
+  if(!AIHandler_Init(Data))
+    return 0;
+  endif
+  
+  if(!NpcHaveFlag(Data.npc, "CanGiveCraftQuest"))
+    return 0;
+  endif
+
+  if(Data.param.objtype != UOBJ_CRAFT_TICKET)
+    return 0;
+  endif
+
+  if(!ReserveItem(Data.param))
+    return 0;
+  endif
+
+  var Order := GetObjProperty(Data.param, PROP_CRAFT_DATA);
+
+  if(!CheckCraftTicket(Data.npc, Data.source, Order))
+    return 0;
+  endif
+
+  var SkId := GetOrderSkillId(Order);
+
+  if(SkId == error)
+    return 0;
+  elseif(!HaveSkillReceptures(SkId))
+    return 0;
+  endif
+
+  var cRecep := GetObjProperty(Data.param, PROP_CRAFT_RECEPTURE);
+
+  if(cRecep)
+    NpcSpeechJustSay(Data.npc, Data.source, "Za to zamowienie juz zakupil"+ggm(Data.source,3)+" recepture.");
+    return;
+  elseif(Order.Level == 1)
+    NpcSpeechJustSay(Data.npc, Data.source, "Za zamowienie z pierwszego poziomu nie kupisz receptury.");
+    return;
+  endif
+
+  var SkElem := GetSkillConfigElem(SkId);
+  var Answers := dictionary;
+  Answers["tak"] := 1;
+  Answers["nie"] := 2;
+
+  if(NpcAskQuestion(Data.npc, Data.source, "Chcial"+ggm(Data.source, GGM_ABYS)+" nauczyc sie nowej recepty z umiejetnosci "+SkElem.Name+"? Tak?", Answers) == 1)
+    NpcSpeechJustSay(Data.npc, Data.source, "Tutaj prosze sa wszystkie recepty.");
+    ProcessCraftRecepture(Data.npc, Data.source, Data.param);    
+  else
+    NpcSpeechJustSay(Data.npc, Data.source, "Dobrze wiec, moze innym razem.");
+    NpcSpeechJustSay(Data.npc, Data.source, "Bywaj!");
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckCraftTicket(me, who, Order)
+
+  if(Order.Source != me.serial)
+    NpcSpeechJustSay(me, who, "Hm.. to zamowienie nie jest odemnie.");
+    return 0;
+  elseif(Order.Player != who.serial)
+    NpcSpeechJustSay(me, who, "Hm.. nie Tobie dal"+ggm(who, GGM_AM)+" to zamowienie.");
+    return 0;
+  elseif(!Order.Comp)
+    NpcSpeechJustSay(me, who, "To zamowienie nie zostalo jeszcze wykonane.");
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessCraftRecepture(Npc, who, Ticket)
+
+  var Order := GetObjProperty(Ticket, PROP_CRAFT_DATA);
+
+  var Flags := SCRF_TEACH_ACCESS;
+
+  case(Order.level)
+    2: SetBitOn(Flags, SCRF_TEACH_LEVEL3);
+    3:
+    4: 
+    5: SetBitOn(Flags, SCRF_TEACH_LEVEL3);
+       SetBitOn(Flags, SCRF_TEACH_LEVEL4);
+  endcase
+
+  var SkId := GetOrderSkillId(Order);
+  var ItemObj := ShowCraftReceptures(who, 0, SkId, Flags);
+
+  if(ItemObj)
+    var Recep := GetCraftReceptureData(SkId, ItemObj);
+
+    if(Recep.cost)
+      if(!HaveGold(who, Recep.cost))
+        NpcSpeechJustSay(Npc, who, "Ta receptura kosztuje "+Recep.cost+" gp.");
+        NpcSpeechJustSay(Npc, who, "Nie masz tyle przy sobie!");
+        return;
+      endif
+    endif
+
+    NpcSpeechJustSay(Npc, who, "Ah.. wiec tak, chcesz wiedziec jak robi sie "+Recep.desc+"?");
+    NpcSpeechJustSay(Npc, who, "W porzadku.");
+
+    if(!NpcBusyLoop(Npc, who, 3, "*tlumaczy*"))
+      return;
+    endif
+
+    if(!Ticket)
+      return;
+    endif
+
+    if(Recep.cost)
+      if(!SpendGold(who, Recep.cost))
+        NpcSpeechJustSay(Npc, who, "Ta receptura kosztuje "+Recep.cost+" gp.");
+        NpcSpeechJustSay(Npc, who, "Nie masz tyle przy sobie!");
+        return;
+      endif
+    endif
+
+    NpcSpeechJustSay(Npc, who, "Czy wszystko jasne? Bardzo dobrze. Powodzenia zycze!");
+
+    SetObjProperty(Ticket, PROP_CRAFT_RECEPTURE, ItemObj);
+    AddCraftRecepture(who, SkId, ItemObj);
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

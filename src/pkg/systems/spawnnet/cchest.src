@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+
+include "spawnchest";
+include "spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program CreateChest(Chest)
+
+  var i := 0;
+
+  foreach SChest in ListItemsNearLocationOfType(Chest.x,Chest.y,Chest.z,0,UOBJ_SCHEST)
+    if(SChest != Chest)
+      return 0;
+    endif
+  endforeach
+
+  if(!GetGlobalProperty("CanCreateSpawnChest"))
+    return 0;
+  endif
+
+  if(CInt(GetGlobalProperty("#AddingSpawnChestPid")))
+    while(GetProcess(CInt(GetGlobalProperty("#AddingSpawnChestPid"))))
+      sleepms(1000);
+    endwhile
+  endif
+
+  SetGlobalProperty("#AddingSpawnChestPid",GetPid());
+
+  var GChest,MaxNr := GetMaxSChestNr(),Empty := 0;
+
+  for(i:=1;i<=MaxNr;i:=i+1)
+    GChest := FindChestByNr(i);
+    if(!GChest)
+      Empty := i;
+      break;
+    endif
+  endfor
+
+  var Nr;
+
+  if(Empty)
+    Nr := Empty;
+  else
+    Nr := CInt(MaxNr + 1);
+    SetGlobalProperty("LastSpawnChestNr",Nr);
+  endif
+
+  SetRuneType(Chest,CHEST_SPAWN);
+  SetGlobalProperty(SC_SER_FLAG+CStr(Nr),{Chest.x,Chest.y,Chest.z,Chest.serial,Chest.realm});
+  SetObjProperty(Chest,"ChestNr",Nr);
+  EraseGlobalProperty("#AddingSpawnChestPid");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

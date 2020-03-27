@@ -1,0 +1,132 @@
+//-----------------------------------------------------------------------------
+
+include "include/effects";
+include "include/tempmods";
+include "include/move";
+include "include/reputation/murderer";
+include "../pkg/systems/wearwolf/wearwolf";
+
+include "tourney";
+
+//-----------------------------------------------------------------------------
+
+program WalkOnPortal(who,Portal)
+
+  if(Portal.invisible or who.isa(POLCLASS_NPC))
+    return;
+  endif
+
+  var Coords := GetObjProperty(Portal,"Coords");
+  
+  if(!Coords)
+    return;
+  endif
+  
+  if(!who.cmdlevel)
+    case(Portal.objtype)
+      0xA246:  if(!GetObjProperty(Portal,"NoDelay"))
+                 if(!DelayTele(who,Portal))
+                   return;
+                 endif
+                 EraseEndProps(who);
+               else
+                 ClearPerson(who);
+               endif
+      0xA245:  if(GetTrTeam(who) == TRLOC_BLUE_ROOM)
+                 return;
+               endif
+               SetObjProperty(who,"TourneyProps",TRLOC_RED_ROOM);
+               DoMod(who,MOD_STATUS,3,3600);
+               NoMurderReport(who);
+      0xA244:  if(GetTrTeam(who) == TRLOC_RED_ROOM)
+                 return;
+               endif
+               SetObjProperty(who,"TourneyProps",TRLOC_BLUE_ROOM);
+               DoMod(who,MOD_STATUS,1,3600);
+               NoMurderReport(who);
+    endcase
+    
+    PlayStationaryEff(Portal.x,Portal.y,Portal.z,FX_HEAL_EFFECT,0x1F,0x1F);
+  endif
+  
+  MoveObject(who,Coords[1],Coords[2],Coords[3], who.realm, 0, MOVETYPE_PORTAL);
+
+  if(IsInTourneyLoc(TRLOC_STABLES, Coords[1], Coords[2]))
+    EraseObjProperty(who, "TourneyPoints");
+  endif
+  
+  if(!who.cmdlevel)
+    sleepms(200);
+    PlayStationaryEff(Coords[1],Coords[2],Coords[3],FX_HEAL_EFFECT,0x10,0x10);
+  
+    if(Portal.objtype == 0xA246 and GetObjProperty(Portal,"NoDelay"))
+      PlayStationaryEff(Coords[1],Coords[2],Coords[3],FX_TELE_VANISH,0xf,0xf);
+      sleepms(300);
+      PlayStationaryEff(Coords[1],Coords[2],Coords[3],FX_TELE_VANISH,0xf,0xf);
+    endif
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DelayTele(who,Portal)
+
+  for i:=1 to 10
+    PlayStationaryEff(Portal.x,Portal.y,Portal.z,FX_HEAL_EFFECT,0x10,0x1F);
+    sleepms(600);
+    if(who.x != Portal.x or who.y != Portal.y)
+      return 0;
+    endif
+  endfor
+  
+  return 1;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ClearPerson(who)
+
+  UndoMod(who,MOD_STATUS);
+  
+  var TrCfg       := ReadConfigFile(TR_CFG);
+  var TrTeam      := GetTrFightProps(who);
+  var Item;
+  
+  PlayStationaryEff(who.x,who.y,who.z,FX_TELE_VANISH,0x1f,0x1f);
+  
+  ClearTrEqp(who);
+  
+  var TrRobe  := CreateItemInCont(who.backpack,UOBJ_TR_ROBE);
+  var TrCloak := CreateItemInCont(who.backpack,UOBJ_TR_CLOAK);
+  var Color,TName;
+  
+  case(TrTeam)
+    TRLOC_RED_ROOM:   Color := TrCfg[TRCFG_GLOBAL].RedColor;
+                      TName := TrCfg[TRCFG_GLOBAL].RedName;
+    TRLOC_BLUE_ROOM:  Color := TrCfg[TRCFG_GLOBAL].BlueColor;
+                      TName := TrCfg[TRCFG_GLOBAL].BlueName;
+  endcase
+  
+  TrRobe.color  := Color;
+  TrCloak.color := Color;
+
+  SetName(TrRobe,GetDescForItem(TrRobe.objtype) + " " + TName);
+  SetName(TrCloak,GetDescForItem(TrCloak.objtype) + " " + TName);
+  SetObjProperty(TrRobe, PROP_TRITEM_TEMP, ReadGameClock());
+  SetObjProperty(TrCloak, PROP_TRITEM_TEMP, ReadGameClock());
+  
+  if(!EquipItem(who,TrRobe))
+    DestroyItem(TrRobe);
+  endif
+  
+  if(!EquipItem(who,TrCloak))
+    DestroyItem(TrCloak);
+  endif
+  
+  EraseTrFightProps(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,207 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use cfgfile;
+
+//--------------------------------------------------------------------------------
+
+include "../../arena";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+const PAGE_COUNT := 15;
+var keeprun := 1,res,i,ArenaSers,w := PAGE_COUNT,p := 1,Arena,ArenaChest,ArenaBoard,OppPlace,FigPlace,ArenaCenter;
+var aslayout := array;
+var asdata   := array;
+
+//-----------------------------------------------------------------------------
+
+program GlobalArenaStatus(who,Nr)
+
+  if(Nr)
+    if(!BuildArenaGump(CInt(Nr)))
+      SendSysMessage(who,"Nie ma areny o tym numerze.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  else
+    BuildGlobalGump();
+  endif
+
+  while(who and keeprun)
+    res := SendDialogGump(who,aslayout,asdata)[0];
+    if(!res)
+      keeprun := 0;
+    endif
+    if(res > 0 and res <= len(ArenaSers))
+      BuildArenaGump(res);
+      continue;
+    endif
+    case(res)
+      101:  MoveToArena(who);
+      102:  GoToArenaPartPlace(who,OppPlace,"miejsca wroga",Arena.realm);
+      103:  GoToArenaPartPlace(who,FigPlace,"miejsca smialka",Arena.realm);
+      104:  GoToArenaPartPlace(who,ArenaChest,"skrzynki areny",Arena.realm);
+      105:  GoToArenaPartPlace(who,ArenaBoard,"tablicy wynikow",Arena.realm);
+      106:  GoToArenaPartPlace(who,ArenaCenter,"srodka areny",Arena.realm);
+    endcase
+    BuildGlobalGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildGlobalGump()
+
+  w := PAGE_COUNT;p := 1;
+  ArenaSers := GetGlobalProperty(ARENASER_FLAG);
+  aslayout := array;
+  asdata   := array;
+  aslayout.append("resizepic 150 100 3600 500 400");
+  aslayout.append("text      300 120 540 "+len(asdata));
+  asdata.append("Wszystkie Areny");
+
+  for(i:=1;i<=len(ArenaSers);i:=i+1)
+    if(ArenaSers[i] != "Empty")
+      if(w >= PAGE_COUNT)
+        aslayout.append("page "+p);
+        if(p > 1)
+          aslayout.append("button 615 146 2650 2651 0 "+cint(p-1));
+        endif
+        if(i <= (len(ArenaSers)-PAGE_COUNT))
+          aslayout.append("button 615 410 2648 2647 0 "+cint(p+1));
+        endif
+        p := p + 1;
+        w := 0;
+      endif
+      aslayout.append("button 180 "+(170+(w*25))+" 2714 2715 1 0 "+i);
+      aslayout.append("text   200 "+(170+(w*25))+" 560 "+(len(asdata)));
+      aslayout.append("text   230 "+(170+(w*25))+" 550 "+(len(asdata)+1));
+      asdata.append(i);
+      asdata.append(GetArenaName(SystemFindObjectBySerial(CInt(ArenaSers[i]))));
+      w := w + 1;
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildArenaGump(Nr)
+
+  aslayout       := array;
+  asdata         := array;
+  ArenaSers      := GetGlobalProperty(ARENASER_FLAG);
+  Arena          := SystemFindObjectBySerial(CInt(ArenaSers[Nr]));
+  if(!Arena)
+    return 0;
+  endif
+  ArenaCenter    := FindArenaCenter(Arena);
+  ArenaChest     := FindArenaChest(Arena);
+  ArenaBoard     := FindArenaScoreBoard(Arena);
+  OppPlace       := FindArenaOppPlace(Arena);
+  FigPlace       := FindArenaFighterPlace(Arena);
+  aslayout.append("resizepic 150 100 3600 500 400");
+  aslayout.append("text      340 120 540 "+len(asdata));
+  asdata.append("Arena "+GetArenaName(Arena)+"  Nr "+Nr);
+  
+  aslayout.append("button    180 150 2714 2715 1 0 101");
+  aslayout.append("text      200 150 550 "+len(asdata));
+  asdata.append("Idz do areny");
+  aslayout.append("text      380 150 550 "+len(asdata));
+  asdata.append("Pozycja x: "+Arena.x+" y: "+Arena.y+" z: "+Arena.z);
+
+  aslayout.append("text      200 180 550 "+len(asdata));
+  asdata.append("Zasieg areny : "+CInt(FindArenaRange(Arena)));
+
+  aslayout.append("button    180 210 2714 2715 1 0 102");
+  aslayout.append("text      200 210 550 "+len(asdata));
+  asdata.append("Miejsce wroga");
+  aslayout.append("text      380 210 550 "+len(asdata));
+  if(OppPlace)
+    asdata.append("Pozycja x: "+OppPlace.x+" y: "+OppPlace.y+" z: "+OppPlace.z);
+  else
+    asdata.append("N/A");
+  endif
+  
+  aslayout.append("button    180 240 2714 2715 1 0 103");
+  aslayout.append("text      200 240 550 "+len(asdata));
+  asdata.append("Miejsce smialka");
+  aslayout.append("text      380 240 550 "+len(asdata));
+  if(FigPlace)
+    asdata.append("Pozycja x: "+FigPlace.x+" y: "+FigPlace.y+" z: "+FigPlace.z);
+  else
+    asdata.append("N/A");
+  endif
+
+  aslayout.append("button    180 270 2714 2715 1 0 104");
+  aslayout.append("text      200 270 550 "+len(asdata));
+  asdata.append("Skrzynia Areny");
+  aslayout.append("text      380 270 550 "+len(asdata));
+  if(ArenaChest)
+    asdata.append("Pozycja x: "+ArenaChest.x+" y: "+ArenaChest.y+" z: "+ArenaChest.z);
+  else
+    asdata.append("N/A");
+  endif
+
+  aslayout.append("button    180 300 2714 2715 1 0 105");
+  aslayout.append("text      200 300 550 "+len(asdata));
+  asdata.append("Tablica Wynikow");
+  aslayout.append("text      380 300 550 "+len(asdata));
+  if(ArenaBoard)
+    asdata.append("Pozycja x: "+ArenaBoard.x+" y: "+ArenaBoard.y+" z: "+ArenaBoard.z);
+  else
+    asdata.append("N/A");
+  endif
+
+  aslayout.append("button    180 330 2714 2715 1 0 106");
+  aslayout.append("text      200 330 550 "+len(asdata));
+  asdata.append("Srodek Areny");
+  aslayout.append("text      380 330 550 "+len(asdata));
+  if(ArenaCenter)
+    asdata.append("Pozycja x: "+ArenaCenter.x+" y: "+ArenaCenter.y+" z: "+ArenaCenter.z);
+  else
+    asdata.append("N/A");
+  endif
+
+  var Fence := GetArenaFenceOt(Arena);
+  aslayout.append("tilepic 510 360 "+Fence[1]);
+  aslayout.append("text    500 440 660 "+len(asdata));
+  asdata.append("Aktualny Plotek");
+
+  aslayout.append("button    180 450 2714 2715 1 0 9999");
+  aslayout.append("text      200 450 550 "+len(asdata));
+  asdata.append("Wroc");
+  
+  
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveToArena(who)
+
+  SendSysMessage(who,"Przenoszenie do Areny "+GetArenaName(Arena)+" Nr "+GetObjProperty(Arena,"ArenaNr")+".",FONT_NORMAL,COLOR_GREEN);
+  MoveObject(who,Arena.x,Arena.y,Arena.z,Arena.realm,MOVECHAR_FORCELOCATION);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToArenaPartPlace(who,Place,msg,Rlm)
+
+  if(!Place)
+    SendSysMessage(who,"Nie zostala okreslone "+msg+".",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Przenoszenie do "+msg+".",FONT_NORMAL,COLOR_BLUE);
+  MoveObject(who,Place.x,Place.y,Place.z,Rlm,MOVECHAR_FORCELOCATION);
+
+endfunction
+
+//-----------------------------------------------------------------------------

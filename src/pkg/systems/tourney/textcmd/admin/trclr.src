@@ -1,0 +1,29 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/client/misc";
+include "include/checks/stdchecks";
+include "../../tourney";
+include "../pkg/systems/wearwolf/wearwolf";
+
+//--------------------------------------------------------------------------------
+
+program ClearPacks(who)
+
+  var n := 0;
+  
+  foreach Obj in ListObjectsInBox(who.x-30,who.y-30,-127,who.x+30,who.y+30,127)
+    if(IsPlayer(Obj))
+      n := n + ClearTrEqp(Obj);
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Zniszczono "+n+" przedmiotow.",FONT_NORMAL,COLOR_RED);
+
+endprogram
+
+//--------------------------------------------------------------------------------

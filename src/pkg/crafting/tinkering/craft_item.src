@@ -1,0 +1,292 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/calc";
+include "include/key";
+include "include/speech";
+include "include/buildings";
+
+include ":crafting:common";
+include ":lumberjacking:trees";
+include ":quests:quest_ctrl";
+include ":crafting:creation";
+include ":crafting:iterations";
+include ":crafting:materials";
+include ":crafting:exceptional";
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program TinkeringCraftItem(Params)
+
+  var who := Params[1];
+  var Tool := Params[2];
+  var CraftData := Params[3];
+
+  SetScriptController(who);
+
+  if(!StandardItemCheck(who, Tool))
+    return;
+  endif
+
+  var Materials;
+  var Cont := GetContForTool(who, Tool);
+
+  if(!PrepareCraft(who, CraftData.objtype, Materials, Cont))
+    return;
+  endif
+
+  var IterData := DefineCraftIterations(who, SKILLID_TINKERING, CraftData.iters, Materials);
+
+  while(CraftIteration(who, IterData))
+
+    if(!CraftItem(who, Tool, CraftData.objtype, IterData, Materials, Cont))
+      FinishCraftIteration(who, IterData);
+      break;
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrepareCraft(who, ObjType, byref Materials, byref Cont)
+
+  var SkillCfg  := ReadConfigFile(":tinkering:tinker");
+  Materials := DefineCraftMaterialsFromCfg(who, Skillcfg[ObjType], "material", Cont);
+
+  if(!Materials)
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CraftItem(who, tool, ObjType, byref IterData, byref Materials, Cont)
+
+  var ItemCfg   := ReadConfigFile(ITEMS_CFG);
+  var SkillCfg  := ReadConfigFile(":tinkering:tinker");
+  var BlackMatCfg := ReadConfigFile(":blacksmithy:materials");
+
+  var ChkSkill  := CInt(SkillCfg[ObjType].skill);
+  var Points    := GetCraftPoints(SKILLID_TINKERING, ChkSkill);
+  var exchk     := SkillCfg[ObjType].exchk;
+  var MySkill   := GetEffectiveSkill(who, SKILLID_TINKERING);
+  var MyBSkill  := GetBaseSkill(who, SKILLID_TINKERING);
+  var ItemName  := GetDescForItem(ObjType);
+  var IngMod    := 0;
+  var IngSkill  := 0;
+  var MadeType  := 0;
+  var ProdAmount := 1;
+  var Sound;
+  var CraftLevel := CInt(SkillCfg[ObjType].CraftLevel);
+
+  if(Materials.mainSuffix)
+    ItemName += " " + Materials.mainSuffix;
+  endif
+
+  if(Materials.mainObj == UOBJ_CLAY)
+    Sound   := 0x22C;
+  else
+    Sound   := 0x22D;
+  endif
+  
+  var ExpMatName := "Metal";
+
+  if(Materials.mainObj in GetIngotsObjTypes())
+    MadeType := MTYPE_INGOT;
+    if(Materials.mainObj != UOBJ_IRON_INGOT)
+      ItemName := ItemName + " " + GetDpsType(Materials.mainObj) + " " + GetDps(Materials.mainObj,ObjType);
+    endif
+    IngMod   := Cint(BlackMatCfg[Materials.mainObj].ArMod);
+    IngSkill := Cint(BlackMatCfg[Materials.mainObj].Skill);
+  elseif(Materials.mainObj in GetBoardObjTypes())
+    MadeType := MTYPE_LOG;
+    if(Materials.mainObj  != UOBJ_NORMALBOARD)
+      ItemName := GetDps(Materials.mainObj ,ObjType) + " " + ItemName;
+    endif
+    IngMod   := Cint(GetKindOfLog(Materials.mainObj));
+    IngSkill := Cint(ItemCfg[Materials.mainObj].Skill);
+    ExpMatName := "Wood";
+  else
+    IngMod := CInt(ItemCfg[Materials.mainObj].MaterialMod);
+
+  endif
+
+  if(MyBSkill < CInt(IngSkill - 5))
+     SendSysMessage(who, "Twa wiedza jest za mala by moc cos z tego zrobic.",FONT_NORMAL,COLOR_RED);
+     return 0;
+  endif
+
+  var Res := CheckCraftMaterials(Materials, ProdAmount);
+  
+  if(!Res)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+    SendCraftMaterialList(who, Materials);
+    return 0;
+  endif
+
+  ResetCraftMaterials(Materials, ProdAmount);
+  CraftIterationGump(who, IterData, ProdAmount);
+
+  if(!CraftPreDelay(who, Materials, ProdAmount, 0x23E))
+    return 0;
+  endif
+  
+  if(!CheckToolWear (who, tool, SKILLID_TINKERING, GetMaterialsTimesForTool(Materials)))
+    return 0;
+  endif
+  
+  if(!CheckSkill(who, SKILLID_TINKERING, ChkSkill, 0))
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " narzedzie przeskoczyly Ci i zniszczyl"+ggm(who, 3)+" troche materialu!",FONT_NORMAL,COLOR_RED);
+    FailCraftIteration(IterData);
+    return 1;
+  endif
+
+  if(!CraftPostDelay(who, Materials, ProdAmount, 0x23E))
+    return 0;
+  endif
+
+  var itmDesc := GetMadeDescriptor(ObjType, who, MTYPE_LOG, Materials.mainKind);
+  
+  if(Materials.mainObj)
+    itmDesc.color := Materials.mainColor;
+  endif
+
+  var TheItem := CreateItemInCont(cont, itmDesc, 1, who);
+
+  if(!TheItem)
+    SendSysMessage(who,"Nie masz miejsca w pojemniku.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  theitem.movable := 1;
+
+  var ExpMod := 0;
+  var Str := GetStrength(who);
+  var Dex := GetDexterity(who);
+
+  if(myskill >= ChkSkill)
+    ExpMod := (myskill - ChkSkill)/3;
+  endif
+
+  ExpMod := CInt(ExpMod + str/3.0 + dex/4.0);
+  ExpMod := ExpMod + CheckItemQuality(tool);
+
+  if(SkillCfg[ObjType].ExChance)
+    ExpMod := CInt(ExpMod * (CInt(SkillCfg[ObjType].ExChance) * 0.01));
+  endif
+
+  var ExpData;
+
+  if(exchk)
+    ExpData := CraftExceptional(who, SKILLID_TINKERING, ExpMod, CraftLevel, ExpMatName);
+  endif
+
+  if(ExpData.makeExp)
+
+    SetItemQuality(theitem, EXP_QUALITY_MULTIPLIER);
+
+    if(SkillCfg[ObjType].AddNb)
+      theitem.newbie := 1;
+    endif
+
+    if(ExpData.makeNamed)
+      itemname := GetProductItemName(who, itemName, SkillCfg[ObjType]);
+    else
+      itemname := EXP_ITEM_NAME + " " + itemname;
+    endif
+
+    SendSysMessage(who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" wyjatkowej jakosci przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+
+  elseif(RandomInt(100) >= MySkill and exchk)
+
+    case((RandomInt(2) + 1))
+      1: SetItemQuality(theitem, 0.7);
+      2: SetItemQuality(theitem, 0.8);
+      3: SetItemQuality(theitem, 0.9);
+    endcase
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" sredniej jakosci przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_RED);
+
+  else
+    if(exchk) 
+      SetItemQuality(theitem, 1);
+    endif
+    SendSysMessage( who, GetCraftIterDesc(IterData) + " Stworzyl"+ggm(who,3)+" przedmiot i wlozyl"+ggm(who,3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+  if(theitem.amount == 1)
+    SetName(theitem, itemname );
+    SetItemHp(TheItem, GetItemMaxHp(TheItem));
+  endif
+
+  if(IngMod)
+    if(theitem.isa(POLCLASS_WEAPON))
+      theitem.dmg_mod := CInt(IngMod / 2);
+    elseif(theitem.isa(POLCLASS_ARMOR))
+      theitem.ar_mod := IngMod;
+    endif
+    SetItemHp(TheItem, GetItemMaxHp(TheItem));
+  endif
+
+  SetMade(who, TheItem, MadeType, IngMod);
+  AwardPoints(who, SKILLID_TINKERING, Points, GAIN_RESTRICT, ChkSkill);
+  SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_TINKERING, array(theitem, Materials.mainObj));
+  
+  	if(ExpData.inscribe)
+		start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, TheItem});
+	endif
+	
+	if(ExpData.changeColor)
+		start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, TheItem});
+	endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetProductItemName(who, itemName, SkillElem)
+
+  var RName := 0;
+
+  if(SkillElem.CustomName)
+    while(!RName)
+      RName := SendTextEntryGump(who,"Wpisz nazwe przedmiotu",TE_CANCEL_ENABLE);
+      if(!RName)
+        RName := -1;
+      elseif(len(RName) > 25)
+        SendSysMessage(who,"Za dluga nazwa, maksymalnie 25 znakow.",FONT_NORMAL,COLOR_RED);
+        RName := 0;
+      elseif(!CenCheckLine(who, RName))
+        RName := 0;
+      elseif(!CanBeCustomItemName(RName))
+        SendSysMessage(who,"Nie mozesz tak nazwac przedmiotu.",FONT_NORMAL,COLOR_RED);
+        RName := 0;
+      endif
+    endwhile
+
+    if(RName == -1)
+      itemName := EXP_ITEM_NAME + " " + itemname + " [Wykonal"+ggm(who,4)+" " + who.name + "]";
+    elseif(RName)
+      itemName := RName;
+      //itemName := EXP_ITEM_NAME + " " + RName + " [Wykonal"+ggm(who,4)+" " + who.name + "]";
+    endif
+  endif
+
+  if(RName == 0)
+    itemName := EXP_ITEM_NAME + " " + itemname + " [wykonal"+ggm(who,4)+" " + who.name + "]";
+  endif
+
+  return itemName;
+
+endfunction
+
+//-----------------------------------------------------------------------------

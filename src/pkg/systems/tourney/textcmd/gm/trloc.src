@@ -1,0 +1,92 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/gumpboxes";
+include "../../tourney";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program SetTourneyLocsCmd(who,text)
+
+  case(CInt(text))
+    TRLOC_MAIN:
+    TRLOC_RED_ROOM:
+    TRLOC_BLUE_ROOM:
+    TRLOC_GUARD:
+    TRLOC_OUTROOM:
+    TRLOC_ROOMFOOD:
+                         SetOneLoc(who,CInt(text));
+
+    TRLOC_ISLAND:
+    TRLOC_ARCHROOM:
+    TRLOC_WARRROOM:
+    TRLOC_MAGEROOM:
+    TRLOC_STABLES:
+    TRLOC_MAINROOMS:     
+    TRLOC_EVERYTHING:    SetTwoLocs(who,CInt(text));
+    
+    default:   SendSysMessage(who,".trloc [nr]",FONT_NORMAL,COLOR_RED);
+               SendSysMessage(who,TRLOC_MAIN+" - main.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_RED_ROOM+" - red room.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_BLUE_ROOM+" - blue room.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_ISLAND+" - island.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_MAINROOMS+" - main rooms.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_GUARD+" - straznik.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_OUTROOM+" - outroom.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_ROOMFOOD+" - foodroom.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_ARCHROOM+" - lucznicy.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_WARRROOM+" - wojowie.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_MAGEROOM+" - magowie.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_STABLES+" - stajnie.",FONT_NORMAL,COLOR_BLUE);
+               SendSysMessage(who,TRLOC_EVERYTHING+" - calosc.",FONT_NORMAL,COLOR_BLUE);
+               
+               
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SetOneLoc(who,Nr)
+
+  SendSysMessage(who,"Wskaz miejsce.",FONT_NORMAL,COLOR_GREEN);
+  var Targ := LocTarget(who);
+  
+  if(!Targ)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Ustawiono ["+Nr+"] na x: "+Targ.x+" y: "+Targ.y+" z: "+Targ.z,FONT_NORMAL,COLOR_GREEN);
+  SetTourneyProp({Targ.x,Targ.y,Targ.z},Nr);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetTwoLocs(who,Nr)
+
+  SendSysMessage(who,"Wskaz miejsce.",FONT_NORMAL,COLOR_GREEN);
+
+  var Loc := {};
+  var Targ := LocTarget(who);
+
+  if(!Targ)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  Loc[1] := Targ.x;
+  Loc[2] := Targ.y;
+
+  var Gump := YesNo(who,"Juz?");
+  Loc[3] := who.x;
+  Loc[4] := who.y;
+
+  SendSysMessage(who,"Ustawiono ["+Nr+"] z x: "+Loc[1]+" y: "+Loc[2]+" do x: "+Loc[3]+" y: "+Loc[4],FONT_NORMAL,COLOR_GREEN);
+  SetTourneyProp(Loc,Nr);
+
+endfunction
+
+//-----------------------------------------------------------------------------

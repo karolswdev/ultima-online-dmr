@@ -1,0 +1,46 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use cfgfile;
+use os;
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/items";
+
+//--------------------------------------------------------------------------------
+
+const DESTROY_TIME           := 900; //15min
+const SIEW_TIME              := 240;
+
+//--------------------------------------------------------------------------------
+
+program ziolo(parms)
+
+  var x     := parms[1];
+  var y     := parms[2];
+  var z     := parms[3];
+  var prod  := parms[4];
+  var Rlm   := parms[5];
+  var plc   := 0;
+  var ziolo;
+  var zioloar := {};
+
+  if(!x or !y or !prod)
+    return;
+  endif
+
+  sleep(SIEW_TIME);
+  ziolo := CreateItemAtLoc(x,y,z, prod, 1, Rlm);
+  SetObjProperty(ziolo,"Herded",1);
+
+  sleep(DESTROY_TIME);
+  if(ziolo)
+    DestroyItem(ziolo);
+  endif
+ 
+endprogram
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+include ":party:party";
+
+//-----------------------------------------------------------------------------
+
+program PartyHook()
+
+  print("[0xBF::0x06]: Party Hook");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function HandleRecvPartyCmd(who, byref Packet)
+
+  case(Packet.GetInt8(5))
+    PARTYCMD_INVITATION:
+    PARTYCMD_ACCEPT_JOIN:     start_script(":party:handle_party", array(who, Packet));
+                              return 0;
+
+    PARTYCMD_TELL_MEMB_MSG:   start_script(":party:handle_party", array(who, Packet));
+                              return 1;
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

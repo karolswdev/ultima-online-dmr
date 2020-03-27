@@ -1,0 +1,172 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/finding";
+include "include/misc";
+include "include/effects";
+include "include/move";
+include "tourney";
+include "include/gumps";
+
+//-----------------------------------------------------------------------------
+
+program ChooseMem(who)
+
+  if(!GetObjProperty(who,"TrCaptain"))
+    return;
+  endif
+  
+  var Loc := GetTourneyProp(TRLOC_MAINROOMS);
+  
+  if(who.x >= Loc[1] and who.x <= Loc[3] and who.y >= Loc[2] and who.y <= Loc[4])
+    ChooseMember(who);
+  else
+    Loc := GetTourneyProp(TRLOC_ISLAND);
+    if(!(who.x >= Loc[1] and who.x <= Loc[3] and who.y >= Loc[2] and who.y <= Loc[4]))
+      EraseObjProperty(who,"TrCaptain");
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ChooseMember(who)
+
+  var Team := GetObjProperty(who,"TrCaptain");
+  var Ch   := CInt(GetGlobalProperty("TrCaptainChoose"));
+  
+  if(Ch == -1)
+    SendSysMessage(who,"Juz trwa wybieranie...",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Ch == Team)
+    SendSysMessage(who,"Teraz nie twoja kolej...",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SetGlobalProperty("TrCaptainChoose",-1);
+  
+  if(!CheckRooms())
+    SendSysMessage(who,"Wybrano juz wszystkie osoby.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  var Res := CInt(SendChGump(who));
+  
+  if(Res)
+    var Mob := FindPlayerBySerial(Res);
+    if(Mob)
+      if(IsLoggedIn(Mob))
+        SetGlobalProperty("TrCaptainChoose",Team);
+        SendSysMessage(who,"Wybral"+ggm(who,3)+" osobe "+Mob.name+".",FONT_NORMAL,COLOR_GREEN);
+        SetMobTeam(Mob,Team);
+        return;
+      endif
+    endif
+  endif
+  
+  SendSysMessage(who,"Nie wybral"+ggm(who,3)+" osoby, musisz jedna wybrac.",FONT_NORMAL,COLOR_RED);
+  case(Team)
+    TRLOC_RED_ROOM:  SetGlobalProperty("TrCaptainChoose",TRLOC_BLUE_ROOM);
+    TRLOC_BLUE_ROOM: SetGlobalProperty("TrCaptainChoose",TRLOC_RED_ROOM);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendChGump(who)
+
+  var Res;
+  
+  while(Res < 0 and IsLoggedIn(who) and who)
+    GInit(100,100);
+    GResPic(0,0,3600,300,200);
+  
+    GTextLine(100,20,590,"Wybierz klase");
+  
+    GTextLine(40,50,580,"Wojownicy");
+    GTextLine(40,70,580,"Lucznicy");
+    GTextLine(40,90,580,"Magowie");
+  
+    GButton(20,50,2714,2715,(TRLOC_WARRROOM*-1));
+    GButton(20,70,2714,2715,(TRLOC_ARCHROOM*-1));
+    GButton(20,90,2714,2715,(TRLOC_MAGEROOM*-1));
+    
+    Res := GSend(who)[0];
+    
+    if(Res < 0)
+      Res := ChoosePlayer(who,(Res*-1));
+    endif
+    
+  endwhile
+  
+  return Res;
+    
+endfunction
+    
+//-----------------------------------------------------------------------------
+
+function ChoosePlayer(who,Res)
+
+  var Loc  := GetTourneyProp(Res);
+  var Mobs := {};
+  
+  GInit(100,100);
+  GPage();
+  GResPic(0,0,3600,400,500);
+  GAddPageData(365,55,2650,2651,365,463,2648,2647);
+  
+  case(Res)
+    TRLOC_WARRROOM: GTextLine(160,20,590,"Wojownicy: ");
+    TRLOC_ARCHROOM: GTextLine(160,20,590,"Lucznicy: ");
+    TRLOC_MAGEROOM: GTextLine(160,20,590,"Magowie: ");
+  endcase
+  
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob) and !Mob.cmdlevel)
+      GCheckNextPage(20);
+      GTextLine(50,(GNPCount()*20)+50,580,Mob.name);
+      GButton(25,(GNPCount()*20)+50,2714,2715,Mob.serial);
+    endif
+  endforeach
+  
+  return GSend(who)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckRooms()
+
+  var Loc;
+
+  Loc := GetTourneyProp(TRLOC_ARCHROOM);
+
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob))
+      return 1;
+    endif
+  endforeach
+
+  Loc := GetTourneyProp(TRLOC_WARRROOM);
+
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob))
+      return 1;
+    endif
+  endforeach
+
+  Loc := GetTourneyProp(TRLOC_MAGEROOM);
+
+  foreach Mob in ListObjectsInBox(Loc[1],Loc[2],-127,Loc[3],Loc[4],127)
+    if(IsPlayer(Mob))
+      return 1;
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

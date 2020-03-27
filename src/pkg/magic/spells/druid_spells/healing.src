@@ -1,0 +1,88 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 87;
+
+//-----------------------------------------------------------------------------
+
+program CastHealing( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  Detach();
+  NoLongerBusy(Caster);
+
+  var CasterAl    := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var CasterDruid := GetEffectiveSkill(Caster,SKILLID_DRUID);
+
+  var Plvl        := GetPoisonLevel(CastOn);
+  var potency     := CInt(CasterDruid / 40) + CInt(GetEffectiveSkill(Caster,SKILLID_POISONING) / 40);
+
+  if (plvl >= 1)
+    PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 10,10 );
+    plvl := plvl - potency;
+    if (plvl >= 1)
+      SendSysMessage(Caster, "Wyleczyl"+ggm(Caster, 3)+ " czesciowo trucizne.",FONT_NORMAL,COLOR_GREEN);
+      if(Caster != CastOn)
+        SendSysMessage(CastOn, Caster.name + " czesciowo Cie uzdrawia!",FONT_NORMAL,COLOR_GREEN);
+      endif
+    else
+      if(Caster == CastOn)
+        SendSysMessage(Caster,"Uzdrowil"+ggm(Caster,3)+" sie kompletnie.",FONT_NORMAL,COLOR_BLUE);
+      else
+        SendSysMessage(Caster, CastOn.name + " zostal"+ggm(CastOn,4)+" uzdrowion"+ggm(CastOn,6)+".",FONT_NORMAL,COLOR_BLUE);
+        SendSysMessage(CastOn, Caster.name + " uzdrowil"+ggm(Caster,4)+" Cie kompletnie!",FONT_NORMAL,COLOR_BLUE);
+      endif
+    endif
+    DecreasePoison(CastOn,plvl,SFX_SPELL_CURE);
+  endif
+  
+  PlayPcEffect(CastOn, FX_SPARK_EFFECT, 70, 0x10, 0x10, 4);
+  PlaySoundEffect(CastOn, SFX_SPELL_HEAL);
+
+  if(GetHp(CastOn) == GetMaxHp(CastOn))
+    if(!GetPoisonLevel(CastOn))
+      if(CastOn == Caster)
+        SendSysMessage(Caster, "Czujesz sie w pelni zdrowy.", FONT_NORMAL, COLOR_GREEN);
+      elseif(CastOn.isa(POLCLASS_NPC))
+        SendSysMessage(Caster, "To stworzenie jest w pelni zdrowe.", FONT_NORMAL, COLOR_GREEN);
+      else
+        SendSysMessage(Caster, "Ta osoba jest w pelni zdrowa.", FONT_NORMAL, COLOR_GREEN);
+      endif
+    endif
+
+    return;
+  endif
+
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE); 
+
+  var Amt    := CInt(CasterDruid / 5) + CInt(CasterAl / 5) + RandomInt(7);
+  var sTime  := ToMin(500 - CInt(CasterDruid * 1.5 + CasterAl * 1.5), 100);
+  var cfgElem := GetNpcConfig(CastOn);
+
+  if(CastOn.isa(POLCLASS_NPC))
+    if(cfgElem.alignment == CITYAL_NEUTRAL)
+      Amt   := Amt * 2;
+      sTime := CInt(sTime / 2);
+    endif
+  endif
+
+  while(GetHp(CastOn) < GetMaxHp(CastOn) and Amt > 0)
+    Amt := Amt - 1;
+    HealMobile(CastOn, Caster, 1);
+    sleepms(sTime);
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------

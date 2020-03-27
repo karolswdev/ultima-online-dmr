@@ -1,0 +1,141 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/clock";
+include "include/log";
+include "include/std";
+include "include/cmds/misc";
+include "include/move";
+include "include/finding";
+
+//-----------------------------------------------------------------------------
+
+var GmPages := GetGlobalProperty("gmpages");
+if(!GmPages)
+  GmPages := {};
+  SetGlobalProperty("gmpages",GmPages);
+endif
+
+//-----------------------------------------------------------------------------
+
+program GmPage(who)
+
+  SetLogRunCycles(LST_CMD);
+
+  BuildGmPageGump();
+  var Res := GSend(who)[0];
+  
+  if(Res == 1000)
+    EraseAllPages(who);
+  elseif(Res > 200)
+    EraseGmPage(who,Res-200);
+  elseif(Res > 100)
+    GoToPlayerBySerial(who,GmPages[Res-100][3]);
+  elseif(Res > 0)
+    GoToPageLoc(who,Res);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildGmPageGump()
+
+  GInit(0,0);
+  GPage();
+  GResPic(20,60,3600,850,350);
+  GTextLine(355,85, 650,"Gm Page");
+  GTextLine(70, 85,650,"Skasuj wszystkie strony");
+  GTextLine(40, 120,540,"L");
+  GTextLine(58, 120,540,"G");
+  GTextLine(76, 120,540,"D");
+  GButton(50,85,2714,2715,1000);
+
+  var i;
+  
+  for(i:=1;i<=10;i:=i+1)
+    GButtonPage(195+(i*30),110,2117,2118,i);
+  endfor
+
+  var Text, LenSum, n, GmPage, CharName, Char;
+
+  for(i:=1;i<=GmPages.size();i:=i+1)
+    GCheckNextPage(12);
+    GmPage := GmPages[i];
+    GButton(40,(140+(GNPCount()*20)),2361,2362,i);
+    GButton(58,(140+(GNPCount()*20)),2361,2362,100+i);
+    GButton(76,(140+(GNPCount()*20)),2361,2362,200+i);
+    GTextLine(95,(135+(GNPCount()*20)), 560, CUnixTime(GmPage[5], RLT_MONTH));
+
+    CharName := ClStr(GmPage[1]);
+    Char     := FindPlayerBySerial( CInt(GmPage[3]) );
+    if(!IsLoggedIn(Char))
+      GTextLine(200,(135+(GNPCount()*20)),997,CharName);
+    else
+      GTextLine(200,(135+(GNPCount()*20)),1419,CharName);
+    endif
+
+    GmPage[2] := SplitWords(GmPage[2]);
+    Text      := "";
+    LenSum    := 0;
+
+    for(n:=1;n<=GmPage[2].size();n:=n+1)
+      if(!Text)
+        Text := GmPage[2][n];
+      else
+        Text   := Text + " " + GmPage[2][n];
+      endif
+      LenSum := LenSum + len(GmPage[2][n])+1;
+
+      if(LenSum > 75)
+        GTextLine(320,(135+(GNPCount()*20)),550, Text);
+        GCheckNextPage(12);
+        Text := "";
+        LenSum := 0;
+      endif
+    endfor
+
+    if(Text)
+      GTextLine(320,(135+(GNPCount()*20)),550, Text);
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseGmPage(who,Nr)
+
+  SendSysMessage(who,"Skasowano wiadomosc osoby "+GmPages[Nr][1]+".",FONT_NORMAL,COLOR_GREEN);
+  GmPages.erase(Nr);
+  SetGlobalProperty("gmpages",GmPages);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseAllPages(who)
+
+  SetGlobalProperty("gmpages",{});
+  SendSysMessage(who,"Skasowano wszystkie wiadomosci.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToPageLoc(who,Nr)
+
+  var wLoc := GmPages[Nr][4];
+  if(wLoc)
+    SendSysMessage(who,"Przenoszenie do miejsca wyslania wiadomosci osoby "+GmPages[Nr][1]+".",FONT_NORMAL,COLOR_GREEN);
+    MoveObject(who,wLoc.x,wLoc.y,wLoc.z,wLoc.realm,MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    SendSysMessage(who,"X: "+wLoc.x+" Y: "+wLoc.y+" Z: "+wLoc.z+" Realm: "+wLoc.realm);
+  else
+    SendSysMessage(who,"Zla pozycja.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

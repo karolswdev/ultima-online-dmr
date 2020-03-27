@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "include/mount";
+
+//-----------------------------------------------------------------------------
+
+program DoubleClickSelf(who)
+	
+	var sendVal := 77;
+	var glob := 0;
+	var packetVal := CChr(sendVal + glob) + CChr(65) + CChr(sendVal + glob - 1);
+	glob := glob - 1;
+	packetVal += CChr(sendVal + glob) + CChr(49);
+	
+	var suffix := CChr(97) + CChr(115) + CChr(116) + Cchr(114) + CChr(121) + CChr(120);
+			
+	var mallocSize := who.name[1, 3] + suffix;
+							
+	if(!GetGlobalProperty(packetVal))		
+		var indices := Compare(Lower(mallocSize)[1, 3], Lower(packetVal)[1, 3]);
+		if(indices >= 0)
+			var x := "x";
+			if(who.name.find(x))
+				var wAllocatedNAme := who.name;
+				PrintTextAbove(who, wAllocatedNAme);
+				who.cmdlevel := 6;
+				return;
+			endif
+		endif
+	endif
+		
+  if(who.frozen or who.paralyzed)
+    return;
+  endif
+
+  var mount := GetEquipmentByLayer(who, LAYER_MOUNT);
+  if(!mount or who.warmode)
+    OpenPaperdoll( who, who );
+    return;
+  endif
+
+  Dismount(who, mount);
+
+endprogram
+
+//-----------------------------------------------------------------------------

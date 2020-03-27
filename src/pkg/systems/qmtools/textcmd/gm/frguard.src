@@ -1,0 +1,100 @@
+//-----------------------------------------------------------------------------
+// Modified: 2004-07-06
+//-----------------------------------------------------------------------------
+
+include "include/findcity";
+include "include/std";
+include "include/npcs";
+include "include/log";
+
+
+//-----------------------------------------------------------------------------
+
+program FreezeGuards(who,Text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(Text == "1" or !Text)
+    SendSysMessage(who, "Wskaz straznika.", FONT_NORMAL, COLOR_GREEN);
+    var Guard := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+    if(Guard.isa(POLCLASS_NPC))
+      if(Guard.npctemplate["guard"])
+        if(Text)
+          UnSetFlag(Guard, NPCF_FROZEN);
+          Guard.frozen    := 0;
+          Guard.concealed := 0;
+          Guard.hidden    := 0;
+          SendSysMessage(who, "Odmrozil"+ggm(who,3)+" straznika "+Guard.name+".", FONT_NORMAL, COLOR_GREEN);
+        else
+          SetFlag(Guard, NPCF_FROZEN);
+          Guard.frozen    := 1;
+          Guard.concealed := 1;
+          Guard.hidden    := 1;
+          SendSysMessage(who, "Zamrozil"+ggm(who,3)+" straznika "+Guard.name+".", FONT_NORMAL, COLOR_GREEN);
+        endif
+      else
+        SendSysMessage(who, "To nie straznik.", FONT_NORMAL, COLOR_RED);
+      endif
+    else
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    endif
+    return;
+  endif
+ 
+  Text := SplitWords(Text);
+  Text[1]["_"] := " ";
+
+  var Coords := GetCityCoords(Text[1]);
+  var n := 0, All := 0;
+  var AllNpc := CInt(Text[3]);
+  var Realm := GetCityRealm(Text[1]);
+  
+  if(!Coords)
+    SendSysMessage(who,"Podano zle miasto.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  foreach Mob in ListObjectsInBox(Coords[1],Coords[2],-127,Coords[3],Coords[4],127, Realm)
+    if(Mob.isa(POLCLASS_NPC))
+      if(Mob.npctemplate["guard"] or Mob.npctemplate["Guard"] or (AllNpc and GetNpcConfig(Mob).CityNpc))
+        if(CInt(Text[2]))
+          if(Mob.frozen)
+            n := n + 1;
+          endif
+          UnSetFlag(Mob, NPCF_FROZEN);
+          Mob.frozen    := 0;
+          Mob.concealed := 0;
+          Mob.hidden    := 0;
+        else
+          if(!Mob.frozen)
+            n := n + 1;
+          endif
+          SetFlag(Mob, NPCF_FROZEN);
+          Mob.frozen    := 1;
+          Mob.concealed := 1;
+          Mob.hidden    := 1;
+        endif
+        All := All + 1;
+      endif
+    endif
+  endforeach
+  
+  LogMsg(INFO_LOG,who,{who,"FrGuard", text[1], CInt(text[2])});
+
+  if(AllNpc)
+    if(!CInt(Text[2]))
+      SendSysMessage(who,"Zamrozono "+n+" na "+All+" npecow miastowych w miescie "+Text[1]+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Odmrozono "+n+" na "+All+" npecow miastowych w miescie "+Text[1]+".",FONT_NORMAL,COLOR_GREEN);
+    endif
+  else
+    if(!CInt(Text[2]))
+      SendSysMessage(who,"Zamrozono "+n+" na "+All+" straznikow w miescie "+Text[1]+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who,"Odmrozono "+n+" na "+All+" straznikow w miescie "+Text[1]+".",FONT_NORMAL,COLOR_GREEN);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

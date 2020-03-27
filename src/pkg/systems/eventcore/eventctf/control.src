@@ -1,0 +1,1265 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/gumpboxes";
+include "include/clock";
+include "include/portals";
+
+include ":eventcore:event_data";
+include ":eventcore:common";
+include ":eventctf:capture";
+include ":eventcore:operations";
+include ":eventcore:proc_events";
+
+//-----------------------------------------------------------------------------
+
+var gData, gInfo;
+var gEventId, gEvent;
+var gCache;
+
+const EVENT_LOGOUT_TIME := 60;
+
+//-----------------------------------------------------------------------------
+
+program CtfControl(Id)
+
+  gEventId := Id;
+  gCache := struct;
+  gCache.+GateIn;
+  gCache.+GateOut;
+  gCache.+Barriers;
+  gCache.+MatchIdx := 0;
+
+  var ev;
+  gEvent := GetEventElement(Id);
+  SetScriptController(0);
+
+  if(!gEvent)
+    LogError("[CtfControl] Probowano odpalic kontrole dla nieistniejacego eventa: "+Id);
+    return;
+  endif
+
+  gData := gEvent.GetProp("ProcData");
+  gInfo := gEvent.GetProp("ProcInfo");
+
+  if(!gData or !gData.Status)
+    ClearAutoEventAreas(gEventId);
+    gData := PrepareCtfData();
+    gData.Status := CTF_STATUS_GATHER;
+    gData.LastTime := ReadGameClock() + CInt(GetEventVariable(gEventId, "GATHER_TIME"));
+    UpdateProcessData();
+  endif
+
+  LogNotice("[EventCTF::Control] Kontrola CTF rozpoczeta.");
+  gCache.MatchIdx := gData.Matches.size();
+
+  if(!gInfo)
+    gInfo := struct;
+    gInfo.Lines := dictionary;
+  endif
+
+  var LastUpdate := ReadGameClock();
+  var bEnd := 0;
+
+  while(!bEnd)
+    ev := wait_for_event(1);
+
+    if(ev)
+      if(!ProcessEvent(ev))
+        break;
+      endif
+    endif
+
+    case(gData.Status)
+      CTF_STATUS_GATHER:
+        ProcessGathering();
+
+      CTF_STATUS_PREPARE:
+        ProcessPreparations();
+
+      CTF_STATUS_FIGHT:
+        ProcessFight();
+
+      CTF_STATUS_ENDING:
+        ProcessEnding();
+
+      CTF_STATUS_FINISHING:
+        if(ProcessFinishing())
+          bEnd := 1;
+        endif
+
+      default:
+        ResetCtfError();
+    endcase
+
+    if(LastUpdate < ReadGameClock())
+      UpdateEventInfo();
+
+      LastUpdate := ReadGameClock() + 6;
+      
+      if(gData.Status != CTF_STATUS_GATHER and gData.Status != CTF_STATUS_FINISHING)
+        if(!CheckLogouters())
+          SendMsgForPlayers("Wydarzenie zakonczy sie z powodu braku przeciwnikow!");
+
+          if(gData.Status == CTF_STATUS_FIGHT)
+            ProcessForceNext();
+          else
+            RequestEventStop(0);
+          endif
+        endif
+      endif
+    endif
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+// Match info description!
+//-----------------------------------------------------------------------------
+
+function GetMatchesDesc()
+
+  var Desc := "";
+  var n := 1;
+
+  foreach Match in (gData.Matches)
+    if(Desc) 
+      Desc += ", ";
+    endif
+
+    Desc += n+" ["+Match[1]+":"+Match[2]+"]";
+    n += 1;
+  endforeach
+
+  if(!Desc)
+    return "Brak";
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UpdateEventInfo()
+
+  case(gData.Status)
+    CTF_STATUS_GATHER:
+      gInfo.Lines["Etap"] := "Zebranie siê";
+    CTF_STATUS_PREPARE:
+      gInfo.Lines["Etap"] := "Przygotowanie";
+    CTF_STATUS_FIGHT:
+      gInfo.Lines["Etap"] := "Walka";
+    CTF_STATUS_ENDING:
+      gInfo.Lines["Etap"] := "Zakoñczenie";
+    CTF_STATUS_FINISHING:
+      gInfo.Lines["Etap"] := "Oczekiwanie na zakoñczenie";
+  endcase
+
+  gInfo.Lines["Pozosta³o"] := DescRealTime(gData.LastTime - ReadGameClock());
+  gInfo.Lines["Pojedynki"] := GetMatchesDesc();
+
+  gEvent.SetProp("ProcInfo", gInfo);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResetCtfError()
+
+  LogError("[EventCTF::Control] Cos poszlo strasznie zle.. zainstnial niewykryty status ["+gData.Status+"[! Resetowanie");
+
+  gData := PrepareCtfData();
+  gData.Status := CTF_STATUS_GATHER;
+  gData.LastTime := ReadGameClock() + GetEventVariable(gEventId, "GATHER_TIME");
+  UpdateProcessData();
+
+  gCache := struct;
+  gCache.+GateIn;
+  gCache.+GateOut;
+  gCache.+Barriers;
+
+  gInfo := struct;
+  gInfo.Lines := dictionary;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UpdateProcessData()
+
+  gEvent.SetProp("ProcData", gData);
+  UpdateEventInfo();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessEvent(ev)
+
+  case(ev.msgid)
+    MSGID_PLAYER_ENTERED:
+      ProcessPlayerEntered(ev.data);
+
+    MSGID_PLAYER_DEATH:
+      ProcessPlayerDeath(ev.data);
+      
+    MSGID_PLAYER_LEFT:
+      ProcessPlayerLeft(ev.data);
+
+    MSGID_PLAYER_KICK:
+      ProcessPlayerKick(ev.data);
+      
+    MSGID_PLAYER_RESURRECT:
+      ProcessPlayerResurrection(ev.data);
+      
+    MSGID_PLAYER_LOGIN:
+      ProcessPlayerLogin(ev.data);
+      
+    MSGID_PLAYER_LOGOFF:
+      ProcessPlayerLogoff(ev.data);
+
+    MSGID_STOP_EVENT:
+      RequestEventStop(ev.data);
+
+    MSGID_ITEM_INSERTED:
+      ProcessItemInserted(ev.data);
+
+    MSGID_ITEM_REMOVED:
+      ProcessItemRemoved(ev.data);
+
+    MSGID_FORCE_NEXT:
+      ProcessForceNext();
+
+
+    MSGIDC_FLAG_PLACED:
+      ProcessPlacedFlag(ev.data);
+
+    MSGIDC_FLAG_PLACING:
+      ProcessPlacingFlag(ev.data);
+
+    MSGIDC_FLAG_CAPTURED:
+      ProcessCapturedFlag(ev.data);
+
+    MSGIDC_FLAG_RETURNED:
+      ProcessReturnedFlag(ev.data);
+
+  endcase
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessForceNext()
+
+  gData.LastTime := ReadGameClock()-1;
+  UpdateProcessData();
+  UpdateEventInfo();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RequestEventStop(Source)
+
+  case(gData.Status)
+    CTF_STATUS_FIGHT:
+      if(Source)
+        gEvent.SetProp("Status", EVENT_STATUS_STARTED); // trzeba przywrocic ze stopped
+        SendBad(Source, "[EventCTF]: Nie mozesz przerwac eventu w trakcie walki!");
+      endif
+      return 0;
+  endcase
+
+  SendMsgForPlayers("Wydarzenie zakonczylo sie niespodziewanie! Zostaniesz przeniesiony poza strefe wydarzenia.");
+  InformPlayersInRoom("Wydarzenie zakonczylo sie niespodziewanie! Zostaniesz przeniesiony poza strefe wydarzenia.");
+
+  ProcessEventStop();
+
+  if(Source)
+    SendGood(Source, "Event zostal zatrzymany!");
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessEventStop()
+
+  LogNotice("[EventCTF::Control] Zatrzymywanie eventa...");
+  ThrowOutFromStartRoom(1);
+  ThrowPlayersOutside();
+
+  HideBaseBarriers();
+  HideCapturePortals();
+  DestroyCaptureCrystals();
+
+  // musimy poczekac, az kazdy player wysle event o wyjsciu z eventa!
+  gData.Status := CTF_STATUS_FINISHING;
+  gData.LastTime := ReadGameClock() + 2;
+  UpdateProcessData();
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerEntered(Player)
+
+  if(IsStaff(Player))
+    return;
+  endif
+
+  var TeamID := GetCaptureTeam(Player);
+
+  if(!TeamID)
+    LogError("[EventCTF::ProcessPlayerEntered] Doszedl msg z PlayerEntered "+GetPlayerDesc(Player)+", ale player nie ma wybranego teamu!");
+    return;
+  endif
+
+  LogNotice("[EventCTF::Control] Wszedl gracz "+GetPlayerDesc(Player)+" druzyny "+__IfElse(TeamID == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+  AddEventPlayer(gEventId, Player, GetCaptureTeamTitle(TeamID));
+  CreateCaptureCape(Player, TeamID);
+
+  if(!(Player.serial in (gData.Players[TeamID]) ))
+    gData.Players[TeamID].append(Player.serial);
+    UpdateProcessData();
+    AlertSeers("[EventCTF] Gracz "+GetRealName(Player)+" przystapil do eventu!");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerDeath(Data)
+
+  LogNotice("[EventCTF::Control] Umarl gracz "+GetPlayerDesc(Data.ghost)+".");
+
+  foreach Item in EnumerateItemsInContainer(Data.ghost.backpack) // cloak jest newbie!
+    if(Item.objtype == UOBJ_CTFRED_CLOAK or Item.objtype == UOBJ_CTFBLUE_CLOAK)
+      RestoreCaptureCloakColor(Item);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerLeft(Player)
+
+  if(IsStaff(Player))
+    return;
+  endif
+
+  DelEventPlayer(gEventId, Player);
+
+  var TeamID := GetCaptureTeam(Player);
+
+  if(!TeamID)
+    return;
+  endif
+
+  LogNotice("[EventCTF::Control] Opuscil gracz "+GetPlayerDesc(Player)+" druzyny "+__IfElse(TeamID == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+
+  if(Player.serial in (gData.Players[TeamID])) 
+    gData.Players[TeamID].erase(RetIndex(gData.Players[TeamID], Player.serial));
+    UpdateProcessData();
+    AlertSeers("[EventCTF] Gracz "+GetRealName(Player)+" opuscil event.");
+  endif
+
+  SendMsgForPlayers("Gracz "+GetName(Player)+" opuscil wydarzenie!", TeamID);
+
+  ClearCaptureTeam(Player);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerKick(Data)
+  
+  var TeamID := GetCaptureTeam(Data.member);
+  LogNotice("[EventCTF::Control] Wyrzucony zostal gracz "+GetPlayerDesc(Data.member)+" przez "+GetPlayerDesc(Data.source)+" druzyny "+__IfElse(TeamID == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+
+  ThrowOutFromCaptureEvent(Data.member);
+  AlertSeers("[EventCTF] Gracz "+GetRealName(Data.member)+" zostal wyrzucony z eventu przez "+GetPlayerDesc(Data.source)+".");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlacingFlag(Data)
+
+  var TeamID := GetCaptureTeam(Data.source);
+  var CrystalTeam := GetCaptureTeamByItem(Data.crystal);
+
+  var BlueRoom := GetLocRangeFromString(GetEventVariable(gEventId, "BLUE_ROOM"));
+  var RedRoom := GetLocRangeFromString(GetEventVariable(gEventId, "RED_ROOM"));
+
+  if(!TeamID)
+    LogError("[EventCTF] WTF? Gracz "+GetRealName(Data.source)+" przyniosl krysztal, ale nie ma druzyny!!");
+    return;
+  endif
+  
+  LogNotice("[EventCTF::Control] Krysztal druzyny "+__IfElse(CrystalTeam == CTF_RED_TEAM, "czerwonych", "niebieskich")+" wlasnie jest umieszczany. Gracz "+GetPlayerDesc(Data.source)+" druzyny "+__IfElse(TeamID == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+
+  case(TeamID)
+    CTF_RED_TEAM:
+      if(CrystalTeam == CTF_BLUE_TEAM)
+        if(IsInLocRange(Data.source, RedRoom))
+          SendMsgForPlayers("Druzyna czerwonych wlasnie umieszcza krysztal wroga w swojej bazie!");
+        endif
+      endif
+      
+    CTF_BLUE_TEAM:
+      if(CrystalTeam == CTF_RED_TEAM)
+        if(IsInLocRange(Data.source, BlueRoom))
+          SendMsgForPlayers("Druzyna niebieskich wlasnie umieszcza krysztal wroga w swojej bazie!");
+        endif
+      endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlacedFlag(Data)
+
+  var TeamID := GetCaptureTeam(Data.source);
+
+  if(!TeamID)
+    LogError("[EventCTF] WTF? Gracz "+GetRealName(Data.source)+" przyniosl krysztal, ale nie ma druzyny!!");
+    return;
+  endif
+
+  LogNotice("[EventCTF::Control] Krysztal przejety. Gracz "+GetPlayerDesc(Data.source)+" druzyny "+__IfElse(TeamID == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+
+  gData.Matches[gCache.MatchIdx][TeamID] += 1;
+
+  case(TeamID)
+    CTF_RED_TEAM:
+      SendMsgForPlayers("Druzyna czerwonych zdobyla krysztal wroga !!");
+      SendMsgForPlayers("Punkt dla czerwonych.");
+      
+    CTF_BLUE_TEAM:
+      SendMsgForPlayers("Druzyna niebieskich zdobyla krysztal wroga !!");
+      SendMsgForPlayers("Punkt dla niebieskich.");
+  endcase
+
+  if(!gData.CapturedCrystals)
+    gData.+CapturedCrystals;
+  endif
+
+  if(!gData.CapturedCrystals)
+    gData.CapturedCrystals := array;
+  endif
+
+  SetObjProperty(Data.crystal, "Captured", ReadGameClock());
+  gData.CapturedCrystals.append(array(Data.crystal.serial, ReadGameClock() + CInt(GetEventVariable(gEventId, "DELAY_PULLBACK")) ));
+  UpdateProcessData();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessReturnedFlag(Data)
+
+  var TeamID := GetCaptureTeam(Data.source);
+  var CrystalTeam := GetCaptureTeamByItem(Data.crystal);
+
+  if(!TeamID)
+    LogError("[EventCTF] WTF? Gracz "+GetRealName(Data.source)+" zwrocil krysztal, ale nie ma druzyny!!");
+    return;
+  endif
+  
+  LogNotice("[EventCTF::Control] Krysztal zwrocony. Gracz "+GetPlayerDesc(Data.source)+" druzyny "+__IfElse(CrystalTeam == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+
+  case(CrystalTeam)
+    CTF_RED_TEAM:
+      SendMsgForPlayers("Czerwony krysztal powrocil na miejsce w swojej bazie!");
+      
+    CTF_BLUE_TEAM:
+      SendMsgForPlayers("Niebieski krysztal powrocil na miejsce w swojej bazie!");
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessCapturedFlag(Data)
+
+  var TeamID := GetCaptureTeam(Data.source);
+  var CrystalTeam := GetCaptureTeamByItem(Data.crystal);
+
+  if(!TeamID)
+    LogError("[EventCTF] WTF? Gracz "+GetPlayerDesc(Data.source)+" przyniosl krysztal, ale nie ma druzyny!!");
+    return;
+  endif
+ 
+  LogNotice("[EventCTF::Control] Krysztal przejety z bazy wroga. Gracz "+GetPlayerDesc(Data.source)+" druzyny "+__IfElse(CrystalTeam == CTF_RED_TEAM, "czerwonych", "niebieskich")+".");
+
+  case(TeamID)
+    CTF_RED_TEAM:
+      if(CrystalTeam == CTF_BLUE_TEAM)
+        SendMsgForPlayers("Druzyna czerwonych przejela krysztal wroga z jego bazy!");
+      endif
+      
+    CTF_BLUE_TEAM:
+      if(CrystalTeam == CTF_RED_TEAM)
+        SendMsgForPlayers("Druzyna niebieskich przejela krysztal wroga z jego bazy!");
+      endif
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessItemInserted(Data)
+
+  if(Data.item.objtype == UOBJ_CTFBLUE_CRYSTAL or Data.item.objtype == UOBJ_CTFRED_CRYSTAL)
+    var TopCont := GetTopCont(Data.container);
+
+    if(!TopCont)
+      TopCont := Data.container;
+    endif
+
+    if(TopCont == Data.source.backpack)
+      var Cloak := GetCaptureCloak(Data.source);
+      LightenCaptureCloakColor(Cloak);
+      CaptureBlockPlayer(Data.source);
+    endif
+  endif
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function ProcessItemRemoved(data)
+
+  if(Data.item.objtype == UOBJ_CTFBLUE_CRYSTAL or Data.item.objtype == UOBJ_CTFRED_CRYSTAL)
+    var TopCont := GetTopCont(Data.container);
+
+    if(!TopCont)
+      TopCont := Data.container;
+    endif
+
+    if(!IsPlayer(Data.source))
+      Data.source := TopCont.container;
+    endif
+
+    if(IsPlayer(Data.source))
+      if(TopCont == Data.source.backpack)
+        var Cloak := GetCaptureCloak(Data.source);
+        RestoreCaptureCloakColor(Cloak);
+        CaptureUnblockPlayer(Data.source); 
+      endif
+    endif
+
+    Data.source.cleargottenitem();
+    MoveObject(Data.item, Data.source.x, Data.source.y, Data.source.z, Data.source.realm, MOVEOBJECT_FORCELOCATION);
+    Data.item.movable := 0;
+  endif
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerResurrection(Data)
+
+  LogNotice("[EventCTF::Control] Wskrzeszono gracza "+GetPlayerDesc(Data.source)+".");
+
+  var Cloak := GetCaptureCloak(Data.source);
+
+  if(Cloak)
+    Cloak.movable := 1;
+    EquipItem(Data.source, Cloak);
+    Cloak.movable := 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerLogin(Data)
+
+  LogNotice("[EventCTF::Control] Gracz "+GetPlayerDesc(Data.source)+" zalogowal po utracie polaczenia.");
+  SendMsgForPlayers(GetName(Data.source)+" utracil przytomnosc!", GetCaptureTeam(Data.source));
+
+  // moze byc tak, ze wyjebie serwer i nie odpali logoffa, wiec moze miec krysztal !!! Trzeba zaaplikowac mody
+
+  foreach Item in EnumerateItemsInContainer(Data.source.backpack)
+    if(Item.objtype == UOBJ_CTFRED_CRYSTAL or Item.objtype == UOBJ_CTFBLUE_CRYSTAL)
+      var Cloak := GetCaptureCloak(Data.source);
+      LightenCaptureCloakColor(Cloak);
+      CaptureBlockPlayer(Data.source);
+      break;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPlayerLogoff(Data)
+
+  LogNotice("[EventCTF::Control] Gracz "+GetPlayerDesc(Data.source)+" utracil polaczenie.");
+
+  foreach Item in EnumerateItemsInContainer(Data.source.backpack)
+    if(Item.objtype == UOBJ_CTFRED_CRYSTAL or Item.objtype == UOBJ_CTFBLUE_CRYSTAL)
+      MoveObject(Item, Data.source.x, Data.source.y, Data.source.z, Data.source.realm, MOVEITEM_FORCELOCATION);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HideCapturePortals()
+
+  if(gCache.GateIn)
+    HidePortal(gCache.GateIn);
+    DestroyItem(gCache.GateIn);
+    gCache.GateIn := 0;
+    gData.GateInSerial := 0;
+  endif
+
+  if(gCache.GateOut)
+    HidePortal(gCache.GateOut);
+    DestroyItem(gCache.GateOut);
+    gCache.GateOut := 0;
+    gData.GateOutSerial := 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessGathering()
+
+  if(!gCache.GateIn)
+    gCache.GateIn := FindItemBySerial(gData.GateInSerial);
+  endif
+  
+  if(!gCache.GateOut)
+    gCache.GateOut := FindItemBySerial(gData.GateOutSerial);
+  endif
+
+  if(!gCache.Barriers)
+    ShowBaseBarriers();
+  endif
+
+  if(gData.LastTime <= ReadGameClock())
+    gData.Status := CTF_STATUS_PREPARE;
+    var PrepTime := CInt(GetEventVariable(gEventId, "PREPARE_TIME"));
+    gData.LastTime := ReadGameClock() + PrepTime;
+    gData.WarnMsgDone := 0;
+    HideCapturePortals();
+    UpdateProcessData();
+
+    InformPlayersInRoom("Mozliwosc wyboru zakonczyla sie. Przykro nam, ale za dlugo trwal wybor w Twoim przypadku!");
+    ThrowOutFromStartRoom();
+
+    SendMsgForPlayers("Wybor druzyny zakonczyl sie.");
+    SendMsgForPlayers("Masz "+DescRealTime(PrepTime)+" na przygotowanie!");
+
+    LogNotice("[EventCTF::Control] Zebranie sie zakonczylo. Przygotowania rozpoczete.");
+
+    return;
+
+  elseif(!gCache.GateIn or !gCache.GateOut)
+
+    var DestLoc := GetEventVariable(gEventId, "LOC_DEST");
+    var PortalLoc := GetEventVariable(gEventId, "LOC_PORTAL");  
+
+    if(!gCache.GateIn)
+      gCache.GateIn := CreateEventPortal(PortalLoc, DestLoc);
+      gData.GateInSerial := gCache.GateIn.serial;
+    endif
+
+    if(!gCache.GateOut)
+      gCache.GateOut := CreateEventExitPortal(DestLoc, PortalLoc);
+      gData.GateOutSerial := gCache.GateOut.serial;
+    endif
+
+    UpdateProcessData();
+  endif
+
+  if(gData.LastTime - 30 < ReadGameClock())
+    if(!gData.WarnMsgDone)
+      gData.WarnMsgDone := 1;
+      InformPlayersInRoom("Za 30 sekund zakonczy sie mozliwosc wyboru druzyny! Pospiesz sie!");
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessPreparations()
+
+  if(gData.LastTime <= ReadGameClock())
+    
+    LogNotice("[EventCTF::Control] Przygotowanie zakonczone. Walka rozpoczeta!");
+    ProcessFightStart();
+
+  elseif(gData.LastTime - 30 < ReadGameClock())
+    if(!gData.WarnMsgDone)
+      gData.WarnMsgDone := 1;
+      SendMsgForPlayers("Za 30 sekund rozpocznie sie walka! Przygotuj sie natychmiast!");
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessFight()
+
+  if(gData.LastTime <= ReadGameClock())
+
+    LogNotice("[EventCTF::Control] Walka zakonczona!");
+    ProcessFightEnd();
+    return;
+
+  elseif(gData.LastTime - 20 < ReadGameClock())
+    if(gData.WarnMsgDone < 3)
+      gData.WarnMsgDone := 3;
+      SendMsgForPlayers("Za 20 sekund walka zakonczy sie!");
+    endif
+
+  elseif(gData.LastTime - 60 < ReadGameClock())
+    if(gData.WarnMsgDone < 2)
+      gData.WarnMsgDone := 2;
+      SendMsgForPlayers("Za minute walka zakonczy sie!");
+    endif
+
+  elseif(gData.LastTime - 120 < ReadGameClock())
+
+    if(gData.WarnMsgDone < 1)
+      gData.WarnMsgDone := 1;
+      SendMsgForPlayers("Za dwie minuty walka zakonczy sie!");
+    endif
+    
+  endif
+
+  CheckCapturedCrystals();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckCapturedCrystals()
+
+  if(gData.CapturedCrystals)
+    var Idx := 1;
+    foreach cData in (gData.CapturedCrystals)
+      if(cData[2] < ReadGameClock())
+        var Crystal := FindItemBySerial(cData[1]);
+        var TeamID := GetCaptureTeamByItem(Crystal);
+        var Loc;
+
+        if(TeamID == CTF_RED_TEAM)
+          Loc := GetLocFromString(GetEventVariable(gEventId, "LOC_REDFLAG"));
+        else
+          Loc := GetLocFromString(GetEventVariable(gEventId, "LOC_BLUEFLAG"));
+        endif
+
+        Crystal.movable := 1;
+        MoveObject(Crystal, Loc.x, Loc.y, Loc.z, Loc.realm, MOVEITEM_FORCELOCATION);
+        EraseObjProperty(Crystal, "Captured");
+        Crystal.movable := 0;
+        gData.CapturedCrystals.erase(Idx);
+        // wychodzimy - nastepny loop za sekunde pocisnie nastepny krysztal, max 2 moga byc i pewnie strasznie rzadko kiedy zdarzy sie, by w tym samym czasie zeszly!
+        return;
+      endif
+
+      Idx += 1;
+    endforeach
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessEnding()
+
+  if(gData.LastTime <= ReadGameClock())
+    ProcessEventStop();
+    SendMsgForPlayers("Wydarzenie zakonczylo sie. Zostaniesz przeniesiony poza strefe wydarzenia.");
+    InformPlayersInRoom("Wydarzenie zakonczylo sie. Zostaniesz przeniesiony poza strefe wydarzenia.");
+    LogNotice("[EventCTF::Control] Wydarzenie zakonczone. Oczekiwanie na pelne zakonczenie przetwarzania danych...");
+  endif
+
+  if(!gCache.GateIn) // to bedzie redowa 
+    gCache.GateIn := FindItemBySerial(gData.GateInSerial);
+  endif
+
+  if(!gCache.GateOut) // a ta niebieskich
+    gCache.GateOut := FindItemBySerial(gData.GateOutSerial);
+  endif
+
+  if(!gCache.Barriers)
+    ShowBaseBarriers();
+  endif
+
+  if(!gCache.GateOut or !gCache.GateIn)
+    var RedLoc := GetEventVariable(gEventId, "LOC_RED");
+    var BlueLoc := GetEventVariable(gEventId, "LOC_BLUE");
+    var PortalLoc := GetEventVariable(gEventId, "LOC_PORTAL");  
+  
+    if(!gCache.GateOut)
+      gCache.GateOut := CreateEventExitPortal(RedLoc, PortalLoc);
+      gData.GateOutSerial := gCache.GateOut.serial;
+    endif
+    
+    if(!gCache.GateIn)
+      gCache.GateIn := CreateEventExitPortal(BlueLoc, PortalLoc);
+      gData.GateInSerial := gCache.GateIn.serial;
+    endif
+    UpdateProcessData();
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessFinishing()
+
+  if(gData.LastTime <= ReadGameClock())
+    if(gData.Players[CTF_RED_TEAM].size() or gData.Players[CTF_BLUE_TEAM].size())
+      LogError("[EventCTF::Control] Nie moge zakonczyc eventu, ciagle sa jacys gracze! Cos sie popsulo, RED: "+gData.Players[CTF_RED_TEAM].size()+" BLUE: "+gData.Players[CTF_BLUE_TEAM].size(), LOGF_SCRIPTS);
+      gData.LastTime := ReadGameClock() + 30;
+    else
+      LogNotice("[EventCTF::Control] Zakonczyl sie.");
+      gEvent.EraseProp("ProcData");
+      gEvent.EraseProp("ProcInfo");
+      gEvent.SetProp("Status", EVENT_STATUS_STOPPED);
+      LogNotice("[EventCTF::Control] Wydarzenie w pelni zakonczone.");
+      return 1;
+    endif
+
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessFightStart()
+
+  gData.Status := CTF_STATUS_FIGHT;
+  gData.LastTime := ReadGameClock() + CInt(GetEventVariable(gEventId, "FIGHT_TIME"));
+  gData.WarnMsgDone := 0;
+  HideBaseBarriers();
+  SendMsgForPlayers("Walka rozpoczeta! Bron swojej bazy i atakuj wroga!");
+
+  gCache.MatchIdx += 1;
+  gData.Matches[gCache.MatchIdx] := array(0, 0);
+
+  CreateCaptureCrystals();
+  UpdateProcessData();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessFightEnd()
+
+  ShowBaseBarriers();
+  DestroyCaptureCrystals();
+  ThrowPlayersToBase();
+
+  gData.CapturedCrystals := array;
+
+  SendMsgForPlayers("Walka zakonczona!");
+  
+  DistributeEventPoints();
+  
+  var MatchCount := GetMatchCount();
+  var ScoreRed := MatchCount[1];
+  var ScoreBlue := MatchCount[2];
+  var IsEnd := 0;
+
+  if(gCache.MatchIdx == 3)
+    if(ScoreRed > ScoreBlue)
+      SendMsgForPlayers("Walke wygrala druzyna czerwonych!!!");
+    elseif(ScoreRed < ScoreBlue)
+      SendMsgForPlayers("Walke wygrala druzyna niebieskich!!!");
+    else
+      SendMsgForPlayers("Walka ostatecznie konczy sie remisem!!!");
+    endif
+
+    IsEnd := 1;
+    SendMsgForPlayers("Portal wyjsciowy zostal stworzony w bazie. Za "+DescRealTime(CInt(GetEventVariable(gEventId, "ENDING_TIME")))+" wydarzenie zakonczy sie.");
+
+  elseif(gCache.MatchIdx == 2)
+
+    if(ScoreRed == ScoreBlue)
+      SendMsgForPlayers("Remis po dwoch pojedynkach! Kolejny - ostatni bedzie decydujacy.");
+    elseif(ScoreRed > ScoreBlue)
+      SendMsgForPlayers("Czerwoni gora! Ostatni pojedynek to tylko formalnosc! Niebiescy maja jeszcze szanse uratowac swoj honor.");
+    else
+      SendMsgForPlayers("Niebiescy gora! Czerwoni w ostatnim pojedynku maja szanse uratowac swoj honor.");
+    endif
+  else
+    SendMsgForPlayers("Czas na odpoczynek przed nastepnym pojedynkiem!");
+  endif
+
+  if(IsEnd)
+    gData.Status := CTF_STATUS_ENDING;
+    gData.LastTime := ReadGameClock() + CInt(GetEventVariable(gEventId, "ENDING_TIME"));
+  else
+    gData.Status := CTF_STATUS_PREPARE;
+    gData.LastTime := ReadGameClock() + CInt(GetEventVariable(gEventId, "PREPARE_TIME"));
+  endif
+
+  gData.WarnMsgDone := 0;
+  UpdateProcessData();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetMatchCount()
+
+  var Count := array(0, 0);
+
+  foreach Match in (gData.Matches)
+    Count[CTF_RED_TEAM] += Match[CTF_RED_TEAM];
+    Count[CTF_BLUE_TEAM] += Match[CTF_BLUE_TEAM];
+  endforeach
+
+  return Count;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DistributeEventPoints()
+
+  var RedPoints := 1;
+  var BluePoints := 1;
+  
+  if(gData.Matches[gCache.MatchIdx][CTF_RED_TEAM] > gData.Matches[gCache.MatchIdx][CTF_BLUE_TEAM])
+    SendMsgForPlayers("Pojedynek numer "+gCache.MatchIdx+" wygrala druzyna czerwonych!");
+    RedPoints := 5;
+  elseif(gData.Matches[gCache.MatchIdx][CTF_RED_TEAM] < gData.Matches[gCache.MatchIdx][CTF_BLUE_TEAM])
+    SendMsgForPlayers("Pojedynek numer "+gCache.MatchIdx+" wygrala druzyna niebieskich!");
+    BluePoints := 5;
+  else
+    SendMsgForPlayers("Pojedynek numer "+gCache.MatchIdx+" zakonczyl sie remisem!");
+  endif
+
+  foreach Serial in (gData.Players[CTF_RED_TEAM])
+    GainAutoEventPoints(FindPlayerBySerial(Serial), gEventId, RedPoints);
+  endforeach
+
+  foreach Serial in (gData.Players[CTF_BLUE_TEAM])
+    GainAutoEventPoints(FindPlayerBySerial(Serial), gEventId, BluePoints);
+  endforeach
+
+  SendMsgForPlayers("Wynik pojedynku: "+gData.Matches[gCache.MatchIdx][CTF_RED_TEAM]+" : " +gData.Matches[gCache.MatchIdx][CTF_BLUE_TEAM]);
+  
+  var MatchCount := GetMatchCount();
+  SendMsgForPlayers("Wynik calkowity: "+MatchCount[CTF_RED_TEAM]+" : "+MatchCount[CTF_BLUE_TEAM]);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowBaseBarriers()
+
+  gCache.Barriers := array;
+  var lIter := 1;
+  var lRange;
+
+  while(HaveEventVariable(gEventId, "BARRIER_"+lIter))
+    lRange := GetLocHeightRangeFromString(GetEventVariable(gEventId, "BARRIER_"+lIter));
+
+    if(lRange)
+      var WallObj := UOBJ_ENERGYFIELD_EW;
+
+      if(lRange[1] == lRange[3])
+        WallObj := UOBJ_ENERGYFIELD_NS;
+      endif
+
+      var x,y;
+      for(x:=lRange[1]; x<=lRange[3]; x+=1)
+        for(y:=lRange[2]; y<=lRange[4]; y+=1)
+          var z := GetStandZ(x, y, lRange[6], lRange[5]);
+          var lBarrier;
+
+          if(z != error)
+            foreach Item in ListItemsAtLocation(x, y, z, lRange[6])
+              if(Item.objtype == WallObj)
+                lBarrier := Item;
+                break;
+              elseif(Item.movable == 0)
+                DestroyItem(Item);
+              endif
+            endforeach
+          endif
+
+          if(!lBarrier)
+            lBarrier := CreateItemAtLoc(x, y, z, WallObj, 1, lRange[6]);
+          endif
+
+          gCache.Barriers.append(lBarrier);
+
+        endfor
+      endfor
+    endif
+
+    lIter += 1;
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function HideBaseBarriers()
+
+  foreach Barrier in (gCache.Barriers)
+    DestroyItem(Barrier);
+  endforeach
+
+  gCache.Barriers := 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SendMsgForPlayers(Msg, Team := 0)
+
+  if(!Team or Team == CTF_RED_TEAM)
+    foreach Serial in (gData.Players[CTF_RED_TEAM])
+      SendGood(FindPlayerBySerial(Serial), Msg, COLOR_WHITE);
+    endforeach
+  endif
+
+  if(!Team or Team == CTF_BLUE_TEAM)
+    foreach Serial in (gData.Players[CTF_BLUE_TEAM])
+      SendGood(FindPlayerBySerial(Serial), Msg, COLOR_WHITE);
+    endforeach
+  endif
+
+  AlertSeers("[Wiadomoœæ do graczy CTF TEAM: "+__IfElse(Team == CTF_RED_TEAM, "red", __IfElse(Team == CTF_BLUE_TEAM, "blue", "all"))+"]: "+Msg);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ThrowPlayersOutside()
+
+  foreach Serial in (gData.Players[CTF_RED_TEAM])
+    var Player := FindPlayerBySerial(Serial);
+    ThrowOutFromCaptureEvent(Player);
+  endforeach
+
+  foreach Serial in (gData.Players[CTF_BLUE_TEAM])
+    var Player := FindPlayerBySerial(Serial);
+    ThrowOutFromCaptureEvent(Player);
+  endforeach
+
+endfunction 
+
+//-----------------------------------------------------------------------------
+
+function InformPlayersInRoom(Msg)
+
+  var RoomRange := GetEventVariable(gEventId, "ROOM_RANGE");
+
+  if(!RoomRange)
+    return 0;
+  endif
+
+  RoomRange := SplitWords(RoomRange);
+  
+  foreach Mob in ListObjectsInBox(CInt(RoomRange[1]), CInt(RoomRange[2]), CInt(RoomRange[5]), CInt(RoomRange[3]), CInt(RoomRange[4]), CInt(RoomRange[5]), RoomRange[6])
+    if(IsPlayer(Mob) and !Mob.cmdlevel)
+      SendGood(Mob, Msg, COLOR_WHITE);
+    endif
+  endforeach
+
+  AlertSeers("[Wiadomoœæ do graczy CTF:Room]: "+Msg);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateCaptureCrystals()
+
+  var RedCrys := FindItemBySerial(gData.CrystalSerials[CTF_RED_TEAM]);
+  var BlueCrys := FindItemBySerial(gData.CrystalSerials[CTF_BLUE_TEAM]);
+
+  if(!RedCrys)
+    var BlueLoc := GetLocFromString(GetEventVariable(gEventId, "LOC_BLUEFLAG"));
+
+    if(!BlueLoc)
+      LogError("[EventCTF] FATALLLLL ERROR! Brak zmiennych lokacji krysztalow!!");
+      return;
+    endif
+
+    RedCrys := CreateAutoEventItemAtLoc(BlueLoc.x, BlueLoc.y, BlueLoc.z, UOBJ_CTFBLUE_CRYSTAL, BlueLoc.realm);
+    gData.CrystalSerials[CTF_RED_TEAM] := RedCrys.serial;
+  endif
+
+  if(!BlueCrys)
+    var RedLoc := GetLocFromString(GetEventVariable(gEventId, "LOC_REDFLAG"));
+
+    if(!RedLoc)
+      LogError("[EventCTF] FATALLLLL ERROR! Brak zmiennych lokacji krysztalow!!");
+      return;
+    endif
+
+    BlueCrys := CreateAutoEventItemAtLoc(RedLoc.x, RedLoc.y, RedLoc.z, UOBJ_CTFRED_CRYSTAL, RedLoc.realm);
+    gData.CrystalSerials[CTF_BLUE_TEAM] := BlueCrys.serial;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyCaptureCrystals()
+
+  var RedCrys := FindItemBySerial(gData.CrystalSerials[CTF_RED_TEAM]);
+  var BlueCrys := FindItemBySerial(gData.CrystalSerials[CTF_BLUE_TEAM]);
+
+  // musowo przeniesc, aby odpalil onremove!!
+  if(RedCrys and (RedCrys.container or RedCrys.movable))
+    var Data := struct;
+    Data.+item := RedCrys;
+    Data.+container := RedCrys.container;
+    Data.+source := 0;
+    ProcessItemRemoved(Data);
+  endif
+
+  // musowo przeniesc, aby odpalil onremove!!
+  if(BlueCrys and (BlueCrys.container or BlueCrys.movable))
+    var Data := struct;
+    Data.+item := BlueCrys;
+    Data.+container := BlueCrys.container;
+    Data.+source := 0;
+    ProcessItemRemoved(Data);
+  endif
+
+  if(RedCrys)
+    while(RedCrys and !DestroyItem(RedCrys))
+      LogError("[EventCTF::Control] Nie mozna zniszczyc krysztalu RED na zakonczenie! "+RedCrys.serial);
+      sleep(3);
+    endwhile
+  endif
+  
+  if(BlueCrys)
+  
+    while(BlueCrys and !DestroyItem(BlueCrys))
+      LogError("[EventCTF::Control] Nie mozna zniszczyc krysztalu BLUE na zakonczenie! "+BlueCrys.serial);
+      sleep(3);
+    endwhile
+    
+  endif
+
+  gData.CrystalSerials := array;
+  UpdateProcessData();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ThrowPlayersToBase()
+
+  var BlueRoom := GetLocRangeFromString(GetEventVariable(gEventId, "BLUE_ROOM"));
+  var RedRoom := GetLocRangeFromString(GetEventVariable(gEventId, "RED_ROOM"));
+
+  var BlueLoc := GetLocFromString(GetEventVariable(gEventId, "LOC_BLUE"));
+  var RedLoc := GetLocFromString(GetEventVariable(gEventId, "LOC_RED"));
+
+  foreach Serial in (gData.Players[CTF_RED_TEAM])
+    var Player := FindPlayerBySerial(Serial);
+    Player.cleargottenitem();
+    if(!IsInLocRange(Player, RedRoom) and RedLoc)
+      MoveObject(Player, RedLoc.x, RedLoc.y, RedLoc.z, RedLoc.realm, MOVEOBJECT_FORCELOCATION);
+    endif
+  endforeach
+
+  foreach Serial in (gData.Players[CTF_BLUE_TEAM])
+    var Player := FindPlayerBySerial(Serial);
+    Player.cleargottenitem();
+    if(!IsInLocRange(Player, BlueRoom) and BlueLoc)
+      MoveObject(Player, BlueLoc.x, BlueLoc.y, BlueLoc.z, BlueLoc.realm, MOVEOBJECT_FORCELOCATION);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ThrowOutFromStartRoom(bForce := 0)
+
+  var RoomRange := GetEventVariable(gEventId, "ROOM_RANGE");
+
+  if(!RoomRange)
+    return 0;
+  endif
+
+  RoomRange := SplitWords(RoomRange);
+  
+  foreach Mob in ListObjectsInBox(CInt(RoomRange[1]), CInt(RoomRange[2]), CInt(RoomRange[5]), CInt(RoomRange[3]), CInt(RoomRange[4]), CInt(RoomRange[5]), RoomRange[6])
+    if((IsPlayer(Mob) or IsTamed(Mob)) and !IsStaff(Mob) and (!GetCaptureTeam(Mob) or bForce))
+      ThrowOutFromCaptureEvent(Mob);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ThrowOutFromCaptureEvent(Mob)
+
+  var DestLoc := GetLocFromString(GetEventVariable(gEventId, "LOC_PORTAL"));
+
+  if(DestLoc)
+    Mob.cleargottenitem();
+    
+    foreach Item in EnumerateItemsInContainer(Mob.backpack)
+      if(Item.objtype == UOBJ_CTFRED_CRYSTAL or Item.objtype == UOBJ_CTFBLUE_CRYSTAL)
+        MoveObject(Item, Mob.x, Mob.y, Mob.z, Mob.realm, MOVEITEM_FORCELOCATION);
+      endif
+    endforeach
+
+    MoveObject(Mob, DestLoc.x, DestLoc.y, DestLoc.z, DestLoc.realm, MOVEOBJECT_FORCELOCATION);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckLogouters()
+
+  for i := 1 to 2 
+    foreach Serial in (gData.Players[i])
+      var Player := FindPlayerBySerial(Serial);
+
+      if(!IsLoggedIn(Player))
+        var Time := GetObjProperty(Player, PROP_LASTLOG);
+
+        if(Time + EVENT_LOGOUT_TIME < ReadGameClock())
+          ThrowOutFromCaptureEvent(Player);
+        endif
+      endif
+    endforeach
+
+    if(!gData.Players[i].size())
+      return 0;
+    endif
+  endfor
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

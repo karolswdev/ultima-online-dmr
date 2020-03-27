@@ -1,0 +1,111 @@
+use uo;
+use polsys;
+include "include/const/props";
+include "include/player/target";
+
+var who, text;
+program tooltipdesc(_who, _text)
+  
+  who   := _who;
+  text  := _text;
+  
+  text := splitwords(text);
+  case(text[1])
+    "add":  Add();  
+    "rem":  Remove();
+    "del":  Delete();
+    default: SendSysMessage(who, ".ttdesc add [numer] text / rem [numer] / del", FONT_NORMAL, COLOR_RED); 
+  endcase
+
+  return;
+
+  var targ := target(who);
+  if(!targ)
+    return;
+  endif
+  SetObjProperty(targ, PROP_TT_DESC, {text});
+  IncRevision(targ);
+endprogram
+
+function Add()
+  SendSysMessage(who, "Wskaz przedmiot.", FONT_NORMAL, COLOR_GREEN);
+  var obj := ObjTarget(who);
+  if(obj.isa(POLCLASS_ITEM))
+    text.erase(1);
+    var desc := GetObjProperty(obj, PROP_TT_DESC);
+    if(!desc)
+      desc := array;
+    endif
+    var num := desc.size() + 1;
+    if(CInt(text[1]))
+      if(CInt(text[1]) > 0 && CInt(text[1]) <= num)
+        num := CInt(text[1]);
+        text.erase(1);
+      else
+        SendSysMessage(who, "Bledny numer lini.", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+    var line := "";
+    foreach word in text
+      word[1] := Upper(word[1]);
+      line := line + word + " ";
+    endforeach
+    line := Trim(line);
+    desc.insert(num,line);
+    SetObjProperty(obj, PROP_TT_DESC, desc);
+    IncRevision(obj);
+    SendSysMessage(who, "Dodano linie.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "To nie jest przedmiot.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+function Remove()
+  SendSysMessage(who, "Wskaz przedmiot.", FONT_NORMAL, COLOR_GREEN);
+  var obj := ObjTarget(who);
+  if(obj.isa(POLCLASS_ITEM))
+    var desc := GetObjProperty(obj, PROP_TT_DESC);
+    if(desc)
+      if(CInt(text[2]))
+        if(desc.exists(CInt(text[2])))
+          desc.erase(CInt(text[2]));
+        else
+          SendSysMessage(who, "Nie istnieje linia nr " + text[2] + ".", FONT_NORMAL, COLOR_RED);
+          return;
+        endif
+      else
+        desc.erase(desc.size());
+      endif
+      if(desc.size())
+        SetObjProperty(obj, PROP_TT_DESC, desc);
+        SendSysMessage(who, "Usunieto linie z opisu.", FONT_NORMAL, COLOR_GREEN);
+      else
+        EraseObjProperty(obj, PROP_TT_DESC);
+        SendSysMessage(who, "Usunieto opis.", FONT_NORMAL, COLOR_GREEN);
+      endif
+      IncRevision(obj);
+    else
+      SendSysMessage(who, "Ten przedmiot nie ma opisu.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "To nie jest przedmiot.", FONT_NORMAL, COLOR_RED);
+  endif
+endfunction
+
+function Delete()
+  SendSysMessage(who, "Wskaz przedmiot.", FONT_NORMAL, COLOR_GREEN);
+  var obj := ObjTarget(who);
+  if(obj.isa(POLCLASS_ITEM))
+    if(GetObjProperty(obj, PROP_TT_DESC))
+      EraseObjProperty(obj, PROP_TT_DESC);
+      IncRevision(obj);
+      SendSysMessage(who, "Usunieto opis.", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Ten przedmiot nie ma opisu.", FONT_NORMAL, COLOR_RED);
+    endif
+  else
+    SendSysMessage(who, "To nie jest przedmiot.", FONT_NORMAL, COLOR_RED);
+  endif
+endfunction

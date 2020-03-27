@@ -1,0 +1,15 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(MAILCONTROL_SCNAME, "Mail Control");
+  StartGlobCtrlScript(MAILCONTROL_SCNAME);
+
+endprogram
+
+//-----------------------------------------------------------------------------

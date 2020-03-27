@@ -1,0 +1,47 @@
+use uo;
+use os;
+
+include "include/gumps";
+include "include/attributes/main";
+
+program use_WinterScroll(who, theScroll)
+
+	if(CInt(GetObjProperty(theScroll, "DestSerial")) != who.serial)
+		SendSysMessage(who, "Ten zwoj nie nalezy do Ciebie!", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	if(GetObjProperty(who, "WScrollUsed"))
+	    SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+	    return;
+	endif
+	
+	GInit(0, 0);
+    GResPic(74, 105, 9270, 159, 145);
+    GTextLine(131, 132, 1152, "SILA");
+    GTextLine(132, 162, 1152, "ZRECZNOSC");
+    GTextLine(132, 192, 1152, "INTELIGENCJA");
+    GButton(93, 132, 1151, 248, 1);
+    GButton(93, 162, 1151, 248, 2);
+    GButton(93, 192, 1151, 248, 3);
+    
+	var res := GSend(who);
+	
+	if(!res)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+		return;
+	endif
+	
+	DestroyItem(theScroll);
+	
+	if(res[0] == 1)
+		SetAttributeBaseValue(who, ATTRIBUTEID_STRENGTH, GetAttributeBaseValue(who, ATTRIBUTEID_STRENGTH) + 10);
+	elseif(res[0] == 2)
+		SetAttributeBaseValue(who, ATTRIBUTEID_DEXTERITY, GetAttributeBaseValue(who, ATTRIBUTEID_DEXTERITY) + 10);
+	elseif(res[0] == 3)
+		SetAttributeBaseValue(who, ATTRIBUTEID_INTELLIGENCE, GetAttributeBaseValue(who, ATTRIBUTEID_INTELLIGENCE) + 10);
+	endif
+	
+	SetObjProperty(who, "WScrollUsed", 1);
+
+endprogram	

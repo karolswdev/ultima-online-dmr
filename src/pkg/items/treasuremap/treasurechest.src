@@ -1,0 +1,91 @@
+//--------------------------------------------------------------------------------
+
+include "include/key";
+include "include/const/eventid";
+include "include/npcs";
+include "include/logerror";
+include "include/events";
+include "include/items/creation";
+include "include/mount";
+
+//--------------------------------------------------------------------------------
+
+use uo;
+use cfgfile;
+use util;
+
+//--------------------------------------------------------------------------------
+
+program TreasureChest( character ,  chest )
+
+  if(!chest.locked)
+    SendSysMessage(character,"Straznicy skarbu nadchodza !",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var lvl := GetTreasureLvl( chest );
+  var cfgfile := ReadConfigFile( "guardians" );
+
+  if(!cfgfile)
+    LogError("[TreasureChest] Nie znaleziono Cfg (guardians)", LOGF_SCRIPTS);
+    return;
+  endif
+
+  var elem := FindConfigElem( cfgfile , lvl );
+  if(!elem)
+    LogError("[TreasureChest] Nie znaleziono CfgElem (guardians) Lvl: "+lvl, LOGF_SCRIPTS);
+    return;
+  endif
+
+  var wait := CInt(GetObjProperty(chest,"wait"));
+
+  if(!wait)
+
+    SetObjProperty(chest,"wait", 1);
+    SendSysmessage( character , "Straznicy skarbu niebawem przybeda!",FONT_NORMAL,COLOR_BLUE);
+
+    Sleep(5);
+    var total := GetConfigString( elem , "total" );
+    var num := GetConfigInt( elem , "num" );
+    var limit := RandomDiceRoll( total );
+    var rand;
+    var template;
+    var i,Sers := array,Creature;
+
+    for( i := 1 ; i <= limit ; i := i + 1 )
+      rand := RandomInt( num ) + 1;
+      template := GetConfigString( elem , ("creature" + rand) );
+      Creature := CreateGuardian( chest , character, template );
+      if(Creature)
+        Sers.append(Creature.serial);
+      endif
+    endfor
+
+    SetObjProperty(chest,"OppSers",Sers);
+    SendSysmessage( character , "Straznicy skarbu czuwaja!",FONT_NORMAL,COLOR_RED);
+    chest.usescript := ":treasuremap:canopen";
+  else
+    SendSysmessage( character , "Nie mozesz otworzyc!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function CreateGuardian( chest , character, template )
+
+  var dx   := RandomInt( 8 ) - 4;
+  var dy   := RandomInt( 8 ) - 4;
+  character.hidden  := 0;
+
+  var nasty := CreateNpc( template , chest.x+dx , chest.y+dy , chest.z, chest.realm );
+  if(nasty)
+    SendChEvent(nasty,character,EVID_ENTEREDAREA);
+    SaveSkillSum(nasty);
+  endif
+
+  return nasty;
+
+endfunction
+
+//--------------------------------------------------------------------------------

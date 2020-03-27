@@ -1,0 +1,47 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 60;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonAirElemental( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var CasterPoisoning := GetEffectiveSkill(Caster,SKILLID_POISONING);
+
+  var Duration        := GetSpellDur(Caster);
+  var Temp            := "summonedair";
+  var oparms          := {};
+  oparms.+controlable := 1;
+  oparms.+onlyone     := 1;
+  oparms.+sumaction   := 12;
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+skillsmod   := {SKILLID_MAGERY,SKILLID_EVALINT};
+
+  if(CasterPoisoning >= 90)
+    if(RandomInt(100) < (50 + CInt(CasterPoisoning - 90)))
+      Temp := "summonedpoison";
+    endif
+  endif
+
+  var Summon := SummonCreature( caster, Temp, CastLoc, duration, oparms );
+  
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

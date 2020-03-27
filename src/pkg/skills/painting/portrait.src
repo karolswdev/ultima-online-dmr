@@ -1,0 +1,66 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+var EqpItems,GrapID;
+
+//-----------------------------------------------------------------------------
+
+program ShowPortrait(who,Portrait)
+
+  EqpItems := GetObjProperty(Portrait,"EquippedItems");
+  if(!EqpItems)
+    return;
+  endif
+
+  GInit(100,150);
+  GResPic(0,0,BKGND_BLACKSLAB,280,300);
+  GResPic(16,18,BKGND_GOLDTRIM,246,266);
+  GTextLine(30,30,560,Portrait.desc);
+  GGumpPic(40,30,0xC + CInt(GetObjProperty(Portrait,"WhoGender")));
+  
+  case(CInt(GetObjProperty(Portrait,"WhoGender")))
+    0: GrapID := "SGumpGrapM";
+    1: GrapID := "SGumpGrapF";
+  endcase
+  
+  var EqpLayers := {"Cloak","BodyNoAr", "HeadNoAr","Feet","Legs/feet","Neck","Arms","Body", "Hands","Robe","SpecRobe","FaceLoc11","Head","Shield", "Weapon","FaceLoc16"};
+  var EqpByLayers := dictionary;
+  var Coverage,FaceLoc;
+  foreach Item in EqpItems
+    Coverage := GetConfigString(ItemCfg[_Item_iter],"Coverage");
+    if(!Coverage)
+      FaceLoc := GetConfigString(ItemCfg[_Item_iter],"FaceLoc"); 
+      if(FaceLoc)
+        Coverage := "FaceLoc" + CStr(FaceLoc);
+      else
+        Coverage := "Weapon";
+      endif
+    endif
+    EqpByLayers[Coverage] := {GetConfigInt(ItemCfg[_Item_iter],GrapID), Item};
+  endforeach
+  
+  if(EqpByLayers["SpecRobe"])
+    EqpByLayers["Head"] := "";
+    EqpByLayers["FaceLoc11"] := "";
+  endif
+  
+  foreach Item in EqpLayers
+    if(EqpByLayers[Item][1])
+      GGumpPic(40,30,EqpByLayers[Item][1],ToMin(EqpByLayers[Item][2]-1,0));
+    endif
+  endforeach
+  GSend(who);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

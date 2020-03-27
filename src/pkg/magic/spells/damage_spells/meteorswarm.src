@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/reputation/murderer";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 55;
+
+//-----------------------------------------------------------------------------
+
+program CastMeteorSwarm( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+ endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  Detach();
+
+  var CasterMagery := GetEffectiveSkill(Caster,SKILLID_MAGERY);
+  var Range        := CasterMagery/20;
+  var Dmg          := 0;
+  var Num          := 0;
+  var Gained       := 0;
+
+  foreach Mob in ListMobilesNearLocation( CastOn.x, CastOn.y, CastOn.z, Range, CastOn.realm)
+
+    if(!CanDamage(Caster,Mob, 0, CastOn))
+      continue;
+    endif
+
+    if(Dispersed(Caster, Mob))
+      continue;
+    endif
+
+    PlaySoundEffect( Mob, SFX_SPELL_FIREBALL );
+    PlayMovingEff( caster, Mob, FX_FIREBALL, 5, 1 );
+
+    if(Reflected(Mob, Caster))
+      Mob := Caster;
+      PlaySoundEffect( Mob, SFX_SPELL_FIREBALL );
+      PlayMovingEff( caster, Mob, FX_FIREBALL, 5, 1 );
+    endif
+
+    Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, Mob, SpellGlob.Type);
+    var DmgRes := DoMagicDamage(Mob, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+    AddMurdReport(Mob, Caster);
+
+    sleepms(500);
+    Num := Num + 1;
+
+    if(Gained < 3 and DmgRes > 0)
+      Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+    endif
+
+    if(Num >= 5)
+      break;
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

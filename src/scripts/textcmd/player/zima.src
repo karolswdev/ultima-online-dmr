@@ -1,0 +1,30 @@
+use uo;
+use os;
+
+include "include/gumps";
+
+program zima(who)
+
+    GInit(0, 0);
+    GPage(1);
+    GResPic(16, 24, 9270, 458, 277);
+    GTilePic(28, 33, 7764); 
+    GTilePic(418, 35, 7754); 
+    GTilePic(411, 225, 9000); 
+    GTilePic(27, 225, 9001); 
+    GResPic(94, 41, 9300, 304, 22);
+    GTextLine(217, 43, 0, "Z I M A");
+    GResPic(94, 71, 9350, 304, 22);
+    GTextLine(163, 74, 0, "T Y T U L  Q U E S T A");
+    GResPic(96, 101, 2620, 304, 116);
+    GTextLine(107, 115, 1152, "Tutaj pierwsza linijka questu");
+    GTextLine(107, 135, 1152, "Tutaj druga linijka questu");
+    GTextLine(107, 155, 1152, "Tutaj trzecia linijka questu");
+    GTextLine(107, 175, 1152, "Tutaj czwarta linijka questu");
+    GResPic(284, 228, 3500, 114, 104);
+    GTextLine(229, 233, 1152, "Nagroda:");
+    GTilePic(319, 259, 0); 
+    GButton(215, 257, 249, 248, 0);
+    GSend(who);
+
+endprogram

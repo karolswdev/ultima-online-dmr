@@ -1,0 +1,237 @@
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cmds";
+include "include/gumpboxes";
+include "include/std";
+include "include/player/target";
+include "include/clock";
+include "include/accounts";
+include "include/mobile/titles";
+include "include/reputation/murderer";
+include "include/faith";
+
+include ":character:race_validation";
+
+//-----------------------------------------------------------------------------
+
+program Restore(who, text)
+
+  if(text)
+    TextCmd(who, text);
+    return;
+  endif
+
+  UnloadConfigFile(DATA_PKG+"restore");
+
+  SetLogRunCycles(LST_CMD);
+
+  var Cfg := ReadConfigFile(DATA_PKG+"restore");
+
+  if(!Cfg)
+    SendSysMessage(who,"Konfig nie istnieje.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Acc := FindConfigElem(Cfg, "Account");
+
+  if(!Acc)
+    SendSysMessage(who,"Definicja konta nie istnieje ["+DATA_PKG+"restore.cfg].",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who, "Czy chcesz przywrocic konto: "+Acc.name+"?", FONT_NORMAL, COLOR_GREEN);
+
+  if(!YesNo(who, "Na pewno?"))
+    return;
+  endif
+
+  var Passwd := GenerateAccountPassword();
+  var NewAcc := CreateAccount(CStr(Acc.name), Passwd, 1);
+
+  if(!NewAcc)
+
+    var Err := NewAcc;
+    NewAcc := FindAccount(Acc.Name);
+
+    if(!NewAcc)
+      SendSysMessage(who, "Nie udalo sie stworzyc konta: " + Err, FONT_NORMAL, COLOR_RED);
+      return;
+    else
+      SendSysMessage(who, "Nie udalo sie stworzyc konta poniewaz juz istnieje. Chcesz kontynuowac przywracanie ?", FONT_NORMAL, COLOR_RED);
+
+      if(!YesNo(who, "Kontynuowac?"))
+        return;
+      endif
+    endif
+
+    NewAcc.SetPassword(Passwd);
+    SendSysMessage(who, "Ustawiono haslo na konto ["+Acc.Name+"] na: "+Passwd, FONT_NORMAL, COLOR_GREEN);
+
+  else
+    SendSysMessage(who, "Konto stworzone ["+Acc.Name+"]. Haslo: "+Passwd, FONT_NORMAL, COLOR_GREEN);
+    SendSysMessage(who,"Backupowanie konta...",FONT_NORMAL,COLOR_GREEN);
+    BackupAcc(NewAcc, Acc);
+  endif
+
+  
+  
+
+  var i;
+
+  /*
+  Nie sprawdzam czy istnieja postacie - niech robi merge, jesli da rade
+
+  for(i:=1; i<=5; i+=1)
+    if(NewAcc.GetCharacter(i))
+      SendSysMessage(who, "Na koncie istnieja postacie. Anulowanie przywracania postaci.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endfor
+  */
+
+  for(i:=1; i<=5; i+=1)
+
+    var Char := FindConfigElem(Cfg, "Character"+i);
+
+    if(Char)
+      if(Char.Account != Acc.Name)
+        SendSysMessage(who,"Konto postaci '"+Char.Name+"' sie nie zgadza, kontynuowac ?",FONT_NORMAL,COLOR_GREEN);
+        if(!YesNo(who,"Tak ?"))
+          return;
+        endif
+      endif
+
+      SendSysMessage(who,"Backupowanie postaci '"+Char.Name+"'...",FONT_NORMAL,COLOR_GREEN);
+      BackupCharacter(NewAcc, Char, who);
+    endif
+
+  endfor
+
+  SendSysMessage(who, "Konto: " + NewAcc.Name+ " Haslo: " + Passwd, FONT_NORMAL, COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BackupAcc(NewAcc, Acc)
+
+  var Props := GetConfigStringArray(Acc,"CProp");
+
+  var Prop   := array;
+  var St;
+
+  foreach PropStr in Props
+    St := find(PropStr," ",0);
+    Prop[1] := PropStr[1,St-1];
+    Prop[2] := PropStr[St,len(PropStr)];
+    NewAcc.SetProp(Prop[1],UnPack(Prop[2]));
+  endforeach
+
+  NewAcc.SetProp("LastLogin",ReadGameClock());
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BackupCharacter(Acc, CharData, Bywho)
+
+  var Char := Acc.addcharacter(CharData.CharIdx+1);
+
+  if(!Char)
+    SendSysMessage(Bywho, "Blad podczas tworzenia postaci '"+CharData.Name+"': "+Char, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  Char := Acc.GetCharacter(CharData.CharIdx+1);
+
+  if(!Char)
+    SendSysMessage(Bywho, "Blad podczas tworzenia postaci '"+CharData.Name+"': "+Char, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Props := GetConfigStringArray(CharData, "CProp");
+
+  var Name   := CharData.Name;
+  var Color  := CInt(CharData.Color);
+  var TColor := CInt(CharData.TrueColor);
+  var Grap   := CInt(CharData.Graphic);
+  var Murd   := CInt(CharData.Murderer);
+  var Prop   := array;
+  var St;
+
+  SetName(Char, Name);
+  Char.color := Color;
+  Char.truecolor := TColor;
+
+  if(Murd)
+    SetMurderer(Char);
+  else
+    EraseMurderer(Char);
+  endif
+
+  Char.gender := CInt(CharData.Gender);
+  Char.graphic := Grap;
+  Char.trueobjtype := CInt(CharData.TrueObjType);
+
+  Char.title_race := ClStr(CharData.TitleRace);
+  SetTitlePrefix(Char, ClStr(CharData.TitlePrefix));
+  SetTitleSuffix(Char, ClStr(CharData.TitleSuffix));
+  SetTitleGuild(Char, ClStr(CharData.TitleGuild));
+  var Loc := {CInt(CharData.X),CInt(CharData.Y),CInt(CharData.Z)};
+  var Realm := CharData.realm;
+
+  if(!Realm)
+    Realm := _DEFAULT_REALM;
+  endif
+
+  MoveObject(Char,Loc[1],Loc[2],Loc[3],Realm,MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+  MoveObject(Bywho,Loc[1],Loc[2],Loc[3],Realm,MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+
+  var Str := CInt(CharData.Strength * 10);
+  var Dex := CInt(CharData.Dexterity * 10);
+  var Intel := CInt(CharData.Intelligence * 10);
+
+  SetBaseStrengthBaseValue(Char,Str);
+  SetBaseDexterityBaseValue(Char,Dex);
+  SetBaseIntelligenceBaseValue(Char,Intel);
+  SendSysMessage(bywho,"Str - "+(Str * 0.1)+" Dex - "+(Dex * 0.1)+" Int - "+(Intel * 0.1),FONT_NORMAL,COLOR_GREEN);
+
+  foreach PropStr in Props
+    St := find(PropStr," ",0);
+    Prop[1] := PropStr[1,St-1];
+    Prop[2] := PropStr[St+1,len(PropStr)];
+    if(Prop[1] != "guild_id" and Prop[1] != "Citizen")
+      SetObjProperty(Char,Prop[1],UnPack(Prop[2]));
+      //SendSysMessage(Bywho,Prop[2]+" "+UnPack(Prop[2])+" "+GetObjProperty(Char,Prop[1]));
+      //SendSysMessage(Bywho,"Ustawianie Propa "+Prop[1]+" - "+Unpack(Prop[2]),FONT_NORMAL,COLOR_BLUE);
+    endif
+  endforeach
+
+  if(GetObjProperty(Char, PROP_CREATEDAT) == error and CInt(CharData.CreatedAt))
+    SetObjProperty(Char, PROP_CREATEDAT, CInt(CharData.CreatedAt));
+  endif
+
+  SetSkillsByRawProp(Char);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function TextCmd(who, text)
+
+  text := SplitWords(text);
+  var crTime := CInt(text[2]);
+  var polTime := CInt(text[1]);
+
+  if(!crTime or !polTime)
+    SendSysMessage(who, "Brak czasow.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Diff := polTime - crTime;
+
+  SendSysMessage(who, "Czas: "+ RealTime(Diff), FONT_NORMAL, COLOR_BLUE);
+
+endfunction
+
+//-----------------------------------------------------------------------------

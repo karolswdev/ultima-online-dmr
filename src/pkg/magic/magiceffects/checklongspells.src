@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "include/tempmods";
+include "../pkg/magic/magicitems/magicitems";
+include "../pkg/magic/magiceffects/timed_equip";
+include "../pkg/items/artifacts/artifacts";
+
+//-----------------------------------------------------------------------------
+
+program CheckLongSpells(who)
+
+  sleepms(500);
+
+  CheckForLongModDur(who,MOD_INCO);
+  CheckForLongModDur(who,MOD_GRAPHIC);
+  CheckForLongModDur(who,MOD_COLOR);
+  CheckForLongModDur(who,MOD_HGHOSTS);
+  CheckForLongModDur(who,MOD_RA);
+  CheckForLongModDur(who,MOD_TPREFIX);
+  CheckForLongModDur(who,MOD_TSUFFIX);
+  CheckForLongModDur(who,MOD_TGUILD);
+  CheckForLongModDur(who,MOD_TRACE);
+  CheckForLongModDur(who,MOD_HAIRS);
+  CheckForLongModDur(who,MOD_STATUS);
+  CheckForLongModDur(who,MOD_HP_REGEN);
+  CheckForLongModDur(who,MOD_MANA_REGEN);
+  CheckForLongModDur(who,MOD_STAM_REGEN);
+  CheckForLongModDur(who,MOD_LOWER_RC);
+  CheckForLongModDur(who,MOD_FASTER_CAST);
+  CheckForLongModDur(who,MOD_CTH);
+  CheckForLongModDur(who,MOD_MANA_COST);
+  CheckForLongModDur(who,MOD_MOUNT);
+  CheckForLongModDur(who,MOD_SLOWDOWN);
+
+  CheckAddMagicItemsMods(who);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckAddMagicItemsMods(who)
+
+  foreach item in ListEquippedItems(who)
+    if(IsMagicItem(item) and IsIdentified(item))
+      start_script(":magicitems:magicupkeep", array(who, item));
+    elseif(IsArtifact(Item))
+      ArtCtl(Item);
+    elseif(IsTimedEquipItem(Item))
+      start_script(":magiceffects:timed_equip", array(who, item));
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

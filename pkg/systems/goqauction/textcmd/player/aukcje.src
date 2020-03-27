@@ -1,8 +1,0 @@
-use os;
-use uo;
-
-program aa(who)
-
-    start_script(":goqauction:aukcje", who);
-    
-endprogram

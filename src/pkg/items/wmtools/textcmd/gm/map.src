@@ -1,0 +1,143 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+include "include/proc";
+include "include/coords";
+include "include/log";
+include "include/finding";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program MapPropertiesCmd(who, text)
+
+  var txt := Splitwords(text);
+
+  case(txt[1])
+    "?":             SendSysMessage(who, ".map [so/sl/stc/loc/land/height/stand/stmap/multiser]",FONT_NORMAL,COLOR_BAD);
+                     return;
+  endcase
+
+  var targ,loc;
+  
+  loc  := LocTarget(who);
+  targ := loc.item;
+  if(!targ)
+    targ := loc.mobile;
+  endif
+  
+  if(text["multi"])
+    targ := targ.multi;
+  endif
+
+  if(loc)
+    case(txt[1])
+      "so":     SendSysMessage(who,"StcObj: I: "+CInt(loc.objtype)+" H: "+Hex(loc.objtype),FONT_NORMAL,COLOR_GOOD);
+                return;
+      "sl":     var Layers := GetStandingLayers(Loc.x, Loc.y, MAPDATA_FLAG_ALL, who.realm);
+                SendSysMessage(who,"StandLayers: ["+Layers.size()+"].",FONT_NORMAL,COLOR_GOOD);
+                foreach Layer in Layers
+                  SendSysMessage(who, _Layer_iter+". F:"+Layer.flags+" ["+GetStandLayerFlagsDesc(Layer.flags)+"] H:"+Layer.height+" Z:"+Layer.z, FONT_NORMAL, COLOR_BLUE);
+                endforeach
+                SendSysMessage(who,"["+Loc.x+","+Loc.y+","+Loc.z+" "+who.realm+"]", FONT_NORMAL, COLOR_STONE);
+                return;
+      "stc":    var Statics := ListStaticsAtLocation(Loc.x, Loc.y, LIST_IGNORE_Z, 0, who.realm);
+                var i := 1;
+
+                SendSysMessage(who,"["+Loc.x+","+Loc.y+","+Loc.z+" "+who.realm+"] found: "+Statics.size(), FONT_NORMAL, COLOR_STONE);
+                foreach Stat in Statics
+                  SendSysMessage(who, "Stc: ["+i+"] "+hex(Stat.objtype) + ", z: "+Stat.z, FONT_NORMAL, COLOR_GREEN);
+                  i := i + 1;
+                endforeach
+                return;
+
+      "loc":    SendSysMessage(who, CStr(Loc), FONT_NORMAL, COLOR_GREEN);
+                return;
+      "land":   var Info    := GetMapInfo( loc.x , loc.y , who.realm);
+                var LandCfg := ReadConfigFile(LANDTILES_CFG);
+                SendSysMessage(who,"LandTile ["+CInt(info.landtile)+"]: "+LandCfg[info.landtile].Name+" H:"+Hex(info.landtile)+" MapZ:"+Info.z+".",FONT_NORMAL,COLOR_GOOD);
+                SendSysMessage(who,"["+Loc.x+","+Loc.y+","+Loc.z+" "+who.realm+"]", FONT_NORMAL, COLOR_STONE);
+                return;
+      "height": SendSysMessage(who,"WorldHeight: "+GetWorldHeight(loc.x,loc.y,who.realm)+".",FONT_NORMAL,COLOR_GOOD);
+                SendSysMessage(who,"["+Loc.x+","+Loc.y+","+Loc.z+" "+who.realm+"]", FONT_NORMAL, COLOR_STONE);
+                return;
+
+      "stmap":
+      "stand":  var Stand;
+                if(txt[1] == "stand")
+                  Stand := GetStand(Loc.x,Loc.y,who.realm, Loc.z);
+                else
+                  Stand := GetStand(Loc.x,Loc.y,who.realm, GSF_GETMAPZ);
+                endif
+
+                var StandZ := Stand;
+                var Multi  := "";
+
+                if(Stand != error)
+                  StandZ := CStr(Stand.z);
+                else
+                  StandZ := Stand.errortext;
+                endif
+
+                if(Stand.multi)
+                  Multi := " Multi: "+CInt(Stand.multi.serial);
+                endif
+                  
+                SendSysMessage(who,"StandHeight: Z: "+StandZ + Multi+".",FONT_NORMAL,COLOR_GOOD);
+                SendSysMessage(who,"["+Loc.x+","+Loc.y+","+Loc.z+" "+who.realm+"]", FONT_NORMAL, COLOR_STONE);
+                return;
+      "multiser":   
+                SendSysMessage(who,"MultiSer: "+CInt(GetStandingHeight(Loc.x,Loc.y,CInt(loc.z),who.realm).multi.serial)+".",FONT_NORMAL,COLOR_GOOD);
+                SendSysMessage(who,"["+Loc.x+","+Loc.y+","+Loc.z+" "+who.realm+"]", FONT_NORMAL, COLOR_STONE);
+                return;
+    endcase
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetStandLayerFlagsDesc(Flags)
+
+  var Desc := "";
+
+  if(Flags & MAPDATA_FLAG_MOVELAND)
+    AddWord(Desc, "MoveLand");
+  endif
+
+  if(Flags & MAPDATA_FLAG_MOVESEA)
+    AddWord(Desc, "MoveSea");
+  endif
+
+  if(Flags & MAPDATA_FLAG_BLOCKSIGHT)
+    AddWord(Desc, "BlockSight");
+  endif
+
+  if(Flags & MAPDATA_FLAG_OVERFLIGHT)
+    AddWord(Desc, "OverFlight");
+  endif
+
+  if(Flags & MAPDATA_FLAG_ALLOWDROPON)
+    AddWord(Desc, "DropOn");
+  endif
+
+  if(Flags & MAPDATA_FLAG_GRADUAL)
+    AddWord(Desc, "Gradual");
+  endif
+
+  if(Flags & MAPDATA_FLAG_BLOCKING)
+    AddWord(Desc, "Blocking");
+  endif
+
+  if(Flags & MAPDATA_FLAG_MORE_SOLIDS)
+    AddWord(Desc, "MoreSolids");
+  endif
+
+  return Desc;
+
+endfunction
+
+//-----------------------------------------------------------------------------

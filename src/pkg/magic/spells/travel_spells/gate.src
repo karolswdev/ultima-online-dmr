@@ -1,0 +1,96 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/buildings";
+include "include/portals";
+include "include/move";
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 52;
+
+//-----------------------------------------------------------------------------
+
+program CastGate( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_RUNE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(CInt(GetObjProperty(Caster, "#GateDelay")) > ReadGameClock())
+    SendSysMessage(Caster,"Musisz odczekac chwile, jeszcze nie mozesz przywolac wrot.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var tox := CInt(GetObjProperty( CastOn, "x" ));
+  var toy := CInt(GetObjProperty( CastOn, "y" ));
+  var toz := CInt(GetObjProperty( CastOn, "z" ));
+  var Rlm := GetObjProperty( CastOn, "Rlm" );
+  if(!Rlm)
+    Rlm := _DEFAULT_REALM;
+  endif
+  
+  if(!tox or !toy)
+    SendSysMessage(caster, "Runo musi byc zaznaczone.");
+    return;
+  endif
+  
+  if(NoTeleportZone(tox,toy,toz,Rlm) or NoTeleportZone(Caster.x,Caster.y,Caster.z,Caster.realm))
+    Fizzle(Caster,"W tym miejscu magia nie dziala.");
+    return;
+  endif
+
+  if(IsWaterInRange(tox,toy,toz,Rlm, 10))
+    Fizzle(caster, "Woda zakloca mozliwosc przywolania portalu w to miejsce.");
+    return;
+  elseif(IsWaterInRange(Caster.x,Caster.y,Caster.z,Caster.realm, 10))
+    Fizzle(caster, "Nie mozesz przywolac portalu, jestes zbyt blisko wody.");
+    return;
+  endif
+
+  if(Rlm != Caster.realm and (Caster.realm == BRITA_REALM or Rlm == BRITA_REALM))
+    Fizzle(Caster, "Nie mozesz odwolac sie w to miejsce.");
+    return;
+  endif
+
+  if(coordist(Caster.x, Caster.y, tox, toy) < 20 and Caster.realm == Rlm)
+    Fizzle(Caster, "Znajdujesz sie w miejscu docelowym...");
+    return;
+  endif
+
+  var lDist      := 10;
+
+  if(Rlm == Caster.realm)
+    lDist := max(1, CInt(ceil(CDbl(coordist(tox, toy, Caster.x, Caster.y))/300.0)));
+  endif
+
+  var SpellsCfg := ReadConfigFile(SPELLS_CFG);
+  var Reagents  := GetConfigStringArray(SpellsCfg[SPELL_ID], "BReagent");
+
+  if(!EatReagents(Caster, Reagents, lDist))
+    Fizzle(Caster, "Brakuje Ci skladnikow!");
+    SendReagentsList(Caster, Reagents, lDist);
+    return;
+  endif
+
+  /*__NONPVP__ DELETED
+  if(IsInNonPvPArea(tox,toy,Rlm) != IsInNonPvPArea(Caster.x,Caster.y,Caster.realm))
+    Fizzle(Caster,"Nie mozna stawiac portali miedzy strefami");
+    return;
+  endif*/
+
+  Detach();
+  NoLongerBusy(Caster);
+  
+  SetObjProperty(Caster, "#GateDelay", ReadGameClock() + 120);
+  CreateGateTravel(Caster.x,Caster.y,Caster.z,Caster.realm,tox,toy,toz,Rlm, 0, Caster);
+
+endfunction
+
+//-----------------------------------------------------------------------------

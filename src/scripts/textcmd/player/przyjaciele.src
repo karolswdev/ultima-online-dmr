@@ -1,0 +1,100 @@
+//-----------------------------------------------------------------------------
+
+
+include "include/gumpboxes";
+include "include/finding";
+include "include/misc";
+include "include/checks/objchecks";
+include "include/player/friends";
+
+//-----------------------------------------------------------------------------
+
+const PAGE_COUNT := 10;
+
+//-----------------------------------------------------------------------------
+
+program ShowFriends(who)
+
+  GInit(20, 50);
+  GResPic(0,0,3600,400,320);
+  GPage();
+  
+  GTextLine(78, 25,540,"Przyjaciele");
+  GTextLine(30, 25,540,"Usun");
+  GTextLine(330,25,540,"Dodaj");
+  GButton(  310,27,2117,2118,1000);
+
+  GAddPageData(367,48,2650,2651,367,285,2648,2647);
+  
+  var i := 1,FriendN,Friends := GetFriendList(who);
+  foreach Friend in Friends
+    GCheckNextPage(PAGE_COUNT);
+    FriendN := FindPlayerBySerial(Friend);
+    if(FriendN)
+      FriendN := GetRealName(FriendN);
+    else
+      FriendN := "Nie istnieje";
+    endif
+    GTextLine(60,(75+(GNPCount()*20)),__IfElse(Friend.murderer == who.murderer, 550, 1209),FriendN);
+    GButton(  35,(77+(GNPCount()*20)),2117,2118,i);
+    i := i + 1;
+  endforeach
+
+  var Res := GSend(who)[0];
+
+  if(Res == 1000)
+    AddNewFriend(who);
+  elseif(Res > 0 and Res <= len(Friends))
+    DeleteChoosenFriend(who,Friends[Res]);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddNewFriend(who)
+
+  var NewFriend := ObjTarget(who);
+  if(!StandardMobCheck(who,NewFriend,NO_DIST_CHECK | NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(!IsPlayer(NewFriend))
+    SendSysMessage(who,"Tego stworzenia nie mozesz dodac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(NewFriend == who)
+    SendSysMessage(who,"Siebie nie mozesz dodac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Res := AddCharFriend(who,NewFriend.serial);
+  if(Res == -1)
+    SendSysMessage(who,"Ta osoba jest juz twoim przyjacielem.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Res == -2)
+    SendSysMessage(who,"Wiecej przyjaciol nie mozesz dodac.",FONT_NORMAL,COLOR_RED);
+    return;
+  elseif(Res)
+    SendSysMessage(who,"Dodal"+ggm(who,3)+" nowego przyjaciela "+NewFriend.name+".",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+endfunction
+
+function DeleteChoosenFriend(who,FriendSer)
+
+  if(DeleteCharFriend(who,FriendSer))
+    var Name := FindPlayerBySerial(FriendSer).name;
+    if(!Name)
+      Name := "nie istniejacego";
+    endif
+    SendSysMessage(who,"Skasowal"+ggm(who,3)+" przyjaciela "+Name+".",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie udalo sie skasowac przyjaciela.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

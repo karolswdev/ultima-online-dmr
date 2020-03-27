@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/vampire/vampire";
+include "../pkg/systems/weather/weather";
+include "include/clock";
+
+//-----------------------------------------------------------------------------
+
+const VW_WCID                := 28;
+
+//-----------------------------------------------------------------------------
+
+program VwIceBlade(Parms)
+
+  VampireRuneCast(Parms, VW_WCID);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  if(IsMagicItem(Caster.weapon) or IsArtifact(Caster.weapon))
+    WcFizzleId(Caster, "Tej broni nie pokryjesz lodem.", VW_WCID);
+    return;
+  endif
+
+  var VpSkill  := GetEffectiveSkill(Caster,SKILLID_VAMPIRE);
+  var SpSkill  := GetEffectiveSkill(Caster,SKILLID_SPIRITSPEAK);
+  var Duration := (VpSkill + (SpSkill / 2)) * 2 + RandomInt(20);
+  var bDmg     := (VpSkill / 25) + (SpSkill / 25) + RandomInt(3);
+  var ModFlags := __IfElse(IsDungeonWarCasted(VW_WCID), MODF_CHECK_VAMPIRE, 0);
+
+  PlaySoundEffect(Caster,SFX_SPELL_PARA_FIELD);
+  PlayPcStEffect( Caster.x, Caster.y, Caster.z, Caster.realm, FX_CURSE_EFFECT, 1151, 0xF, 0xF);
+
+  if(CanMod(Caster, MOD_COLD_DMG))
+    GainWarcastPoints(Caster, Caster, VW_WCID, WCGAIN_NORMAL);
+  endif
+
+  UndoMod(Caster, MOD_FIRE_BLOOD);
+  DoMod( Caster, MOD_COLD_DMG, bDmg, Duration, 0, ModFlags);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

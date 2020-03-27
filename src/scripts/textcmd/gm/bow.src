@@ -1,0 +1,48 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/dirs";
+include "include/client/anims";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program BowCmd(who, count)
+
+  count := CInt(count);
+  
+  if(!count)
+    count := 1;
+  elseif(count > 10)
+    count := 10;
+  endif
+
+  var i;
+
+  for(i:=1;i<=count;i:=i+1)
+    foreach Mob in ListMobilesNearLocation(who.x, who.y, who.z, 15, who.realm)
+      if(IsHuman(Mob) and !Mob.cmdlevel)
+        TurnCharToward(Mob, who);
+      endif
+    endforeach
+
+    sleepms(200);
+
+    foreach Mob in ListMobilesNearLocation(who.x, who.y, who.z, 15, who.realm)
+      if(IsHuman(Mob) and !Mob.cmdlevel)
+        PerformAction(Mob, ANIM_BOW);
+      endif
+    endforeach
+
+    sleep(2);
+  endfor
+
+endprogram
+
+//-----------------------------------------------------------------------------

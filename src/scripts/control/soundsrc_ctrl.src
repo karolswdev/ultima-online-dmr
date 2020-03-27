@@ -1,0 +1,99 @@
+//--------------------------------------------------------------------------------
+
+use uo;
+use os;
+use polsys;
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/events";
+include "include/finding";
+include "include/logerror";
+include "include/player/misc";
+include "include/client/fonts";
+include "include/dices";
+
+//--------------------------------------------------------------------------------
+
+var Parms;
+var Count := 0;
+
+//--------------------------------------------------------------------------------
+
+program SoundSourceNodeControl(Node)
+
+  var Delay;
+
+  while(Node)
+    if(GetObjProperty(Node, PROP_SNDSRC_REREAD))
+      LoadParms(Node);
+      var who := FindPlayerBySerial(GetObjProperty(Node, PROP_SNDSRC_REREAD));
+	  Malloc(who);
+      if(who.cmdlevel)
+        SendSysMessage(who, "Zmiany w zrodle dzwieku ["+Node.desc+"] zostaly przeladowane.", FONT_NORMAL, COLOR_BLUE);
+      endif
+      EraseObjProperty(Node, PROP_SNDSRC_REREAD);
+    elseif(!Parms)
+      LoadParms(Node);
+    endif
+
+    if(Parms and Parms[2])
+      Delay := RandomDiceRoll(Parms[2]);
+    endif
+
+    if(Parms[1] and Parms[1].size() and Delay)
+      PlaySoundEffect(Node, Parms[1][RandomInt(Parms[1].size())+1]);
+      sleepms(Delay);
+    else
+      sleep(10);
+      Count := Count + 1;
+    endif
+
+    if(Count > 50)
+      LogError("SoundSourceNodeControl: Node bez parametrow, ["+Node.x+","+Node.y+","+Node.z+" "+Node.realm+"] ["+Node.serial+"]");
+      Count := 0;
+    endif
+
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function LoadParms(Node)
+
+  Parms := GetObjProperty(Node, PROP_SNDSRC_PARMS);
+
+  if(Parms)
+    if(Parms[1] and Parms[2])
+      Parms[1] := SplitWords(Parms[1]);
+      var Correct := 0;
+
+      foreach Idx in (Parms[1])
+        Idx := CInt(Idx);
+        if(Idx)
+          Correct := 1;
+        endif
+      endforeach
+
+      if(!Correct)
+        Parms := 0;
+      else
+        Parms[2] := CStr(Parms[2]);
+        if(!CheckDiceRoll(Parms[2]))
+          Parms := 0;
+        else
+          Count := 0;
+        endif
+      endif
+    else
+      Parms := 0;
+    endif
+  else 
+    Parms := 0;
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

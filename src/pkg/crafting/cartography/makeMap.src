@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/misc";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program MakeMap( who, mapitem )
+
+  if(!StandardItemCheck(who,mapitem))
+    return;
+  endif
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  var Name := CutDesc(mapitem.desc);
+  var Obj  := mapitem.objtype;
+  var Diff := CInt(ItemCfg[Obj].Diff);
+
+  if(DestroyItem(mapitem))
+    if(CheckSkill(who, SKILLID_CARTOGRAPHY, Diff, Diff*2))
+      var map := CreateItemInPack(who, UOBJ_MAP1);
+      SetName(map, Name);
+      map.xwest      := CInt(ItemCfg[Obj].Mxwest);
+      map.ynorth     := CInt(ItemCfg[Obj].Mynorth);
+      map.xeast      := CInt(ItemCfg[Obj].Mxeast);
+      map.ysouth     := CInt(ItemCfg[Obj].Mysouth);
+      map.gumpwidth  := CInt(ItemCfg[Obj].Mgumpwidth);
+      map.gumpheight := CInt(ItemCfg[Obj].Mgumpheight);
+
+      SendSysMessage(who, "Udalo Ci sie odczytac mape.", FONT_NORMAL, COLOR_GREEN);
+      SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_CARTOGRAPHY, array(map, Obj));
+    else
+      SendSysMessage(who, "Nie udalo Ci sie odczytac mapy.", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

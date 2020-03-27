@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 10;
+
+//-----------------------------------------------------------------------------
+
+program CastCunning( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!CanGetMagicStatMod(CastOn))
+    Fizzle(Caster, "Czar nie daje efektu na tej osobie.");
+    return;
+  endif
+
+  PlaySoundEffect(CastOn, SFX_SPELL_CUNNING);
+  PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 7,7);
+
+  if (!CanMod(CastOn, MOD_INT))
+    Fizzle(Caster,"Cel jest juz pod wplywem czaru!");
+    return;
+  endif
+
+  var ModAmount := CalcModAmount(Caster, SpellGlob.Circle);
+  var Duration  := CalcModDuration(Caster, SpellGlob.Circle);
+  
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+  DoMod(CastOn, MOD_INT, ModAmount, Duration);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

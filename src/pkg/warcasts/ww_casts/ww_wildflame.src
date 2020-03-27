@@ -1,0 +1,77 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/dirs";
+include "../pkg/systems/tourney/tourney";
+include "include/mobile/npcs/specs";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 19;
+
+//-----------------------------------------------------------------------------
+
+program WwWolfWildFlame(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED,TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var WWSkill  := GetEffectiveSkill(Caster, SKILLID_WEARWOLF);
+  var ALSkill  := GetEffectiveSkill(Caster, SKILLID_ANIMALLORE);
+  var Range    := CInt((WWSkill + ALSkill) / 20);
+  var Dmg      := CalcWarCastDamage(Caster, WW_WCID);
+  var Gained   := 0;
+  
+  Dmg := CInt(Dmg - 10);
+  var mDmg := CInt(Dmg / 3);
+  
+  PlaySoundEffect(Caster, SFX_WILD_FIRE);
+  PlayPcEffect(Caster, FX_FLAMESTRIKE, 100, 0x10, 0x1A, 3);
+  sleepms(300);
+
+  foreach mobile in ListMobilesNearLocation(CastOn.x, CastOn.y, CastOn.z, range, Caster.realm)
+
+    mobile.hidden := 0;
+
+    if(CanDamage(Caster, mobile, CAN_DAMAGE_HIDDEN, CastOn))
+      PlaySoundEffect (mobile, SFX_FIRE2);
+      PlaySoundEffect (mobile, SFX_WILD_FIRE);
+      PlayPcMovEffect(Caster, Mobile, FX_FIREBALL, 100, 5, 1, 1, 0, 3);
+
+      var DmgRes := DoMagicDamage(mobile, Caster, Dmg, 7, DMGTYPE_FIRE, SPTYPE_NONE);
+      DealManaDamage(mobile, mDmg, Caster);
+
+      if(Gained < 3 and DmgRes > 0)
+        Gained += GainWarcastPoints(Caster, mobile, WW_WCID, WCGAIN_OFFENSIVE);
+      endif
+          
+      if(mobile.isa(POLCLASS_NPC))
+        var Res := BreakNpcSpecial(mobile, NSPEC_STONEFALL);
+        if(Res > 0)
+          SendSysMessage(Caster, "Przelamal"+ggm(Caster,3)+" koncetracje "+GetName(mobile)+"!", FONT_NORMAL, COLOR_WHITE);
+        elseif(Res < 0)
+          SendSysMessage(Caster, "Prawie przelamal"+ggm(Caster,3)+" koncentracje "+GetName(mobile)+"!", FONT_NORMAL, COLOR_ORANGE);
+        endif
+      endif
+
+    endif
+
+    Sleepms(1);
+  endforeach
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_WARRIOR;
+const WW_WCID                := 11;
+
+//-----------------------------------------------------------------------------
+
+program WwClawOfDeath(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Duration := CInt(GetWarCastDuration(Caster, WCT_WEARWOLF) / 2);
+
+  // bDmg tutaj to poziom posiona. jest 70% szans na zatrucie.
+  // 4 + 3 + [0/1] = dla 100/100
+  var bDmg := CalcSkillExponential(Caster, SKILLID_WEARWOLF, 4);
+      bDmg += CalcSkillExponential(Caster, SKILLID_ANIMALLORE, 3);
+  
+  bDmg := CInt(bDmg); // CInt dopiero na koncu, aby pododawac u³amki. result bedzie 3+3+1. Powy¿ej 100 trafi siê i 8 czy nawet 9.
+
+  if(CanMod(Caster, MOD_POISON_DMG))
+    GainWarcastPoints(Caster, Caster, WW_WCID, WCGAIN_NORMAL);
+  endif
+
+  PlaySoundEffect(Caster, SFX_SPELL_FIRE_FIELD);
+  PlayPcEffect(Caster, FX_MARK_EFFECT, 61, 0xF, 0xF);
+  DoMod( Caster, MOD_POISON_DMG, bDmg, Duration);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

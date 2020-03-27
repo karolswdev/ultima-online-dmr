@@ -1,0 +1,274 @@
+//-----------------------------------------------------------------------------
+
+include "include/log";
+include "include/player/misc";
+include "include/move";
+include "include/gumpboxes";
+include "include/clock";
+include "include/cmds/cancmd";
+include "include/portals";
+
+//-----------------------------------------------------------------------------
+
+const ITEM_MOONGATE_CFG         := ":qmtools:phoenixspawn";
+
+//-----------------------------------------------------------------------------
+
+program CreatePhoenixPortal(Caster,text)
+  
+  var Amount, NumSpot;
+  var dict := GetGlobalProperty("FireMoon");
+  var Script := GetProc(GetGlobalProperty("#FireMoonPid"));
+
+  if(!CanUseCmd(Caster, "fp"))
+    SendSysMessage(Caster, "Nie mozesz uzyc tej komendy.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+ 
+  if(!dict)
+    dict := dictionary;
+  endif
+ 
+  if(text == "?")
+    if(Script)
+      SendSysMessage(Caster, "Ognisty Portal jest juz otwarty.",FONT_NORMAL,COLOR_RED);
+    endif
+
+    SendSysMessage(Caster, "Imie osoby ktora stworzyla ostatni portal: "+dict["Creator"]+"/"+dict["Serial"],FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(Caster, "Data ostatniego portalu: "+dict["Date"],FONT_NORMAL,COLOR_BLUE);
+    SendSysMessage(Caster, "Ostatnio utworzony zostal " + dict["Mob"],FONT_NORMAL,COLOR_BLUE);
+    return;
+
+  endif
+
+  text := SplitWords(text);
+    
+  case(text[1])
+    "cr": 
+                if(Script)
+                  SendSysMessage(Caster, "Ognisty Portal jest juz otwarty.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+                if(!text[2])
+                  SendSysMessage(Caster, ".fp cr [template]", FONT_NORMAL, COLOR_RED);
+                  return;
+                elseif(!GetNpcConfig(text[2]).firemob)
+                  SendSysMessage(Caster, "Ten template nie jest ognistym mobem " + text[2], FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+                dict["MobSerial"] := CreateSpawn(text[2]).serial;
+                dict["Mob"] := text[2];
+                SetGlobalProperty("FireMoon",dict);
+                return;
+                
+    "stop":     
+                if(!Script)
+                  SendSysMessage(Caster, "Ognisty Portal jest zamkniety.", FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+                var event := struct;
+                event.+type := "ForceEnd";
+                Script.sendevent(event);
+                return;
+
+    "start":    if(Script)
+                  SendSysMessage(Caster, "Ognisty Portal jest juz otwarty.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+                Amount := CInt(text[2]);
+                if(!text[2])
+                  SendSysMessage(Caster, "Wpisz liczbe faz ma byc otwarty portal. Jedna faza trwa 15 minut.", FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+
+                if(Amount < 1 or Amount > 10)
+                  SendSysMessage(Caster, "Ilosc faz musi byc wieksza od 1 do 10.", FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+
+                if(text[3])
+                  if(text[3] == "oldloc")
+                    NumSpot := CInt(dict["NumSpot"]);
+                  else
+                    SendSysMessage(Caster, "Chodzilo ci o .fp start [fazy] oldloc?", FONT_NORMAL, COLOR_RED);
+                  endif
+                endif
+                
+                var FireMob := FindNpcBySerial(dict["MobSerial"]);
+                if(!FireMob)
+                  SendSysMessage(Caster, "Najpierw stworz ognistego moba .fp cr [template]", FONT_NORMAL, COLOR_RED);
+                  return;
+                endif
+
+                if(!YesNo(Caster,"Jestes Pewny?"))
+                  SendSysMessage(Caster,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                  return;
+                endif
+          
+      default:  SendSysMessage(Caster, ".fp cr [template] / start [fazy] {\"oldloc\"} / stop", FONT_NORMAL, COLOR_RED);
+                return;
+  endcase
+ 
+  Detach();
+  
+  SendSysMessage(Caster,"Otwierasz Ognisty Portal!",FONT_NORMAL,COLOR_GREEN);
+ 
+  var MoonCfg := ReadConfigFile(ITEM_MOONGATE_CFG);
+  var Phoenix:= MoonCfg["Phoenix"];
+  var HowMuch := CInt(Phoenix.HM);
+  
+  if(!NumSpot)
+    NumSpot := RandomIntMinMax(1, HowMuch);
+    dict["NumSpot"] := NumSpot;
+  endif
+
+  var MoonGate := MoonCfg[NumSpot];
+  var Sx := CInt(Phoenix.x);
+  var Sy := CInt(Phoenix.y);
+  var SRlm := Phoenix.Rlm;
+  var Dx := CInt(MoonGate.x);
+  var Dy := CInt(MoonGate.y);
+  var DRlm := MoonGate.Rlm;
+  
+  if(!DRlm)
+    DRlm := _DEFAULT_REALM;
+  endif
+  
+  if(!SRlm)
+    SRlm := _DEFAULT_REALM;
+  endif
+  
+  var Sz := CInt(Phoenix.z);
+  var Dz := CInt(MoonGate.z);
+
+  if(!Sx or !Sy or Sz == error or !Dx or !Dy or Dz == error)
+    return 0;
+  endif
+  
+  dict["Creator"] := Caster.Name;
+  dict["Serial"] := Caster.Serial;
+  dict["Date"] := CUnixTime(PolCore().systime);
+  
+  
+  var Gate1,Gate2;
+  gate1 := FindItemBySerial(dict["ExitGate"]);
+
+  if(!gate1)
+    gate1 := CreateItemAtLoc(Sx, Sy, Sz, UOBJ_TELE,1,SRlm);
+    gate1.color := 1161;
+    gate1.name  := "Ognisty Portal";
+    SetObjProperty( gate1, "FireMoon", 1);
+    dict["ExitGate"] := gate1.serial;
+  endif
+  
+  gate2 := CreatePortal(UOBJ_BLUEGATE, Dx, Dy, Dz, DRlm, 0);
+  gate2.color := 1161;
+  gate2.name  := "Ognisty Portal";
+  
+  SetObjProperty( gate2, "FireMoon", 2);
+  
+  PlaySoundEffect( Gate1, SFX_SPELL_GATE_TRAVEL );
+  PlaySoundEffect( Gate2, SFX_SPELL_GATE_TRAVEL );
+
+  SetObjProperty( gate2, "DestGateSer", gate1.serial);
+   
+  SetObjProperty( gate1, "DestX", Gate2.x);
+  SetObjProperty( gate1, "DestY", Gate2.y);
+  SetObjProperty( gate1, "DestZ", Gate2.z);
+  SetObjProperty( gate1, "DestRlm", DRlm);
+
+  SetObjProperty( gate2, "DestX", Gate1.x);
+  SetObjProperty( gate2, "DestY", Gate1.y);
+  SetObjProperty( gate2, "DestZ", Gate1.z);
+  SetObjProperty( gate2, "DestRlm", SRlm);
+  
+  SetGlobalProperty("#FireMoonPid", GetPid());
+  SetGlobalProperty("FireMoon",dict);
+  ShowPortal(array(Gate1,Gate2));
+  var ev;
+  
+  for i:=1 to Amount
+    if(i<Amount)
+      Broadcast(MoonGate.Bcasttxt, FONT_NORMAL, COLOR_YELLOW_LIGHT);
+    else
+      Broadcast(Phoenix.CloseCast, FONT_NORMAL, COLOR_YELLOW_LIGHT);
+    endif
+    
+    ev :=  wait_for_event(900);
+    if(ev and ev.type == "ForceEnd")
+      break;
+    endif
+  endfor
+  
+  Broadcast("*Ognisty Portal zostal zamkniety*", FONT_NORMAL, COLOR_YELLOW_LIGHT);
+  HidePortal(Gate2);
+  DestroyItem(Gate2);
+
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetRandomLoc(Loc, Range)
+
+  var Count := 0;
+  var dstLoc := LocStruct();
+  dstLoc.realm := Loc.realm;
+
+  while(Count < 10)
+    dstLoc.x := Loc.x - Range + RandomInt(Range*2);
+    dstLoc.y := Loc.y - Range + RandomInt(Range*2);
+    dstLoc.z := GetStandZ(dstLoc.x, dstLoc.y, Loc.realm);
+
+    if(dstLoc.z != error)
+      return dstLoc;
+    endif
+
+    Count += 1;
+  endwhile
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CreateSpawn(mob)
+ 
+  var Cfg := ReadConfigFile(":qmtools:fireguards");
+
+  if(!Cfg)
+    LogError("Nie udalo sie odczytac cfg :qmtools:fireguards!!");
+    return;
+  endif
+
+  var Keys := GetConfigStringKeys(Cfg);
+  var GroupName := Keys[RandomInt(Keys.size())+1];
+
+  if(!GroupName)
+    GroupName := Keys[1];
+  endif
+
+  var Loc := BuildLocStruct(6624, 524, 0, _DEFAULT_REALM);
+
+  foreach Template in ListConfigElemProps(Cfg[GroupName])
+    var Items := GetConfigStringArray(Cfg[GroupName], Template);
+
+    foreach Item in Items 
+      if(HaveChance(CInt(Item)))
+        var npcLoc := GetRandomLoc(Loc, 30);
+
+        if(npcLoc)
+          CreateNpc(Template, npcLoc.x, npcLoc.y, NpcLoc.z, npcLoc.realm);
+        endif
+      endif
+    endforeach
+
+  endforeach
+  
+  return CreateNpc(mob, Loc.x, Loc.y, Loc.z, Loc.realm);
+
+endfunction
+
+//-----------------------------------------------------------------------------

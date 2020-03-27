@@ -1,0 +1,64 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/misc";
+include "include/coords";
+include "include/client/fonts";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program CheckLosCmd(who)
+
+  var Targ := LocTarget(who);
+  
+  var msg := "Norm Coord: " + GetAnswerState(CheckLosAt(who,Targ.x, Targ.y, Targ.z));
+  
+  if(Targ.item)
+    Targ := Targ.item;
+  elseif(Targ.mobile)
+    Targ := Targ.mobile;
+  endif
+  
+  if(Targ.isa(POLCLASS_MOBILE) or Targ.isa(POLCLASS_ITEM))
+    msg := msg + ", ToObj: ";
+    if(Targ.isa(POLCLASS_ITEM))
+      msg := msg + "Item - " + GetAnswerState(CheckLineOfSight(who,Targ));
+    elseif(Targ.isa(POLCLASS_MOBILE))
+      msg := msg + "Mob - " + GetAnswerState(CheckLineOfSight(who,Targ));
+    endif
+  endif
+
+  SendSysMessage(who,msg,FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who, "MaxZ coord: " + GetAnswerState(CheckLosBetween(who.x, who.y, Max(who.z, Targ.z), Targ.x, Targ.y, Max(Targ.z, who.z), who.realm)), FONT_NORMAL, COLOR_GREEN);
+  
+  msg := "Spec Coord: " + GetAnswerState(CoordLosAt(who,Targ));
+  
+  if(Targ.isa(POLCLASS_MOBILE) or Targ.isa(POLCLASS_ITEM))
+    msg := msg + ", ToObj: " + GetAnswerState(CheckSpecialLos(who,Targ));
+  endif
+  
+  SendSysMessage(who,msg,FONT_NORMAL,COLOR_GREEN);
+
+  if(Targ.isa(POLCLASS_ITEM))
+    SendSysMessage(who, "Accessible: "+GetAnswerState(Accessible(who, Targ)), FONT_NORMAL, COLOR_GREEN);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GetAnswerState(State)
+
+  if(State == error)
+    return "Error";
+  elseif(State)
+    return "Tak";
+  else
+    return "Nie";
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

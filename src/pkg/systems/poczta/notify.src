@@ -1,0 +1,15 @@
+use uo;
+use os;
+
+include "include/gumps";
+
+program Post_Notify(who)
+
+	GInit(0, 0);
+    GPage(1);
+    GResPic(4, 6, 5170, 148, 103);
+    GTextLine(41, 11, 0, "Nowa poczta!");
+    GButton(66, 46, 1154, 248, 0);
+    GSend(who);
+	
+endprogram

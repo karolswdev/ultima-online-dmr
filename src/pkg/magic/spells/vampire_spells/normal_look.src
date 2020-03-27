@@ -1,0 +1,43 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/systems/vampire/common";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 97;
+
+//-----------------------------------------------------------------------------
+
+program CastNormalLook( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var OldColor      := GetColorBefVamp(Caster);
+
+  if(Caster.color == OldColor and CanMod(Caster, MOD_COLOR) == 0 and GetEffectiveSkill(Caster, SKILLID_VAMPIRE) > 60)
+    UndoMod(Caster, MOD_COLOR, UMDF_WAIT);
+  endif
+
+  if(!CanMod(Caster,MOD_COLOR))
+    Fizzle(Caster,"Jestes juz pod wplywem czaru!");
+    return;
+  endif
+
+  var Duration      := GetVampireSpellDur( Caster );
+  var ModFlags := __IfElse(IsDungeonSpellCasted(SPELL_ID), MODF_CHECK_VAMPIRE, 0);
+
+  PlaySoundEffect(Caster, SFX_SPELL_INVISIBILITY);
+  DoMod(Caster, MOD_COLOR,  OldColor, Duration, 0, ModFlags);
+
+endfunction
+
+//-----------------------------------------------------------------------------

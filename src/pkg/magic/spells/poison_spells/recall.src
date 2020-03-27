@@ -1,0 +1,41 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 32;
+
+//-----------------------------------------------------------------------------
+
+program CastRecall( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HELPFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  var CasterMagery    := GetMagicSkillValue(Caster, SpellGlob.Type);
+  var CasterPoisoning := GetEffectiveSkill( Caster, SKILLID_POISONING );
+  
+  PlaySoundEffect(CastOn, SFX_SPELL_BLESS);
+  PlayObjectCenteredEffect( CastOn, FX_BLESS_EFFECT, 10,10);
+  
+  var Lvl             := CInt(CasterMagery/30) + CInt(CasterPoisoning/30);
+  var Duration        := CInt(CasterMagery/3) + CInt(CasterPoisoning/3);
+  
+  if(!CanMod( CastOn, MOD_POISON_PROT))
+    SendSysMessage(Caster, GetName(CastOn)+" jest juz pod wplywem czaru!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+  DoMod( CastOn, MOD_POISON_PROT, Lvl, Duration );
+
+endfunction
+
+//-----------------------------------------------------------------------------

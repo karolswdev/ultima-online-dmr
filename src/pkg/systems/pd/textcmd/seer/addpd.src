@@ -1,0 +1,13 @@
+use uo;
+use os;
+
+include "include/client/fonts";
+include ":pd:pd";
+
+program textcmd_addpd(who)
+
+	var t := Target(who);
+	
+	GrantPd(t, t, "Kupa gowna");
+	
+endprogram

@@ -1,0 +1,139 @@
+//-----------------------------------------------------------------------------
+// Modified: 2013-06-08
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/clock";
+include "include/checks/objchecks";
+include "include/move";
+include "include/effects";
+include "include/dirs";
+
+include ":eventcore:event_gump";
+include ":eventcore:common";
+include ":eventcore:proc_events";
+include ":eventcore:event_data";
+include ":eventctf:capture";
+
+//-----------------------------------------------------------------------------
+
+program UseCrystalBase(who, Base)
+
+  var EvID := FindEventAreaByLoc(who);
+  var TeamID := GetCaptureTeam(who);
+  var SrcTeamID := GetCaptureTeamByItem(Base);
+
+  if(!EvId)
+    SendBad(who, "Cos jest nie tak z tym wydarzeniem...");
+    LogError("[EventCTF::UseCrystalBase] Player "+GetRealName(who)+"/"+who.acctname+" cisnal podest "+hex(Base.serial)+", a wcale nie jest w strefe eventa!!");
+    return;
+  endif
+
+  if(!TeamID)
+    SendBad(who, "Nie wybral"+ggm(who,3)+" jeszcze druzyny!");
+    LogError("[EventCTF::UseCrystalBase] Player "+GetRealName(who)+"/"+who.acctname+" cisnal podest "+hex(Base.serial)+", a nie wybral druzyny!!");
+    return;
+  endif
+
+  if(!SrcTeamID)
+    SendBad(who, "Nie wiesz do czego przyda sie ten przedmiot.");
+    LogError("[EventCTF::UseCrystalBase] Player "+GetRealName(who)+"/"+who.acctname+" cisnal podest "+hex(Base.serial)+", ktory jest nieprawidlowego koloru! Nie mozna wyznaczyc druzyny");
+    return;
+  endif
+
+  var Event := GetEventElement(EvId);
+
+  if(!Event)
+    SendBad(who, "Cos jest nie tak... to wydarzenie nie jest w pelni aktywne.");
+    return;
+  endif
+
+  if(Event.GetProp("ProcData").Status != CTF_STATUS_FIGHT)
+    SendBad(who, "Teraz nie jest czas na walke!");
+    return;
+  endif
+
+  var Delay := CInt(GetEventVariable(EvId, "DELAY_PLACING"));
+
+  if(!Delay)
+    SendBad(who, "Cos jest nie tak...");
+    return;
+  endif
+
+  var CrystalObj;
+
+  if(SrcTeamID == CTF_RED_TEAM)
+    CrystalObj := UOBJ_CTFRED_CRYSTAL;
+  else
+    CrystalObj := UOBJ_CTFBLUE_CRYSTAL;
+  endif
+
+  var Crystal := FindObjTypeInContainer(who.backpack, CrystalObj);
+
+  if(!Crystal)
+    SendBad(who, "Nie masz odpowiedniego krysztalu przy sobie!");
+    return;
+  endif
+
+  if(!StandardItemCheck(who, Base, NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  if(!StandardItemCheck(who, Crystal))
+    return;
+  endif
+
+  var evData := struct;
+  evData.+source := who;
+  evData.+crystal := Crystal;
+
+  SendEventMessage(EvId, MSGIDC_FLAG_PLACING, evData);
+
+  TurnCharToward(who, Base);
+
+  var Time := GetCaptureFightTimeLeft(EvId);
+
+  if(Time == error)
+    SendBad(who, "Teraz nie czas na stawianie krysztalu!");
+    return;
+  elseif(Time < Delay+5)
+    SendBad(who, "Juz za pozno! Wydarzenie konczy sie i nie zdazysz wlozyc krysztalu!");
+    return;
+  endif
+
+  if(!MakeNoiseDependant(who, Base, SFX_SKILL_LUMBERJACK, 1000, ANIM_ATTACK_1HAND_DOWN, Delay))
+    return;
+  endif
+
+  MoveObject(Crystal, Base.x, Base.y, Base.z+10, Base.realm, MOVEOBJECT_FORCELOCATION);
+  Crystal.movable := 0;
+  
+  var BlueRoom := GetLocRangeFromString(GetEventVariable(EvID, "BLUE_ROOM"));
+  var RedRoom := GetLocRangeFromString(GetEventVariable(EvID, "RED_ROOM"));
+
+  if(SrcTeamID == CTF_BLUE_TEAM)
+    if(IsInLocRange(Base, BlueRoom))
+      SendEventMessage(EvId, MSGIDC_FLAG_RETURNED, evData);
+      SendExcep(who, "Zwrocil"+ggm(who,3)+" krysztal druzyny niebieskich!");
+    else
+      SendEventMessage(EvId, MSGIDC_FLAG_PLACED, evData);
+      SendExcep(who, "Przejal"+ggm(who,3)+" krysztal druzyny niebieskich!");
+    endif
+  else
+    if(IsInLocRange(Base, RedRoom))
+      SendEventMessage(EvId, MSGIDC_FLAG_RETURNED, evData);
+      SendExcep(who, "Zwrocil"+ggm(who,3)+" krysztal druzyny czerwonych!");
+    else
+      SendEventMessage(EvId, MSGIDC_FLAG_PLACED, evData);
+      SendExcep(who, "Przejal"+ggm(who,3)+" krysztal druzyny czerwonych!");
+    endif
+  endif
+
+  // zrob by cloak kolorowal sie zaleznie od tego czy ma krysztal
+  // trzeba zrobic oninsert onremove do tego na stdcontainer
+
+endprogram
+
+//-----------------------------------------------------------------------------

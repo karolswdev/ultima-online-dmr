@@ -1,0 +1,51 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 61;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonDaemon( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+  
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var Duration        := GetSpellDur(Caster);
+  var oparms          := {};
+  var Summon;
+
+  oparms.+onlyone     := 1;
+  oparms.+controlable := 1;
+  oparms.+sumaction   := 18;
+  oparms.+offensive   := 1;
+  oparms.+spellparms  := SpellGlob.Parms;
+  oparms.+skillsmod   := {SKILLID_MAGERY,SKILLID_EVALINT};
+
+  if(IsMurderer(Caster))
+    Summon := SummonCreature( Caster, "summoneddaemon", CastLoc, duration, oparms );
+  else 
+    Summon := SummonCreature( Caster, "summonedicedaemon", CastLoc, duration, oparms );
+  endif
+  
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-06-27
+//-----------------------------------------------------------------------------
+
+include "include/proc";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+program CmdPid(who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+      text := SplitWords(text);
+  var Pid  := CInt(text[2]);
+  var Proc;
+
+  case(text[1])
+    "k":     Proc := GetProc(Pid);
+             if(!Proc)
+               SendSysMessage(who,"Proces ["+Pid+"] nie istnieje.", FONT_NORMAL, COLOR_RED);
+             else
+               Proc.kill();
+               SendSysMessage(who,"Zabito proces ["+Pid+"]", FONT_NORMAL, COLOR_GREEN);
+             endif
+
+    "ex":    Proc := GetProc(Pid);
+             if(!Proc)
+               SendSysMessage(who,"Proces ["+Pid+"] nie istnieje.", FONT_NORMAL, COLOR_RED);
+             else
+               SendSysMessage(who,"Proces ["+Pid+"] istnieje.", FONT_NORMAL, COLOR_GREEN);
+             endif
+
+    "c":     SendSysMessage(who, "Proces ["+GetPid()+"].", FONT_NORMAL, COLOR_GREEN);
+
+    "?":     SendSysMessage(who, ".pid [k/ex/c]", FONT_NORMAL, COLOR_RED);
+    default: SendSysMessage(who, "Zla opcja.", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

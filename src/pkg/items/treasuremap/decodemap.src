@@ -1,0 +1,180 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/attributes/main";
+include "include/key";
+include "include/effects";
+include "include/items";
+include "include/checks/objchecks";
+include "include/coords";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+program decode_map( who , map )
+
+  if(!StandardItemCheck(who, map))
+    return 0;
+  endif
+
+  var cfgfile  := ReadConfigFile( ITEMS_CFG );
+  var elem     := FindConfigElem( cfgfile , map.objtype );
+  var maplevel := GetConfigInt( elem , "Level" );
+
+  var Skill    := GetEffectiveSkill(who,SKILLID_CARTOGRAPHY);
+
+  SendSysMessage(who, "Probujesz odczytac mape...", FONT_NORMAL, COLOR_GREEN);
+  if(!MakeNoise(who,SOUND_EFFECT_INSCRIPTION))
+    return 0;
+  endif
+
+  if(!GetTreasureLvl(map))
+    if( maplevel > CInt(Skill / 20) )
+      SendSysMessage( who , "Nie udalo Ci sie zrozumiec tej mapy.",FONT_NORMAL,COLOR_RED );
+    else
+      if( CheckSkill( who, SKILLID_CARTOGRAPHY , (maplevel*20), 0) )
+        if(CreateTreasureMap( who , map , maplevel ))
+          AwardPoints(who, SKILLID_CARTOGRAPHY, maplevel*5);
+          SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_CARTOGRAPHY, array(map, maplevel));
+        endif
+      else
+        SendSysMessage( who , "Zrozumial"+ggm(who,3)+" mape ale nie udalo Ci sie jej odczytac.",FONT_NORMAL,COLOR_RED );
+        if(RandomInt(Skill) < 30 - (maplevel*5))
+          SendSysMessage(who, "Zniszczyl"+ggm(who,3)+" mape!", FONT_NORMAL, COLOR_RED);
+        endif
+      endif
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CreateTreasureMap( who , oldmap , maplevel);
+
+  var map := CreateItemInPack( who , UOBJ_MAP2 , 1 );
+
+  if(maplevel == 5)
+    if(GetBaseSkill(who,SKILLID_CARTOGRAPHY) >= 100)
+      var Chance := 50 + ToMin(GetEffectiveSkill(who, SKILLID_CARTOGRAPHY) - 100, 0);
+      ModifyGainByNutr(who, Chance, SKILLID_CARTOGRAPHY);
+      if(RandomInt(1000) < Chance)
+        maplevel := 6;
+      endif
+    endif
+  endif
+
+  SetTreasureLvl( map,  maplevel );
+  SetObjProperty( map , "decoder" , who.serial );
+
+  if(!SetTreasureCoords( map, maplevel ))
+    SendSysMessage(who,"Nie udalo ci sie odczytac mapy.",FONT_NORMAL,COLOR_RED);
+    DestroyItem(map);
+    return 0;
+  endif
+     
+  if(maplevel > 5)
+    SendSysmessage( who , "Udalo Ci sie odczytac legendarna mape!",FONT_NORMAL,COLOR_BLUE );
+  else
+    SendSysmessage( who , "Udalo Ci sie odczytac mape!",FONT_NORMAL,COLOR_GREEN );
+  endif
+
+  DestroyItem( oldmap );
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetTreasureCoords( map, maplevel )
+
+  var cfgfile;
+  case(maplevel)
+    1:
+    2:
+    3:
+    4: cfgfile := ReadConfigFile( "treasure" );
+    5:
+    6: cfgfile := ReadConfigFile( "treasure2" );
+  endcase
+
+  var num       := GetConfigMaxIntKey( cfgfile );
+  var Elem,Good := 0,Coords := {0,0,error},Rlm;
+  
+  while(Coords[3] == error)
+    Elem        := FindConfigElem( cfgfile , RandomInt( num ) + 1);
+    Coords      := SplitWords(Elem.XY);
+    Rlm         := Elem.Realm;
+    
+    if(!Rlm)
+      Rlm := _DEFAULT_REALM;
+    endif
+    
+    Coords[1]   := CInt(Coords[1]);
+    Coords[2]   := CInt(Coords[2]);
+    
+    if(Coords[1] and Coords[2])
+      Coords[3]   := GetStand(Coords[1], Coords[2], Rlm, GSF_GETMAPZ);
+      if(Coords[3] != error and !Coords[3].multi)
+        Coords[3] := Coords[3].z;
+      else
+        Coords[3] := error;
+      endif
+    endif
+    Good := Good + 1;
+    if(Good >= 30)
+      return 0;
+    endif
+  endwhile
+
+  SetObjProperty( map , "chestx" , Coords[1] );
+  SetObjProperty( map , "chesty" , Coords[2] );
+  SetObjProperty( map , "chestz" , Coords[3] );
+  SetObjProperty( map , "chestRlm" , Rlm );
+  SetName( map , GetMapName(maplevel) );
+
+  if(Rlm == BRITB_REALM)
+    if( Coords[1] < 265 )
+      map.xwest := 0;
+    else
+      map.xwest := Coords[1]-265;
+    endif
+
+    if( Coords[2] < 260 )
+      map.ynorth := 0;
+    else
+      map.ynorth := Coords[2]-260;
+    endif
+
+    map.xeast := Coords[1]+265;
+    map.ysouth := Coords[2]+260;
+    map.gumpwidth := 200;
+    map.gumpheight := 200;
+  endif
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetMapName(lvl)
+
+  case(CInt(lvl))
+    1: return "mapa skarbu skrzata";
+    2: return "mapa skarbu gnoma";
+    3: return "mapa skarbu orka";
+    4: return "mapa skarbu ogra";
+    5: return "mapa skarbu smoka";
+    6: return "legendarna mapa skarbu";
+  endcase
+  
+  return "mapa skarbu";
+
+endfunction
+
+//-----------------------------------------------------------------------------

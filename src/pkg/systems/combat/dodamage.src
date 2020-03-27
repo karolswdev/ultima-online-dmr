@@ -1,0 +1,194 @@
+//-----------------------------------------------------------------------------
+
+include "include/reputation/pvparea";
+include "include/attributes/main";
+include "include/mount";
+include "include/coords";
+include "include/client/effects";
+include "include/client/anims";
+include "include/packets";
+include "include/player/friends";
+include "include/player/young";
+include "include/tempmods";
+include "include/mobile/npcs/specs";
+include "include/mobile/npcs/attack";
+include "include/attributes/npcs_cag";
+include ":glyphs:glyphs";
+
+//-----------------------------------------------------------------------------
+
+program DoDealDamage(Params)
+
+  Set_Script_Option(SCRIPTOPT_NO_RUNAWAY, 1);
+
+  var defender := Params[1];
+  var VitalID  := Params[2];
+  var Dmg      := Params[3];
+  var attacker := Params[4];
+  var Type     := Params[5];
+  
+  var mod := GetGlyphMod(attacker, "EffectiveShot");
+  PrintTextAbove(attacker, mod);
+  
+  if(mod)
+	start_script(":glyphs:specials/effectiveShot", {attacker, defender});
+  endif
+
+  case(VitalID)
+    VITALID_LIFE:
+      DoLifeDamage(defender, Dmg, attacker, Type);
+
+    VITALID_STAMINA:
+      if(!IsInvulToAttack(defender))
+        CagNpcDamaged(defender, Dmg, attacker);
+        SetStamina(defender, ToMin(GetStamina(defender) - Dmg, 0));
+      endif
+
+    VITALID_MANA:
+      if(!IsInvulToAttack(defender))
+        CagNpcDamaged(defender, Dmg, attacker);
+        SetMana(defender, ToMin(GetMana(defender) - Dmg, 0));
+      endif
+
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DoLifeDamage(defender, Dmg, attacker, Type)
+
+  Dmg := CInt(Dmg);
+  
+  var PenaltyMod := Cint(GetTempModAmount(attacker,MOD_DMG_REDUCE));
+  if (PenaltyMod != 0)
+    Dmg := CInt( Dmg * (100 - PenaltyMod) / 100.0);
+  endif
+  
+  if(defender.isa(POLCLASS_NPC) or attacker.isa(POLCLASS_NPC))
+    CheckNpcSpecialAttack(attacker, defender, Dmg, Type);
+  endif
+  
+  if(defender.isa(POLCLASS_NPC))
+    if(!defender.process and !IsStaff(attacker))
+      var lastLog := CInt(GetObjProperty(defender, "#LastNoProcessLog"));
+
+      if(lastLog < ReadGameClock())
+        if(IsPlayer(attacker))
+          SendSysMessage(attacker, "Probujesz zranic to stworzenie, lecz wydaje sie ze zamarlo w kamien!", FONT_NORMAL, COLOR_RED_LIGHT);
+        endif
+        LogError("NPC with no process! Serial: ["+defender.serial+"] ["+GetName(defender)+"]");
+        SetObjProperty(defender, "#LastNoProcessLog", ReadGameClock() + 120);
+      endif
+
+      return 0;
+
+    elseif(IsInvulToAttack(defender))
+      return 0;
+    endif
+  endif
+
+  if(!defender.dead and Dmg > 0 and defender.isa(POLCLASS_MOBILE))
+    if(IsPlayer(defender) and IsPlayer(attacker))
+      SetObjProperty(defender, "#SlowHeal", ReadGameClock() + 15);
+      SetObjProperty(attacker, "#SlowHeal", ReadGameClock() + 15);
+    endif
+
+    SaveLastHit(defender,attacker);
+
+    if(Dmg > GetHp(defender))
+      if(IsPlayer(defender))
+        Dismount(defender);
+        if(CanMod(defender, MOD_GRAPHIC) == 0)
+          if(defender.graphic == MINVIS_MOB_GRAP)
+            UndoMod(defender, MOD_GRAPHIC, UMDF_WAIT);
+          endif
+        endif
+      else
+        if(CheckReborn(defender))
+          return 0;
+        endif
+      endif
+    elseif(CanMod(defender, MOD_PARA) == 0)
+      if(GetModAmount(defender, MOD_PARA) != 2)
+        UndoMod(defender, MOD_PARA);
+      endif
+    endif
+    if(GetObjProperty(defender, PROP_SHOW_DMG))
+      DamagePacket(defender,Dmg);
+    endif
+	
+	var hitMod := GetGlyphMod(attacker, "WimprovedMinorStriking");
+	if(hitMod)
+		Dmg := Dmg + hitMod;
+	endif
+	
+	var criticalMod := GetGlyphMod(attacker, "WcriticalStrike");
+	
+	if(criticalMod > RandomInt(100))
+		if(!defender.ip)
+			Dmg := CInt(Dmg * 2.5);
+			PrintTextAbove(attacker, "*potezny cios*");
+		endif
+	endif
+	
+	var mod := GetGlyphMod(attacker, "WFireStrike");
+		if(mod)
+		if(!defender.ip)
+			if(RandomInt(100) <= mod)
+				Dmg := Dmg + 30;
+				PrintTextAbove(defender, "*ognisty cios*");
+			endif
+		endif
+	endif
+
+    ApplyRawDamage(defender, Dmg);
+	
+	mod := GetGlyphMod(attacker, "WlifeLeech");
+	if(mod)
+		if(RandomInt(100) <= mod)
+			HealDamage(attacker, Dmg);
+			PrintTextAbove(attacker, "Moc glifu pijawki zycia");
+		endif
+	endif
+	
+	mod := GetGlyphMod(attacker, "WmanaLeech");
+	if(mod)
+		if(RandomInt(100) <= mod)
+			PrintTextAbove(attacker, "Moc glifu pijawki many");
+			SetMana(defender, GetMana(defender)-Dmg);
+		endif
+	endif
+
+    if(defender.isa(POLCLASS_NPC))
+      CagNpcDamaged(defender, Dmg, attacker);
+    endif
+
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckReborn(npc)
+
+  if(IsTamed(npc) or WasTamed(npc))
+    return 0;
+  endif
+
+  var Reborn := GetNpcConfig(npc).Reborn;
+
+  if(Reborn and !GetObjProperty(npc, "Reborned"))
+    SetDelayedAttack(npc, 10);
+    SendChEvent(npc, npc, EVID_REBORN);
+    return 1;
+  endif
+
+  return 0;
+
+endfunction 
+
+//-----------------------------------------------------------------------------

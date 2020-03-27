@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+
+use os;
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/objects/location";
+include "include/checks/objchecks";
+include "include/items/containers";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+program ShowEscrowBox(Params)
+
+  var who := Params[1];
+  var Box := Params[2];
+  // skrypt prosty, zrobiony specjalnie po to aby kazdy open mial oddzielny PID - no bo jak wiadomo POL identyfikuje gumpa po PIdzie skryptu
+  SendOpenSpecialContainer(who, Box);
+  var Loc := GetLocStruct(who);
+
+  while(IsLoggedIn(who) and Box and coordist(who.x, who.y, Loc.x, Loc.y) == 0)
+    sleepms(500);
+  endwhile
+
+  if(IsLoggedIn(who) and Box)
+    CloseContainer(who, Box);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

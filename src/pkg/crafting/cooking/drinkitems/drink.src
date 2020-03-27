@@ -1,0 +1,97 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/poison";
+include "include/attack";
+include "include/player/young";
+include "include/player/nutrition";
+include "include/objects/location";
+
+include "drunk";
+
+//-----------------------------------------------------------------------------
+
+var gItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program DrinkItem(who, Item)
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+
+  var Proof    := CInt(gItemCfg[Item.objtype].Proof);
+  var ItemObj  := Item.objtype;
+  var Drunk    := GetObjProperty(who, PROP_DRUNKNESS);
+  var MaxDrunk := GetObjProperty(who, PROP_MAX_DRUNKNESS);
+
+  if(Proof and MaxDrunk)
+    if(Drunk + Proof > MaxDrunk)
+      SendSysMessage(who, "Nie uda Ci sie wypic juz nic wiecej...", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+    
+  if(IsFullNutrVals(who, ItemObj))
+    SendSysMessage(who, "Masz juz dosc...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!SubItemUses(Item, 1))
+    SendSysMessage(who, "Ten napoj jest zepsuty.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  PerformAction(who, ACTION_DRINK);
+
+  if(GetItemPoisonLvl(Item))
+    SetPoison(who, GetItemPoisonLvl(Item));
+    return;
+  endif
+
+  if(Proof)
+    PlaySoundEffect(who, SOUND_DRINK_ALCOHOL);
+  else
+    if(IsFullNutrVals(who, Item))
+      SendSysMessage(who, "Masz juz tego dosc...", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+
+    UpdNutrVals(who, Item);
+    PlaySoundEffect(who, SOUND_DRINK_LIQUID);
+    return;
+  endif
+
+  if(!Drunk)
+
+    GenMaxDrunkness(who);
+    SetObjProperty(who, PROP_DRUNKNESS, Proof);
+    SendDrunkMsg(who);
+    start_script("drunk", who);
+
+  else
+
+    Drunk := Drunk + Proof;
+    SetObjProperty(who, PROP_DRUNKNESS, Drunk);
+    SendDrunkMsg(who);
+
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SendDrunkMsg(who)
+
+  case(GetDrunkFactor(who))
+    DRUNK_LOW_LVL:    SendSysmessage (who, "Jestes lekko wstawion"+ggm(who,6)+".", FONT_NORMAL, COLOR_GREEN);
+    DRUNK_MID_LVL:    SendSysmessage( who, "Jestes wstawion"+ggm(who,6)+" i mruczysz cos pod nosem.", FONT_NORMAL, COLOR_GREEN);
+    DRUNK_HIGH_LVL:   SendSysmessage( who, "Jestes pijan"+ggm(who,6)+".", FONT_NORMAL, COLOR_GREEN);
+    DRUNK_SUPER_LVL:  
+    DRUNK_MAX_LVL:    SendSysmessage( who, "Chyba zaraz puscisz pawia...", FONT_NORMAL, COLOR_GREEN);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------

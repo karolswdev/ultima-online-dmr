@@ -1,0 +1,9 @@
+use uo;
+
+include "include/client/fonts";
+
+program NoUse(who)
+
+  SendSysMessage(who, "Ta umiejetnosc stala sie bezuzyteczna...", FONT_NORMAL, COLOR_RED);
+
+endprogram

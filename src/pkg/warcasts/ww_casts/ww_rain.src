@@ -1,0 +1,121 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/systems/wearwolf/wearwolf";
+include "include/poison";
+include "../pkg/systems/tourney/tourney";
+
+include ":magic:mass_spells";
+
+//-----------------------------------------------------------------------------
+
+const WW_TYPE                := WW_TYPE_MAGE;
+const WW_WCID                := 8;
+
+//-----------------------------------------------------------------------------
+
+var PcSend := dictionary;
+
+//-----------------------------------------------------------------------------
+
+program WwRain(Parms)
+
+  WearWolfRuneCast(Parms, WW_WCID, WW_TYPE, WWF_WOLF_MORPHED, TRGT_LOC, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastLoc)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  PlaySoundEffect(Caster,WEARWOLF_SOUND_SCREAM);
+
+  var CasterWear  := GetEffectiveSkill(Caster,SKILLID_WEARWOLF);
+  var CasterAl    := GetEffectiveSkill(Caster,SKILLID_ANIMALLORE);
+  var Range       := Cint(CasterWear / 25) + CInt(CasterAl / 25);
+  var Duration    := Cint(CasterWear / 33) + CInt(CasterAl / 33);
+  var Dmg         := CInt(CalcWarCastDamage(Caster, WW_WCID) / 3);
+  var Lvl         := CInt(CasterWear / 50) + CInt(CasterAl / 33);
+  var Loc         := GetLocStruct(CastLoc);
+  var Gained := 0;
+
+  var Factor := GetMassSpellRangeFactor(Loc, Range);
+  AddMassSpellGlobalArea(Loc, Range, CInt(Duration*1.2));
+
+  Lvl := Max(CInt(Lvl*Factor), 1);
+  Dmg := Max(CInt(Dmg*Factor), 1);
+
+  if(Factor < 1.0)
+    SendBad(Caster, "To miejsce zostalo juz zaczarowane! Twoje czary beda mialy znikomy efekt!", COLOR_ORANGE);
+  endif
+
+  for i := 1 to Duration
+    foreach mobile in ListMobilesNearLocationEx (Loc.x, Loc.y, Loc.z, range, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, Caster.realm)
+      if(CanDamage(Caster,mobile,CAN_DAMAGE_HIDDEN,CastLoc))
+        PlayRainEffect (mobile);
+        if(mobile.isa(POLCLASS_NPC))
+          DealDamage(mobile,Dmg*2,Caster, MAGIC_DMG);
+        else
+          DealDamage(mobile,Dmg,Caster, MAGIC_DMG);
+        endif
+        SetPoison(mobile,Lvl,Caster);
+        PlaySoundEffect (mobile, 0x117);
+        PlaySoundEffect (mobile, 0x117);
+
+        if(Gained < 3)
+          Gained += GainWarcastPoints(Caster, mobile, WW_WCID, WCGAIN_OFFENSIVE);
+        endif
+      endif
+
+      PlaySoundEffect(mobile, 0x15+RandomInt(2));
+      Sleepms(1);
+    endforeach
+
+    var Trg := struct;
+    Trg.+x;
+    Trg.+y;
+    Trg.+z;
+    Trg.+realm := Caster.realm;
+
+    for j := 1 to CInt(range/2)
+      Trg.x := Loc.x - range + RandomInt (2*range+2);
+      if (Trg.x < Loc.x-range)
+        Trg.x := Loc.x-range;
+      elseif (Trg.x > Loc.x+range)
+        Trg.x := Loc.x+range;
+      endif
+
+      Trg.y := Loc.y - range + RandomInt (2*range+2);
+      if (Trg.y < Loc.y-range)
+        Trg.y := Loc.y-range;
+      elseif (Trg.y > Loc.y+range)
+        Trg.y := Loc.y+range;
+      endif
+
+      Trg.z := Loc.z + 4;
+      PlayRainEffect(Trg);
+    endfor
+
+    sleep(2);
+  endfor
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlayRainEffect (Trg)
+
+  if(!PcSend[Trg.x+" "+Trg.y])
+    PcSend[Trg.x+" "+Trg.y] := 1;
+    PlayPcStEffect(Trg.x, Trg.y, Trg.z, Trg.realm, FX_HEAL_EFFECT, 0x591, 0x10, 0xFF);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

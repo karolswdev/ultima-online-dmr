@@ -1,0 +1,80 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/basic";
+include "include/logerror";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program RestrictedLogonCmd(who,text)
+
+  var nr    := 0;
+  var leftp := 0;
+
+  case(text)
+    "down":
+    "on":     foreach player in EnumerateONlineCharacters()
+                if(!player.cmdlevel)
+                  SendSysMessage(player,"Swiat ogarnia zapomnienie!",FONT_NORMAL, COLOR_RED);
+                  InstantDisconnect(player);
+                  nr := nr + 1;
+                else
+                  leftp := leftp + 1;
+                endif
+              endforeach
+
+              LogNotice(who.name+" wlaczyl ograniczony login.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+              SetGlobalProperty(PROP_RESLOGON, 1);
+
+              case(text)
+                "on":   SetServerStatus(SERV_ST_RES);
+                "down": SetServerStatus(SERV_ST_DOWN);
+              endcase
+
+              var cRes := StopGlobChkScript(RESLOGON_SCNAME);
+
+              if(cRes)
+                SendSysMessage(who, "AutoResLogonCheck [Killed].", FONT_NORMAL, COLOR_BLUE);
+              endif
+
+              SendSysMessage(who,"Wyrzucono "+nr+" graczy, zostalo "+leftp+" GMow. Ograniczony login wlaczony.",FONT_NORMAL, COLOR_GREEN);
+            
+    "off":    LogNotice(who.name + " wylaczyl ograniczony login.", LOGF_ALERT_GMS | LOGF_FORCE_ALERT | LOGF_NOTE_INFO);
+              EraseGlobalProperty(PROP_RESLOGON);
+              SetServerStatus(SERV_ST_UP);
+            
+    "status": if(GetGlobalProperty(PROP_RESLOGON))
+                SendSysMessage(who, "Ograniczony login wlaczony.",FONT_NORMAL,COLOR_GREEN);
+              else
+                SendSysMessage(who, "Ograniczony login wylaczony.",FONT_NORMAL,COLOR_GREEN);
+              endif
+
+              case(GetServerStatus())
+                SERV_ST_UP:   SendSysMessage(who, "Status: UP", FONT_NORMAL, COLOR_GREEN);
+                SERV_ST_RES:  SendSysMessage(who, "Status: RESTART", FONT_NORMAL, COLOR_YELLOW);
+                SERV_ST_DOWN: SendSysMessage(who, "Status: DOWN", FONT_NORMAL, COLOR_RED);
+              endcase
+
+              var ArLogon := GetGlobalProperty(PROP_ARLOGON);
+
+              if(ArLogon == -1)
+                SendSysMessage(who, "ResLogon OnStart [On Forever].",FONT_NORMAL,COLOR_GREEN);
+              elseif(ArLogon > 0)
+                SendSysMessage(who, "ResLogon OnStart [On "+ArLogon+" min]",FONT_NORMAL,COLOR_GREEN);
+              else
+                SendSysMessage(who, "ResLogon OnStart [Off].",FONT_NORMAL,COLOR_GREEN);
+              endif
+
+    "?":      SendSysMessage(who,".reslogon [on/off/status]",FONT_NORMAL,COLOR_RED);
+    default:  SendSysMessage(who,"Zla opcja [.reslogon ?]",FONT_NORMAL,COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

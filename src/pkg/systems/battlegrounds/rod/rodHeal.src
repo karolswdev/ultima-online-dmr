@@ -1,0 +1,29 @@
+use uo;
+use os;
+use util;
+use vitals;
+
+include "include/client/fonts";
+include "include/client/effects";
+include "include/const/misc";
+include "include/attributes/vitals";
+include "include/staff";
+include "include/const/attributes";
+include ":rod:RingOfDeath";
+
+program rodHealTile(who, theTile)
+
+    if(who)
+	if(theTile)
+	    SetHp(who, GetHp(who) + 20);
+	    PrintTextAbove(who, "+20", FONT_NORMAL, 55);
+	    PlayObjectCenteredEffect(who, FX_SPARK_EFFECT, 7, 0x10);
+	    CreateNewHealTile();
+	    DestroyItem(theTile);
+	endif
+    endif
+    
+endprogram
+	    
+	    
+	    

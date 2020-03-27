@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/finding";
+include "include/msgs";
+include "include/move";
+include "include/findcity";
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/speech";
+
+include ":ngd_npcs:common";
+include ":mq_npcs:common";
+include ":mq_npcs:quests";
+
+//-----------------------------------------------------------------------------
+
+program NpcMiniQuestHello(Data)
+
+  if(!AIHandler_Init(Data))
+    return error;
+  endif
+
+  if(!CanNpcHaveMiniQuest(Data.npc))
+    return -1;
+  endif
+
+  var NpcData := GetNpcMiniQuestData(Data.npc);
+
+  if(NpcData.Flags & MQNF_QUEST_GIVEN)
+    if(Data.source.serial == NpcData.Player)
+      var Quest := GetMiniQuestByNpc(Data.npc);
+      SayMQNpcText(Data.npc, Data.source, NpcData.QuestData, Quest, MQPROP_MAINTEXT);
+      return 1;
+    endif
+  endif
+
+  return 0;
+
+endprogram
+
+//-----------------------------------------------------------------------------

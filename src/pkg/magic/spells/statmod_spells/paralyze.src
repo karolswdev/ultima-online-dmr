@@ -1,0 +1,53 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/mobile/misc";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 38;
+
+//-----------------------------------------------------------------------------
+
+program CastParalyze( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  if (Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+  
+  var Duration := Resisted( CastOn, Caster, CInt(CalcModDuration( Caster ) / 156 + 1), SpellGlob.Circle, SpellGlob.Type );  
+  //CalcModDuraction zwraca 900 dla maga, 930 dla czaro. 5<( 900 i 930 / )156 <6; 
+  //Dlatego doddajac jeden uzyskujemy 6 sekund dla maga i dla czaro.
+  
+  PlayStationaryEff( CastOn.x, CastOn.y, CastOn.z, FX_CURSE_EFFECT, 10, 0xa, 0, CastOn.realm);
+  PlaySoundEffect( CastOn, SFX_SPELL_PARALYZE );
+
+  if(CastOn.isa(POLCLASS_NPC))
+    SendChEvent(CastOn, Caster, EVID_ENGAGED);
+    if(NpcHaveFlag(CastOn, "NoParalyze"))
+      PlayObjectCenteredEffect(CastOn, FX_GLOW, 7,0x10);
+      return;
+    endif
+  endif
+
+  if(CanMod(CastOn, MOD_PARA))
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+  DoMod(CastOn, MOD_PARA, 1, Duration);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

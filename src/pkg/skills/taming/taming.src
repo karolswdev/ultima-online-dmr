@@ -1,0 +1,168 @@
+//--------------------------------------------------------------------------------
+
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/skills/std";
+include "ai/include/tamed";
+include ":quests:quest_ctrl";
+
+//--------------------------------------------------------------------------------
+
+program AnimalTaming( who )
+
+  if(IsBusy(who, NO_COMBAT_CHECK))
+    return;
+  endif
+
+  SendSysMessage( who, "Jakie stworzenie chcial"+ggm(who,1)+" oswoic?",FONT_NORMAL,COLOR_GREEN );
+  var creature  := ObjTarget(who);
+  
+  if(!StandardMobCheck(who, creature,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(Malloc(who))
+	return;
+  endif
+  
+  SetBusyTime(who,GetSkillDelay(SKILLID_TAMING));
+  
+  var cfgElem    := GetNpcConfig(creature);
+  var TameSkill  := Cint(cfgElem.tameskill);
+  var WhoTaming  := GetBaseSkill(who,SKILLID_TAMING);
+  var WhoAl      := GetEffectiveSkillBaseValue(who,SKILLID_ANIMALLORE);
+  var ReqSkill   := cfgElem.ReqSkill;
+  var AnimalDiff := Cint(TameSkill - 20);
+  var TamePoints := GetDefaultPointsValue(SKILLID_TAMING);
+  
+  if(AnimalDiff < 0)
+    AnimalDiff := 0;
+  endif
+  
+  if(!TameSkill or (IsSkillSum(creature) and !GetObjProperty(creature, QTPROP_QTSER)) or GetObjProperty(who, "#AFight") or (!IsStaff(who) and (IsQuestItem(creature) or IsGmCreated(creature))))
+    SendSysmessage(who, "Nie mozesz tego oswoic!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsTamed(creature))
+    SendSysmessage(who, "To stworzenie wyglada na juz oswojone.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var TameTimer := GetTameTimer(creature);
+  
+  if(TameTimer > ReadGameClock())
+    SendSysMessage(who,"To zwierze wyglada na sploszone. Nie da sie w tej chwili oswoic.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(cfgElem.alignment == "evil")
+    SendChEvent(creature,who,EVID_ENGAGED);
+  endif
+
+  if(WhoTaming < Min(TameSkill - 10, 102))
+    SendSysmessage(who, "Twa wiedza jest za mala by oswoic te stworzenie!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif	
+  
+  if((WhoAl/10) < (TameSkill - 30))
+    SendSysmessage(who, "Twa wiedza o zwierzetach jest za mala by moc oswoic te stworzenie!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(ReqSkill)
+    ReqSkill := SplitWords(ReqSkill);
+    if(GetBaseSkill(who, CInt(ReqSkill[1])) < CInt(ReqSkill[2]))
+      SendSysmessage(who, "Twa wiedza jest za mala by oswoic te stworzenie!",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  var Delay := 3000;
+
+  if(WhoAl > 1000)
+    Delay -= MinMax(WhoAl-1000, 0, 200) * 3;
+  endif
+
+  if(creature.murderer)
+    PrintTextAbove(who, "Jaki mily stwor " + creature.name);
+  else
+    PrintTextAbove(who, "Jakie mile stworzenie " + creature.name);
+  endif
+
+  sleepms(Delay);
+  if(!StandardMobCheck(who,creature,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(GetTamedCounter(creature, who) < 8)
+    AwardPoints(who, SKILLID_TAMING, TamePoints*0.25, GAIN_RESTRICT, TameSkill);
+    AddTamedCounter(creature, who);
+  endif
+  
+  if(creature.murderer)
+    PrintTextAbove(who, creature.name + ", chcial"+ggm(who,25)+" bys mi sluzyl stworze.");
+  else
+    PrintTextAbove(who, creature.name + ", zawsze chcial"+ggm(who,8)+" miec kogos takiego jak ty.");
+  endif
+
+  sleepms(Delay);
+  if(!StandardMobCheck(who,creature,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(GetTamedCounter(creature, who) < 8)
+    AwardPoints(who, SKILLID_TAMING, TamePoints*0.25, GAIN_RESTRICT, TameSkill);
+    AddTamedCounter(creature, who);
+  endif
+  
+  if(creature.murderer)
+    PrintTextAbove(who, creature.name + ", nie opieraj sie!");
+  else
+    PrintTextAbove(who, creature.name + ", zostaniemy przyjaciolmi?");
+  endif
+
+  sleepms(Delay);
+
+  NoLongerBusy(who);
+  
+  if(!StandardMobCheck(who,creature,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(CheckSkill( who,SKILLID_TAMING,TameSkill,0) and CheckSkill( who,SKILLID_ANIMALLORE,AnimalDiff,0) )
+  
+    if(creature.murderer)
+      SendSysmessage(who, "Twoim nowym sluga jest " + creature.name,FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysmessage(who, "Twoim nowym przyjacielem jest " + creature.name,FONT_NORMAL,COLOR_GREEN);
+    endif
+
+    if(GetTamedCounter(creature, who) < 8)
+      AwardPoints(who, SKILLID_TAMING, TamePoints*0.5,GAIN_RESTRICT,TameSkill);
+      AwardPoints(who, SKILLID_ANIMALLORE, Cint(TamePoints * SECOND_SKILL_GAIN_MOD),NO_STAT_AWARD);
+    else
+      SendSysMessage(who, "To stworzenie juz Cie dobrze zna.", FONT_NORMAL, COLOR_ORANGE);
+    endif
+
+    var PrevTamed := GetPrevTamed(creature);
+    if(PrevTamed)
+      Tame(creature, who, CRITICAL_HAPPY_LVL * 2);
+    else
+      Tame(creature, who, MAX_HAPPY_LVL);
+    endif
+
+    SendQuestEvent(who, EVQID_SKILL, SKILLID_TAMING, creature);
+  else
+    SendSysmessage (who, "Nie udalo Ci sie oswoic tego stworzenia.",FONT_NORMAL,COLOR_RED);
+    if(WhoTaming <= RandomInt(100))
+      SendSysmessage( who, "Oho, sploszyl"+ggm(who,3)+" rowniez to stworzenie." ,FONT_NORMAL,COLOR_RED + 1);
+      SetTameTimer(creature,ReadGameClock() + TAME_TIMER);
+    endif
+  endif
+  
+endprogram
+
+//--------------------------------------------------------------------------------

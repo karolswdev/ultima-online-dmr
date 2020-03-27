@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 18;
+
+//-----------------------------------------------------------------------------
+
+program CastFireBall( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  PlayMovingEff(Caster, CastOn, FX_FIREBALL, 5, 1, 1);
+  PlaySoundEffect(Caster, 0x15f);
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  if(Reflected(CastOn, Caster))
+    PlayMovingEff(CastOn, Caster, FX_FIREBALL, 5, 1, 1);
+    PlaySoundEffect(CastOn, 0x15f);
+    CastOn := Caster;
+  endif
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

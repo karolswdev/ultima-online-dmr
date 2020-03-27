@@ -1,0 +1,26 @@
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/misc";
+include "include/equipment";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+program Rozbierz(who)
+
+  if(who.dead)
+    return;
+  endif
+
+  var nr := UnEquipAll(who);
+
+  if(!Nr)
+    SendSysMessage(who, "Nie masz nic na sobie.",FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Zdj"+ggm(who,5)+" "+nr+" przedmiot"+Gam(Nr, GAM_OW)+" z siebie.", FONT_NORMAL, COLOR_BLUE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

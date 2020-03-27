@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+include "/include/names";
+
+//-----------------------------------------------------------------------------
+
+program UseCmd(who, text)
+
+  if(!text)
+    SendSysMessage(who, "Musisz wskazac co chcesz uzyc.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  
+
+  foreach item in EnumerateItemsInContainer(who.backpack, ENUMERATE_ROOT_ONLY)
+  
+    if(lower(GetName(item))[lower(text)])
+      UseItem(item,who);
+      return;
+    endif
+
+  endforeach
+  
+  SendSysMessage(who, "Nie znaleziono przedmiotu o takiej nazwie.", FONT_NORMAL, COLOR_RED);
+
+endprogram
+
+//-----------------------------------------------------------------------------

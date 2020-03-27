@@ -1,0 +1,75 @@
+//-----------------------------------------------------------------------------
+
+include "include/bits";
+include "include/items";
+include "../pkg/magic/magiceffects/timed_equip";
+include ":magicitems:common";
+include "combat";
+include "sets";
+
+//-----------------------------------------------------------------------------
+
+var itemdesc := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program UnEquipIt(who, item)
+
+  if(IsHairs(item) or Item.isa(POLCLASS_CONTAINER) or GetEquipmentByLayer(who, LAYER_MOUNT) == Item)
+    if(!who.cmdlevel)
+      return 0;
+    endif
+  endif
+
+  set_critical(0);
+
+  if(!who.isa(POLCLASS_NPC) and !who.cmdlevel)
+
+    if(itemdesc[item.objtype].FaceLoc)
+      return 0;
+    endif
+
+    if(IsSetTempFlag(Item, ITEMF_NO_EQUIP))
+      return 0;
+    endif
+
+    var penalty := CInt(itemdesc[item.objtype].DexPenalty);
+    if(penalty)
+      SetDexterityMod(who, GetDexterityMod(who) + penalty);
+    endif
+    
+  endif
+  
+  if(itemdesc[item.objtype].EquipGraphic)
+    item.graphic := CInt(itemdesc[item.objtype].Graphic);
+  endif
+  
+  if (item.isa(POLCLASS_WEAPON) AND !IsMagicItem(item) AND !IsArtifact(item) )
+    if(CanMod(who, MOD_COLD_DMG) == 0)
+      SendSysMessage(who,"Efekt zimna na broni przestal dzialac",FONT_NORMAL,COLOR_RED);
+      UndoMod(who,MOD_COLD_DMG);
+    elseif(CanMod(who, MOD_FIRE_BLOOD) == 0)
+      SendSysMessage(who,"Efekt ognia na broni przestal dzialac",FONT_NORMAL,COLOR_RED);
+      UndoMod(who,MOD_FIRE_BLOOD);
+    elseif(CanMod(who, MOD_FIRE_DMG) == 0)
+      SendSysMessage(who,"Efekt ognia na broni przestal dzialac",FONT_NORMAL,COLOR_RED);
+      UndoMod(who,MOD_FIRE_DMG);
+    elseif(CanMod(who, MOD_MANA_DMG) == 0)
+      SendSysMessage(who,"Efekt wysysania many na broni przestal dzialac",FONT_NORMAL,COLOR_RED);
+      UndoMod(who,MOD_MANA_DMG);
+    elseif(CanMod(who, MOD_EXPLO_DMG) == 0)
+      SendSysMessage(who,"Efekt wybuchu na broni przestal dzialac",FONT_NORMAL,COLOR_RED);
+      UndoMod(who,MOD_EXPLO_DMG);
+    endif
+  endif
+ 
+
+  SendUnEquip(item);
+  CheckSetUnEquip(who, item);
+  CheckTimedUnEquipItem(who, item);
+  
+  return 1;
+  
+endprogram
+
+//-----------------------------------------------------------------------------

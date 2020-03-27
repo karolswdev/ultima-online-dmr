@@ -1,0 +1,62 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 48;
+
+//-----------------------------------------------------------------------------
+
+program CastReveal( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var Range := ( GetEffectiveSkill( caster, SKILLID_MAGERY  )/20 );
+  var numfound := 0;
+  
+  PlaySoundEffect(caster, SFX_SPELL_REVEAL);
+  foreach mobile in ListMobilesNearLocationEx( Caster.x, Caster.y, Caster.z, range, LISTEX_FLAG_HIDDEN ,Caster.realm)
+    if( Found( caster,  mobile) )
+      numfound := 1;
+      mobile.hidden := 0;
+      PrintTextAbovePrivate( mobile, "Zostal"+ggm(mobile,3)+" odkryt"+ggm(mobile,6)+"!", mobile ,FONT_NORMAL,COLOR_RED);
+      PrintTextAbovePrivate( mobile, "Znalazl"+ggm(Caster,3)+" kogos!!", Caster ,FONT_NORMAL,COLOR_GREEN);
+      PlaySoundEffect(mobile, 0x1FE);
+    endif
+  endforeach
+
+  if (!numfound)
+    Sendsysmessage( caster, "Nikogo nie znalazl"+ggm(Caster,3)+"." ,FONT_NORMAL,COLOR_RED);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Found( finder, hider )
+
+  if(hider.graphic == INVIS_MOB_GRAP)
+    return 0;
+  endif
+
+  var MagicSkill := Resisted(hider, finder, GetEffectiveSkill( finder, SKILLID_MAGERY ), SpellGlob.Circle, SpellGlob.Type);
+  var Resist     := (GetEffectiveSkill( finder, SKILLID_MAGICRESISTANCE)/1.5);
+
+  if ( MagicSkill > Resist )
+    return 1;
+  else
+    return 0;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

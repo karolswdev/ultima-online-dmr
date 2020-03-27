@@ -1,0 +1,213 @@
+//-----------------------------------------------------------------------------
+
+use file;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/checks/objchecks";
+include "include/tempmods";
+include "include/packets";
+include "include/unicode";
+
+include "../pkg/magic/druid/sp_druid";
+include "../pkg/magic/necromancy/sp_necro";
+include "../pkg/systems/vampire/sp_vamp";
+include "../pkg/magic/magicwands/magicwands";
+
+include "../pkg/systems/renthouse/renthouse";
+include ":wearwolf:wearwolf";
+
+//-----------------------------------------------------------------------------
+
+var UnicsCfg        := ReadConfigFile(UNICS_CFG);
+var WordsCfg        := ReadConfigFile(CENWORDS_CFG);
+var EmoteSndCfg     := ReadConfigFile(EMOTESND_CFG);
+var NrMax           := GetConfigMaxIntKey(WordsCfg);
+var esNrMax         := GetConfigMaxIntKey(EmoteSndCfg);
+
+var NecroSpWords, DruidSpWords, VampSpWords;
+
+//-----------------------------------------------------------------------------
+
+program PlayerSpeechCheck(who)
+
+  SetObjProperty(who, PROP_PLAYERSPEECH_PID, GetPid());
+
+  RegisterForSpeechEvents (who, 0, LISTENPT_HEAR_GHOSTS);
+  EnableEvents (EVID_SPEECH, 0);
+  EnableEvents (EVID_GHOST_SPEECH, 0);
+
+  var ev;
+
+  while(who and IsLoggedIn(who))
+    ev := wait_for_event(360);
+
+    if(GetObjProperty(who,PROP_PLAYERSPEECH_PID) != GetPid())
+      return;
+    endif
+
+    if(ev)
+      case(ev.type)
+        EVID_GHOST_SPEECH:
+        EVID_SPEECH:       if(ev.source == who)
+                             CheckSpeech(ev.source, ev.text, ev.uc_text);
+                           endif
+
+        EVID_GOLDCHECK:    CheckPackForCheque(who);
+      endcase
+    endif
+
+    sleepms(100);
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(who, byref text, byref unitext)
+
+  if(unitext == error)
+    unitext := CAscZ(text);
+  endif
+
+  if(who.hidden)
+    who.hidden := 0;
+  endif
+
+  if(who.concealed or who.isa(POLCLASS_NPC))
+    return;
+  endif
+
+  LogSent(who, unitext);
+
+  ConvertLetters(text, unitext);
+
+  var ltext := lower(text);
+
+  if(GetGlobalProperty("CenCheckLog") != "Off" and GetObjProperty(who,"CenCheckLog") != "Off")
+    for i := 1 to NrMax
+      if(ltext[WordsCfg[i].Word])
+        AlertSeers(CAscZ("["+who.name+"/"+who.acctname+"] powiedzial '")+unitext+CAscZ("'"), FONT_NORMAL, COLOR_GREEN);
+        LogSentence(who, unitext);
+        break;
+      endif
+    endfor
+  endif
+
+  if(who.dead)
+    if(ltext == "*modli sie*")
+      var Talizman := FindItemInContainer(who.backpack, 0xDE40);
+
+      if(Talizman)
+        start_script(":specloot:talizman", {who, Talizman});
+      endif
+    endif
+    return;
+  endif
+  
+  if(who.weapon.objtype == UOBJ_DRUID_STAFF)
+    CheckDruidStaff(who, text, who.weapon);
+  else
+    if(who.weapon.objtype == UOBJ_NECRO_STAFF)
+      CheckNecroStaff(who, text, who.weapon);
+    elseif(who.weapon.objtype == UOBJ_VAMP_STAFF)
+      CheckVampStaff(who, text, who.weapon);
+    endif
+  endif
+  if(IsMagicWand(who.weapon))
+    CheckWand(who, text);
+  endif
+
+  case(GetEquipmentByLayer(who,LAYER_RING).objtype)
+    UOBJ_NECRO_RING:  CheckNecroStaff(who, text, GetEquipmentByLayer(who,LAYER_RING));
+    UOBJ_DRUID_RING:  CheckDruidStaff(who, text, GetEquipmentByLayer(who,LAYER_RING));
+    UOBJ_VAMP_RING:   CheckVampStaff(who, text, GetEquipmentByLayer(who,LAYER_RING));
+  endcase
+
+  if(ltext == "wybieram")
+    start_script(":tourney:ch_mem",who);
+  endif
+
+  if(text[1] == "*" and text[len(text)] == "*")
+    case(lText)
+      "*pokazuje plecak*":
+        start_script("showbag",who);
+
+      "*naucza*":
+        start_script("::teach",who);
+
+      "*modli sie*":
+        start_script(":gods:pray",who);
+      
+      default:
+        for i := 1 to esNrMax
+          if(ltext[EmoteSndCfg[i].Emote])
+            if(EmoteSndCfg[i].WearWolf and !IsWearWolfMorphed(who))
+              break;
+            endif
+            
+            var Mounted := EmoteSndCfg[i].Mounted;
+            
+            if(Mounted != error)
+              if(HaveMount(who) != Mounted)
+                continue;
+              endif
+            endif
+            
+            if(EmoteSndCfg[i].Anim)
+              PlayAction(who, EmoteSndCfg[i].Anim);
+            endif
+            if(who.gender)
+              if(EmoteSndCfg[i].FSound)
+                PlaySoundEffect(who, EmoteSndCfg[i].FSound);
+              endif
+            else
+              if(EmoteSndCfg[i].MSound)
+                PlaySoundEffect(who, EmoteSndCfg[i].MSound);
+              endif
+            endif
+          
+            break;
+          endif
+        endfor
+    endcase
+  endif
+
+  CheckHrSpeech(who, ltext);
+  sleepms(5);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ConvertLetters(byref text, byref unitext)
+
+  foreach Let in unitext
+    if(UnicsCfg[Let].Chr)
+      text[_Let_iter] := UnicsCfg[Let].Char;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LogSentence(who, byref txt)
+
+  LogToFile(FSPEECH_LOG,Pack({who.serial, GetRealName(who), who.acctname,polcore().systime, txt}));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LogSent(who, byref txt)
+
+  if(GetGlobalProperty("GlobalLoging"))
+    var MainElem := CUnixTime(0,RLT_SDATE);
+    LogToFile(SPEECH_LOG+"_"+MainElem+".log",Pack({who.serial,GetRealName(who),who.acctname,polcore().systime,txt}));
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

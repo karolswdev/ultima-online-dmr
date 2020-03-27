@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/mount";
+
+
+//-----------------------------------------------------------------------------
+
+program DisMountTarget(who)
+
+  var Vic := ObjTarget(who);
+  if(Vic.isa(POLCLASS_MOBILE))
+    if(GetEquipmentByLayer(Vic,LAYER_MOUNT))
+      DisMount(Vic,GetEquipmentByLayer(Vic,LAYER_MOUNT));
+    endif
+  else
+    SendSysMessage(who, "Anulowano", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

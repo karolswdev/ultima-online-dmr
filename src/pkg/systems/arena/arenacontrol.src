@@ -1,0 +1,97 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "arena";
+include "include/npcs";
+include "include/findcity";
+include "include/logerror";
+
+//-----------------------------------------------------------------------------
+
+program ArenaControl(stone)
+
+  ChArena(stone);
+  if(!GetArenaName(stone))
+    if(FindCity(stone))
+      SetArenaName(stone,FindCity(stone));
+    endif
+  endif
+  
+  stone.name := "Kamien Areny "+GetArenaName(stone);
+
+  while(stone)
+  
+    if(GetObjProperty(stone,"StartFight"))
+      if(!GetObjProperty(stone,"#InUse"))
+        SetObjProperty(stone,"#InUse",1);
+        sleep(3);
+        Fight(stone);
+      endif
+    endif
+    
+    if(!StartedTour(stone))
+      if(IsTour(stone))
+        if(CheckTournament(stone))
+          if(!BeginTour(stone))
+            LogError("ArenaControl: Nie mozna bylo rozpoczac turnieju! Arena NR "+GetObjProperty(stone,"ArenaNr"), LOGF_GENERAL);
+          endif
+        endif
+      endif
+    endif
+    
+    sleep(10+RandomInt(10));
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Fight(stone)
+
+  start_script(":arena:arenafight",stone);
+  sleep(10);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChArena(stone)
+
+  var ArenaRange := FindArenaRange(stone);
+  var ArenaCenter := FindArenaCenter(stone);
+  
+  if(ArenaCenter.x and ArenaRange)
+    foreach Mob in ListMobilesNearLocationEx(ArenaCenter.x,ArenaCenter.y,ArenaCenter.z,ArenaRange,LISTEX_FLAG_HIDDEN + LISTEX_FLAG_NORMAL,stone.realm)
+      if(Mob.isa(POLCLASS_NPC))
+        KillNPC(Mob);
+      elseif(IsPlayer(Mob) or IsTamed(Mob))
+        MoveObject(stone.x-1,stone.y,stone.z,stone.realm,MOVECHAR_FORCELOCATION);
+      endif
+    endforeach
+  endif
+  EraseObjProperty(stone,"StartFight");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckTournament(stone)
+
+  if(len(GetTourFighters(stone)) == MAX_TOUR_FIGHTERS)
+    if(!GetObjProperty(stone,"TourCounting"))
+      SetObjProperty(stone,"TourCounting",ReadGameClock());
+    endif
+    if(CInt((TOUR_START_TIME+GetObjProperty(stone,"TourCounting"))-ReadGameClock()) < 0)
+      EraseObjProperty(stone,"TourCounting");
+      return 1;
+    endif
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

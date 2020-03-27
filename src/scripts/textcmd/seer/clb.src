@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program CleanBackPackCmd(who)
+
+  var d := 0,e := 0;
+  foreach Item in ListRootItemsInContainer(who.backpack)
+    if(DestroyItem(Item))
+      d := d + 1;
+    else
+      e := e + 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Zniszczono ["+d+"] przedmiotow, bledow ["+e+"], razem ["+(d+e)+"]",FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

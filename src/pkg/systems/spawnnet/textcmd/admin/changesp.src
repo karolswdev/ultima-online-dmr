@@ -1,0 +1,77 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/gumpboxes";
+
+include ":spawnnet:spawnnet";
+
+//-----------------------------------------------------------------------------
+
+program ChangeSpawnProps(who, parms)
+
+  if(parms == "usun")
+	EraseObjProperty(who, "Sp_Radius");
+	EraseObjProperty(who, "Sp_Time");
+	EraseObjProperty(who, "Sp_Amount");
+	EraseObjProperty(who, "Sp_MaxAmount");
+  endif
+  
+  var radius, time, amount, max_amount;
+
+  if(GetObjProperty(who, "Sp_Radius"))
+	radius := CInt(GetObjProperty(who, "Sp_Radius"));
+	time := CInt(GetObjProperty(who, "Sp_Time"));
+	amount := CInt(GetObjProperty(who, "Sp_Amount"));
+	max_amount := CInt(GetObjProperty(who, "Sp_MaxAmount"));
+  else
+
+  SendSysMessage(who, "Podaj zasieg run naokolo Ciebie do zmiany.", FONT_NORMAL, COLOR_BLUE);
+	radius := CInt(RequestInput(who, who.backpack, ""));
+  SendSysMessage(who, "Podaj czas (minuty) respawnu run.", FONT_NORMAL, COLOR_BLUE);
+	time := CInt(RequestInput(who, who.backpack, ""));
+  SendSysMessage(who, "Podaj ilosc spawnow per cykl", FONT_NORMAL, COLOR_BLUE);
+	amount := CInt(RequestInput(who, who.backpack, ""));
+  SendSysMessage(who, "Podaj maksymalna ilosc spawnow.", FONT_NORMAL, COLOR_BLUE);
+	max_amount := CInt(RequestInput(who, who.backpack, ""));
+	
+  endif
+  
+  
+  if(!radius || !time || !amount || !max_amount)
+	SendSysMessage(who, "Nie podano wszystkich parametrow.", FONT_NORMAL, COLOR_RED);
+	return;
+  endif
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!YesNo(who,"Na pewno?"))
+    return;
+  endif
+  
+  if(YesNo(who, "Zapisac zmienne do nastepnego uzycia komendy?"))
+	SetObjProperty(who, "Sp_Radius", radius);
+	SetObjProperty(who, "Sp_Time", time);
+	SetObjProperty(who, "Sp_Amount", amount);
+	SetObjProperty(who, "Sp_MaxAmount", max_amount);
+  endif
+  
+  var num := 0;
+  
+  foreach item in ListItemsNearLocation(who.x, who.y, LIST_IGNORE_Z, radius, who.realm)
+	SendSysMessage(who, "Item" + item.objtype);
+	if(item.objtype == UOBJ_SRUNE)
+		SetRuneAmount(item, amount);
+		SetRuneMaxAmount(item, max_amount);
+		SetRuneRespawnTime(item, time);
+		num := num + 1;
+	endif
+  endforeach
+  
+  
+  SendSysMessage(who,"Zmieniono "+num+" run",FONT_NORMAL,COLOR_BLUE);
+
+endprogram
+
+//-----------------------------------------------------------------------------

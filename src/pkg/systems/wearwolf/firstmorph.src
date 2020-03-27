@@ -1,0 +1,121 @@
+//--------------------------------------------------------------------------------
+
+include "include/tempmods";
+include "include/clock";
+include "include/gumpboxes";
+include "wearwolf";
+
+//--------------------------------------------------------------------------------
+
+var WhoSer;
+
+//--------------------------------------------------------------------------------
+
+program FirstWearWolfMorph(who)
+
+  if(IsWearWolf(who))
+    return;
+  endif
+
+  WhoSer := who.serial;
+
+  GInit(100,100);
+  GResPic(0,0,3600,342,250);
+  GTextLine(45, 30, 550,"Zostal"+ggm(who,3)+" ugryziony przez wilkolaka,");
+  GTextLine(55, 50, 550,"twoja krew zaczyna sie zmieniac,");
+  GTextLine(85, 70, 550,"lecz jesli sie nie poddasz,");
+  GTextLine(65, 90, 550,"mozesz jeszcze wyjsc z tego,");
+  GTextLine(73, 110,550,"ale moze tego pragniesz ?");
+  GTextLine(115,150,560,"Poddajesz sie ?");
+  GButton( 90, 185, 2130, 2129, 1 );
+  GButton( 190,185, 2121, 2120, 0 );
+
+  var Trans := 0;
+  SetObjProperty(who,"#StartedMorph",GetPid());
+  var Time   := ReadGameClock();
+  sleep(1);
+  
+  var Accept := GSend(who);
+  if(Time + 180 < ReadGameClock())
+    return;
+  endif
+  
+  if(!who)
+    who := FindPlayerBySerial(WhoSer);
+  endif
+  if(!who)
+    return;
+  endif
+  
+  if(Accept)
+    Trans := 1;
+  else
+    SendSysMessage(who,"Probujesz walczyc...",FONT_NORMAL,COLOR_GREEN);
+    sleep(300);
+
+    if(!who)
+      who := FindPlayerBySerial(WhoSer);
+    endif
+    if(!who)
+      return;
+    endif
+    
+    if(RandomInt(1000) < 1)
+      SendSysMessage(who,"Nie zdolal"+ggm(who,3)+" zwalczyc zarazy!",FONT_NORMAL,COLOR_RED);
+      Trans := 1;
+    else
+      SendSysMessage(who,"Udalo ci sie zwalczyc zaraze!",FONT_NORMAL,COLOR_BLUE);
+    endif
+  endif
+
+  if(Trans)
+    StartTransition(who);
+  endif
+  
+  EraseObjProperty(who,"#StartedMorph");
+  EraseObjProperty(who,"CanBeWearWolf");
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function StartTransition(who)
+
+  if(!who)
+    who := FindPlayerBySerial(WhoSer);
+  endif
+  if(!who)
+    return;
+  endif
+
+  SendSysMessage(who,"Poddajesz sie...",FONT_NORMAL,COLOR_GREEN);
+  SendSysMessage(who,"Czujesz jak twa krew sie zmienia...",FONT_NORMAL,COLOR_GREEN);
+  UndoMod(who,MOD_STR);
+  UndoMod(who,MOD_DEX);
+  
+  while(!CanMod(who,MOD_STR) or !CanMod(who,MOD_DEX))
+    sleepms(100);
+  endwhile
+  
+  DoMod(who,MOD_STR,(0 - 20),4800);
+  DoMod(who,MOD_DEX,(0 - 20),4800);
+
+  while(GetHour() != 7)
+    sleep(10);
+  endwhile
+  
+  if(!who)
+    who := FindPlayerBySerial(WhoSer);
+  endif
+  if(!who)
+    return;
+  endif
+
+  UndoMod(who,MOD_STR);
+  UndoMod(who,MOD_DEX);
+  SendSysMessage(who,"Przeksztalcasz sie...",FONT_NORMAL,COLOR_GREEN);
+  SetObjProperty(who,"IsWearWolf",ReadGameClock());
+
+endfunction
+
+//--------------------------------------------------------------------------------

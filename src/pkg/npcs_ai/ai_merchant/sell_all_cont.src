@@ -1,0 +1,82 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include ":ai_speech:utils/misc";
+include ":ai_speech:utils/speech";
+include ":ai_speech:utils/question";
+
+include ":ai_merchant:const";
+include ":ai_merchant:utils/misc";
+include ":ai_merchant:utils/packets";
+
+include "include/gumpboxes";
+include "include/items";
+include "include/items/containers";
+
+//-----------------------------------------------------------------------------
+
+program NpcSpeechSellAll(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  PrintTextAbovePrivate(Data.npc,"Z ktorego pojemnika?",Data.source);
+  var Cont := ObjTarget(Data.source);
+
+  if(!Cont.isa(POLCLASS_CONTAINER))
+    PrintTextAbovePrivate(Data.npc,"To nie pojemnik",Data.source);
+    return;
+  endif
+
+  if(GetTopCont(Cont) != Data.source.backpack and Cont != Data.source.backpack)
+    PrintTextAbovePrivate(Data.npc,"Ten pojemnik nie znajduje sie w twoim plecaku",Data.source);
+    return;
+  endif
+
+  if(!CanNpcSpeekWith(Data.npc, Data.source))
+    return 1;
+  endif
+
+  var sItems := array;
+  var aPrice := 0;
+  var RepLvl := GetPlayerNpcGuildCityLvl(Data.source, Data._AI_Merchant.City);
+  
+  foreach Item in EnumerateItemsInContainer(Cont)
+    if(Item.container == Cont)
+      if(CanBuyItem(Item))
+        if(CInt(Data._AI_Merchant.BuyItems[hex(Item.objtype)]))
+          sItems.append({Item.serial,Item.amount});
+          aPrice += GetItemBuyPrice(Item, RepLvl) * Item.amount;
+        endif
+      endif
+    endif
+  endforeach
+  
+  if(!sItems.size())
+    PrintTextAbovePrivate(Data.npc, "Nie masz nic w tym pojemniku co by mnie interesowalo.", Data.source);
+    return;
+  endif
+  
+  if(!NpcAskYesNo(Data.npc, Data.source, "Czy chcesz sprzedac wszystkie "+sItems.size()+" przedmiot"+Gam(sItems.size(), GAM_OW)+" w cenie "+aPrice+" gp?"))
+    NpcSpeechSay(Data.npc, Data.source, AI_SPID_GOODBYE);
+    return 1;
+  endif
+
+  var Event := struct;
+  Event.+type   := EVID_CMERC_SOLD;
+  Event.+source := Data.source;
+  Event.+items  := sItems;
+  
+  SendEvent(Data.npc, Event);
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,4624 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use boat;
+
+//-----------------------------------------------------------------------------
+
+include "include/cmds/propgump";
+include "include/cmds/misc";
+include "include/cmds/cmds";
+include "include/cmds/mobinfo";
+include "include/client/effects";
+include "include/std";
+include "include/calc";
+include "include/clock";
+include "include/gumpboxes";
+include "include/mobile/npcs/attack";
+include "include/attributes/npcs_cag";
+include "include/mobile/misc";
+include "include/npcs";
+include "include/log";
+include ":banking:common";
+include "include/escrow";
+include "include/player/nutrition";
+include "include/mount";
+include "include/skills/skillwin";
+include "include/reputation/penalty";
+include "include/reputation/pvparea";
+include "include/reputation/murderer";
+include "include/player/basic";
+include "include/player/target";
+include "include/player/hooks";
+include "include/player/misc";
+
+include "include/mobile/age";
+
+include ":housing:housing";
+include ":mail:mail";
+include ":toplist:toplist";
+include ":character:creation_gumps";
+include ":crafting:receptures";
+include ":crafting:common";
+include ":crafting:recep_gumps";
+include ":makrocheck:makro";
+include ":traits:gumps";
+
+//-----------------------------------------------------------------------------
+
+var finished              := 0;
+var keeprun               := 1;
+var Whom                  := 0;
+var WhomAcc               := 0;
+var SkInGump              := array;
+
+//-----------------------------------------------------------------------------
+
+program TextCmdInfo(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  case(text)
+    "ske":      if(!EraseRawSkillGainWatcher(who))
+                  SendSysMessage(who, "Nie sledzisz wzrostu umiejetnosci.", FONT_NORMAL, COLOR_RED);
+                endif
+                return;
+
+    "sk":       SetRawSkillGainWatcher(who);
+                return;
+
+    "uske":     if(!EraseUseSthWatcher(who))
+                  SendSysMessage(who, "Nie sledzisz uzywania przedmiotow.", FONT_NORMAL, COLOR_RED);
+                endif
+                return;
+
+    "usk":      SetUseSthWatcher(who);
+                return;
+
+    "rladmin":  if(CmdHaveAccess(who, 0, CMDA_ADMIN))
+                  var acc := FindAccount(who.acctname);
+                  acc.SetProp("RealAdmin", 1);
+                  SendSysMessage(who,"Ustawiono Admina na konto.",FONT_NORMAL,COLOR_GREEN);
+                  return;
+                endif
+
+    "eradmin":  if(CmdHaveAccess(who, 0, CMDA_ADMIN))
+                  whom := ObjTarget(who);
+                  if(!whom or whom.npctemplate or !whom.isa(POLCLASS_MOBILE))
+                    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+                    return;
+                  endif
+                  var acc := FindAccount(whom.acctname);
+                  if(acc.GetProp("RealAdmin"))
+                    acc.EraseProp("RealAdmin");
+                    SendSysMessage(who,"Skasowano Admina z konta "+acc.name+".",FONT_NORMAL,COLOR_GREEN);
+                  else
+                    SendSysmessage(who,"Konto "+acc.name+" nie ma ustawionego Admina.",FONT_NORMAL,COLOR_RED);
+                  endif
+                  return;
+                endif
+
+    "genallnewid": if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+                     if(!YesNo(who, "Gen?"))
+                       return;
+                     endif
+
+                     var i := 0;
+
+                     foreach Acc in ListAccounts()
+                       var GenAcc := FindAccount(Acc);
+                       GenAcc.SetProp("GenNewImd", ReadGameClock());
+                       i := i + 1;
+                     endforeach
+
+                     SendSysMessage(who, "Zaznaczono "+i+" kont do GenId.", FONT_NORMAL, COLOR_GREEN);
+                     return;
+                   endif
+
+    "allacc":   if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_READ))
+                  ShowAllAccounts(who);
+                  if(!WhomAcc)
+                    return;
+                  endif
+                endif
+
+    "allchars": if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_READ))
+                  ShowAllCharacters(who);
+                  if(!Whom)
+                    return;
+                  endif
+                endif
+
+    "alld":     var i;
+                for(i:=0;i<=GetMaxSkillId();i:=i+1)
+                  SetBaseSkillBaseValue(who,i,0);
+                endfor
+                return;
+
+    "allu":     var i;
+                for(i:=0;i<=GetMaxSkillId();i:=i+1)
+                  SetBaseSkillBaseValue(who,i,1000);
+                endfor
+                return;
+  endcase
+
+  if(Cint(text))
+    whom := SystemFindObjectBySerial(Cint(text));
+    if(!whom)
+      whom := SystemFindObjectBySerial(Cint(text),SYSFIND_SEARCH_OFFLINE_MOBILES);
+      if(!whom)
+        SendSysMessage(who,"Nie znaleziono seriala - "+text,FONT_NORMAL,COLOR_RED);
+        return;
+      endif
+    endif
+  elseif(text and !WhomAcc and !Whom)
+    var sptext := SplitWords(text);
+    case(sptext[1])
+      "acc":      WhomAcc := FindAccount(Cstr(sptext[2]));
+                  if(!WhomAcc)
+                    SendSysMessage(who,"Nie znaleziono konta - "+sptext[2],FONT_NORMAL,COLOR_RED);
+                    return;
+                  endif
+
+      "ip":       if(CanUseCmd(who, "info ip"))
+                    WhomAcc := ChooseAccountFromIpString(who,sptext[2]);
+                    if(!WhomAcc)
+                      return;
+                    endif
+                  endif
+
+      "profile":  WhomAcc := ChooseAccountByProfile(who,sptext[2]);
+                  if(!WhomAcc)
+                    return;
+                  endif
+
+      "sr":       var AllChars := array;
+                  var Vals     := struct;
+
+                  if(!sptext[2])
+                   SendSysMessage(who, ".info sr [nm/st/sk/age/ontimer/lastlog/extime/murd/murdtime] Liczbowe: [= < >] Czasowe: [s/m/h/d], np. info sr age > 10, info sr murdtime > 10 d", FONT_NORMAL, COLOR_RED);
+                   return 0;
+                  endif
+
+                  SearchAllChars(who, sptext, Vals, AllChars);
+                  SendSysMessage(who,"Znaleziono "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+                  SendSysMessage(who,"Kryteria: "+Vals.sname+" gdzie: "+ClStr(Vals.value), FONT_NORMAL, COLOR_BLUE);
+
+                  if(AllChars.size())
+                    whom := ShowCharsSelection(who, AllChars, Vals.sname+": "+ClStr(Vals.value));
+                  endif
+
+                  if(!whom)
+                    return 0;
+                  endif
+
+     "near":      ShowNearMobs(who, CInt(sptext[2]));
+
+     "conear":    if(CmdHaveAccess(who, 0, CMDA_MODIFY))
+                    ConcealNearNpcs(who, CInt(sptext[2]), CInt(sptext[3]));
+                  endif
+                  return;
+
+     "mwgids":    if(CanUseCmd(who, "info mwgids"))
+                    ShowMwGIDs(who,CInt(sptext[2]));
+                  endif
+
+     "shgid":     if(CanUseCmd(who, "info mwgids"))
+                    ShowSortedMwGid(who,CInt(sptext[2]));
+                  endif
+                  return;
+
+     "stlid":     if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+                    var Acc := FindAccount(sptext[2]);
+                    if(!Acc)
+                      SendSysMessage(who, "Konto "+sptext[2]+" nie istnieje.", FONT_NORMAL, COLOR_RED);
+                    elseif(CInt(sptext[3]) <= 0)
+                      SendSysMessage(who, "Zly MwGid.", FONT_NORMAL, COLOR_RED);
+                    elseif(len(sptext[4]) != 23)
+                      SendSysMessage(who, "Zly PdId.", FONT_NORMAL, COLOR_RED);
+                    else
+                      Acc.SetProp("StlId", array(CInt(sptext[3]), sptext[4]));
+                      SendSysMessage(who, "Ustawiono ["+sptext[2]+"]: ("+CInt(sptext[3])+", "+sptext[4]+")", FONT_NORMAL, COLOR_BLUE);
+                    endif
+                    return;
+                  endif
+
+    "delacc":     ShowDeletedAccs(who, sptext[2]);
+                  return;
+                  
+
+    "lastlog":    if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_READ))
+                    BuildLastLogIPsGump(who, sptext[2]);
+                    GSend(who);
+                  endif
+                  return;
+    endcase
+  endif
+
+  if(!WhomAcc and !Whom and text)
+    whom := FindCharacterByName(text);
+    if(!whom)
+      SendSysMessage(who,"Nie znaleziono postaci "+text,FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!whom and !WhomAcc)
+    SendSysMessage(who,"Wybierz postac.",FONT_NORMAL,COLOR_GREEN);
+    whom := ObjTarget(who,TGTOPT_NOCHECK_LOS);
+  endif
+
+  if((!whom or !whom.isa(POLCLASS_MOBILE)) and !WhomAcc)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(WhomAcc)
+    var i := 1;
+    while(!whom and i <= 5)
+      whom := WhomAcc.GetCharacter(i);
+      i := i + 1;
+    endwhile
+
+    if(whom)
+      LogMsg(INF_LOG,who,{WhomAcc,whom.x,whom.y,whom.z,whom.realm});
+    else
+      LogMsg(INF_LOG,who,{WhomAcc,who.x,who.y,who.z,who.realm});
+    endif
+
+    ShowAccountMenu(who);
+  elseif(whom)
+    if(!WhomAcc)
+      WhomAcc := whom.acct;
+    endif
+    BuildMainInfoWindow(who,whom);
+    BuildMainInfoWindowEnd(who,whom);
+    LogMsg(INF_LOG,who,{Whom,whom.x,whom.y,whom.z,whom.realm});
+  endif
+
+  while(keeprun)
+    if((!whom or !whom.isa(POLCLASS_MOBILE)) and !WhomAcc)
+      SendSysMessage(who,"Cel nie istnieje.",FONT_NORMAL,COLOR_RED);
+      break;
+    endif
+
+    var res := GSend(who);
+
+    if((!whom or !whom.isa(POLCLASS_MOBILE)) and !WhomAcc)
+      SendSysMessage(who,"Cel nie istnieje.",FONT_NORMAL,COLOR_RED);
+      break;
+    endif
+
+    if(!res[0])
+      keeprun := 0;
+    endif
+
+    case(res[0])
+      101:       BuildMainInfoWindow(who,whom);
+                 ShowAddInfo(who);
+                 continue;
+
+      102:       BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+      9999:      BuildAllSkillsWindow(whom, NO_SKWIN_ARROWS | NO_SKWIN_SKSCRIPT, who);
+                 continue;
+      9995:      ShowAbilitiesWindow();
+                 continue;
+      9996:      ChangeChValue(whom,"Name",who);
+      19996:     ChangeChValue(whom,"WolfName",who);
+      9994:      ChangeChValue(whom,"TPrefix",who);
+      9993:      ChangeChValue(whom,"TSuffix",who);
+      9992:      ChangeChValue(whom,"TGuild",who);
+      9991:      ChangeChValue(whom,"TRace",who);
+      9990:      MoveToWrittenLocation(whom,who);
+      9989:      MoveToSelectedLocation(whom,who);
+      9976:      MoveToHimLocation(whom,who);
+      9988:      ShowAccountMenu(who);
+                 continue;
+      9987:      ModifyStatValue(whom,"ARMod",who);
+      9986:      ModifyStatValue(whom,"Color",who);
+      9586:      ModifyStatValue(whom,"TrueColor",who);
+      9985:      ModifyStatValue(whom,"Graphic",who);
+      9984:      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+                   ShowLastIPsGump();
+                   continue;
+                 endif
+      9981:      BuildLastLogIPsGump(who, WhomAcc.name);
+                 continue;
+      8005:      ShowExchangeGump();
+                 continue;
+      9983:      ChangeAccountValue(who,"Profile");
+      9982:      BanUnBanAccount(who);
+      9970:      if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+                   ChangeCmdLevel(whom,who);
+                 elseif(CmdHaveAccess(who, whom, CMDA_REAL_ADMIN) and whom == who)
+                   who.cmdlevel := 5;
+                 endif
+      9975:      RecalcVitals(whom);
+
+      9948:      ModifyStatValue(whom,"NpcDamage",who);
+      9949:      ModifyStatValue(whom,"RunSpeed",who);
+      9950:      SendOpenSpecialContainer(who,whom.backpack);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9951:      if(CmdHaveAccess(who, whom, CMDA_MODIFY) and IsPlayer(whom))
+                   SendOpenSpecialContainer(who,FindBankBox(whom));
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+      9849:      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ) and IsPlayer(whom))
+                   SendOpenSpecialContainer(who,FindMailBox(whom));
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+
+      9960:      if(CmdHaveAccess(who, whom, CMDA_MODIFY) and IsPlayer(whom))
+                   SendOpenSpecialContainer(who,FindStoreBox(whom));
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+                 
+      9852:      if(CmdHaveAccess(who, whom, CMDA_MODIFY) and IsPlayer(whom))
+                   if(!ShowEscrowBoxes(who, whom))
+                     SendSysMessage(who, "Osoba "+whom.name+" nie posiada skrzynki powierniczej.", FONT_NORMAL, COLOR_RED);
+                   endif
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+      9952:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   KickPlayer(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9953:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   SummonPlayer(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9954:      FreezePlayer(whom,who);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9959:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   ParalyzePlayer(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9853:      SendSysMessage(who, "Chcesz usunac stworzyciela? NPC bedzie wtedy mial loot, ale tez zostanie zalogowany.", FONT_NORMAL, COLOR_GREEN);
+                 if(!YesNo(who, "Na pewno?"))
+                   return;
+                 endif
+                 LogMsg(QSITEMS_LOG, who, whom);
+                 RemoveObjCreator(whom);
+                 SendSysMessage(who, "NPC zostal zalogowany.", FONT_NORMAL, COLOR_ORANGE);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+      9854:      SendSysMessage(who, "Chcesz nadac flage Quest? NPC bedzie wtedy mial loot, ale tez zostanie zalogowany.", FONT_NORMAL, COLOR_GREEN);
+                 if(!YesNo(who, "Na pewno?"))
+                   return;
+                 endif
+                 LogMsg(QSITEMS_LOG, who, whom);
+                 RemoveObjCreator(whom);
+                 SetPropQuestItem(who, whom);
+                 SendSysMessage(who, "NPC zostal zalogowany.", FONT_NORMAL, COLOR_ORANGE);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+      9955:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   KillPlayer(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9956:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   LightKill(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9957:      QuiteKillNPC(whom,who);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9958:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   RessPlayer(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9947:      SwitchFlag(whom, NPCF_NO_ANCHOR, !IsSetFlag(whom, NPCF_NO_ANCHOR));
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9945:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   CmdHidePlayer(whom,who);
+                 endif
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9791:      ToggleNpcConceal(whom, who);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+
+      9944:      var Res := RestartScript(whom);
+                 if(Res)
+                   SendSysMessage(who, "Pomyslny restart Skryptu.", FONT_NORMAL, COLOR_GREEN);
+                 else
+                   SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+                 endif
+      9946:      ChangeChValue(whom,"Script",who);
+      9940:      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_ADMIN))
+                   BuildCpropGump(who,whom);
+                 endif
+      9939:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   RefreshPerson(whom);
+                 endif
+      9111:      DeleteChAccount(who);
+      9110:      MakeActiveDeactiveAccount(who);
+      9909:      ShowResIPsGump();
+                 continue;
+
+      9910:      RestartMobScript(who, whom);
+
+      9908:      AddResIp(who);
+                 ShowResIPsGump();
+                 continue;
+      9800:      if(IsHuman(whom))
+                   OpenPaperdoll(who,whom);
+                 endif
+      9799:      ShowMainModWindow(who,whom);
+                 continue;
+      9798:      ShowSkModWindow(who,whom);
+                 continue;
+      9797:      ShowPrivWindow(whom,who);
+                 continue;
+
+      9796:      ShowClientWindow(whom);
+                 continue;
+      9795:      ToggleInvul(who, whom);
+                 BuildMainInfoWindow(who,whom);
+                 ShowActions(who);
+                 continue;
+      9700:      ChangeAccLogin(who);
+      9701:      ChangeAccPass(who);
+      9702:      VerifyPassword(who);
+      9699:      CmdActivateAccount(who);
+      9698:      SetOnlineTimer(who);
+      9697:      ShowEquippedItems(who);
+                 continue;
+      9696:      ShowBan(who);
+                 continue;
+      9695:      SetBanReason(who);
+      9694:      SetBanTime(who);
+      9693:      if(!DisMount(whom))
+                   SendSysMessage(who, "Nie udalo sie zrzucic "+whom.name+" z wierzchowca.", FONT_NORMAL, COLOR_RED);
+                 endif
+      9804:      Whom    := GetMaster(Whom);
+                 WhomAcc := Whom.acct;
+      9805:      Whom    := FindPlayerBySerial(GetPrevTamed(Whom));
+                 WhomAcc := Whom.acct;
+      9806:      Whom    := FindPlayerBySerial(GetObjProperty(Whom, PROP_PV_SELLER));
+                 WhomAcc := Whom.acct;
+
+      8003:      ProcessMaxSkInfoGump(who);
+
+      8001:      BuildRawSkillsGump();
+                 continue;
+      8000:      ShowTraitsGump(whom, who);
+                 
+      8002:      BuildRawStatsGump();
+                 continue;
+
+      8100:      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+                   if(WhomAcc.GetProp("GenNewImd"))
+                     WhomAcc.EraseProp("GenNewImd");
+                   else
+                     WhomAcc.SetProp("GenNewImd", ReadGameClock());
+                   endif
+                 endif
+
+                 ShowAccountMenu(who);
+                 continue;
+
+      9961:      ShowPlayerHouses();
+                 continue;
+
+      8101:      ShowPlayerHousesPrivs(who);
+
+      9112:      ToggleCriminal(who, whom);
+                 BuildMainInfoWindow(who,whom);
+                 ShowAddInfo(who);
+                 continue;
+
+      9113:      ShowCagEnemies(who, whom);
+                 continue;
+
+      9114:      ShowAggroTable(who, whom);
+                 continue;
+
+      9962:      ShowPlayerMurdPenalty(who);
+                 continue;
+      9963:      CrMurdPenalty();
+                 ShowPlayerMurdPenalty(who);
+                 continue;
+      9964:      ModifyMurdPnCounter(who);
+                 ShowPlayerMurdPenalty(who);
+                 continue;
+      9965:      ResetMurdPnTimer();
+                 ShowPlayerMurdPenalty(who);
+                 continue;
+      9966:      ProcessApplyMurdPenalty();
+                 ShowPlayerMurdPenalty(who);
+                 continue;
+      9967:      ProcessEraseMurdPenalty();
+                 ShowPlayerMurdPenalty(who);
+                 continue;
+      9943:      ShowPlayerGuardChase();
+                 continue;
+      9942:      ShowGuardCriminals();
+                 continue;
+      9941:      ShowPlayerHooks();
+                 continue;
+      9842:      ShowNpcMember();
+                 continue;
+      9843:      ShowPlayerMurdReports();
+                 continue;
+      9844:      ShowPlayerHunger(who);
+                 continue;
+      9850:      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+                   ResetHungerTime(who);
+                 endif
+                 ShowPlayerHunger(who);
+                 continue;
+      9851:      ShowPlayerAggressors(who);
+                 continue;
+      8004:      ShowMakros(whom);
+                 continue;
+    endcase
+
+    res := res[0];
+
+    if(res >= 200 and res < 300)
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        BlockSkill(whom,(res-200),who);
+        sleepms(50);
+      endif
+      BuildAllSkillsWindow(whom, NO_SKWIN_ARROWS | NO_SKWIN_SKSCRIPT, who);
+      continue;
+    elseif(res > 300 and res < 400)
+      ResPlayerHookCmd(who, res-300);
+      sleepms(50);
+      ShowPlayerHooks();
+      continue;
+    elseif(res >= 400 and res < 500)
+      ChangeWhosSkillValue(whom,(res-400),who);
+      sleepms(50);
+      BuildAllSkillsWindow(whom, NO_SKWIN_ARROWS | NO_SKWIN_SKSCRIPT, who);
+      continue;
+    elseif(res >= 500 and res < 600)
+      ShowCraftReceptures(whom, who, Res-500, SCRF_SHOW_ITEMSCROLL);
+      BuildAllSkillsWindow(whom, NO_SKWIN_ARROWS | NO_SKWIN_SKSCRIPT, who);
+      continue;
+    elseif(res > 800 and res <= 900)
+      SwitchPriv(whom, who, Res-800);
+      ShowPrivWindow(whom, who);
+      continue;
+    elseif(res > 900 and res < 920)
+      GoToPlayerHouse(who, res-900);
+      ShowPlayerHouses();
+      continue;
+    elseif(res > 1000 and res <= 1000+NPC_ABL_MAXID)
+      ChangeNpcAbility(Whom, res-1000, who);
+      ShowAbilitiesWindow();
+      continue;
+    elseif(res > 9800 and res < 9804)
+      ChangeWhosStatValue(whom,(res-9800),who);
+    elseif(res > 9844 and res <= 9848)
+      ChangeNutrValue(whom, (res-9844), who);
+      ShowPlayerHunger(who);
+      continue;
+    elseif(res > 9900 and res < 9904)
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        BlockStat(whom,(res-9900),who);
+      endif
+    elseif(res > 9810 and res < 9814)
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        CmdModifyMod(whom,(res-9810),who);
+      endif
+    elseif(res > 9970 and res < 9974)
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        ChangeWhosVitalValue(whom,(res-9970),who);
+      endif
+    elseif(res > 9977 and res < 9981)
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        ChangeWhosVitalMaxValue(whom,(res-9977),who);
+      endif
+    elseif(res > 9500 and res < 9506)
+      Whom := WhomAcc.GetCharacter((res-9500));
+    elseif(res > 9400 and res <= 9405)
+      if(!CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+        LogError(who.name+" uzyl nie dozwolonej komendy gumpa na kasacje postaci!");
+      else
+        DeleteChosenChar((res-9400),who);
+      endif
+    elseif(res > 9405 and res <= 9410)
+      if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+        var mRes := WhomAcc.move_char(WhomAcc.name, CInt(res-9405));
+        if(!mRes)
+          SendSysMessage(who, mRes.errortext, FONT_NORMAL, COLOR_RED);
+        endif
+      endif
+      ShowAccountMenu(who);
+      continue;
+    elseif(res > 9410 and res <= 9415)
+      if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+        MoveCharFromAcc(who, CInt(res-9410));
+      endif
+      ShowAccountMenu(who);
+      continue;
+    elseif(res > 9100 and res < 9106)
+      EraseDTimer((res-9100),who);
+      ShowAccountMenu(who);
+      continue;
+    elseif(res > 1100 and res < 1200)
+      DelResIp(who,(res - 1100));
+      ShowResIPsGump();
+      continue;
+    elseif(res > 10000 and res < 10100)
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        UndoMod(whom,res - 10000);
+      endif
+      sleepms(50);
+      ShowMainModWindow(who,whom);
+      continue;
+    elseif(res > 10100 and res < 10200)
+      if(CmdHaveAccess(who, 0, CMDA_MODIFY))
+        DoSelMod(who,res - 10100);
+        sleepms(50);
+      endif
+      ShowMainModWindow(who,whom);
+      continue;
+    elseif(res >= 10200 and res < 10300)
+      if(CmdHaveAccess(who, 0, CMDA_MODIFY))
+        DoSelSkMod(who,res - 10200);
+        sleepms(50);
+      endif
+      ShowSkModWindow(who,whom);
+      continue;
+    elseif(res >= 10300 and res < 10400)
+      if(CmdHaveAccess(who, 0, CMDA_MODIFY))
+        UndoSkillMod(whom,res - 10300);
+        sleepms(50);
+      endif
+      ShowSkModWindow(who,whom);
+      continue;
+    elseif(res >= 10400 and res < 10500)
+      if(CmdHaveAccess(who, 0, CMDA_MODIFY))
+        ModifySkillMod(who,res - 10400);
+        sleepms(50);
+      endif
+      ShowSkModWindow(who,whom);
+      continue;
+    elseif(res > 10000000)
+      if(CmdHaveAccess(who, 0, CMDA_MODIFY))
+        UnEquipSel(res - 10000000);
+      endif
+    endif
+
+    if((!whom or !whom.isa(POLCLASS_MOBILE)) and WhomAcc)
+      ShowAccountMenu(who);
+      continue;
+    elseif((!whom or !whom.isa(POLCLASS_MOBILE)))
+      SendSysMessage(who,"Cel nie istnieje.",FONT_NORMAL,COLOR_RED);
+      break;
+    endif
+
+    BuildMainInfoWindow(who,whom);
+    BuildMainInfoWindowEnd(who,whom);
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function BuildMainInfoWindow(who,whom)
+
+  StandSkLayout(22);
+  GPage();
+  GButton(340, 24,  1227,1227,9996);
+
+  GTextLine(130,30,610,"Info: "+GetRealName(whom));
+
+  if(IsPlayer(whom))
+    GTextLine(150,60,615,"Ver: "+whom.clientversion);
+  endif
+
+  GTextLine(50,30,610,"Odswiez");
+  GButton(30,  34,  2117,2118,9998);
+
+  GButton(44,72 ,2117,2118,9800);
+
+  if(IsTamed(Whom))
+    GButton(74,70 ,2117,2118,9804);
+    GTextLine(94,67,560,"Wlasciciel");
+  elseif(GetObjProperty(Whom,"PrevTamed"))
+    GButton(74,70 ,2117,2118,9805);
+    GTextLine(94,67,560,"Ost. Wlasciciel");
+  elseif(GetObjProperty(Whom, PROP_PV_SELLER))
+    GButton(74,70 ,2117,2118,9806);
+    GTextLine(94,67,560,"Wlasciciel");
+  elseif(CInt(GetObjProperty(Whom,"ForceField")))
+    GTextLine(94,67,560,"ForceField "+GetObjProperty(Whom,"ForceField"));
+  endif
+
+  GTextLine(70, 87, 550,"Sila");
+  GTextLine(260,87, 550,GetBaseStrengthHundrethValue(whom)*0.01);
+  GTextLine(70, 107,550,"Zrecznosc");
+  GTextLine(260,107,550,GetBaseDexterityHundrethValue(whom)*0.01);
+  GTextLine(70, 127,550,"Inteligencja");
+  GTextLine(260,127,550,GetBaseIntelligenceHundrethValue(whom)*0.01);
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(  340,91, 2117,2118,9801);
+
+    if(!whom.isa(POLCLASS_NPC))
+      if(IsSetAttrFlag(whom, ATTRIBUTEID_STRENGTH, ATTRF_BLOCKED))
+        GButton(320,92 ,2360,2361,9901);
+      else
+        GButton(320,92 ,2362,2360,9901);
+      endif
+    endif
+
+    GButton(  340,111,2117,2118,9802);
+    if(!whom.isa(POLCLASS_NPC))
+      if(IsSetAttrFlag(whom, ATTRIBUTEID_DEXTERITY, ATTRF_BLOCKED))
+        GButton(320,112,2360,2361,9902);
+      else
+        GButton(320,112,2362,2360,9902);
+      endif
+    endif
+
+    GButton(  340,131,2117,2118,9803);
+
+    if(!whom.isa(POLCLASS_NPC))
+      if(IsSetAttrFlag(whom, ATTRIBUTEID_INTELLIGENCE, ATTRF_BLOCKED))
+        GButton(320,132,2360,2361,9903);
+      else
+        GButton(320,132,2362,2360,9903);
+      endif
+    endif
+  endif
+
+  GTextLine(310, 67,  550,"Eqp");
+  GButton(340,72,2117,2118,9697);
+
+  GTextLine(160, 87,  999,"Mod");
+  GTextLine(190, 87,  560,GetStrengthMod(whom));
+  GTextLine(160, 107, 999,"Mod");
+  GTextLine(190, 107, 560,GetDexterityMod(whom));
+  GTextLine(160, 127, 999,"Mod");
+  GTextLine(190, 127, 560,GetIntelligenceMod(whom));
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(  230, 91,  2117,2118,9811);
+    GButton(  230, 111, 2117,2118,9812);
+    GButton(  230, 131, 2117,2118,9813);
+  endif
+
+  GTextLine(70,  154, 560,"H " + GetHp(whom)+"/"+GetMaxHp(whom));
+  GTextLine(215, 154, 560,"M " + GetMana(whom)+"/"+GetMaxMana(whom));
+  GTextLine(140, 176, 560,"S " + GetStamina(whom)+"/"+GetMaxStamina(whom));
+  
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(  175, 158, 0x837,0x838,9971);
+    if(whom.isa(POLCLASS_NPC))
+      GButton(  195, 158, 2117,2118,9978);
+    endif
+
+    GButton(  320, 158, 0x837,0x838,9972);
+    if(whom.isa(POLCLASS_NPC))
+      GButton(  340, 158, 2117,2118,9979);
+    endif
+
+    GButton(  240, 180, 0x837,0x838,9973);
+    if(whom.isa(POLCLASS_NPC))
+      GButton(  260, 180, 2117,2118,9980);
+    endif
+  endif
+
+  GTextLine(310, 176, 550,"RV");
+  GButton(  340, 180, 2117,2118,9975);
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GTextLine(90,  176, 550,"Ref");
+    GButton(  70,  180, 2117,2118,9939);
+  endif
+
+  GTextLine(70, 200,550,"Prefix");
+  GTextLine(130,200,560,whom.title_prefix);
+
+  GTextLine(70, 220,550,"Suffix");
+  GTextLine(130,220,560,whom.title_suffix);
+
+  GTextLine(70, 240,550,"Gildia");
+  GTextLine(130,240,560,whom.title_guild);
+
+  GTextLine(70, 260,550,"Rasa");
+  GTextLine(130,260,1420,whom.title_race);
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(  340,204,2117,2118,9994);
+    GButton(  340,224,2117,2118,9993);
+    GButton(  340,244,2117,2118,9992);
+
+    if(CmdHaveAccess(who, whom, CMDA_ADMIN) or whom.isa(POLCLASS_NPC) or IsStaff(whom))
+      GButton(  340,264,2117,2118,9991);
+    endif
+  endif
+  
+  var Loc := GetCmdLoc(whom, who);
+
+  if(IsAdmin(who))
+    GTextLine(60, 280,550,"Pozycja");
+    GTextLine(120,280,560,"x: "+Loc.x + " y: " + Loc.y + " z: " + Loc.z);
+  endif
+
+  GTextLine(60, 300,550,"Realm");
+  GTextLine(120,300,560,Loc.realm);
+
+  GTextLine(305,282,999,"Goto");
+  GButton(  340,284,2117,2118,9976);
+
+ 
+  GTextLine(285,302,999,"Move");
+  GButton(  320,304,2117,2118,9990);
+  GButton(  340,304,2117,2118,9989);
+
+
+
+  GTextLine(200,330,550,"AR Mod");
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(  250,333,2117,2118,9987);
+  endif
+
+  GTextLine(70, 330,550,"AR");
+
+  if(IsPlayer(whom))
+    GTextLine(280,330,560,whom.ar_mod);
+    GTextLine(110,330,560,whom.ar);
+
+    GTextLine(70, 410,550,"Konto");
+    GTextLine(150,410,560,whom.acctname);
+    GButton(  340,414,2117,2118,9988);
+
+    GTextLine(70, 430,550,"IP");
+
+    if(whom.concealed <= who.cmdlevel)
+      GTextLine(150,430,560,CStr(whom.ip));
+    endif
+
+    if(CmdHaveAccess(who, whom, CMDA_ADMIN | CMDA_MODIFY))
+      GButton(  340,454,2117,2118,9970);
+    elseif(CmdHaveAccess(who, whom, CMDA_REAL_ADMIN) and who == whom)
+      GButton(  340,454,2117,2118,9970);
+    endif
+
+    GTextLine(70, 450,550,"CmdLevel");
+    GTextLine(150,450,560,GetCmdLevelName(whom.cmdlevel));
+
+  elseif(whom.isa(POLCLASS_NPC))
+    GTextLine(280,330,560,whom.ar_mod - CInt(GetNpcConfig(whom).AR));
+
+    GTextLine(110,330,560,CInt(whom.ar)+"/"+CInt(GetNpcConfig(whom).AR));
+
+    GTextLine(70, 410,550,"Template");
+    GTextLine(150,410,560,whom.npctemplate);
+
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+      GTextLine(70, 430,550,"Skrypt");
+      GTextLine(150,430,560,whom.script);
+
+      if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+        GButton(340,434,2117,2118,9946); // change script
+      endif
+
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        GButton(130,434,2117,2118,9944); // restart script
+        GButton(225,474,2117,2118,9949); // run speed
+      endif
+
+      var RunSpeed := GetNpcConfig(whom).RunSpeed;
+      if(!RunSpeed)
+        RunSpeed := GetNpcConfig(whom).DEX;
+      endif
+
+      GTextLine(70, 450,550,"AckSpeed");
+      GTextLine(150,450,560,GetNpcConfig(whom).AttackSpeed);
+      GTextLine(70, 470,550,"RunSpeed");
+      GTextLine(150,470,560,whom.run_speed+"/"+RunSpeed);
+      GTextLine(210,450,550,"Dmg");
+
+      var Damage := GetNpcConfig(whom).AttackDamage;
+
+      if(IsOnDMRTest() and GetObjProperty(whom, "Damage"))
+        Damage := GetObjProperty(whom, "Damage");
+      endif
+      
+      GTextLine(250,450,560, Damage);
+      GTextLine(250,470,1209, GetDiceMinValue(Damage)+" - "+GetDiceMaxValue(Damage) );
+
+      if(IsOnDMRTest())
+        GButton(340,454,2117,2118,9948);
+      endif
+    endif
+
+  endif
+
+  if(IsPlayer(whom))
+    var Time := GetObjProperty(whom, PROP_LASTLOG);
+    if(whom.concealed > who.cmdlevel)
+      Time := GetObjProperty(whom, "ConcTime");
+      GTextLine(70, 470, 1210, "Offline");
+    elseif(IsLoggedIn(whom))
+      GTextLine(70, 470, 1410, "Online");
+    elseif(!IsFullyLogout(whom))
+      GTextLine(70, 470, 42, "Logout");
+    else
+      GTextLine(70, 470, 1210, "Offline");
+    endif
+    if(time)
+      GTextLine(150, 470, 560, RealTime(ReadGameClock() - Time));
+    endif
+  endif
+
+  GTextLine(200, 490, 550, "AddInfo");
+  GButton(250, 490, 0x15A4, 0x15A5, 101);
+  GTextLine(290,490, 550, "Akcje");
+  GButton(330, 490, 0x15A4, 0x15A5, 102);
+
+  if(IsReallyTamed(whom))
+    GTextLine(50,530,610,"Umiejetnosci");
+    GButton(30,534,2117,2118,9999);
+    GTextLine(200,530,610,"Zdolnosci");
+    GButton(180,534,2117,2118,9995);
+  else
+    GTextLine(50,530,610,"Umiejetnosci");
+    GButton(30,534,2117,2118,9999);
+    GTextLine(150,530,610,"Raw");
+    GButton(130,534,2117,2118,8002);
+
+    if(IsPlayer(whom))
+      GTextLine(210,530,610,"Cechy");
+      GButton(190,534,2117,2118,8000);
+
+      GTextLine(270,530,610,"MaxUm");
+      GButton(250,534,2117,2118,8003);
+    endif
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_ADMIN))
+    GButton(375,533,2117,2118,9940);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainInfoWindowEnd(who, whom)
+
+  MakeInfoPageGump(who, whom, 0);
+  MakeInfoPageGump(who, whom, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeInfoPageGump(who, whom, IsHex)
+
+  var WhomClr   := whom.color;
+  var WhomTClr  := whom.truecolor;
+  var WhomGrap  := whom.graphic;
+  var WhomTGrap := whom.trueobjtype;
+  var WhomSer   := whom.serial;
+  var Color     := 560;
+
+  GPage();
+
+  if(IsHex)
+    GButtonPage(50, 496, 2103, 2104, 1);
+    GTextLine(70, 490, 1000, "Int");
+
+    WhomClr   := hex(whom.color);
+    WhomTClr  := hex(whom.truecolor);
+    WhomGrap  := hex(whom.graphic);
+    WhomTGrap := hex(whom.trueobjtype);
+    WhomSer   := hex(whom.serial);
+    Color     := 999;
+  else
+    GButtonPage(50, 496, 2103, 2104, 2);
+    GTextLine(70, 490, 1000, "Hex");
+  endif
+
+  GTextLine(70, 350,550,"Color");
+  GTextLine(150,350,Color,WhomTClr + "/" + WhomClr);
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(  340,354,2117,2118,9986);
+    GButton(  320,354,2117,2118,9586);
+    GButton(  225,374,2117,2118,9985);
+  endif
+
+  GTextLine(70, 370,550,"Grafika");
+  GTextLine(150,370,Color,WhomTGrap+ "/" + WhomGrap);
+  
+  GTextLine(260,370, 1420, __IfElse(whom.gender, "Kobieta", "Mezczyzna"));
+  GTextLine(260,390, 1320, GetCharClassConfig(whom).Title);
+
+  GTextLine(70, 390,550,"Serial");
+  GTextLine(150,390,Color,WhomSer);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAddInfo(who, xMove := 390)
+
+  GResPic(xMove+0,  20, 2520,420, 420);
+  GResPic(xMove+28, 54, 3600,364, 350);
+
+  if(GetObjProperty(whom, "WolfName"))
+    GTextLine(xMove+130,30,610,"Wilkolak: "+GetObjProperty(whom, "WolfName"));
+    GButton(xMove+340, 24,  1227,1227,19996);
+  endif
+
+  GTextLine(xMove+50,30,610,"Odswiez");
+  GButton(xMove+30,  34,  2117,2118,101);
+
+  if(GetObjProperty(whom,"Oszust"))
+    GTextLine(xMove+50, 67, 550,"Czas Oszusta");
+    GTextLine(xMove+190,67, 560,RealTime((GetObjProperty(whom,"Oszust") + OSZUST_TIME) - Cint(GetObjProperty(whom,PROP_ONLINETIMER))));
+  endif
+
+  if(IsPlayer(whom))
+    GTextLine(xMove+50, 87, 550,"Czas Online");
+    GTextLine(xMove+190,87, 560,RealTime(Cint(GetObjProperty(whom,PROP_ONLINETIMER))));
+    if(CmdHaveAccess(who, whom, CMDA_ADMIN) or CanUseCmd(who, "info online"))
+      GButton(xMove+340,91, 2117,2118,9698);
+    endif
+
+    var MurdCount := "",MurdText := "";
+    if(GetMurdersCount(whom) > 4)
+      MurdCount := CInt(CInt(GetObjProperty(whom, "decaylongcountat")) - GetObjProperty(whom, PROP_ONLINETIMER));
+      if(MurdCount > 0)
+        MurdCount := RealTime(MurdCount);
+        MurdText  := "Czas mordercy";
+      endif
+    elseif(GetShortMurdersCount(whom) > 0)
+      MurdCount := CInt(CInt(GetObjProperty(whom, "decayshortcountat")) - GetObjProperty(whom, PROP_ONLINETIMER));
+      if(MurdCount > 0)
+        MurdCount := RealTime(MurdCount);
+        MurdText  := "Czas mordercy";
+      endif
+    endif
+
+    if(MurdCount and MurdText)
+      GTextLine(xMove+50 ,107,550,MurdText);
+      GTextLine(xMove+190,107,560,MurdCount);
+    endif
+
+  else
+    GTextLine(xMove+50, 67, 550,"Attribute");
+    GTextLine(xMove+120,67, 560,ClStr(GetNpcConfig(whom).AttackAttribute));
+
+    var AggroPoints := CInt(GetObjProperty(whom, "#AggroPoints"));
+    var AggroLevel  := CInt(GetObjProperty(whom, "#AggroLevel"));
+    GTextLine(xMove+50, 87, 550,"Aggro");
+    GTextLine(xMove+120,87, 560,AggroPoints+" / "+AggroLevel);
+    GButton(xMove+95, 90, 2117, 2118, 9114);
+
+    GTextLine(xMove+220, 87, 550,"Wrog");
+    if(whom.opponent)
+      GTextLine(xMove+260,87, 560, GetName(whom.opponent));
+    else
+      GTextLine(xMove+260, 87,1204,"Brak");
+    endif
+    
+    GTextLine(xMove+220, 67, 550,"CAG");
+
+    if(whom.opponent)
+      GTextLine(xMove+260, 67,1309, GetCagAmount(whom) + "/" + GetCagMaxAmount(whom) );
+    else
+      GTextLine(xMove+260, 67,1204, "Brak wroga");
+    endif
+    
+    GButton(xMove+340, 70, 2117, 2118, 9113);
+  endif
+
+  GTextLine(xMove+50, 130,550,"Waga");
+  GTextLine(xMove+110,130,560,CInt(whom.weight)+"/" + GetMaxWeight(whom)+" ("+(whom.weight*100/GetMaxWeight(whom))+"%)");
+
+  if(whom.dead)
+    GTextLine(xMove+50, 150,1204,"Nie Zyje");
+  else
+    GTextLine(xMove+50, 150,1419,"Zyje");
+  endif
+
+  var DeathTime := GetObjProperty(whom, PROP_DEATH_TIME);
+
+  if(DeathTime)
+    GTextLine(xMove+110,150,560, RealTime(ReadGameClock() - DeathTime));
+  endif
+
+  GTextLine(xMove+220,130,550,"Krim");
+  GTextLine(xMove+280,130,540,GetShortMurdersCount(whom));
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+    GButton(xMove+260, 133, 2117, 2118, 9112);
+  endif
+
+  if(whom.criminal)
+    GTextLine(xMove+320,130,560,"Tak");
+  else
+    GTextLine(xMove+320,130,560,"Nie");
+  endif
+
+  GTextLine(xMove+220,150,550,"Murd");
+  GTextLine(xMove+280,150,540,GetMurdersCount(whom));
+  GButton(xMove+260, 153, 2117, 2118, 9962);
+  if(whom.murderer)
+    GTextLine(xMove+320,150,560,"Tak");
+  else
+    GTextLine(xMove+320,150,560,"Nie");
+  endif
+
+  GTextLine(xMove+50, 170,550,"Bron");
+
+  var WeapDesc := whom.weapon.desc;
+  if(WeapDesc == "nodraw" or !WeapDesc)
+    WeapDesc := "Wrestle";
+  endif
+
+  GTextCrop(xMove+120,170,200, 20, 560,WeapDesc+"/"+CInt(whom.weapon.objtype));
+  
+  GTextLine(xMove+50, 200,550,"Czas ist.");
+  GTextLine(xMove+120,200,560,RealTime(ReadGameClock() - GetCreatedAt(whom)));
+
+  GTextLine(xMove+50, 220,550,"Wiek");
+  GTextLine(xMove+120,220,560,GetAgeDesc(whom, AGEF_REAL));
+
+  if(IsPlayer(whom))
+    if(whom.skillcap)
+      GTextLine(xMove+50, 240,550,"SkillCap");
+      GTextLine(xMove+120,240,560,CountAllSkills(whom)+"/"+whom.skillcap);
+    endif
+
+    if(whom.statcap)
+      GTextLine(xMove+220,240,550,"StatCap");
+      GTextLine(xMove+280,240,560,CountAllStats(whom)+"/"+whom.statcap);
+    endif
+    
+    if(CInt(GetObjProperty(whom,"HairGrow")) and !whom.cmdlevel)
+      GTextLine(xMove+50, 280,550,"HairGrow");
+      GTextLine(xMove+120,280,560,RealTime(GetObjProperty(whom,"HairGrow") - GetObjProperty(whom,PROP_ONLINETIMER)));
+    endif
+
+  elseif(whom.isa(POLCLASS_NPC))
+
+    if(IsSkillSum(whom))
+      GTextLine(xMove+50, 240,550,"Przyciagniety:");
+      GTextLine(xMove+120,240,560, RealTime(CInt(GetObjProperty(whom, PROP_SK_SUMMONED)) + LIFETIME_SUMMONED - ReadGameClock()));
+    elseif(CInt(GetObjProperty(whom, PROP_UNTAMED)))
+      GTextLine(xMove+50, 240,550,"UnTamed:");
+      GTextLine(xMove+120,240,560, RealTime(CInt(GetObjProperty(whom, PROP_UNTAMED)) + LIFETIME_UNTAMED - ReadGameClock()));
+    elseif(GetNpcConfig(whom).MaxLifeTime)
+      GTextLine(xMove+50, 240,550,"Czas zycia:");
+      GTextLine(xMove+120,240,560, RealTime(GetCreatedAt(whom) + CInt(GetNpcConfig(whom).MaxLifeTime) - ReadGameClock()));
+    endif
+
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+      var Wealth := GetNpcConfig(whom).wealth;
+      if(!Wealth)
+        Wealth := "None";
+      endif
+
+      var DStart := GetNpcConfig(whom).dstart;
+      if(!DStart)
+        DStart := 10;
+      endif
+
+      GTextLine(xMove+50, 260,550,"Wealth");
+      GTextLine(xMove+120,260,560,Wealth);
+
+      GTextLine(xMove+200,260,550,"Anchor");
+
+      var Anchor := GetObjProperty(whom, "Anchor");
+      if(Anchor)
+        GTextLine(xMove+250,260,560, Anchor[1]+","+Anchor[2]+","+Anchor[3]+"/"+Anchor[4]);
+      else
+        GTextLine(xMove+250,260,999, "Brak");
+      endif
+
+      GTextLine(xMove+50, 280,550,"GuardIgnore");
+      GTextLine(xMove+120,280,560,CInt(GetNpcConfig(whom).guardignore));
+    endif
+
+    if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+      GTextLine(xMove+200,280,550,"Pid");    
+      GTextLine(xMove+250,280,560, CInt(whom.process.pid));
+    else
+      GTextLine(xMove+220,280,550,"AI");
+
+      if(whom.process)
+        GTextLine(xMove+240,280, 1424, "Proces dziala");
+      else
+        GTextLine(xMove+240,280, 1209, "Brak procesu!");
+      endif
+    endif
+
+    if(!whom.process)
+      GButton(xMove+200,282,2117,2118,9910);
+    endif
+
+  endif
+
+  var Mount := GetEquipmentByLayer(whom,LAYER_MOUNT);
+  if(Mount)
+    GTextLine(xMove+220,200,550,"Mount");
+    GTextLine(xMove+220,200,560,Mount.name);
+    GButton(  xMove+200,204,2117,2118,9693);
+  endif
+
+  var LastTrg := GetObjProperty(whom, PROP_LTRG_USE);
+  var LastSk  := GetObjProperty(whom, PROP_LSK_USE);
+
+  if(LastTrg and LastTrg.size())
+    GTextLine(xMove+50,  310, 999,  "ost. Cel");
+    GTextLine(xMove+120, 310, 550,  CUnixTime(LastTrg[2], RLT_MONTH));
+    GTextLine(xMove+240, 310, 1205, LastTrg[1]);
+    GTextLine(xMove+50,  330, 1410, LastTrg[3]);
+  endif
+
+  if(LastSk and LastSk.size())
+    GTextLine(xMove+50,  350, 999,  "ost. Skill");
+    GTextLine(xMove+120, 350, 550,  CUnixTime(LastSk[2], RLT_MONTH));
+    GTextLine(xMove+240, 350, 1205, LastSk[1]);
+    GTextLine(xMove+50,  370, 1410, LastSk[3]);
+  endif
+
+  BuildMainInfoWindowEnd(who,whom);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowActions(who, xMove := 390)
+
+  GResPic(xMove+0,  20, 2520,400, 340);
+  GResPic(xMove+28, 54, 3600,344, 270);
+
+  GTextLine(xMove+50, 67,550,"Plecak");
+  GButton(  xMove+140,71,2117,2118,9950);
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+    GTextLine(xMove+200, 67,550,"Domy");
+    GButton(  xMove+340,71,2117,2118,9961);
+
+    if(IsAdmin(who))
+      GButton(  xMove+300,71,2117,2118,8101);
+      GTextLine(xMove+320, 69,550,"U");
+    endif
+
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    if(IsPlayer(whom))
+      GTextLine(xMove+50, 87,550,"Bank");
+      GButton(  xMove+140,91,2117,2118,9951);
+
+      GTextLine(xMove+200, 87,550,"Magazyn");
+      GButton(  xMove+340, 91,2117,2118,9960);
+      
+      GTextLine(xMove+50, 267,550,"Escrow");       
+      GButton(  xMove+140, 271,2117,2118,9852);
+
+      GTextLine(xMove+50, 107,550,"Wykop");
+      GButton(  xMove+140,111,2117,2118,9952);
+    endif
+
+    GTextLine(xMove+200,107,550,"Przyciagnij");
+    GButton(  xMove+340,111,2117,2118,9953);
+  endif
+
+  if(whom.frozen)
+    GTextLine(xMove+50, 127,1204,"Odmroz");
+  else
+    GTextLine(xMove+50, 127,1419,"Zamroz");
+  endif
+
+  GButton(  xMove+140,131,2117,2118,9954);
+
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    if(whom.paralyzed)
+      GTextLine(xMove+200, 127,1204,"Odparalizuj");
+    else
+      GTextLine(xMove+200, 127,1419,"Sparalizuj");
+    endif
+
+    GButton(  xMove+340,131,2117,2118,9959);
+
+    if(whom.hidden)
+      GTextLine(xMove+50, 147,1204,"Odkryj");
+    else
+      GTextLine(xMove+50, 147,1419,"Schowaj");
+    endif
+
+    GButton(  xMove+140,151,2117,2118,9945);
+
+    if(whom.isa(POLCLASS_NPC))
+      if(IsSetFlag(whom, NPCF_NO_ANCHOR))
+        GTextLine(xMove+200, 147,1204,"Anchor    (wlacz)");
+      else
+        GTextLine(xMove+200, 147,1419,"Anchor   (wylacz)");
+      endif
+
+      GButton(  xMove+340,151,2117,2118,9947);
+
+    elseif(whom.dead)
+
+      GTextLine(xMove+200,147,1204,"Wskrzes");
+      GButton(  xMove+340,151,2117,2118,9958);
+    endif
+  endif
+
+  GTextLine(xMove+50,167,550,"Mody");
+  GButton(xMove+140,171,2117,2118,9799);
+
+  GTextLine(xMove+200,167,550,"Mody Umow");
+  GButton(xMove+340,171,2117,2118,9798);
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY) or whom == who)
+    GTextLine(xMove+50, 187, 550, "Przywileje");
+    GButton(xMove+140,191, 2117,2118,9797);
+  elseif(whom.isa(POLCLASS_NPC))
+    var Elem := GetNpcConfig(whom);
+    if(Elem.CityNpc and !Elem.Privs["invul"])
+      if(IsInvul(whom))
+        GTextLine(xMove+50, 187, 1121, "Wylacz invul");
+      else
+        GTextLine(xMove+50, 187, 1320, "Wlacz invul");
+      endif
+      GButton(xMove+140,191, 2117,2118,9795);
+    endif
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+    if(IsPlayer(whom))
+      if(IsLoggedIn(whom))
+        GTextLine(xMove+200, 187, 550, "SpyOnClient");
+        GButton(xMove+340,191, 2117,2118,9796);
+      endif
+      GTextLine(xMove+200, 207, 550, "Hooks");
+      GButton(xMove+340,211, 2117,2118,9941);
+    endif
+  endif
+
+  if(IsPlayer(whom))
+    GTextLine(xMove+50,207,550,"GuardChase");
+    GButton(xMove+140,211,2117,2118,9943);
+
+    GTextLine(xMove+50,227,550,"Reports");  
+    GButton(xMove+140,231,2117,2118,9843);
+
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+      GTextLine(xMove+200,227,550,"Glod");
+      GButton(xMove+340,231,2117,2118,9844);
+
+      GTextLine(xMove+200,247,550,"MailBox");
+      GButton(xMove+340,251,2117,2118,9849);
+    endif
+    
+    GTextLine(xMove+200,267,550,"Makro");
+    GButton(xMove+340,271,2117,2118,8004);
+
+    GTextLine(xMove+50,247,550,"Aggressors");
+    GButton(xMove+140,251,2117,2118,9851);
+
+  elseif(whom.isa(POLCLASS_NPC))
+
+    if(IsNpcGuard(whom))
+      GTextLine(xMove+50,207,550,"GuardCrims");
+      GButton(xMove+140,211,2117,2118,9942);
+    elseif(GetObjProperty(whom, PROP_NPC_MEMBER))
+      GTextLine(xMove+50,207,550,"Pamiec Npca");
+      GButton(xMove+140,211,2117,2118,9842);
+    endif
+
+
+    if(whom.concealed)
+      GTextLine(xMove+200, 187,1204,"Ujawnij (Perm)");
+    else
+      GTextLine(xMove+200, 187,1419,"Ukryj (Perm)");
+    endif
+
+    GButton(xMove+340,191,2117,2118,9791);
+
+
+    if(IsGmCreated(whom))
+      var Creator := GetObjCreator(whom);
+      GTextLine(xMove+200,267,1321, GetRealName(Creator)+"/"+Creator.acctname);
+      if(CanUseCmd(who, "npcs q"))
+        GTextLine(xMove+330,267,550, "S");
+        GButton(xMove+340,271,2117,2118,9853);
+        GTextLine(xMove+300,267,550, "Q");
+        GButton(xMove+310,271,2117,2118,9854);
+      endif
+    elseif(IsQuestItem(whom))
+      var Creator := GetObjQuestMaster(whom);
+      GTextLine(xMove+200,267,1421, GetRealName(Creator)+"/"+Creator.acctname);
+      if(CanUseCmd(who, "npcs q"))
+        GTextLine(xMove+330,267,550, "Q");
+        GButton(xMove+340,271,2117,2118,9854);
+      endif
+    endif
+
+  endif
+
+  GTextLine(xMove+50, 290,550,"Zabij");
+  GButton(  xMove+105,293,2117,2118,9955);
+
+  GTextLine(xMove+140,290,550,"Piorun");
+  GButton(  xMove+205,293,2117,2118,9956);
+
+  if(whom.isa(POLCLASS_NPC))
+    GTextLine(xMove+240,290,550,"Zabij NPC");
+    GButton(  xMove+340,293,2117,2118,9957);
+  endif
+
+  BuildMainInfoWindowEnd(who,whom);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAccountMenu(who)
+
+  var LastLogin := WhomAcc.GetProp("LastLogin");
+  if(whom.concealed > who.cmdlevel)
+    LastLogin := GetObjProperty(who, "ConcTime");
+  endif
+  StandSkLayout(16);
+  GPage();
+  GTextLine(50,30,610,"Odswiez");
+  GButton(30,  34,  2117,2118,9988);
+
+  GButton(  325,407,2453,2454,9997);
+  GTextLine(140,30, 610,"Konto: "+WhomAcc.name);
+
+  if(CanUseCmd(who, "info sr mwgid"))
+    if(WhomAcc.GetProp("GenNewImd"))
+      GTextLine(300, 30, 1204, "IdToGen");
+      if(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+        GButton(280, 33, 2117, 2118, 8100);
+      endif
+    elseif(CmdHaveAccess(who, 0, CMDA_SECRET | CMDA_MODIFY))
+      GTextLine(300, 30, 1424, "GenNewId");
+      GButton(280, 33, 2117, 2118, 8100);
+    endif
+  endif
+
+  GTextLine(50, 77, 550,"Exchange");
+  GButton(  120,81, 2117,2118,8005);
+  if(who.cmdlevel>= whom.cmdlevel)
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+      GTextLine(250, 77, 550,"LastIPs");
+      GButton(  340,81, 2117,2118,9984);
+      GButton(  320,81, 2117,2118,9981);
+    else
+      GTextLine(250, 77, 550,"LastLogs");
+      GButton(  340,81, 2117,2118,9984);
+    endif
+  endif
+
+  GTextLine(50, 97,  999,"Ost. login:");
+  GTextLine(140 ,97,  550,RealTime(Cint(ReadGameClock()-LastLogin)));
+
+  if(WhomAcc.GetProp("CreateTime"))
+    GTextLine(50, 117, 999,"Zalozone:");
+
+    var passTime := ReadGameClock() - CInt(WhomAcc.GetProp(PROP_CREATE_TIME));
+
+    if(passTime > ACC_NODEL_TIME)
+      GTextLine(140,117, 690,RealTime(passTime));
+    else
+      GTextLine(140,117, 550,RealTime(passTime));
+    endif
+  else
+    GTextLine(50, 117, 999,"Zalozone:");
+    GTextLine(140,117, 690,"Brak: stare konto");
+  endif
+
+  GTextLine(50, 137, 999,"Profil:");
+
+  var ProfData := WhomAcc.GetProp("profile");
+
+  if(ProfData)
+    var lasttime := CUnixTime(ProfData.lasttime);
+    GTextLine(140, 137, 550,ProfData.login+", "+lasttime);
+  else
+    GTextLine(140, 137, 550,"Brak");
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+    GButton(340,141,2117,2118,9983);
+  endif
+
+  GTextLine(50, 157,999,"Stan Konta:");
+
+  if(IsAccountDeactivated(WhomAcc))
+    GTextLine(140,157,550,"Zdezaktywowane");
+  elseif(IsAccountFrozen(WhomAcc))
+    GTextLine(140,157,550,"Zamrozone");
+  elseif(WhomAcc.banned)
+    GTextLine(160,157,550,"Zbanowane");
+    GButton(140,161,2117,2118,9696);
+  else
+    GTextLine(140,157,550,"Dostepne");
+  endif
+
+
+  GTextLine(50, 177,999,"Dotacje:");
+
+  var Royals := WhomAcc.GetProp("Royals");
+
+  if(Royals)
+    GTextLine(140,177,1419,Royals.donation+" PLN");
+    GTextLine(220,177,1320, Royals.coins+" monet");
+
+    if(Royals.refs)
+      GTextLine(300,177, 1153, "Ref: "+Royals.refs);
+    endif
+  else
+    GTextLine(140,177,550,"Brak");
+  endif
+
+  GTextLine(50, 197,999,"Toplista:");
+
+  var ToplistInfo := WhomAcc.GetProp(ACPROP_TOPLIST);
+  GTextLine(140,197,__ifelse(ToplistInfo[1],COLOR_GREEN,COLOR_RED),ToplistInfo[2]);
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+    GButton(  50,331,2117,2118,9909);
+    GTextLine(70, 327,550,"RestrictedIPs");
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY) or (CanUseCmd(who, "info acc freeze") and who.cmdlevel > whom.cmdlevel))
+    if(!IsAccountDeactivated(WhomAcc))
+      GButton(  50,351,2117,2118,9110);
+      if(IsAccountFrozen(WhomAcc))
+        GTextLine(70, 347,550,"Odmroz konto");
+      else
+        GTextLine(70, 347,550,"Zamroz konto");
+      endif
+
+      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+        GButton(180,351,2117,2118,9982);
+        if(WhomAcc.banned)
+          GTextLine(200,347,550,"Odbanuj konto");
+        else
+          GTextLine(200,347,550,"Zbanuj konto");
+        endif
+      endif
+
+    else
+      GTextLine(70,347,550,"Aktywuj konto");
+      GButton(50,181,2117,2118,9699);
+    endif
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+    GTextLine(70, 367,550,"Skasuj Konto");
+    GButton(  50,371,2117,2118,9111);
+
+    GTextLine(40, 408,610,"Login");
+    GButton(  85, 412,2117,2118,9700);
+  endif
+
+  if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY) or CanUseCmd(who, "info acc pass"))
+    GTextLine(105,408,610,"Haslo");
+    GButton(  155,412,2117,2118,9701);
+
+    GTextLine(175,408,610,"Weryfikacja");
+    GButton(  275,412,2117,2118,9702);
+  endif
+
+  GPage();
+
+  var i := 1,char;
+  for(i:=1;i<=5;i:=i+1)
+    char := WhomAcc.GetCharacter(i);
+    if(char)
+      GTextLine(70, (200+(i*20)),555,i+". ");
+      GTextLine(95, (200+(i*20)),545,char.name);
+      GButton(  340,(203+(i*20)),2117,2118,(9500+i));
+      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+        GButton(50,(203+(i*20)),2117,2118,(9400+i));
+        GButton(325,(200+(i*20)),2706,2707,(9405+i));
+        GButton(305,(203+(i*20)),0x4b9,0x4ba,(9410+i));
+      endif
+    else
+      GTextLine(70,(200+(i*20)),555,i+".");
+    endif
+  endfor
+
+  GTextLine(270, 317,550,"CreateTime");
+  GButtonPage(  340,321,2117,2118,2);
+
+  GPage();
+
+  Char := WhomAcc.GetProp(PROP_CREATION_TIMER);
+  var DelDelay := GetCharDeleteDelay(WhomAcc);
+
+  for(i:=1;i<=5;i:=i+1)
+    if(CInt(char[i]) + DelDelay > ReadGameClock())
+      GTextLine(70, (200+(i*20)),555,i+". ");
+      GTextLine(95, (200+(i*20)),545,i+". Czas: "+RealTime(CInt(char[i]) + DelDelay - ReadGameClock()));
+      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+        GButton(50,(203+(i*20)),2117,2118,(9100+i));
+      endif
+    else
+      GTextLine(70, (200+(i*20)),555,i+". ");
+      GTextLine(95, (200+(i*20)),545,"Wolny");
+    endif
+  endfor
+
+  GTextLine(270, 317,550,"Chars");
+  GButtonPage(  340,321,2117,2118,1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowLastIPsGump()
+
+  StandMultiSkLayout(20, 16);
+
+  var LastIPs := WhomAcc.GetProp("LastIP");
+
+  GButton(  425,487,2453,2454,9988);
+  GTextLine(160,30, 610,"Ostatnie IP ("+LastIPs.size()+"): "+WhomAcc.name);
+
+  GAddPageData(485,55,2650,2651,485,463,2648,2647);
+
+  GMultiPage();
+
+  foreach IP in LastIPs
+    GCheckNextPage(20);
+    GTextLine(50, (70+(GNPCount()*20)),550,"IP "+_IP_iter);
+
+    if(IP.size() == 3)
+      GTextLine(180,(70+(GNPCount()*20)),570,IP[1]);
+      GTextLine(320,(70+(GNPCount()*20)),1300,CUnixTime(IP[2], RLT_MONTH));
+      GTextLine(440,(70+(GNPCount()*20)),570,CInt(IP[3]));
+    elseif(IP.size() == 2)
+      GTextLine(180,(70+(GNPCount()*20)),570,IP[1]);
+      GTextLine(320,(70+(GNPCount()*20)),1300,CUnixTime(IP[2], RLT_MONTH));
+    else
+      GTextLine(180,(70+(GNPCount()*20)),570, IP);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowExchangeGump()
+
+  StandMultiSkLayout(20, 36);
+
+  var Exchange := WhomAcc.GetProp("Exchange");
+
+  GButton(  725, 487,2453,2454,9988);
+  GTextLine(160,30, 610,"Wymiany konta ("+Exchange.size()+"): "+WhomAcc.name);
+
+  GAddPageData(885,55,2650,2651,885,463,2648,2647);
+
+  GTextLine(50,  70, 590, "Zrodlowy profil");
+  GTextLine(150, 70, 590, "Docelowy profil");
+  GTextLine(250, 70, 590, "Zrodlowe konto");
+  GTextLine(350, 70, 590, "Docelowe konto");
+  GTextLine(450, 70, 590, "Czas real");
+  GTextLine(600, 70, 590, "Czas gry");
+
+  GMultiPage();
+
+  foreach Entry in Exchange
+
+    GCheckNextPage(20);
+
+    GTextLine(50,(90+(GNPCount()*20)),570, Entry["src_profile"]);
+    GTextLine(150,(90+(GNPCount()*20)),570, Entry["dst_profile"]);
+    GTextLine(250,(90+(GNPCount()*20)),570, Entry["src_acc"]);
+    GTextLine(350,(90+(GNPCount()*20)),570, Entry["dst_acc"]);
+    GTextLine(450,(90+(GNPCount()*20)),1300, CUnixTime(Entry["sys_time"]));
+    GTextLine(600,(90+(GNPCount()*20)),570,GetFullDate(Entry["game_time"]));
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLastLogIPsGump(who, AccName)
+
+  var LastIPs := ReadFile(LASTLOG_PKG + AccName);
+
+  if(!LastIPs or !LastIPs.size())
+    SendSysMessage(who, "Logi dla konta "+AccName+" nie istnieja.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var xMove    := 0;
+  var xMoveEnd := 0;
+
+  if(!CanUseCmd(who, "info sr mwgid"))
+    xMoveEnd := 200;
+  endif
+
+  StandMultiSkLayout(15,39-(xMove/20+xMoveEnd/20));
+
+  var Acc     := FindAccount(AccName);
+  var Stealth := 0;
+
+  if(Acc)
+    Stealth := Acc.GetProp("StlId");
+  endif
+
+  GButton(  885-xMove-xMoveEnd,387,2453,2454,9988);
+  GTextLine(160,30, 610,"Ostatnie logowania ("+LastIPs.size()+"): "+AccName);
+
+  GAddPageData(935-xMove-xMoveEnd,55,2650,2651,935-xMove-xMoveEnd,363,2648,2647);
+  GMultiPage();
+
+  LastIps.reverse();
+
+  foreach IP in LastIPs
+    IP := UnPack(IP);
+    GCheckNextPage(15);
+
+    if(!xMove)
+      GTextLine(50, (70+(GNPCount()*20)),550,IP[1]);
+    endif
+
+    GTextLine(170-xMove,(70+(GNPCount()*20)),570,IP[2]);
+    GTextLine(370-xMove,(70+(GNPCount()*20)),1410,CUnixTime(CInt(IP[3]), RLT_MONTH));
+    if(CInt(IP[4]))
+      GTextLine(500-xMove,(70+(GNPCount()*20)),1300,CUnixTime(CInt(IP[3])+CInt(IP[4]), RLT_MONTH));
+      GTextLine(635-xMove,(70+(GNPCount()*20)),560,RealTime(CInt(IP[4])));
+    endif
+
+    if(Stealth and who.cmdlevel < 4)
+      if(IP[5] > 0)
+        IP[5] := Stealth[1];
+      endif
+      if(IP[6])
+        IP[6] := Stealth[2];
+      endif
+    endif
+
+    if(!xMoveEnd)
+      GTextLine(700-xMove,(70+(GNPCount()*20)),580,CInt(IP[5]));
+      if(IP[6])
+        GTextLine(750-xMove,(70+(GNPCount()*20)),580,IP[6]);
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowResIPsGump()
+
+  var LastIPs := WhomAcc.GetProp("RestIP");
+  if(!LastIPs)
+    LastIPs := {};
+  endif
+
+  StandSkLayout(15);
+  GPage();
+
+  GTextLine(50, 87, 550,"Dodaj IP");
+  GButton(  340,91, 2117,2118,9908);
+
+  GTextLine(100,30 ,610,"Restricted IP: "+WhomAcc.name);
+  GButton(  325,387,2453,2454,9988);
+  GAddPageData(365,55,2650,2651,365,363,2648,2647);
+
+  var i := 1;
+
+  foreach IP in LastIPs
+    GCheckNextPage(12);
+    GTextLine(50 ,(127+(GNPCount()*20)),550,"IP "+IP);
+    GButton(  340,(124+(GNPCount()*20)),2117,2118,(1100+i));
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddResIp(bywho)
+
+  if(!CmdHaveAccess(bywho, 0, CMDA_SECRET | CMDA_MODIFY))
+    return 0;
+  endif
+
+  var NewIp := SendTextEntryGump(bywho,"Wpisz nowe IP",TE_CANCEL_ENABLE);
+  if(!NewIp)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var c := 0, i;
+
+  for(i:=1;i<=len(NewIp);i:=i+1)
+    if(NewIp[i] == ".")
+      c := c + 1;
+    endif
+  endfor
+  if(c != 3)
+    SendSysMessage(bywho,"Bledny IP.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ResIP := WhomAcc.GetProp("RestIP");
+  if(!ResIP or !ResIP.size())
+    ResIP := {};
+  endif
+  ResIP.append(NewIP);
+  WhomAcc.SetProp("RestIP",ResIP);
+  SendSysMessage(bywho,"Dodano Nowe ResIP - "+NewIP+" na konto "+WhomAcc.name+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DelResIp(bywho,nr)
+
+  if(!CmdHaveAccess(bywho, 0, CMDA_SECRET | CMDA_MODIFY))
+    return 0;
+  endif
+
+  nr := CInt(nr);
+  var ResIP := WhomAcc.GetProp("RestIP");
+  if(ResIP[nr])
+    SendSysMessage(bywho,"Skasowano IP - "+ResIP[nr]+" z konta "+WhomAcc.name+".",FONT_NORMAL,COLOR_GREEN);
+    ResIP.erase(nr);
+    WhomAcc.SetProp("RestIP",ResIP);
+  else
+    SendSysMessage(bywho,"Bledny numer.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeWhosSkillValue(who,skillid,bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  NewValue       := CDbl(NewValue);
+  var SkElem     := GetSkillConfigElem(skillid);
+  var basevalue  := GetBaseSkillBaseValue(who,skillid) * 0.1;
+  if(!SkElem)
+    SendSysMessage(bywho,"Nie znaleziono umiejetnosci.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  LogMsg(INFO_LOG,bywho,{who,SkElem.name,basevalue,newvalue});
+
+  SendSysMessage(bywho,"Zmienil"+ggm(bywho,3)+" wartosc "+SkElem.name+" z "+basevalue+"% do "+newvalue+"% osobie "+who.name+".",FONT_NORMAL,COLOR_BLUE);
+  NewValue := NewValue * 10;
+  SetBaseSkillBaseValue(who,skillid,NewValue);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeWhosStatValue(who,stat,bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  var basevalue := 0;
+  var attributeid;
+  case(stat)
+    1:       basevalue   := GetBaseStrengthBaseValue(who);     attributeid := ATTRIBUTEID_STRENGTH;
+    2:       basevalue   := GetBaseDexterityBaseValue(who);    attributeid := ATTRIBUTEID_DEXTERITY;
+    3:       basevalue   := GetBaseIntelligenceBaseValue(who); attributeid := ATTRIBUTEID_INTELLIGENCE;
+    default: return;
+  endcase
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  NewValue       := CDbl(NewValue);
+
+  LogMsg(INFO_LOG,bywho,{who,attributeid,basevalue*0.1,newvalue});
+
+  var Res;
+
+  case(stat)
+    1:       Res := SetBaseStrengthBaseValue(who,Cint(NewValue*10));
+    2:       Res := SetBaseDexterityBaseValue(who,Cint(NewValue*10));
+    3:       Res := SetBaseIntelligenceBaseValue(who,Cint(NewValue*10));
+  endcase
+
+  if(Res)
+    SendSysMessage(bywho,"Zmienil"+ggm(bywho,3)+" wartosc "+attributeid+" z "+(basevalue*0.1)+" do "+newvalue+" osobie "+who.name+".",FONT_NORMAL,COLOR_BLUE);
+    sleepms(200);
+  else
+    SendSysMessage(bywho,"Nie udalo sie zmienic wartosci "+attributeid+" z "+(basevalue*0.1)+" do "+newvalue+" osobie "+who.name+".",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeWhosVitalValue(who,vital,bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  var NewValue   := RequestInput(bywho,bywho.backpack,"");
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  NewValue       := Cint(NewValue);
+
+  case(vital)
+    1:       SetHp(who,NewValue);
+    2:       SetMana(who,NewValue);
+    3:       SetStamina(who,NewValue);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeWhosVitalMaxValue(who,vital,bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  if(!who.isa(POLCLASS_NPC))
+    SendSysMessage(who,"Max wartosc mozesz zmieniac tylko npcom.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  NewValue       := Cint(NewValue);
+
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  case(vital)
+    1:       LogMsg(INFO_LOG,bywho,{who,VITALID_LIFE,GetMaxHp(who),newvalue});
+             SetMaxHp(who,NewValue);
+    2:       LogMsg(INFO_LOG,bywho,{who,VITALID_MANA,GetMaxMana(who),newvalue});
+             SetMaxMana(who,NewValue);
+    3:       LogMsg(INFO_LOG,bywho,{who,VITALID_STAMINA,GetMaxStamina(who),newvalue});
+             SetMaxStamina(who,NewValue);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeChValue(who, Type, bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue and NewValue != "")
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var OldValue := "";
+  var SetValue := "";
+
+  case(Type)
+    "Name":      OldValue              := who.name;
+                 who.name              := Cstr(NewValue);
+                 SetValue              := who.name;
+
+    "WolfName":  OldValue              := GetObjProperty(who, "WolfName");
+                 SetObjProperty(who, "WolfName", CStr(NewValue));
+                 SetValue              := GetObjProperty(who, "WolfName");
+
+    "TPrefix":   OldValue              := who.title_prefix;
+                 who.title_prefix      := Cstr(NewValue);
+                 SetValue              := who.title_prefix;
+
+    "TSuffix":   OldValue              := who.title_suffix;
+                 who.title_suffix      := Cstr(NewValue);
+                 SetValue              := who.title_suffix;
+
+    "TGuild":    OldValue              := who.title_guild;
+                 who.title_guild       := Cstr(NewValue);
+                 SetValue              := who.title_guild;
+
+    "TRace":     OldValue              := who.title_race;
+                 who.title_race        := Cstr(NewValue);
+                 SetValue              := who.title_race;
+
+    "Script":    SendSysMessage(bywho,"Upewnij sie czy skrypt "+Cstr(NewValue)+" istnieje.",FONT_NORMAL,COLOR_GREEN);
+                 if(YesNo(bywho,"Na pewno?"))
+                   OldValue              := who.script;
+                   who.script            := Cstr(NewValue);
+                   SetValue              := who.script;
+                   RestartScript(who);
+                 else
+                   return;
+                 endif
+  endcase
+
+  if(SetValue == NewValue)
+    LogMsg(INFO_LOG,bywho,{who, Type, OldValue, NewValue});
+    SendSysMessage(bywho,Type+": "+who.name+" ["+OldValue+" > "+NewValue+"]",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(bywho,"Blad: "+Type+": "+who.name+" ["+OldValue+" > "+NewValue+"]",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CmdModifyMod(who,stat,bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  var NewValue := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  NewValue := Cint(NewValue);
+
+  Case(stat)
+   1:  SetStrengthMod(who,Newvalue);
+   2:  SetDexterityMod(who,Newvalue);
+   3:  SetIntelligenceMod(who,Newvalue);
+  endcase
+
+  return NewValue;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ModifyStatValue(who,type,bywho)
+
+  if(!CmdHaveAccess(bywho, who, CMDA_MODIFY))
+    return 0;
+  endif
+
+  var basevalue := 0;
+  var SetValue  := 0;
+
+  var NewValue := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue and type != "NpcDamage")
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  case(type)
+    "NpcDamage":  basevalue  := GetObjProperty(who, "Damage");
+                  if(!basevalue)
+                    basevalue := GetNpcConfig(who).AttackDamage;
+                  endif
+                  if(newvalue)
+                    SetObjProperty(who, "Damage", newvalue);
+                  else
+                    EraseObjProperty(who, "Damage");
+                  endif
+                  setvalue := newvalue;
+
+    "RunSpeed":   basevalue     := who.run_speed;
+                  NewValue := CInt(newvalue);
+                  who.run_speed := newvalue;
+                  SetValue      := who.run_speed;
+
+    "ARMod":      basevalue     := who.ar_mod;
+                  NewValue := CInt(newvalue);
+                  if(who.isa(POLCLASS_NPC))
+                    who.ar_mod    := CInt(newvalue) + CInt(GetNpcConfig(who).AR);
+                    SetValue      := who.ar_mod - CInt(GetNpcConfig(who).AR);
+                  else
+                    who.ar_mod    := CInt(newvalue);
+                    SetValue      := who.ar_mod;
+                  endif
+
+    "Color":      basevalue     := who.color;
+                  NewValue := CInt(newvalue);
+                  if(who.isa(POLCLASS_NPC))
+                    SetNpcColor(who, CInt(newvalue));
+                  else
+                    who.color     := CInt(newvalue);
+                  endif
+                  SetValue      := who.color;
+
+    "TrueColor":  basevalue     := who.truecolor;
+                  NewValue := CInt(newvalue);
+                  who.truecolor := CInt(newvalue);
+                  SetValue      := who.truecolor;
+
+    "Graphic":    basevalue     := who.graphic;
+                  NewValue := CInt(newvalue);
+                  if(who.isa(POLCLASS_NPC))
+                    SetNpcGraphic(who, CInt(newvalue));
+                  else
+                    who.graphic   := CInt(newvalue);
+                  endif
+                  SetValue      := who.graphic;
+
+    default:      return;
+  endcase
+
+  if(SetValue == NewValue)
+    LogMsg(INFO_LOG,bywho,{who,type,basevalue,NewValue});
+    if(!newvalue)
+      newvalue := "<Brak>";
+    endif
+    SendSysMessage(bywho,type+": "+who.name+" ["+basevalue+" > "+newvalue+"]",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(bywho,"Blad "+type+": "+who.name+" ["+basevalue+" > "+newvalue+"]",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BanUnBanAccount(bywho)
+
+  if(!CmdHaveAccess(bywho, 0, CMDA_SECRET | CMDA_MODIFY))
+    return 0;
+  endif
+
+  if(WhomAcc.banned)
+    WhomAcc.unban();
+    WhomAcc.enable();
+    SendSysMessage(bywho,"Odbanowal"+ggm(bywho,3)+" konto "+WhomAcc.name+".",FONT_NORMAL,COLOR_GREEN);
+  else
+    var Reason := GetBanReason(bywho);
+    if(!Reason)
+      return;
+    endif
+
+    var Time := GetBanTime(bywho);
+
+    BanAccount(WhomAcc, Reason, Time, bywho);
+
+    SendSysMessage(bywho,"Zbanowal"+ggm(bywho,3)+" konto "+WhomAcc.name+" za "+Reason+", na "+CInt(Time / 3600)+".",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeActiveDeactiveAccount(bywho)
+
+  if(!CmdHaveAccess(bywho, 0, CMDA_SECRET | CMDA_MODIFY))
+    return 0;
+  endif
+
+  if(IsAccountFrozen(WhomAcc))
+
+    var Res := UnFreezeAccount(WhomAcc);
+
+    if(Res == error)
+      SendSysMessage(bywho, Res.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(bywho, "Odmrozil"+ggm(bywho,3)+" konto "+WhomAcc.name+".", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+  else
+
+    var Res := FreezeAccount(WhomAcc);
+
+    if(Res == error)
+      SendSysMessage(bywho, Res.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(bywho, "Zamrozil"+ggm(bywho,3)+" konto "+WhomAcc.name+".", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeAccountValue(bywho,type)
+
+  if(!CmdHaveAccess(bywho, 0, CMDA_SECRET | CMDA_MODIFY))
+    return 0;
+  endif
+
+  var basevalue := "";
+
+  var NewValue := SendTextEntryGump( bywho, "Wprowadz nowa wartosc ",TE_CANCEL_ENABLE);
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  case(type)
+    "Profile":  basevalue := WhomAcc.GetProp("profile");
+
+                if(!basevalue.profile)
+                  basevalue := struct;
+                  basevalue.+login := newvalue;
+                  basevalue.+lasttime := PolCore().systime;
+                  WhomAcc.SetProp("profile", basevalue);
+                  basevalue := "None";
+                else
+                  var Base := basevalue.login;
+                  basevalue.login := newvalue;
+                  basevalue.lasttime := PolCore().systime;
+                  WhomAcc.SetProp("profile", basevalue);
+                  basevalue := Base;
+                endif
+    default:    return;
+  endcase
+
+  SendSysMessage(bywho,"Zmienil"+ggm(bywho,3)+" "+type+" konta "+WhomAcc.name+" z "+basevalue+" na "+newvalue+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteChosenChar(nr,bywho)
+
+  if(!CmdHaveAccess(bywho, 0, CMDA_SECRET | CMDA_MODIFY))
+    return 0;
+  endif
+
+  var charname := WhomAcc.GetCharacter(nr).name;
+  SendSysMessage(bywho,"Czy na pewno chcesz skasowac postac "+charname+" z konta "+WhomAcc.name+"?",FONT_NORMAL,COLOR_GREEN);
+
+  if(!YesNo(bywho,"Tak ?"))
+    SendSysMessage(bywho,"Postaci nie skasowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(WhomAcc)
+    if(DeleteChar(WhomAcc,nr))
+      SendSysMessage(bywho,"Skasowal"+ggm(bywho,3)+" postac "+charname+" z konta "+WhomAcc.name+".",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(bywho,"Nie udalo Ci sie skasowac postaci "+charname+" z konta "+WhomAcc.name+".",FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RefreshPerson(who)
+
+  RecalcVitals(who);
+  SetHp(who,GetMaxHp(who));
+  SetMana(who,GetMaxMana(who));
+  SetStamina(who,GetMaxStamina(who));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseAccountFromIpString(who,Ip)
+
+  StandMultiSkLayout(25);
+  GTextLine(130,30,610,"Konta z ip "+Ip);
+  GButton(110, 34, 2117,2118,9977);
+
+  GMultiPage();
+  GAddPageData(365,55,2650,2651,365,563,2648,2647);
+
+  var LastIps,IpAccs := {},i := 1;
+  var IpKeys;
+
+  foreach Acc in ListAccounts()
+    Acc := FindAccount(Acc);
+    LastIps := Acc.GetProp("LastIP");
+    IpKeys  := LastIps.keys();
+    
+    foreach LastIp in IpKeys
+      if(MatchIp(Ip, LastIp))
+        GCheckNextPage(25);
+        GButton(60,(78+(GNPCount()*20)),2117,2118,i);
+        GTextLine(80,(73+(GNPCount()*20)),550, LastIp);
+        GTextLine(200,(73+(GNPCount()*20)),670, Acc.name);
+        IpAccs[i] := Acc.name;
+        i := i + 1;
+        break;
+      endif
+    endforeach
+  endforeach
+
+  SendSysMessage(who,"Znaleziono "+len(IpAccs)+" kont z ip "+Ip+".",FONT_NORMAL,COLOR_GREEN);
+  var res := GSend(who)[0];
+  if(res)
+    return FindAccount(IpAccs[res[0]]);
+  endif
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseAccountByProfile(who, Profile)
+
+  StandMultiSkLayout(25);
+  GTextLine(130,30,610,"Konta z profilu: "+Profile);
+  GButton(110, 34, 2117,2118,9977);
+
+  GMultiPage();
+  GAddPageData(365,55,2650,2651,365,563,2648,2647);
+
+  Profile := Lower(Profile);
+  var ProfData, pfAccs := {},i := 1;
+
+  foreach Acc in ListAccounts()
+    Acc := FindAccount(Acc);
+    ProfData := Acc.GetProp("profile");
+    if(ProfData)
+      if(Lower(ProfData.login)[Profile])
+        GCheckNextPage(25);
+        GButton(60,(78+(GNPCount()*20)),2117,2118,i);
+        GTextLine(80,(73+(GNPCount()*20)),550, ProfData.login);
+        GTextLine(250,(73+(GNPCount()*20)),670, Acc.name);
+        pfAccs[i] := Acc.name;
+        i := i + 1;
+      endif
+    endif
+  endforeach
+
+  if(pfAccs.size())
+    SendSysMessage(who,"Znaleziono "+len(pfAccs)+" kont z profilu: "+Profile+".",FONT_NORMAL,COLOR_GREEN);
+    var res := GSend(who)[0];
+    if(res)
+      return FindAccount(pfAccs[res[0]]);
+    endif
+  else
+    SendSysMessage(who,"Nie znaleziono kont z profilu: "+Profile+".",FONT_NORMAL,COLOR_RED);
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DeleteChAccount(who)
+
+  SendSysMessage(who,"Skasowac konto "+WhomAcc.name+"?",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(who,"Napewno ?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  var Reason := SendTextEntryGump(who, "Wpisz powod", TE_CANCEL_ENABLE);
+
+  if(Reason == 0)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(!Reason)
+    Reason := "Konto zostalo skasowane. (brak powodu)";
+  endif
+
+  Reason := Reason + " (skasowane przez: "+who.name+")";
+
+  if(!DeleteAccount(WhomAcc, Reason))
+    SendSysMessage(who, "Nie udalo sie skasowac konta "+WhomAcc.name+".", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  SendSysMessage(who, "Skasowano konto "+WhomAcc.name+".", FONT_NORMAL, COLOR_GREEN);
+  exit;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeAccLogin(who)
+
+  var NewLogin := SendTextEntryGump(who,"Podaj nowy login",TE_CANCEL_ENABLE);
+  if(!NewLogin)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(NewLogin in ListAccounts())
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(len(NewLogin) > 10 or len(NewLogin) < 4 or NewLogin[" "])
+    SendSysMessage(who,"login moze miec 4-10 znakow, i nie zawierac odstepow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  var NewPass := SendTextEntryGump(who,"Podaj nowe haslo",TE_CANCEL_ENABLE);
+  if(!NewPass)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  WhomAcc.SetName(NewLogin, NewPass);
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" login konta na "+NewLogin+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeAccPass(who)
+
+  var NewPass := SendTextEntryGump(who,"Podaj nowe haslo",TE_CANCEL_ENABLE);
+  if(!NewPass)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(len(NewPass) > 20 or len(NewPass) < 4 or NewPass[" "])
+    SendSysMessage(who,"haslo moze miec 4-20 znakow, i nie zawierac odstepow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  LogMsg(PASS_LOG,who,{WhomAcc.name});
+
+  if((!Whom.cmdlevel and !WhomAcc.GetProp("RealAdmin")) or WhomAcc.name == who.acctname)
+    WhomAcc.SetPassword(NewPass);
+  else
+    if(IsDev(who))
+      WhomAcc.SetPassword(NewPass);
+    endif
+  endif
+
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" haslo konta "+WhomAcc.name+" na "+NewPass+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAllAccounts(who)
+
+  var AccArr := ListAccounts();
+  var CharDict := dictionary;
+  var AccRef,Char,i,Chars;
+
+  foreach Acc in AccArr
+    AccRef := FindAccount(Acc);
+    Acc    := lower(Acc);
+    Chars  := "";
+
+    for(i:=1;i<=5;i:=i+1)
+      Char := AccRef.GetCharacter(i);
+      if(Char)
+        if(!Chars)
+          Chars := GetRealName(Char);
+        else
+          Chars := Chars + ", "+GetRealName(Char);
+        endif
+        if(i > 2 and !Chars["*** "])
+          Chars := "*** "+Chars;
+        endif
+      endif
+    endfor
+    CharDict[Acc] := Chars;
+  endforeach
+
+  AccArr.sort();
+
+  GInit();
+  GMultiHeaderInit();
+  GResPic(0,  20, 2520,600,500);
+  GResPic(28, 54, 3600,544,430);
+  GAddPageData(565,55,2650,2651,565,463,2648,2647);
+  GMultiPage();
+
+  for(i:=1;i<=AccArr.size();i:=i+1)
+    GCheckNextPage(20);
+    GButton(50, GNPCount()*20+74, 2117,2118, i);
+    GTextLine(75,  GNPCount()*20+70, 550, AccArr[i]);
+    if(CharDict[AccArr[i]])
+      GTextLine(180, GNPCount()*20+70, 610, CharDict[AccArr[i]]);
+    else
+      GTextLine(180, GNPCount()*20+70, 1219, "Puste");
+    endif
+  endfor
+
+  SendSysMessage(who,"Istnieje "+AccArr.size()+" kont.",FONT_NORMAL,COLOR_GREEN);
+
+  var Res := GSend(who)[0];
+  if(Res)
+    WhomAcc := FindAccount(AccArr[Res]);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAllCharacters(who)
+
+  var AllAcc   := ListAccounts();
+  var AllChars := array;
+  var Char, i;
+
+  foreach Acc in AllAcc
+    Acc := FindAccount(Acc);
+    for(i:=1;i<=5;i:=i+1)
+      Char := Acc.GetCharacter(i);
+      if(Char)
+        AllChars.append(array(GetRealName(Char), Char.acctname, Char.serial));
+      endif
+    endfor
+  endforeach
+
+  SendSysMessage(who,"Istnieje "+AllChars.size()+" postaci.",FONT_NORMAL,COLOR_GREEN);
+
+  var newWhom := ShowCharsSelection(who, AllChars, "Wszystkie postacie");
+
+  if(newWhom)
+    whom := newWhom;
+  endif;
+
+endfunction
+
+
+//-----------------------------------------------------------------------------
+
+function CmdActivateAccount(who)
+
+  var Res := ActivateAccount(WhomAcc);
+
+  if(Res == error)
+    SendSysMessage(who, Res.errortext, FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"Aktywowal"+ggm(who,3)+" konto "+WhomAcc.name+".",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetOnlineTimer(who)
+
+  var NewTime := SendTextEntryGump(who,"Podaj Czas",TE_CANCEL_ENABLE);
+  if(!CInt(NewTime))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  SetObjProperty(whom,PROP_ONLINETIMER,CInt(NewTime));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowEquippedItems(who)
+
+  var Item,n := 0;
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+  StandSkLayout(20,25);
+  GTextLine(50,30,610,"Ekwipunek: "+whom.name);
+  GButton(625,487,2453,2454,9997);
+
+  var i;
+
+  for(i:=1;i<=LAYER_TRADE;i:=i+1)
+    Item := GetEquipmentByLayer(whom,i);
+    if(item)
+      GTextLine(90,(n*20)+70,560,Item.serial);
+      GTextLine(180,(n*20)+70,999,Item.objtype);
+      GTextLine(230,(n*20)+70,999,hex(Item.objtype));
+      GTextLine(290,(n*20)+70,1320,Item.color);
+      GTextLine(340,(n*20)+70,1000,ItemCfg[Item.objtype].name);
+      GTextLine(440,(n*20)+70,580,Item.desc);
+
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        GButton(60,(n*20)+74,2117,2118,10000000+Item.serial);
+      endif
+      n := n + 1;
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UnEquipSel(ItemSer)
+
+  var Item, i;
+
+  for(i:=1;i<=25;i:=i+1)
+    Item := GetEquipmentByLayer(whom,i);
+    if(item)
+      if(Item.serial == ItemSer)
+        MoveItemToContainer(Item,whom.backpack);
+      endif
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowBan(who)
+
+  var BanTime := WhomAcc.GetProp("BanTime");
+  if(!BanTime)
+    BanTime := 604800;
+    WhomAcc.SetProp("BanTime",BanTime);
+  endif
+  if(BanTime == -1)
+    BanTime := "N/A";
+  else
+    BanTime := RealTime(BanTime);
+  endif
+  var WhoBan := FindPlayerBySerial(CInt(WhomAcc.GetProp("WhoBan")));
+
+  StandSkLayout(5);
+
+  GButton(  325,187,2453,2454,9988);
+  GTextLine(140,30, 610,"Konto : "+WhomAcc.name);
+
+  GTextLine(50, 77, 550,"Powod");
+  GTextLine(160,77, 560,ClStr(WhomAcc.GetProp("BanReason")));
+
+  if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+    GButton(30, 81, 2117, 2118, 9695);
+  endif
+
+  GTextLine(50, 97, 550,"Na czas");
+  GTextLine(160,97, 560,BanTime);
+  if(CmdHaveAccess(who, whom, CMDA_ADMIN))
+    GButton(30, 101, 2117, 2118, 9694);
+  endif
+
+  BanTime := CInt(WhomAcc.GetProp("BanTime"));
+  if(BanTime > 0)
+    GTextLine(50, 117, 550,"Pozostaly czas");
+    GTextLine(160,117, 560,RealTime((WhomAcc.GetProp("LastLogin") + BanTime) - ReadGameClock()));
+  endif
+
+  if(WhoBan)
+    GTextLine(50, 137, 550,"Zbanowal");
+    GTextLine(160,137, 560,WhoBan.name);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBanReason(bywho)
+
+  var Reason := SendTextEntryGump(bywho, "Powod ?", TE_CANCEL_ENABLE, TE_STYLE_NORMAL, 180);
+  if(!Reason)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  return Reason;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetBanTime(bywho)
+
+  var Time := SendTextEntryGump(bywho,"Na czas? (w godz)",TE_CANCEL_ENABLE);
+  if(!CInt(Time))
+    Time := -1;
+  else
+    Time := CInt(Time) * 3600;
+  endif
+
+  return Time;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetBanReason(bywho)
+
+  var Reason := GetBanReason(bywho);
+
+  if(Reason)
+    WhomAcc.SetProp("BanReason",Reason);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetBanTime(bywho)
+
+  var Time := GetBanTime(bywho);
+
+  if(TIme)
+    WhomAcc.SetProp("BanTime",Time);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetModName(ModId)
+
+  case(ModId)
+    MOD_STR:            return "Str";
+    MOD_DEX:            return "Dex";
+    MOD_INT:            return "Int";
+    MOD_LIFE:           return "Life";
+    MOD_STAMINA:        return "Stam";
+    MOD_MANA:           return "Mana";
+    MOD_AR:             return "Ar";
+    MOD_GRAPHIC:        return "Grap";
+    MOD_COLOR:          return "Color";
+
+    MOD_INCO:           return "Name";
+    MOD_TPREFIX:        return "Prefix";
+    MOD_TSUFFIX:        return "Suffix";
+    MOD_TGUILD:         return "Guild";
+    MOD_TRACE:          return "Race";
+    MOD_PARA:           return "Paralyze";
+    MOD_HGHOSTS:        return "Hear Ghosts";
+    MOD_RA:             return "Reactive Armor";
+    MOD_LIGHT:          return "Light Lvl";
+    MOD_POISON_PROT:    return "Poison Prot";
+    MOD_STATUS:         return "Status";
+    MOD_FIRERESIST:     return "Fire Res";
+    MOD_COLDRESIST:     return "Cold Res";
+    MOD_LIGHTRESIST:    return "Light Res";
+    MOD_HP_REGEN:       return "Hp Regen";
+    MOD_MANA_REGEN:     return "Mana Regen";
+    MOD_STAM_REGEN:     return "Stam Regen";
+    MOD_CTH:            return "Cth";
+    MOD_LOWER_RC:       return "Lower RegsCost";
+    MOD_FASTER_CAST:    return "Faster Cast";
+    MOD_MANA_COST:      return "Mana Cost";
+    MOD_SPELL_DMG:      return "Spell Dmg";
+    MOD_POISON_DMG:     return "Poison Dmg";
+    MOD_COLD_DMG:       return "Cold Dmg";
+    MOD_FIRE_DMG:       return "Fire Dmg";
+    MOD_LIGHT_DMG:      return "Light Dmg";
+    MOD_MOUNT:          return "Mount";
+    MOD_HAIRS:          return "Hairs";
+    MOD_PENETRATE:      return "Penetrate";
+    MOD_UNTOUCHABLE:    return "UnTouchAble";
+    MOD_UNDEAD_SLAY:    return "UndeadSlayer";
+    MOD_DAEMON_SLAY:    return "DaemonSlayer";
+    MOD_ORDER_SLAY:     return "OrderSlayer";
+    MOD_DEFENSE:        return "Defense";
+    MOD_MONSTER_AR:     return "Monster Ar";
+    MOD_TREE_SUPPORT:   return "TreeSupport";
+    MOD_BLOCK_CAST:     return "BlockCast";
+    MOD_BLOCK_FIGHT:    return "BlockFight";
+    MOD_BLOCK_SELFHEAL: return "BlockSelfHeal";
+    MOD_SILVER_AR:      return "Silver Ar";
+    MOD_FIRE_BLOOD:     return "Fire Blood";
+    MOD_ONHIT_AR:       return "OnHit Ar";
+    MOD_LIFE_STOLEN:    return "Life Stolen";
+    MOD_MANA_STOLEN:    return "Mana Stolen";
+    MOD_MANA_DMG:       return "Mana Dmg";
+    MOD_MULTI_SHOT:     return "Multi Shot";
+    MOD_EXPLO_DMG:      return "Explo Dmg";
+    MOD_RETORT:         return "Riposta";
+    MOD_CRIT_HIT:       return "CritHit";
+    MOD_STAM_DMG:       return "Stamina Dmg";
+    MOD_DISARM:         return "Disarm";
+    MOD_STUPOR:         return "Otepienie";
+    MOD_2H_DMG:         return "2H Dmg";
+    MOD_RUN_SPEED:      return "Run Speed";
+    MOD_SLOWDOWN:       return "Slowdown";
+    MOD_RED_SPELL:      return "Reduce Spell";
+    MOD_CHARM_ANIMAL:   return "Charm Animal";
+    MOD_DISMOUNT_RES:   return "Dismount Res";
+    MOD_MAGIC_SHIELD:   return "Magic Shield";
+    MOD_CASTSIGHT:      return "Cast Sight Reduce";   
+    MOD_DMG_REDUCE:     return "Damage Reduce";
+  endcase
+
+  return "";
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStatModInfo(who, whom, ModId, StVal, ModVal, Pos)
+
+  GTextLine(50, 67+Pos, 550, GetModName(ModId));
+  GTextLine(95, 67+Pos, 560, StVal);
+  GTextLine(160,67+Pos, 550, "Mod");
+  GTextLine(200,67+Pos, 560, ModVal);
+
+  BuildStdModInfo(who, Whom, ModId, Pos);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildNormalModInfo(who, whom, ModId, Pos, mVal := 0)
+
+  GTextLine(50, 67+Pos, 550, GetModName(ModId));
+  GTextLine(160,67+Pos, 550, "Mod");
+  if(mVal)
+    GTextLine(200,67+Pos, 560, mVal);
+  else
+    GTextLine(200,67+Pos, 560, CInt(GetModAmount(whom, ModId)));
+  endif
+
+  BuildStdModInfo(who, Whom, ModId, Pos);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTextModInfo(who, whom, ModId, Pos)
+
+  GTextLine(50, 67+Pos, 550, GetModName(ModId));
+  GTextLine(110,67+Pos, 560, ClStr(GetModOldAmount(whom, ModId)));
+
+  BuildStdModInfo(who, Whom, ModId, Pos);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildArrayModInfo(who, whom, ModId, Pos)
+
+  var ArrText := "";
+  var ModAmt := GetModAmount(whom, ModId);
+  var i;
+
+  for(i:=1; i<=ModAmt.size(); i:=i+1)
+    if(i > 1)
+      ArrText := ArrText+", "+ModAmt[i];
+    else
+      ArrText := ModAmt[i];
+    endif
+  endfor
+
+  GTextLine(50, 67+Pos, 550, GetModName(ModId));
+  GTextLine(160,67+Pos, 560, ArrText);
+
+  BuildStdModInfo(who, Whom, ModId, Pos);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStdModInfo(who, whom, ModId, Pos)
+
+  var mClr := 0;
+
+  case(CanMod(whom, ModId))
+    0:       mClr := 0;
+    1:       mClr := 1;
+    default: mClr := -1;
+  endcase
+
+  if(mClr == 0)
+    if(GetModDuration(whom, ModId) == MODDUR_INFINITE)
+      GTextLine(305, 67+Pos, 1321, "Infinite");
+    else
+      GTextLine(310, 67+Pos, 1419, RealTime(GetModLeftTime(whom, ModId)));
+    endif
+  endif
+
+  GGumpPic( 260,72+Pos, 2361 + mClr);
+
+  case(CanMagicMod(whom, ModId))
+    0:       mClr := 0;
+    1:       mClr := 1;
+    default: mClr := -1;
+  endcase
+
+  GGumpPic( 280,72+Pos, 2361 + mClr);
+
+  if(CanMagicMod(whom, ModId) and CanMod(whom, ModId))
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+      GTextLine(360,67+Pos, 550,"Set");
+      GButton(  390,71+Pos, 2117,2118,10100 + ModId);
+    endif
+  elseif(CanMod(whom, ModId) == 0)
+  
+    if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+      GTextLine(360,67+Pos, 550,"Un");
+      GButton(  390,71+Pos, 2117,2118,10000 + ModId);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowMainModWindow(who, whom)
+
+  StandSkLayout(20, 13);
+  GAddPageData(425,55,2650,2651,425,463,2648,2647);
+  GPage();
+
+  GButton(  325,487,2453,2454,102);
+  GButton( 40, 33, 2117,2118, 9799);
+  GTextLine(60, 30, 999, "Odswiez");
+  GTextLine(140,30, 610,"Mods: "+Whom.name);
+
+  var hPos := 0;
+  var ActiveMods := array;
+  
+  foreach ModId in GetAllMods()
+    if(CanMod(whom, ModId) == 0)
+      ActiveMods.append(ModId);
+    endif
+  endforeach
+
+  foreach ModId in ActiveMods
+    GCheckNextPage(20);
+    hPos := GNPCount() * 20;
+
+    BuildModInfoBar(who, whom, ModId, hPos);
+  endforeach
+
+  foreach ModId in GetAllMods()
+    if(!(ModId in ActiveMods))
+      GCheckNextPage(20);
+      hPos := GNPCount() * 20;
+
+      BuildModInfoBar(who, whom, ModId, hPos);
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildModInfoBar(who, whom, ModId, hPos)
+
+  case(ModId)
+    MOD_STR:          BuildStatModInfo(who, whom, ModId, GetBaseStrengthBaseValue(whom) * 0.1, GetStrengthMod(whom), hPos);
+    MOD_DEX:          BuildStatModInfo(who, whom, ModId, GetBaseDexterityBaseValue(whom) * 0.1, GetDexterityMod(whom), hPos);
+    MOD_INT:          BuildStatModInfo(who, whom, ModId, GetBaseIntelligenceBaseValue(whom) * 0.1, GetIntelligenceMod(whom), hPos);
+    MOD_LIFE:         BuildStatModInfo(who, whom, ModId, GetMaxHp(whom) - GetTempModAmount(whom,MOD_LIFE), GetTempModAmount(whom,MOD_LIFE), hPos);
+    MOD_STAMINA:      BuildStatModInfo(who, whom, ModId, GetMaxStamina(whom) - GetTempModAmount(whom,MOD_STAMINA), GetTempModAmount(whom, MOD_STAMINA), hPos);
+    MOD_MANA:         BuildStatModInfo(who, whom, ModId, GetMaxMana(whom) - GetTempModAmount(whom,MOD_MANA), GetTempModAmount(whom,MOD_MANA), hPos);
+    MOD_AR:           BuildStatModInfo(who, whom, ModId, whom.ar - whom.ar_mod, CInt(GetModAmount(whom,MOD_AR)), hPos);
+    MOD_GRAPHIC:      BuildStatModInfo(who, whom, ModId, whom.objtype, whom.graphic, hPos);
+    MOD_COLOR:        BuildStatModInfo(who, whom, ModId, whom.truecolor, whom.color, hPos);
+
+    MOD_TPREFIX:
+    MOD_TSUFFIX:
+    MOD_TGUILD:
+    MOD_TRACE:
+    MOD_INCO:         BuildTextModInfo(who, whom, ModId, hPos);
+
+    MOD_MOUNT:        BuildNormalModInfo(who, whom, ModId, hPos, GetTempModAmount(whom,MOD_MOUNT)[1]+" "+GetTempModAmount(whom,MOD_MOUNT)[2]);
+
+    MOD_HP_REGEN:
+    MOD_MANA_REGEN:
+    MOD_STAM_REGEN:
+    MOD_LIFE:
+    MOD_MANA:
+    MOD_STAMINA:
+    MOD_FIRERESIST:
+    MOD_COLDRESIST:
+    MOD_LIGHTRESIST:
+    MOD_CTH:
+    MOD_PENETRATE:
+    MOD_UNDEAD_SLAY:
+    MOD_DAEMON_SLAY:
+    MOD_ORDER_SLAY:
+    MOD_DEFENSE:
+    MOD_TREE_SUPPORT:
+    MOD_BLOCK_CAST:
+    MOD_BLOCK_FIGHT:
+    MOD_BLOCK_SELFHEAL:
+    MOD_MONSTER_AR:
+    MOD_SILVER_AR:
+    MOD_FIRE_BLOOD:
+    MOD_ONHIT_AR:
+    MOD_LOWER_RC:
+    MOD_FASTER_CAST:
+    MOD_MANA_COST:
+    MOD_SPELL_DMG:
+    MOD_POISON_DMG:
+    MOD_FIRE_DMG:
+    MOD_COLD_DMG:
+    MOD_LIGHT_DMG:
+    MOD_RETORT:
+    MOD_CRIT_HIT:
+    MOD_STAM_DMG:
+    MOD_DISARM:
+    MOD_STUPOR:
+    MOD_2H_DMG:       
+    MOD_CASTSIGHT:    
+    MOD_DMG_REDUCE:  BuildNormalModInfo(who, whom, ModId, hPos, GetTempModAmount(whom, ModId));
+
+    MOD_UNTOUCHABLE:
+    MOD_MAGIC_SHIELD: BuildArrayModInfo(who, whom, ModId, hPos);
+
+    default:          BuildNormalModInfo(who, whom, ModId, hPos);
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoSelMod(who,Mod)
+
+  var Amt;
+
+  case(Mod)
+    MOD_STR:
+    MOD_DEX:
+    MOD_INT:
+    MOD_AR:
+    MOD_GRAPHIC:
+    MOD_COLOR:
+    MOD_RA:
+    MOD_TPREFIX:
+    MOD_TSUFFIX:
+    MOD_TGUILD:
+    MOD_TRACE:
+    MOD_LIGHT:
+    MOD_POISON_PROT:
+    MOD_LIFE:
+    MOD_MANA:
+    MOD_STAMINA:
+    MOD_FIRERESIST:
+    MOD_COLDRESIST:
+    MOD_LIGHTRESIST:
+    MOD_INCO:
+    MOD_STATUS:
+    MOD_HP_REGEN:
+    MOD_MANA_REGEN:
+    MOD_STAM_REGEN:
+    MOD_CTH:
+    MOD_POISON_DMG:
+    MOD_FIRE_DMG:
+    MOD_COLD_DMG:
+    MOD_LIGHT_DMG:
+    MOD_FIRE_BLOOD:
+    MOD_RETORT:
+    MOD_CASTSIGHT:    
+    MOD_DMG_REDUCE:
+    MOD_FASTER_CAST:
+    MOD_RUN_SPEED:
+    MOD_CRIT_HIT:       Amt := SendTextEntryGump(who,"Jaka wartosc?",TE_CANCEL_ENABLE);
+    MOD_HAIRS:          Amt := {};
+                        Amt[1] := SendTextEntryGump(who,"Jaki ObjType wlosow?",TE_CANCEL_ENABLE);
+                        if(!CInt(Amt[1]))
+                          SendSysMessage(who,"Bledny OT.",FONT_NORMAL,COLOR_RED);
+                          return;
+                        endif
+                        Amt[2] := SendTextEntryGump(who,"Jaki Color wlosow?",TE_CANCEL_ENABLE);
+                        if(!Amt[2])
+                          SendSysMessage(who,"Nie podal"+ggm(who,3)+" koloru.",FONT_NORMAL,COLOR_RED);
+                          return;
+                        endif
+    default:            Amt    := 1;
+  endcase
+
+  if(!Amt and Amt != "")
+    SendSysMessage(who,"Nie podal"+ggm(who,3)+" ilosci.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Dur := SendTextEntryGump(who,"Jaki czas ? (sec)",TE_CANCEL_ENABLE);
+
+  if(!CInt(Dur))
+    SendSysMessage(who,"Nie podal"+ggm(who,3)+" czasu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  DoMod(whom,Mod,Amt,CInt(Dur));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowSkModWindow(who,whom)
+
+  StandSkLayout(20, 13);
+  GButton( 40, 33, 2117,2118, 9798);
+
+  var maxSkId := GetMaxSkillId();
+
+  GButton(  325,487,2453,2454,102);
+  GTextLine(60,30, 610,"Mody Umiejetnosci: "+whom.name);
+  GAddPageData(425,55,2650,2651,425,463,2648,2647);
+  GPage();
+
+  var SkID,SkElem;
+
+  for(SkID:=0;SkID<=maxSkId;SkID:=SkID+1)
+    GCheckNextPage(PAGE_COUNT);
+    if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+      GButton(  40,Cint(70+ (GNPCount()*20)),2117,2118,10400+SkId);
+    endif
+    SkElem := GetSkillConfigElem(SkID);
+    GTextLine(60, Cint(67+ (GNPCount()*20)),550,SkElem.name);
+    GTextLine(215,Cint(67+ (GNPCount()*20)),550,GetBaseSkillBaseValue(whom,(SkID))*0.1);
+    GTextLine(265,Cint(67+ (GNPCount()*20)),550,GetSkillTemporaryMod(whom,SkID));
+
+    GGumpPic( 365,Cint(70+ (GNPCount()*20)), 2361 + CanSkillMod(whom,SkID));
+    GGumpPic( 385,Cint(70+ (GNPCount()*20)), 2361 + CanMagicSkillMod(whom,SkID));
+
+    if(CanMagicSkillMod(whom,SkID) and CanSkillMod(whom,SkID))
+      if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+        GButton(  400,Cint(70+ (GNPCount()*20)),2117,2118,10200+SkID);
+      endif
+    elseif(CanSkillMod(whom,SkID) == 0)
+      GButton(  400,Cint(70+ (GNPCount()*20)),2117,2118,10300+SkId);
+      GTextLine(310,Cint(67+ (GNPCount()*20)),1419, RealTime((GetSkillModTime(whom, SkID) + GetSkillModDuration(whom, SkID)) - ReadGameClock()));
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoSelSkMod(who,SkID)
+
+  var Amt := SendTextEntryGump(who,"Jaka wartosc?",TE_CANCEL_ENABLE);
+
+  if(!CInt(Amt))
+    SendSysMessage(who,"Nie podal"+ggm(who,3)+" ilosci.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Dur := SendTextEntryGump(who,"Jaki czas? (sec)",TE_CANCEL_ENABLE);
+
+  if(!CInt(Dur))
+    SendSysMessage(who,"Nie podal"+ggm(who,3)+" czasu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  DoSkillMod(whom,SkID,CInt(Amt),CInt(Dur));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function VerifyPassword(bywho)
+
+  var Pass := SendTextEntryGump(bywho,"Wpisz haslo",TE_CANCEL_ENABLE);
+
+  if(Pass)
+    if(WhomAcc.CheckPassword(Pass))
+      SendSysMessage(bywho,"Haslo prawidlowe.",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(bywho,"Haslo bledne.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowNearMobs(who, Range)
+
+  StandMultiSkLayout(20,10);
+  GAddPageData(365,55,2650,2651,365,463,2648,2647);
+  var Mobs := {};
+
+  var i := 1;
+
+  if(!Range)
+    Range := 3;
+  elseif(Range > 50 and !CmdHaveAccess(who, whom, CMDA_ADMIN))
+    Range := 50;
+  endif
+
+  GMultiPage();
+
+  foreach Obj in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    if(Obj.isa(POLCLASS_MOBILE) and Obj != who)
+      GCheckNextPage(PAGE_COUNT);
+      GButton(  60, (75+(GNPCount()*20)),2117,2118,i);
+      GTextLine(80, (71+(GNPCount()*20)),550,Obj.name);
+      i := i + 1;
+      Mobs.append(Obj);
+    endif
+  endforeach
+
+  if(Mobs.size())
+    SendSysMessage(who, "Znaleziono "+Mobs.size()+" stworzen w zasiegu "+Range+".", FONT_NORMAL, COLOR_GREEN);
+    var res := GSend(who)[0];
+    if(!res)
+      SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+      exit;
+    endif
+    Whom := Mobs[res];
+  else
+    SendSysMessage(who,"Nie ma nic w zasiegu "+Range+".",FONT_NORMAL,COLOR_RED);
+    exit;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ConcealNearNpcs(who, State, Range)
+
+  State := MinMax(CInt(State), 0, 1);
+
+  var aNpc := 0, cNpc := 0;
+
+  foreach Obj in ListObjectsInBox(who.x-Range,who.y-Range,-127,who.x+Range,who.y+Range,127,who.realm)
+    if(Obj.isa(POLCLASS_NPC))
+      if(Obj.concealed != State)
+        cNpc += 1;
+        Obj.concealed := State;
+        if(!State and Obj.hidden)
+          Obj.hidden := 0;
+        endif
+      endif
+      aNpc += 1;
+    endif
+  endforeach
+
+  SendSysMessage(who, "Concealed ["+State+"]: aNpc: ["+aNpc+"], cNpc: ["+cNpc+"]", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowMwGIDs(who, MinNum)
+
+  var MwGIDs    := dictionary;
+  var Accs      := ListAccounts();
+  var IdCnt     := dictionary;
+  var AllMwGids := dictionary;
+  var AccNum    := 0;
+  var LastIPs, Num, Stealth, MwGid;
+
+  foreach Acc in Accs
+    Acc     := FindAccount(Acc);
+    LastIPs := ReadFile(LASTLOG_PKG + Acc.name);
+    IdCnt   := dictionary;
+    Stealth := Acc.GetProp("StlId");
+
+    foreach LIp in LastIPs
+      LIp := UnPack(LIp);
+
+      if(Stealth and who.cmdlevel < 4)
+        MwGid := Stealth[1];
+      else
+        MwGid := LIp[5];
+      endif
+
+      if(MwGid > 0)
+        AllMwGids[MwGid] := 1;
+
+        IdCnt[MwGid] := CInt(IdCnt[MwGid])+1;
+        if(IdCnt[MwGid] >= MinNum)
+          if(!MwGIDs[MwGid])
+            MwGIDs[MwGid] := array(Acc.name);
+          elseif(!(Acc.name in MwGIDs[MwGid]))
+            MwGIDs[MwGid].append(Acc.name);
+          endif
+        endif
+      endif
+    endforeach
+  endforeach
+
+  while(IsLoggedIn(who))
+    StandMultiSkLayout(20,10);
+    GMultiPage();
+    GAddPageData(365,55,2650,2651,365,463,2648,2647);
+
+    Accs := array;
+    Num  := 0;
+
+    foreach AccArr in MwGIDs
+      if(AccArr.size() > 1)
+        if(GNPCount() > PAGE_COUNT - 3)
+          while(GNPCount() != PAGE_COUNT-1)
+            GCheckNextPage(PAGE_COUNT);
+          endwhile
+        endif
+
+        GCheckNextPage(PAGE_COUNT);
+        GTextLine(50,(71+(GNPCount()*20)),670,"-------------------- "+_AccArr_iter+" --------------------");
+
+        foreach Acc in AccArr
+          if(!(Acc in Accs))
+            AccNum := AccNum + 1;
+          endif
+          Stealth := Acc.GetProp("StlId");
+
+          if(Stealth and who.cmdlevel < 4)
+            MwGid := Stealth[1];
+          else
+            LastIPs := ReadFile(LASTLOG_PKG + Acc);
+            MwGid   := UnPack(LastIPs[LastIPs.size()]);
+            MwGid   := MwGid[5];
+          endif
+
+          Accs.append(Acc);
+          GCheckNextPage(PAGE_COUNT);
+          GButton(  60, (75+(GNPCount()*20)),2117,2118,Accs.size());
+          GButton(  180,(75+(GNPCount()*20)),2117,2118,100000+Accs.size());
+          GTextLine(80, (71+(GNPCount()*20)),550,Acc);
+          GTextLine(200,(71+(GNPCount()*20)),550,MwGid);
+        endforeach
+
+        Num := Num + 1;
+      endif
+    endforeach
+
+    if(Accs.size())
+      SendSysMessage(who, AccNum+"/"+Accs.size()+" kont.", FONT_NORMAL, COLOR_GREEN);
+      SendSysMessage(who, Num+"/"+MwGIDs.size()+" GIDow. Liczba Gidow: "+AllMwGids.size(), FONT_NORMAL, COLOR_BLUE);
+      var Res := CInt(GSend(who)[0]);
+      if(!Res)
+        SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+        exit;
+      elseif(Res > 100000)
+        WhomAcc := FindAccount(Accs[Res-100000]);
+        break;
+      else
+        WhomAcc := FindAccount(Accs[Res]);
+        BuildLastLogIPsGump(who, WhomAcc.name);
+        Res := GSend(who);
+      endif
+    else
+      SendSysMessage(who,"Nie znaleziono wielokrotnych IDow.",FONT_NORMAL,COLOR_RED);
+      exit;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowSortedMwGid(who, sId)
+
+  if(!sId)
+    SendSysMessage(who, "Nie podano Ida.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Accs    := ListAccounts();
+  var GidAccs := dictionary;
+  var Stealth, MwGid, LastIPs, PdId;
+
+  foreach Acc in Accs
+    Acc     := FindAccount(Acc);
+    LastIPs := ReadFile(LASTLOG_PKG + Acc.name);
+    Stealth := Acc.GetProp("StlId");
+
+    foreach LIp in LastIPs
+      LIp := UnPack(LIp);
+
+      if(Stealth and who.cmdlevel < 4)
+        MwGid := Stealth[1];
+      else
+        MwGid := LIp[5];
+      endif
+
+      if(MwGid == sId)
+        if(Stealth and who.cmdlevel < 4)
+          PdId := Stealth[2];
+        else
+          PdId := LIp[6];
+        endif
+        GidAccs[LIp[3]+"_"+GidAccs.size()] := array(Acc.name, LIp[2], LIp[3], LIp[4], PdId);
+      endif
+    endforeach
+  endforeach
+
+  StandMultiSkLayout(15,36);
+  GTextLine(160,30, 610,"GId "+sId+" ("+GidAccs.size()+")");
+  GAddPageData(885,55,2650,2651,885,363,2648,2647);
+  GMultiPage();
+
+  var Keys := GidAccs.keys();
+  var i, AccInfo;
+
+  Keys.reverse();
+
+  for(i:=1;i<=Keys.size();i:=i+1)
+    AccInfo := GidAccs[Keys[i]];
+
+    GCheckNextPage(15);
+    GTextLine(50, (70+(GNPCount()*20)),550,AccInfo[1]);
+    GTextLine(150,(70+(GNPCount()*20)),570,AccInfo[2]);
+    GTextLine(350,(70+(GNPCount()*20)),1410,CUnixTime(CInt(AccInfo[3]), RLT_MONTH));
+    if(CInt(AccInfo[4]))
+      GTextLine(480,(70+(GNPCount()*20)),1300,CUnixTime(CInt(AccInfo[3])+CInt(AccInfo[4]), RLT_MONTH));
+      GTextLine(615,(70+(GNPCount()*20)),560,RealTime(CInt(AccInfo[4])));
+    endif
+
+    if(AccInfo[5])
+      GTextLine(680,(70+(GNPCount()*20)),580,AccInfo[5]);
+    endif
+  endfor
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseDTimer(i,who)
+
+  SendSysMessage(who,"Kasowanie Timera na slocie "+i+", konto - "+WhomAcc.name+".",FONT_NORMAL,COLOR_GREEN);
+  var Timer := WhomAcc.GetProp(PROP_CREATION_TIMER);
+  Timer[i]  := 0;
+  WhomAcc.SetProp(PROP_CREATION_TIMER, Timer);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPrivWindow(whom, bywho)
+
+  var Privs;
+  var Granted := whom.Privileges();
+
+  if(CmdHaveAccess(bywho, whom, CMDA_ADMIN))
+    var PrivNames := GetPrivs();
+    Privs := dictionary;
+    foreach Name in PrivNames
+      Privs[Name] := whom.enabled(Name);
+    endforeach
+  elseif(bywho == whom)
+    Privs := whom.Privileges();
+  else
+    exit;
+  endif
+
+  var N := Privs.size() + 2;
+  if(N < 15)
+    N := 15;
+  endif
+
+  StandSkLayout(N);
+  GButton(325,90+(20*N),2453,2454,102);
+  GTextLine(140,30, 610,"Przywileje: "+Whom.name);
+
+  var i := 1;
+
+  foreach Priv in Privs
+    GTextLine(70, 67+(20*i),550,_Priv_iter);
+    if(Priv)
+      if(CmdHaveAccess(bywho, whom, CMDA_ADMIN))
+        GButton(50,73+(20*i),2361,2360,800+i);
+      else
+        GButton(50,73+(20*i),2361,2362,800+i);
+      endif
+    else
+      if(Granted.exists(_Priv_iter))
+        GButton(50,73+(20*i),2362,2361,800+i);
+      else
+        GButton(50,73+(20*i),2360,2361,800+i);
+      endif
+    endif
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowClientWindow(whom)
+
+  StandSkLayout(20);
+  GButton( 325,487,2453,2454,102);
+  GTextLine(140,30, 610,"Info o kliencie osoby : "+Whom.name);
+
+  var Info := dictionary;
+  var Spy  := whom.clientinfo;
+
+  Info["Unique Instance ID of UO"] := Lower(Hex(spy.instance));
+  Info["OS Version"]               := spy.os_major+"."+spy.os_minor+"."+spy.os_revision;
+  Info["CPU Manufacturer"]         := spy.cpu_manufacturer;
+  Info["CPU Family"]               := spy.cpu_family;
+  Info["CPU Model"]                := spy.cpu_model;
+  Info["CPU Clock Speed"]          := spy.cpu_clockspeed+" MHz";
+  Info["CPU Quantity"]             := spy.cpu_quantity;
+  Info["Memory"]                   := spy.memory+" MB";
+  Info["Screen Resolution"]        := spy.screen_width+" x "+spy.screen_height+" x "+spy.screen_depth+" Bit";
+  Info["Direct X Version"]         := spy.directx_major+"."+spy.directx_minor;
+  Info["Video Card Description"]   := CChrZ(spy.video_description);
+  Info["Video Card Vendor ID"]     := spy.video_vendor;
+  Info["Video Card Device ID"]     := spy.video_device;
+  Info["Video Card Memory"]        := spy.video_memory+" MB";
+  Info["Distribution"]             := spy.distribution;
+  Info["Clients Running"]          := spy.clients_running;
+  Info["Clients Installed"]        := spy.clients_installed;
+  Info["Partial Insstalled"]       := spy.partial_installed;
+  Info["Language Code"]            := CChrZ(spy.langcode);
+
+  var i := 1;
+
+  foreach InfoItem in Info
+    GTextLine(50 , 67+(20*i),550,_InfoItem_iter);
+    GTextLine(250, 67+(20*i),580,InfoItem);
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeNpcAbility(Npc, AblId, bywho)
+
+  var NewValue   := SendTextEntryGump( bywho, "Wprowadz nowa wartosc",TE_CANCEL_ENABLE);
+  if(!NewValue)
+    SendSysMessage(bywho,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  NewValue       := CDbl(NewValue);
+  var BaseValue  := CDbl(GetBaseSpecialAbility(Npc, AblId)) * 0.1;
+
+  LogMsg(INFO_LOG,bywho,{Npc,GetAbilityName(AblId),basevalue,newvalue});
+
+  SendSysMessage(bywho,"Zmienil"+ggm(bywho,3)+" wartosc "+GetAbilityName(AblId)+" z "+basevalue+"% do "+newvalue+"% stworzeniu "+Npc.name+".",FONT_NORMAL,COLOR_BLUE);
+
+  SetBaseSpecialAbility(Npc, AblId, NewValue*10);
+  sleepms(50); // sleep bo to event leci do AI, i AI odswieza dopiero zdolnosci
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowAbilitiesWindow()
+
+  StandSkLayout();
+  GPage();
+
+  GButton(  325,487,2453,2454,9997);
+  GTextLine(160,30, 610,"Zdolnosci");
+  GAddPageData(365,55,2650,2651,365,463,2648,2647);
+
+  var SkID;
+  var Abilities := GetSpecialAbilities(whom);
+
+  for(SkID := 1;SkID <= NPC_ABL_MAXID;SkID := SkID + 1)
+    GCheckNextPage(PAGE_COUNT);
+    GTextLine(70, Cint(67+ (GNPCount()*20)),550,GetAbilityName(SkID));
+    GTextLine(270,Cint(67+ (GNPCount()*20)),550,Abilities[SkID]*0.1);
+    GButton(310, Cint(70+ (GNPCount()*20)), 2117, 2118, 1000+SkID);
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessMaxSkInfoGump(who)
+
+  while(IsLoggedIn(who))
+
+    StandSkLayout(12, 15);
+    GButton(  325,330,2453,2454,9);
+
+    GTextLine(60,30,610,"Max Umiejetnosci: "+whom.name);
+
+    var MaxSk := GetMaxSkills(whom);
+    var i := 0;
+
+    foreach SkData in MaxSk
+      var SkId := GetSkillIdByAttributeId(_SkData_iter);
+      if(isAdmin(who))
+        GButton(60, 72+(i*80), 2117, 2118, 10+SkId);
+        GButton(62, 94+(i*80), 0x938, 0x93A, 200+SkId);
+      endif
+      GTextLine(80, 70 + i*80, 1310, GetSkillConfigElem(SkId).Name);
+      GTextLine(250, 70 + i*80, 560, GetSkillMaxValue(whom, SkId)+"%");
+      GTextLine(90, 95 + i*80, 999, "Data wybrania:");
+      GTextLine(180, 95 + i*80, 1420, GetDescDate(SkData[2]));
+      GTextLine(320, 115 + i*80, 1320, RealTime(ReadGameClock() - SkData[2]) + " temu");
+      GTextLine(320,70+(i*80), 999, GetMaxSkillTypeName(SkData[1]));
+
+      if(SkData.size() == 3)
+        GTextLine(90, 115 + i*80, 999, "Obnizenie za:");
+        GTextLine(180, 115 + i*80, 1219, RealTime((SkData[3]+MSK_DELAYED_INTERVAL) - ReadGameClock()));  
+      endif
+      i += 1;
+    endforeach
+
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+      GButton(50, 330, 2117, 2118, 1);
+      GTextLine(70, 327, 670, "Ustaw");
+    endif
+
+    var Res := CInt(GSend(who)[0]);
+
+    if(Res == 1)
+      SetMaxSkValueGump(who, whom);
+    elseif(Res >= 200 and IsAdmin(who))
+      var SkID := Res-200;
+      Res := EraseMaxSkillDelayed(whom, SkID);
+      if(Res)
+        SendSysMessage(who, "Usunieto opoznionym TRYBEM maksymalna wartosc umiejetnosci "+GetSkillConfigElem(SkID).Name+" postaci "+GetRealName(whom)+".", FONT_NORMAL, COLOR_WHITE);
+      endif
+    elseif(Res >= 10 and IsAdmin(who))
+      var SkID := Res-10;
+      Res := EraseMaxSkill(whom, SkID);
+      if(Res)
+        SendSysMessage(who, "Usunieto maksymalna wartosc umiejetnosci "+GetSkillConfigElem(SkID).Name+" postaci "+GetRealName(whom)+".", FONT_NORMAL, COLOR_GREEN);
+      endif
+    else
+      break;
+    endif
+
+    MaxSk := GetMaxSkills(who);
+
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRawStatsGump()
+
+  StandSkLayout(5, 32);
+  
+  GButton(  765,190,2453,2454,9997);
+
+  GTextLine(60,30,610,"Statystyki RAW: "+whom.name);
+  
+  GButton(580, 33, 2117, 2118, 8002);
+  GTextLine(600,30,610,"Odswiez");
+
+  GTextLine(50, 77, 999, "Atrybut");
+  GTextLine(150, 77, 999, "Base");
+  GTextLine(250, 77, 999, "Gain");
+  GTextLine(350, 77, 999, "Left");
+  GTextLine(450, 77, 999, "BaseRaw");
+  GTextLine(550, 77, 999, "CurRaw");
+  GTextLine(650, 77, 999, "NextRaw");
+  
+  var AttrCfg := ReadConfigFile(ATTRIBUTES_CFG);
+
+  foreach AttrId in array(ATTRIBUTEID_STRENGTH, ATTRIBUTEID_DEXTERITY, ATTRIBUTEID_INTELLIGENCE)
+
+    var RawStr := GetAttrRawArray(whom, AttrId);
+
+    GTextLine(50, 77+(_AttrId_iter*20), 560, AttrCfg[AttrId].Name);
+    GTextLine(150, 77+(_AttrId_iter*20), 550, RawStr.baseVal * 0.1);
+    GTextLine(250,77+(_AttrId_iter*20), 550, RawStr.gainPoints);
+    GTextLine(350,77+(_AttrId_iter*20), 1420, RawStr.leftPoints);
+    GTextLine(450,77+(_AttrId_iter*20), 550, RawStr.basePoints);
+    GTextLine(550,77+(_AttrId_iter*20), 1320, RawStr.curPoints);
+    GTextLine(650,77+(_AttrId_iter*20), 550, RawStr.nextPoints);
+
+  endforeach
+
+  GButton(50, 190, 2117, 2118, 8001);
+  GTextLine(70, 187, 670, "Umiejetnosci");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRawSkillsGump()
+
+  StandSkLayout(22, 32);
+  GPage();
+  
+  GAddPageData(785,55,2650,2651,785,503,2648,2647);
+  
+  GButton(  765,530,2453,2454,8002);
+
+  GButton(50, 533, 2117, 2118, 8002);
+  GTextLine(70, 530, 670, "Statystyki");
+
+  GTextLine(60,30,610,"Umiejetnosci RAW: "+whom.name);
+  
+  GButton(580, 33, 2117, 2118, 8001);
+  GTextLine(600,30,610,"Odswiez");
+
+  GTextLine(50, 77, 999, "Atrybut");
+  GTextLine(220, 77, 999, "Base");
+  GTextLine(310, 77, 999, "Gain");
+  GTextLine(400, 77, 999, "Left");
+  GTextLine(490, 77, 999, "BaseRaw");
+  GTextLine(580, 77, 999, "CurRaw");
+  GTextLine(670, 77, 999, "NextRaw");
+  
+  var AttrCfg := ReadConfigFile(ATTRIBUTES_CFG);
+
+  for SkId := 0 to SKILLID__HIGHEST
+
+    GCheckNextPage(20);
+    var AttrId := GetAttributeIdBySkillId(SkId);
+    var RawStr := GetAttrRawArray(whom, AttrId);
+
+    GTextLine(50,  97+(GNpCount()*20), 560, "["+SkId+"] "+AttrCfg[AttrId].Name);
+    GTextLine(220, 97+(GNpCount()*20), 550, RawStr.baseVal * 0.1);
+    GTextLine(310, 97+(GNpCount()*20), 550, RawStr.gainPoints);
+    GTextLine(400, 97+(GNpCount()*20), 1420, RawStr.leftPoints);
+    GTextLine(490, 97+(GNpCount()*20), 550, RawStr.basePoints);
+    GTextLine(580, 97+(GNpCount()*20), 1320, RawStr.curPoints);
+    GTextLine(670, 97+(GNpCount()*20), 550, RawStr.nextPoints);
+
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SetMaxSkValueGump(who, whom)
+
+  if(!CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+    return;
+  endif
+
+  var Data := struct;
+  Data.cfgClass := GetCharClassConfig(whom);
+  Data.ClassId := GetCharClass(whom);
+
+  var SkID  := SelectClassSkillGump(who, Data);
+
+  if(SkID == error)
+    return;
+  endif
+
+  var SkVal := SendTextEntryGump(who, "Wpisz maksymalna wartosc", 0, TE_STYLE_NUMERICAL, 200);
+
+  if(!SkVal)
+    return;
+  endif
+
+  SkVal := CInt(SkVal) * 10;
+
+  var Items := dictionary;
+  Items[MSKT_NPCGUILD] := "Gildyjna";
+  Items[MSKT_CLASS] := "Klasowa";
+  var Idx := SelectListGump(who, Items);
+
+  if(!Idx)
+    return;
+  endif
+/*
+  if(Idx == MSKT_NPCGUILD)
+    var PlayerData := GetObjProperty(who, PROP_NGDDATA);
+    var bGot := 0;
+
+    foreach GuildData in (PlayerData.Guilds) 
+      if(GuildData.Flags & NGPF_MAXSK_CHOOSEN)
+        bGot := 1;
+        break;
+      endif
+    endforeach
+
+    if(!bGot)
+      SendSysMessage(who, "Ta postac nie wybrala jeszcze skilla gildyjnego! Nie ma przypisanej gildii dla MaxSkilla wiec nie mozesz zmienic skilla!", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+*/
+  SetMaxSkillValue(whom, SkID, SkVal, Idx);
+
+  SendSysMessage(who, "Ustawiono MaxSk ["+GetSkillConfigElem(SkID).Name+" - "+(SkVal*0.1)+"] osobie "+GetRealName(whom), FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerHouses()
+
+  StandSkLayout(5);
+  GButton(  325,190,2453,2454,102);
+
+  GTextLine(60,30,610,"Domy osoby: "+whom.name);
+
+  var List  := GetHouseOwnerList(whom);
+  var i     := 0;
+
+  foreach House in List
+    House := FindItemBySerial(House);
+
+    GButton(50, 80+i*20, 2117, 2118, 901+i);
+    GTextLine(70, 77+i*20, 550, House.serial);
+    GTextLine(210,77+i*20, 670, House.x+","+House.y+","+House.z+" "+House.realm);
+    i := i + 1;
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerHousesPrivs(who)
+
+  StandSkLayout(22, 32);
+  GPage();
+  
+  GAddPageData(785,55,2650,2651,785,503,2648,2647);
+  
+  GButton(  765,530,2453,2454,8002);
+
+  GTextLine(60,30,610,"Uprzywilejowane domy osoby: "+whom.name);
+
+  GTextLine(70, 77, 999, "Serial");
+  GTextLine(220, 77, 999, "Lokacja");
+  
+  var List  := FindHousesForPlayer(whom, GNHOF_COOWNER | GNHOF_FRIEND);
+  var i     := 1;
+
+  foreach House in List
+
+    GCheckNextPage(20);
+
+    var Privs := "";
+
+    if(IsHouseCoOwner(whom, House))
+      Privs += "C";
+    endif
+    
+    if(IsHouseFriend(whom, House))
+      Privs += "F";
+    endif
+
+    GButton(50, 100+(GNpCount()*20), 2117, 2118, i);
+    GTextLine(70,  97+(GNpCount()*20), 560, House.serial);
+    GTextLine(220, 97+(GNpCount()*20), 550, House.x+","+House.y+","+House.z+" "+House.realm);
+    GTextLine(400, 97+(GNpCount()*20), 1321, Privs);
+
+    i := i + 1;
+
+  endforeach
+
+  var Res := CInt(GSend(who)[0]);
+
+  if(Res)
+    var House := List[Res];
+    
+    if(House)
+      SendSysMessage(who, "Przenoszenie do domu: ["+House.x+","+House.y+","+House.z+" "+House.realm+"]", FONT_NORMAL, COLOR_GREEN);
+      MoveObject(who, House.x, House.y, House.z, House.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GoToPlayerHouse(who, Nr)
+
+  if(!CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_READ))
+    return 0;
+  endif
+
+  var List  := GetHouseOwnerList(whom);
+  var House := FindItemBySerial(List[Nr]);
+
+  if(House)
+    SendSysMessage(who, "Przenoszenie do domu Nr: "+Nr+" ["+House.x+","+House.y+","+House.z+" "+House.realm+"]", FONT_NORMAL, COLOR_GREEN);
+    MoveObject(who, House.x, House.y, House.z, House.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerMurdPenalty(who)
+
+  StandSkLayout(7);
+  GButton(  325,230,2453,2454,9977);
+
+  GTextLine(60,30,610,"Kara za morderstwa osoby: "+whom.name);
+
+  var MurdData := GetObjProperty(whom, PROP_MURDPNDATA);
+
+  if(MurdData)
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY) and IsMurdPenaltyEnabled())
+      GButton(50, 80, 2117, 2118, 9964);
+    endif
+    GTextLine(70, 77, 550, "Licznik:");
+    GTextLine(210,77, 670, MurdData.Counter);
+    GTextLine(70, 97, 550, "Czas od ost:");
+    if(MurdData.LastKill)
+      if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+        GButton(50, 100, 2117, 2118, 9965);
+      endif
+      GTextLine(210,97, 670, RealTime(CInt(GetObjProperty(whom, PROP_ONLINETIMER)) - CInt(MurdData.LastKill)));
+    else
+      GTextLine(210,97, 1419, "Brak");
+    endif
+    GTextLine(70, 117,550, "Klatwa:");
+    GTextLine(210,117,670, MurdData.CurseMod*-1);
+    GTextLine(70, 137,550, "Akt. Klatwa:");
+    MurdData.CurCurse := CInt(GetObjProperty(whom, PROP_MURDPNCURSE));
+    GTextLine(210,137,670, MurdData.CurCurse*-1);
+    GTextLine(70, 157,550, "Ost zabity:");
+    GTextLine(210,157,670, GetRealName(FindPlayerBySerial(MurdData.LastVicSer))+" / "+MurdData.LastVicSer);
+    GTextLine(70, 177,550, "Flagi:");
+    GTextLine(210,177,670, MurdData.Flags);
+  else
+
+    GTextLine(70, 77, 550, "Brak");
+
+  endif
+  
+  if(CmdHaveAccess(who, whom, CMDA_ADMIN) and IsMurdPenaltyEnabled())
+    GButton(50, 233, 2117, 2118, 9966);
+    GTextLine(70, 230, 550, "Aplikuj");
+    GButton(150, 233, 2117, 2118, 9967);
+    GTextLine(170, 230, 550, "Usun");
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowCagEnemies(who, whom)
+
+  __ParamUnused(who);
+
+  StandMultiSkLayout(7);
+  GButton(  325,230,2453,2454,1);
+  GAddPageData(365,55,2650,2651,365,363,2648,2647);
+
+  var Cags := GetCagEnemies(whom);
+
+  GTextLine(60,30,610,"Wrogowie CAG: "+whom.name);
+  GMultiPage();
+
+  if(Cags.size())
+
+    var Player;
+
+    foreach Serial in (Cags)
+      GCheckNextPage(7);
+      Player := FindPlayerBySerial(Serial);
+      GTextLine(50, 70+GNPCount()*20, 550, GetRealName(Player));
+      GTextLine(210,70+GNPCount()*20, 670, GetCagAmount(whom, Player) + "/" + GetCagMaxAmount(whom) );
+    endforeach
+  else
+
+    GTextLine(70, 77, 550, "Brak");
+
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CrMurdPenalty()
+
+  var MurdData := struct;
+  MurdData.+Counter    := 0;
+  MurdData.+CurseMod   := 0;
+  MurdData.+CurCurse   := 0;
+  MurdData.+LastKill   := 0;
+  MurdData.+LastVicSer := 0;
+  MurdData.+Flags      := 0;
+  SetObjProperty(whom, PROP_MURDPNDATA, MurdData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ModifyMurdPnCounter(who)
+
+  var NewCnt   := SendTextEntryGump(who, "Wpisz nowa wartosc licznika");
+
+  if(!NewCnt)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  else
+    NewCnt := CInt(NewCnt);
+  endif
+
+  var MurdData := GetMurdData(whom);
+  MurdData.Counter  := NewCnt;
+  MurdData.CurseMod := GetMurdPnCurseModFromCnt(who);
+  MurdData.LastKill := GetObjProperty(who, PROP_ONLINETIMER);
+  SetObjProperty(whom, PROP_MURDPNDATA, MurdData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResetMurdPnTimer()
+
+  var MurdData := GetMurdData(whom);
+  MurdData.LastKill := GetObjProperty(whom, PROP_ONLINETIMER) - MP_DELAY_TIME;
+  SetObjProperty(whom, PROP_MURDPNDATA, MurdData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessApplyMurdPenalty()
+
+  ApplyMurdPenalty(whom, whom);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessEraseMurdPenalty()
+
+  var MurdData := GetMurdData(whom);
+  MurdData.LastKill := 0;
+  MurdData.Counter := 0;
+  SetObjProperty(whom, PROP_MURDPNDATA, MurdData);
+  CheckMurdPenalty(whom, 0);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MoveCharFromAcc(who, Idx)
+
+  var MoveAccName := SendTextEntryGump(who, "Wpisz nazwe konta");
+  if(!MoveAccName)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Char := WhomAcc.GetCharacter(Idx);
+  var mRes := WhomAcc.move_char(MoveAccName, Idx);
+
+  if(!mRes)
+    SendSysMessage(who, mRes.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Przeniesiono postac "+Char.name+" na konto "+MoveAccName+".", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ModifySkillMod(who, SkID)
+
+  var Amt := SendTextEntryGump(who, "Wpisz wartosc");
+  if(Amt)
+    Amt := CInt(Amt);
+    ModifySkillTemporaryMod(whom, SkID, Amt);
+    SendSysMessage(who, "Zmienil"+ggm(who,3)+" SkMod SkID: "+SkID+" osobie "+Whom.name+" o "+Amt, FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerGuardChase()
+
+  StandSkLayout(15);
+  GButton(  325,390,2453,2454,102);
+
+  GTextLine(60,30,610,"Scigany w miastach: "+whom.name);
+
+  var GuardChase := GetObjProperty(whom, PROP_GUARD_CHASE);
+  var lTimeLeft := Max(0, CInt((GuardChase.aTime + GUARD_REMEMBER_TIME) - ReadGameClock()));
+
+  if((GuardChase.Flags & GDCF_ALLCITIES) and lTimeLeft)
+    GTextLine(50, 77, 1204, "Scigany wszedzie");
+    GTextLine(210,77, 670, RealTime(lTimeLeft));
+  else
+    GTextLine(50, 77, 1419, "Nie jest scigany wszedzie");
+  endif
+
+  var i := 0;
+
+  foreach City in (GuardChase.Cities)
+    var lTimeLeft := Max(0, CInt((City + GUARD_REMEMBER_TIME) - ReadGameClock()));
+    if(lTimeLeft)
+      GTextLine(50, 110+i*20, 550, _City_iter);
+      GTextLine(210,110+i*20, 670, RealTime(lTimeLeft));
+      i := i + 1;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerMurdReports()
+
+  StandSkLayout(15);
+  GButton(  325,390,2453,2454,102);
+
+  GTextLine(60,30,610,"Murder Reports: "+whom.name);
+
+  var Reports := GetObjProperty(whom, PROP_REPORT_MURDER);
+
+  var i := 0, Player;
+
+  foreach Report in Reports
+    Player := FindPlayerBySerial(_Report_iter);
+    GTextLine(50, 80+i*20, 999, (i+1)+".");
+    if(!CanReport(whom, Player))
+      GTextLine(70, 80+i*20, 1206, GetRealName(Player));
+    else
+      GTextLine(70, 80+i*20, 1419, GetRealName(Player));
+    endif
+    GTextLine(260,80+i*20, 670, RealTime(ReadGameClock() - Report));
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerAggressors(who)
+
+  var N := 10;
+
+  N += 1;
+  StandSkLayout(N);
+  GPage();
+
+  GButton(325, N*20+90, 2453, 2454, 102);
+
+  var AggressorTime := ReadConfigFile("::repsys")["General"].AggressorFlagTimeout;
+  GTextLine(40, N*20+88, 610, "Aggressor Time: "+AggressorTime+"s");
+
+  GTextLine(50, 30, 610, "Odswiez");
+  GButton(30, 33, 2117, 2118, 9851);
+
+  GTextLine(130, 30, 610, "Aggressors to: "+whom.name);
+
+  var LegendX := 95;
+  GTextLine(LegendX,     69, 1419, "[");
+  GTextLine(LegendX+8,   69, 1204, "Jest Agresorem");
+  GTextLine(LegendX+107, 69, 1419, "/");
+  GTextLine(LegendX+122, 69, 999,  "Byl Agresorem");
+  GTextLine(LegendX+209, 69, 1419, "]");
+
+  GAddPageData(365,54, 2650,2651, 365,N*20+64, 2648,2647);
+  N -= 1;
+
+  var AggressorList := GetObjProperty(whom, PROP_AGGRESSORS);
+  if(!AggressorList)
+    return;
+  endif
+
+  var InvertedList  := dictionary;
+  var SortedArray   := array;
+
+  foreach ExpireArray in AggressorList
+    SortedArray.append(ExpireArray[1]);
+
+    if(InvertedList.exists(ExpireArray[1]))
+      InvertedList[ExpireArray[1]].append(_ExpireArray_iter);
+    else
+      InvertedList[ExpireArray[1]] := array(_ExpireArray_iter);
+    endif
+  endforeach
+
+  SortedArray.sort();
+  SortedArray.reverse();
+
+  var Aggressor, Serial, NameColor, TimeColor, RepSys;
+
+  foreach ExpireTime in SortedArray
+    GCheckNextPage(N);
+
+    Serial := InvertedList[ExpireTime][1];
+    InvertedList[ExpireTime].erase(1);
+
+    Aggressor := FindPlayerBySerial(Serial);
+    if(Aggressor)
+      if(IsPlayer(Aggressor))
+        Aggressor := GetRealName(Aggressor);
+      else
+        Aggressor := Aggressor.name+" ["+Serial+"]";
+      endif
+    else
+      Aggressor := "Brak ["+Serial+"]";
+    endif
+
+    if(ExpireTime > ReadGameClock())
+      NameColor := 1204;
+      TimeColor := 1204;
+    else
+      NameColor := 999;
+      TimeColor := 1419;
+    endif
+
+    GTextLine(44,  89+GNPCount()*20, NameColor, _ExpireTime_iter+".");
+    GTextLine(69,  89+GNPCount()*20, NameColor, Aggressor);
+    GTextLine(310, 89+GNPCount()*20, TimeColor, RealTime(Abs(ReadGameClock()-ExpireTime)));
+
+    if(CmdHaveAccess(who, whom, CMDA_SECRET | CMDA_MODIFY))
+      RepSys := AggressorList[Serial][2];
+      GTextLine(285, 89+GNPCount()*20, 610, "("+RepSys+")");
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowMakros(who)
+
+  StandSkLayout(10);
+  GPage();
+
+  GButton(325, 290, 2453, 2454, 102);
+
+  GTextLine(50, 30, 610, "Odswiez");
+  GButton(30, 33, 2117, 2118, 8004);
+
+  GTextLine(130, 30, 610, "Makra: "+whom.name);
+
+  var Makros := GetMakroTimers(whom);
+
+  GTextLine(74,  69, 999, "Ilosc blednych:");
+  GTextLine(160, 69, 550, Makros.wrongNum);
+  
+  GTextLine(64,  89, 999, "Czas do resetu:");
+  GTextLine(160, 89, 550, __IfElse(Makros.wrongTimer, RealTime(Makros.wrongTimer + MAKRO_WRONG_DELAY - ReadGameClock() ), "<Brak>" ) );
+
+  GTextLine(54,  119, 999, "Ilosc niewpisanych:");
+  GTextLine(160, 119, 550, Makros.missNum);
+  
+  GTextLine(64,  139, 999, "Czas do resetu:");
+  GTextLine(160, 139, 550, __IfElse(Makros.missTimer, RealTime(Makros.missTimer + MAKRO_MISS_DELAY - ReadGameClock() ), "<Brak>" ) );
+  
+  GTextLine(74,  169, 999, "Ilosc wszystkich blednych:");
+  GTextLine(230, 169, 1209, Makros.wrongAllNum);
+  
+  GTextLine(54,  189, 999, "Ilosc wszystkich niewpisanych:");
+  GTextLine(230, 189, 1209, Makros.missAllNum);
+  
+  var Time := CInt(GetObjProperty(who, PROP_GAIN_BLOCK));
+  
+  if(Time)
+    GTextLine(54,  219, 999, "blokada gainow na:");
+    GTextLine(230, 219, 1421, RealTime(Time - ReadGameClock()));
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerHunger(who)
+
+  StandSkLayout(10);
+  GButton(  325,290,2453,2454,102);
+
+  GTextLine(50,30,610,"Odswiez");
+  GButton(30,  34,  2117,2118,9844);
+
+  GTextLine(160,30,610,"Glod: "+whom.name);
+
+  GTextLine(50, 77, 1419, GetNutrValue(whom, NVI_HUNGER));
+  GTextLine(80, 77, 999,  "Glod:");
+  GTextLine(170,77, 560,  GetNutrValState(GetNutrValue(whom, NVI_HUNGER)));
+
+  GTextLine(50, 97, 1419, GetNutrValue(whom, NVI_PROTEIN));
+  GTextLine(80, 97, 999,  "Bialka:");
+  GTextLine(170,97, 560,  GetNutrValState(GetNutrValue(whom, NVI_PROTEIN)));
+
+  GTextLine(50, 117,1419, GetNutrValue(whom, NVI_VITAMIN));
+  GTextLine(80, 117, 999, "Witaminy:");
+  GTextLine(170,117, 560, GetNutrValState(GetNutrValue(whom, NVI_VITAMIN)));
+
+  GTextLine(50, 137,1419, GetNutrValue(whom, NVI_SUGAR));
+  GTextLine(80, 137, 999, "Weglowodany:");
+  GTextLine(170,137, 560, GetNutrValState(GetNutrValue(whom, NVI_SUGAR)));
+
+  GTextLine(50, 180, 999, "Czas od ostatniego glodu");
+  if(GetObjProperty(whom, PROP_LASTHUNGER_TIME))
+    GTextLine(220,180, 550, RealTime(GetObjProperty(whom, PROP_ONLINETIMER) - CInt(GetObjProperty(whom, PROP_LASTHUNGER_TIME))));
+  else
+    GTextLine(220,180, 1204, "Brak");
+  endif
+
+  GTextLine(50, 200, 999, "Czas do zglodnienia");
+  if(GetObjProperty(whom, PROP_HUNGERDELAY))
+    GTextLine(220,200, 550, RealTime(CInt(GetObjProperty(whom, PROP_HUNGERDELAY))));
+  else
+    GTextLine(220,200, 1204, "Brak");
+  endif
+  
+  if(CmdHaveAccess(who, whom, CMDA_MODIFY))
+    GButton(30, 80, 2117, 2118, 9847);
+    GButton(30, 100, 2117, 2118, 9846);
+    GButton(30, 120, 2117, 2118, 9845);
+    GButton(30, 140, 2117, 2118, 9848);
+    GButton(30, 183, 2117, 2118, 9850);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeNutrValue(whom, nvIdx, who)
+
+  if(!CmdHaveAccess(who, whom, CMDA_MODIFY))
+    return 0;
+  endif
+                 
+  var newVal := SendTextEntryGump(who, "Wprowadz wartosc", TE_CANCEL_ENABLE);
+
+  if(!newVal)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  newVal := CInt(newVal);
+
+  SetNutrValue(whom, nvIdx, newVal);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResetHungerTime(whom)
+
+  SetObjProperty(whom, PROP_LASTHUNGER_TIME, GetObjProperty(whom, PROP_ONLINETIMER) - GetObjProperty(whom, PROP_HUNGERDELAY));
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowGuardCriminals()
+
+  StandMultiSkLayout(15, 19);
+  GButton(  505,390,2453,2454,102);
+  GAddPageData(545,55,2650,2651,545,363,2648,2647);
+
+  GTextLine(60,30,610,"Pamiec straznika: "+whom.name);
+  GMultiPage();
+
+  var Criminals := GetObjProperty(whom, PROP_GUARD_CRIMINALS);
+  var Player;
+
+  foreach Props in (Criminals)
+    GCheckNextPage(15);
+    Player := FindPlayerBySerial(_Props_iter);
+    GTextLine(50, 70+GNPCount()*20, 550, GetRealName(Player));
+    GTextLine(210,70+GNPCount()*20, 670, RealTime(ReadGameClock() - Props[1]));
+    case(Props[2])
+      GMR_CHASING:       GTextLine(300,70+GNPCount()*20, 1419, "Scigany przez straz");
+      GMR_ANIMAL_INB:    GTextLine(300,70+GNPCount()*20, 1419, "Zwierzak w budynku");
+      GMR_NOT_MURD:      GTextLine(300,70+GNPCount()*20, 1419, "Nie morderca");
+      GMR_TO_WEAK_MURD:  GTextLine(300,70+GNPCount()*20, 1419, "Za slaby morderca");
+      GMR_MURD:          GTextLine(300,70+GNPCount()*20, 1419, "Morderca");
+      GMR_CRIMINAL:      GTextLine(300,70+GNPCount()*20, 1419, "Kryminalista");
+      GMR_STEALING:      GTextLine(300,70+GNPCount()*20, 1419, "Kradziez");
+      GMR_ATTACKED:      GTextLine(300,70+GNPCount()*20, 1419, "Zaatakowany straznik");
+      GMR_INMEMORY:      GTextLine(300,70+GNPCount()*20, 1419, "Pamietany");
+      GMR_CITYCHASING:   GTextLine(300,70+GNPCount()*20, 1419, "Scigany w miescie");
+      GMR_NPCATTACKED:   GTextLine(300,70+GNPCount()*20, 1419, "Atak na Npca");
+      GMR_TAMEDFIGHT:    GTextLine(300,70+GNPCount()*20, 1419, "Bilem jego zwierzaka");
+      GMR_PLAYER_ATTACK: GTextLine(300,70+GNPCount()*20, 1419, "Atak na gracza");
+      GMR_MAGIC_CAST:    GTextLine(300,70+GNPCount()*20, 1419, "Czarowanie w miescie");
+      default:           GTextLine(300,70+GNPCount()*20, 1206, "Brak");
+    endcase
+
+    GTextLine(470,70+GNPCount()*20, 670, Props[3]);
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowNpcMember()
+
+  StandMultiSkLayout(15);
+  GButton(  325,390,2453,2454,102);
+  GAddPageData(365,55,2650,2651,365,363,2648,2647);
+
+  GTextLine(60,30,610,"Pamiec npeca: "+whom.name);
+  GMultiPage();
+
+  var Member := GetObjProperty(whom, PROP_NPC_MEMBER);
+  var Player;
+
+  foreach Time in (Member)
+    GCheckNextPage(15);
+    Player := FindPlayerBySerial(_Time_iter);
+    GTextLine(50, 70+GNPCount()*20, 550, GetRealName(Player));
+    GTextLine(210,70+GNPCount()*20, 670, RealTime(ReadGameClock() - (Time - NPC_MEMBER_TIME)));
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowPlayerHooks()
+
+  StandSkLayout(10, 20);
+  GButton(  525,290,2453,2454,102);
+
+  GTextLine(50,30,610,"Odswiez");
+  GButton(30,  34,  2117,2118,9941);
+
+  GTextLine(200,30,610,"Hooks: "+whom.name);
+
+  GTextLine(70,  75, 999, "Nazwa");
+  GTextLine(210, 75, 999, "Pid");
+  GTextLine(280, 75, 999, "State");
+  GTextLine(340, 75, 999, "Instr");
+  GTextLine(420, 75, 999, "Sleeps");
+  GTextLine(500, 75, 999, "VarNum");
+
+  var Pids      := GetPlayerHooks(whom);
+  var i         := 0;
+
+  foreach Hook in Pids
+    GButton(50, 103+i*20, 2117, 2118, 301+i);
+    GTextLine(70, 100+i*20, 550, _Hook_iter);
+    if(Hook)
+      GTextLine(210,100+i*20, 670, Hook.pid);
+      GTextLine(280,100+i*20, 1419,Hook.state);
+      GTextLine(340,100+i*20, 560, Hook.instr_cycles);
+      GTextLine(420,100+i*20, 670, Hook.sleep_cycles*-1);
+      GTextLine(500,100+i*20, 670, Hook.var_size);
+    else
+      GTextLine(210,100+i*20, 1205, "Brak");
+    endif
+    i := i + 1;
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ResPlayerHookCmd(who, Nr)
+
+  var Names := GetPlayerHooks(whom).keys();
+  SetScriptController(0);
+
+  if(RestartPlayerHook(whom, Names[Nr]))
+    SendSysMessage(who, "Zrestartowano Hook ["+Names[Nr]+"] osobie "+whom.name+".", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Nie udalo sie zrestartowac Hooka ["+Names[Nr]+"] osobie "+whom.name+".", FONT_NORMAL, COLOR_RED);
+  endif
+
+  SetScriptController(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowDeletedAccs(who, seekName)
+
+  StandMultiSkLayout(20, 22);
+  GAddPageData(607,55,2650,2651,607,469,2648,2647);
+  var Accs := ReadFile(ACCS_LOG);
+
+  Accs.reverse();
+
+  var i := 1;
+
+  GMultiPage();
+  var accName;
+
+  if(seekName)
+    seekName := lower(seekName);
+  endif
+
+  foreach Acc in Accs
+    Acc := UnPack(Acc);
+
+    if(seekName)
+      accName := lower(Acc[1]);
+      if(!accName[seekName])
+        continue;
+      endif
+    endif
+
+    GCheckNextPage(PAGE_COUNT);
+    GTextLine(50, (71+(GNPCount()*20)),1320,i);
+    GTextLine(80, (71+(GNPCount()*20)),570,CUnixTime(Acc[3]));
+    GTextLine(205, (71+(GNPCount()*20)),1153,Acc[1]);
+    GTextLine(310, (71+(GNPCount()*20)),550,Acc[2]);
+    i += 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RestartMobScript(who, whom)
+
+  if(!whom.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie NPC.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(whom.process)
+    SendSysMessage(who, "Ten NPC ma juz uruchomiony skrypt AI.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  RestartScript(whom);
+  SendSysMessage(who, "Zrestartowano skrypt AI NPCowi "+GetName(whom)+".", FONT_NORMAL, COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ToggleCriminal(who, whom)
+
+  if(whom.criminal)
+    SetCriminal(whom, 0, "Krim zdjety przez GMa: "+GetRealName(who)+"/"+who.acctname);
+    SendSysMessage(who, "Osoba "+whom.name+" nie jest juz kryminalista.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SetCriminal(whom, 1, "Krim nadany przez GMa: "+GetRealName(who)+"/"+who.acctname);
+    SendSysMessage(who, "Osoba "+whom.name+" jest teraz kryminalista!", FONT_NORMAL, COLOR_ORANGE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ToggleInvul(who, whom)
+
+  if(who == whom)
+    return;
+  endif
+
+  var Elem := GetNpcConfig(whom);
+
+  if(Elem.CityNpc and !Elem.Privs["invul"])
+    if(IsInvul(whom))
+      RevokePrivilege(whom, "invul");
+      SendSysMessage(who, "Wylaczyl"+ggm(who,3)+" invula npecowi "+whom.name+".", FONT_NORMAL, COLOR_ORANGE);
+    else
+      GrantPrivilege(whom,"invul");
+      whom.enable("invul");
+      SendSysMessage(who, "Wlaczyl"+ggm(who,3)+" invula npecowi "+whom.name+".", FONT_NORMAL, COLOR_YELLOW);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

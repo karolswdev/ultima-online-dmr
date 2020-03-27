@@ -1,0 +1,66 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/poison";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 104;
+
+//-----------------------------------------------------------------------------
+
+program CastHpDrain( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+  
+  if(CastOn.isa(POLCLASS_MOBILE))
+    if(CastOn.isa(POLCLASS_NPC))
+      if(IsNpcElemental(CastOn, NPCELEM_UNDEAD) or IsNpcElemental(CastOn, NPCELEM_ELEMENTAL))
+        Fizzle(Caster, "To stworzenie nie wyglada na zbyt krwiste.");
+        return;
+      elseif(IsNpcElemental(CastOn, NPCELEM_POISON))
+      
+        PlayPcEffect(CastOn, FX_MARK_EFFECT, 31, 0x10, 0x10, 4);
+        PlayPcEffect(Caster, FX_MARK_EFFECT, 31, 0x10, 0x10, 4);
+        PlaySoundEffect( CastOn, SFX_SPELL_PARALYZE );
+        PlaySoundEffect( CastOn, SFX_SPELL_MANA_VAMPIRE );
+        SendSysMessage(Caster, "Krew tego stworzenia jest zatruta!", FONT_NORMAL, COLOR_RED);
+        SetPoison(Caster, 8);
+        return;
+      endif
+    endif
+    
+    var DHp := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+    var CHp := GetHp(CastOn);
+
+    if(DHp > CHp)
+      Dhp := CHp;
+    endif
+    
+    PlayPcEffect(CastOn, FX_MARK_EFFECT, 31, 0x10, 0x10, 4);
+    PlaySoundEffect( CastOn, SFX_SPELL_PARALYZE );
+    PlaySoundEffect( CastOn, SFX_SPELL_MANA_VAMPIRE );
+    DealDamage(CastOn, DHp, Caster);
+    
+    if(DHp)
+      GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+    endif
+
+    PlayPcEffect(Caster, FX_HEAL_EFFECT, 31, 0x10, 0x10, 4);
+    HealMobile(Caster,CInt(DHp / 2), Caster);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

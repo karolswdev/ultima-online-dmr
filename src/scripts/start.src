@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+
+include "include/start";
+include "include/const/misc";
+
+//-----------------------------------------------------------------------------
+
+program StartUp()
+
+  AddGlobCtrlScript(STAFFCORE_SCNAME, "StaffCore");
+  StartGlobCtrlScript(STAFFCORE_SCNAME);
+
+  AddGlobCtrlScript(SHARDINFO_SCNAME, "ShardInfo");
+  StartGlobCtrlScript(SHARDINFO_SCNAME);
+
+  AddGlobCtrlScript(NPCMODCORE_SCNAME, "NpcModCore");
+  StartGlobCtrlScript(NPCMODCORE_SCNAME);
+
+  AddGlobCtrlScript(":combat:checkShields", "CheckShields");
+  StartGlobCtrlScript(":combat:chekShields");
+
+endprogram
+
+//-----------------------------------------------------------------------------

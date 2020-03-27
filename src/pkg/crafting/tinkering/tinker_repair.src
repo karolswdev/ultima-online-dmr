@@ -1,0 +1,108 @@
+//-----------------------------------------------------------------------------
+
+include "include/key";
+include "include/skills/gumps";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/traps";
+include "include/poison";
+include "include/repair";
+include "include/regs";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/tools";
+include "ai/include/tamed";
+include "include/move";
+include "include/player/friends";
+
+include ":lumberjacking:trees";
+include ":alchemy:potion";
+include ":quests:quest_ctrl";
+include ":healing:healing";
+include ":tinkering:common";
+include ":crafting:creation";
+include ":crafting:mat_groups";
+
+//-----------------------------------------------------------------------------
+
+program MakeTinkerItems(who, Tool)
+
+  if(!StandardItemCheck(who, Tool))
+    return;
+  endif
+
+  SendSysMessage( who, "Wybierz przedmiot lub golema.",FONT_NORMAL,COLOR_GREEN);
+  var trg := ObjTarget(who);
+
+  if(trg.isa(POLCLASS_NPC))
+    if(trg.npctemplate == "golem")
+      RepairGolem(who, trg);
+      return;
+    endif
+  elseif(trg.isa(POLCLASS_CORPSE))
+    if(GetObjProperty(trg, PROP_NPCTEMP) == "golem")
+      ResurrectGolem(who, trg);
+      return;
+    endif
+  endif
+
+  if(!StandardItemCheck(who, trg))
+    return;
+  endif
+
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+  if(ItemCfg[trg.objtype].repairable)
+    RepairItem( who, trg, SKILLID_TINKERING, GetTinkerMatObj(trg), SFX_ANVIL, 0x9);
+    return;
+  endif
+
+  SendSysMessage(who, "Nie uda Ci sie tego naprawic.", FONT_NORMAL, COLOR_RED);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function RepairGolem(who,Golem)
+
+  if(GetHp(Golem) >= GetMaxHp(Golem))
+    SendSysMessage(who,"Ten golem jest w pelni sprawny.",FONT_NORMAL,COLOR_GREEN);
+    return;
+  endif
+
+  if(Distance(who,Golem) > 1)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var HealAmt   := CInt(GetEffectiveSkill(who,SKILLID_TINKERING) / 2) + RandomInt(30);
+  var IronIngot := FindItemInContainer(who.backpack,UOBJ_IRON_INGOT);
+  var Diff      := 100 - CInt(GetHp(Golem) * 100 / GetMaxHp(Golem));
+
+  if(!IronIngot)
+    SendSysMessage(who,"Nie masz sztab z zelaza.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(SubtractAmount(IronIngot,1))
+    SendSysMessage(who,"Probujesz naprawic golema...",FONT_NORMAL,COLOR_GREEN);
+    if(!MakeNoise(who,0x22C))
+      return;
+    endif
+    if(!MakeNoise(who,0x22C))
+      return;
+    endif
+    if(CheckSkill(who,SKILLID_TINKERING,Diff,0))
+      SendSysMessage(who,"Naprawil"+ggm(who,3)+" golema.",FONT_NORMAL,COLOR_BLUE);
+      HealMobile(Golem,HealAmt, who);
+    else
+      SendSysMessage(who,"Nie udalo Ci sie naprawic golema.",FONT_NORMAL,COLOR_BLUE);
+    endif
+  else
+    SendSysMessage(who,"Nie masz sztab z zelaza.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

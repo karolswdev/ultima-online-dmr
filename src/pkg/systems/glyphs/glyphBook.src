@@ -1,0 +1,69 @@
+//Gump utworzony za pomoc¹ Gump Creatora
+
+include "include/gumps";
+include "include/gumpboxes";
+include ":glyphs:glyphs";
+
+program UseGlyphBook(who, book)
+
+    
+	if(!GetObjProperty(who, "GlyphBookId"))
+	    SetObjProperty(who, "GlyphBookId", book.serial);
+	    SendSysMessage(who, "Ta ksiega jest od teraz powiazana z Toba.", FONT_NORMAL, COLOR_GREEN);
+	elseif(book.serial != CInt(GetObjProperty(who, "GlyphBookId")))
+	    if(!YesNo(who, "Czy uzyc nowej ksiegi? [Mozesz wrocic do starej kiedy chcesz]"))
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+	    else
+	    SetObjProperty(who, "GlyphBookId", book.serial);
+	    SendSysMessage(who, "Nowa ksiega jest teraz przypisana do Ciebie.", FONT_NORMAL, COLOR_GREEN);
+	    endif
+	endif
+	
+	
+	    
+	    
+	var i := 20;
+	var y := 20;
+
+	GInit();
+	GNoDispose();
+
+	GPage( 0 );
+
+	GGumpPic( 72 , 110 , 2200 , 0 );
+
+	GTextLine( 131 , 127 , 33 , "Ksiega glifow" );
+	
+	// tutaj wyswietlanie
+
+	GTextLine( 279 , 127 , 56 , "Glowne glify" );
+	
+	// tutaj wyswietlanie duzych glifow
+	
+	foreach glyph in GetMajorGlyphs(book)
+	    GTextLine (279, 127+i, 89, GetGlyphDesc(glyph));
+	    i := i + 20;
+	endforeach
+	
+	var startingY := 185;
+	
+	if(CInt(GetObjProperty(book, "Expanded")))
+		startingY := 205;
+	endif
+
+	GTextLine( 279 , startingY , 56 , "Pomniejsze glify" );
+	
+	//a tutaj male
+	
+	foreach glyph in GetMinorGlyphs(book)
+	    GTextLine(279, startingY+y, 92, GetGlyphDesc(glyph));
+	    y := y + 20;
+	endforeach
+
+	GGumpPic( 136 , startingY , 5564 , 0 );
+	
+
+	var ret := GSend(who);
+
+endprogram
+

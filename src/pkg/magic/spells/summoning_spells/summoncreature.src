@@ -1,0 +1,71 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 40;
+
+//-----------------------------------------------------------------------------
+
+program CastSummonCreature( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_LOC);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastLoc)
+
+  var CasterMagery  := GetEffectiveSkill(Caster,SKILLID_MAGERY);
+  var CasterEvalInt := GetEffectiveSkill(Caster,SKILLID_EVALINT);
+  
+  var critter       := RandomInt(CInt(CasterMagery/10)) + CInt(CasterEvalInt/10) + RandomInt(6);
+  var thecreature   := "gorilla";
+
+  case (critter)
+    1:        thecreature := "chicken";
+    2:        thecreature := "cat";
+    3:        thecreature := "dog";
+    4:        thecreature := "sheep";
+    5:        thecreature := "pig";
+    6:        thecreature := "slime";
+    7:        thecreature := "grat";
+    8:        thecreature := "mongbat";
+    9:        thecreature := "eagle";
+    10:       thecreature := "wolf";
+    11:       thecreature := "bull";
+    12:       thecreature := "deer";
+    13:       thecreature := "gorilla";
+    14:       thecreature := "bear";
+    15:       thecreature := "panther";
+    16:       thecreature := "frostwolf";
+    17:       thecreature := "blackbear";
+    18:       thecreature := "alligator";
+    19:       thecreature := "giantspider";
+    20:       thecreature := "harpy";
+    21:       thecreature := "grizzly";
+    22:       thecreature := "giant_serpent";
+    23:       thecreature := "direwolf";
+    24:       thecreature := "polar";
+    default:  thecreature := "gorilla";
+  endcase
+
+  var Duration         := GetSpellDur(Caster)*2;
+  var oparms           := {};
+  oparms.+controlable  := 1;
+  oparms.+nocrim       := 1;
+  oparms.+spellparms   := SpellGlob.Parms;
+  oparms.+maxamt       := 1+CInt(CasterMagery/20);
+  
+  var Summon := SummonCreature( Caster, thecreature, CastLoc, duration, oparms );
+  
+  if(Summon)
+    GainSpellPoints(Caster, Summon, MAGICGAIN_SUMMON);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

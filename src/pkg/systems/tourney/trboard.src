@@ -1,0 +1,215 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/client/fonts";
+include "tourney";
+include "../pkg/systems/wearwolf/wearwolf";
+
+//-----------------------------------------------------------------------------
+
+var ItemDesc := ReadConfigFile(ITEMS_CFG);
+
+//-----------------------------------------------------------------------------
+
+program TourneyBoard(who,Board)
+
+  var TrStat := GetTourneyProp(TR_STATUS);
+  var ticketStat := GetTourneyProp(TR_TICKET_STATUS);
+  
+  GInit(100,100);
+  GResPic(0,0,3600,610,380);
+  
+  GTextLine(170,20,590,"Igrzyska");
+  GTextLine(50,50,590,"Status: ");
+  
+  case(TrStat)
+    TR_STAT_BEGAN:     GTextLine(110,50,580,"Rozpoczete");
+    TR_STAT_STARTED:   GTextLine(110,50,580,"Trwaja");
+    TR_STAT_END:       GTextLine(110,50,580,"Zakonczenie");
+    default:           GTextLine(110,50,580,"Zakonczone");
+  endcase
+  
+  if(who.cmdlevel)
+    GButton(20,50,2714,2715,2);
+  endif
+  
+  GResPic(20,85,BKGND_GOLDTRIM,275,185);
+
+  GTextLine(120,95,590,"Zasady:");
+  GTextLine(40,130,580,"Zakaz walki na sali");
+  GTextLine(40,150,580,"Zakaz zabijania osob z wlasnej druzyny");
+  GTextLine(40,170,580,"Wykonywanie polecen gospodarzy igrzysk");
+  GTextLine(40,200,580,"Lamanie zasad skonczy sie");
+  GTextLine(40,220,580,"wyrzuceniem z igrzysk lub wiezieniem");
+
+  
+  GTextLine(330,50,590,"Nominacje na kapitanow:");
+  
+  if(who.cmdlevel)
+    GButton(300,50,2714,2715,3);
+  endif
+
+  case(ticketStat)
+    TR_STAT_BEGAN:     GTextLine(490,50,580,"Rozpoczete");
+    default:           GTextLine(490,50,580,"Zakonczone");
+  endcase
+
+  GResPic(310,85,BKGND_GOLDTRIM,275,245);
+
+  var tickProps := GetGlobalProperty("TourneyTickets");
+
+  GTextLine(330,95,1320,"Lotherianie:");
+
+  var Tickets := GetTourneyTicketsPlayers("blue");
+  var i;
+
+  for(i:=1; i<=Tickets.size(); i:=i+1)
+    if(i > 3)
+      break;
+    endif
+
+    GTextLine(335, 100+(i*20), 1424, CInt(Tickets[i][1]));
+    GTextLine(365, 100+(i*20), 999, GetRealName(Tickets[i][2]));
+  endfor
+  
+  GTextLine(330,200,1215,"Garwezianie:");
+
+  Tickets := GetTourneyTicketsPlayers("red");
+
+  for(i:=1; i<=Tickets.size(); i:=i+1)
+    if(i > 3)
+      break;
+    endif
+
+    GTextLine(335, 205+(i*20), 1424, CInt(Tickets[i][1]));
+    GTextLine(365, 205+(i*20), 999, GetRealName(Tickets[i][2]));
+  endfor
+
+
+  if(ticketStat == TR_STAT_BEGAN)
+    
+    GButton(465,340,2714,2715,5);
+    GTextLine(490, 340, 570, "Dodaj bilet");
+
+  endif
+  
+
+
+  var Res := GSend(who)[0];
+  
+  case(Res)
+    2:        case(TrStat)
+                TR_STAT_BEGAN:       TrStat := TR_STAT_STARTED;
+                                     SendSysMessage(who,"Zmieniono status na : Trwaja.",FONT_NORMAL,COLOR_GREEN);
+                TR_STAT_STARTED:     TrStat := TR_STAT_END;
+                                     SendSysMessage(who,"Zmieniono status na : Zakonczenie.",FONT_NORMAL,COLOR_GREEN);
+                TR_STAT_END:         TrStat := TR_STAT_ENDED;
+                                     SendSysMessage(who,"Zmieniono status na : Zakonczone, NocZone Off.",FONT_NORMAL,COLOR_GREEN);
+                                     SetGlobalProperty("NocZone",0);
+                                     Detach();
+                                     HideEntrancePortal(who);
+                default:             TrStat := TR_STAT_BEGAN;
+                                     SendSysMessage(who,"Zmieniono status na : Rozpoczete, NocZone On.",FONT_NORMAL,COLOR_GREEN);
+                                     EraseGlobalProperty("TrCaptainChoose");
+                                     SetGlobalProperty("NocZone",1);
+                                     Detach();
+                                     ShowEntrancePortal(who);
+              endcase
+              
+              SetTourneyProp(TrStat,TR_STATUS);
+              
+    3:        case(ticketStat)
+                TR_STAT_BEGAN:       ticketStat := TR_STAT_ENDED;
+                                     SendSysMessage(who,"Zmieniono status nominacji na: Zakonczone.",FONT_NORMAL,COLOR_GREEN);
+                default:             ticketStat := TR_STAT_BEGAN;
+                                     SendSysMessage(who,"Zmieniono status nominacji na: Rozpoczete.",FONT_NORMAL,COLOR_GREEN);
+                                     SendSysMessage(who,"Zresetowano nominacje.", FONT_NORMAL, COLOR_GREEN);
+                                     EraseGlobalProperty("TourneyTickets");
+              endcase
+              
+              SetTourneyProp(ticketStat,TR_TICKET_STATUS);
+
+    5:        if(ticketStat == TR_STAT_BEGAN)
+                AddTicket(who);
+              endif
+  endcase
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function AddTicket(who)
+
+  SendSysMessage(who, "Wskaz bilet.", FONT_NORMAL, COLOR_GREEN);
+  var Ticket := Target(who);
+
+  if(!StandardItemCheck(who, Ticket))
+    return;
+  endif
+
+  var tickProps := GetGlobalProperty("TourneyTickets");
+
+  if(!tickProps or !tickProps.size())
+    tickProps := dictionary;
+  endif
+
+  if(!tickProps["red"] or !tickProps["red"].size())
+    tickProps["red"] := dictionary;
+  endif
+
+  if(!tickProps["blue"] or !tickProps["blue"].size())
+    tickProps["blue"] := dictionary;
+  endif
+
+  case(Ticket.objtype)
+    UOBJ_RED_TC:        if(DestroyItem(Ticket))
+                          tickProps["red"][who.serial] := CInt(tickProps["red"][who.serial]) + 1;
+                          SendSysMessage(who, "Dodal"+ggm(who,3)+" bilet Garwezian! Twoj licznik wynosi teraz: "+CInt(tickProps["red"][who.serial])+".", FONT_NORMAL, COLOR_GREEN);
+                        endif
+
+    UOBJ_BLUE_TC:       if(DestroyItem(Ticket))
+                          tickProps["blue"][who.serial] := CInt(tickProps["blue"][who.serial]) + 1;
+                          SendSysMessage(who, "Dodal"+ggm(who,3)+" bilet Lotherian! Twoj licznik wynosi teraz: "+CInt(tickProps["blue"][who.serial])+".", FONT_NORMAL, COLOR_GREEN);
+                        endif
+
+    default:            SendSysMessage(who, "To nie jest bilet z igrzysk.", FONT_NORMAL, COLOR_RED);
+                        return;
+  endcase
+  
+  SetGlobalProperty("TourneyTickets", tickProps);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTourneyTicketsPlayers(type)
+
+  var tickProps := GetGlobalProperty("TourneyTickets");
+  var typeProps := tickProps[type];
+
+  if(!typeProps)
+    return array;
+  endif
+
+  var Players := array;
+  var dictSort := dictionary;
+  var i;
+
+  foreach Count in typeProps
+    var Player := FindPlayerBySerial(_Count_iter);
+    if(Player)
+      dictSort[CStr(ZeroFill(Count, 4))+" "+_Count_iter] := array(Count, Player);
+    endif
+  endforeach
+
+  foreach Player in dictSort
+    Players.append(Player);
+  endforeach
+
+  Players.reverse();
+
+  return Players;
+
+endfunction
+
+//-----------------------------------------------------------------------------

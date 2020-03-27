@@ -1,0 +1,46 @@
+//-----------------------------------------------------------------------------
+
+include "include/poison";
+include "include/traps";
+include "include/attack";
+
+//-----------------------------------------------------------------------------
+
+program ArmTrapNow( Parms )
+
+  var who      := Parms[1];
+  var Item     := Parms[2];
+  var TrapStr  := Parms[3];
+  var TrapType := Parms[4];
+
+  if(!TrapStr or !TrapType or !who or !Item)
+    return 0;
+  endif
+
+  var dmg := 0;
+  SetScriptController(who);
+  
+  case(TrapType)
+    1:       PlaySoundEffect(who, 0x224);
+             dmg := (RandomInt(15) + CInt(TrapStr));
+             SendSysMessage(who, "Uruchomil"+ggm(who,3)+" pulapke!",FONT_NORMAL,COLOR_RED);
+             DealDamage(who, dmg);
+    2:       PlaySoundEffect(who, 0x232);
+             SendSysMessage(who, "Uruchomil"+ggm(who,3)+" zatruta pulapke!",FONT_NORMAL,COLOR_RED);
+             PlayObjectCenteredEffect( who, FX_POISON_GAS, 10,10);
+             SetPoison(who, ResistedTrap(who,TrapStr));
+    3:       PlaySoundEffect(who, 0x208);
+             SendSysMessage(who, "Uruchomil"+ggm(who,3)+" wybuchowa pulapke!",FONT_NORMAL,COLOR_RED);
+             PlayObjectCenteredEffect( who, FX_EXPLODE_3, 10,10);
+             dmg := ResistedTrap(who,(RandomInt(20) + CInt(TrapStr * 2)));
+             DealDamage(who, dmg);
+    default: SendSysMessage(who, "Malo brakowalo a bys wpadl"+ggm(who,4)+" w pulapke!",FONT_NORMAL,COLOR_RED);
+  endcase
+
+  UnTrap(Item);
+
+  return 1;
+           
+endprogram
+
+//-----------------------------------------------------------------------------

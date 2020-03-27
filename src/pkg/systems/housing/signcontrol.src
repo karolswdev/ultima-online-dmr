@@ -1,0 +1,610 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/getobj";
+include "include/logerror";
+include "include/items";
+include "include/move";
+include "include/clock";
+include ":banking:common";
+include "include/escrow";
+include "include/accounts";
+
+include ":fences:fences";
+include ":carpentry:deeds";
+include ":carpets:rolls";
+include ":housing:housing";
+include ":housing:payments";
+
+//-----------------------------------------------------------------------------
+
+var gHouse, ProperLocHouse;
+
+//-----------------------------------------------------------------------------
+
+program SignListener(sign)
+
+  sleep(2+RandomInt(2));
+
+//przywrocenie znakow - tymczasowy kod
+	sign.graphic := 3026;
+//
+
+  var ev;
+
+  gHouse := GetHouse(sign);
+
+  if(!gHouse)
+    if(sign.multi)
+      if(!FindHouseSign(sign.multi))
+        gHouse := sign.multi;
+        SetHouseItem(sign, gHouse);
+        LogError("[HouseSign] ["+sign.x+","+sign.y+","+sign.z+" "+sign.realm+"] brak domu. Dom ["+gHouse.serial+"] z brakujacym znakiem znaleziony, przypisywanie.", LOGF_GENERAL);
+      endif
+    endif
+
+    if(!gHouse)
+      LogError("[HouseSign] ["+sign.x+","+sign.y+","+sign.z+" "+sign.realm+"] brak domu. Niszczenie.", LOGF_GENERAL);
+      //DestroyItem(sign);
+      return;
+    endif
+  endif
+  
+  ProperLocHouse := CanBuildHouseAt(GetDeedObjTypeByHouseType(gHouse.objtype), gHouse, gHouse.realm, gHouse);
+  var ProperLocTimer := 0;
+
+  SetObjProperty(gHouse,"signserial",sign.serial);
+
+  sleepms(RandomInt(2000));
+
+  AddHouseToOwnerList(gHouse);
+
+  RegisterForSpeechEvents(sign, 25);
+
+  while(sign)
+
+    ev := wait_for_event(120);
+ 
+    if(ev.type == EVID_SPEECH) //  ProperLocHouse -- czy dom stoi w dobrym miejscu.
+      if(ev.source.multi.serial == gHouse.serial)
+        if(CanUseItem(ev.source, sign))
+          if(IsHouseOwner(ev.source,gHouse) or IsAdmin(ev.source) or IsHouseCoOwner(ev.source,gHouse) or IsHouseFriend(ev.source,gHouse)) 
+            CheckSpeech(ev.text,ev.source,sign);
+            NoLongerBusy(ev.source);
+          endif
+        endif
+      endif
+    endif
+
+    if(CheckHouseExpiration())
+      break;
+    endif
+
+    if(ProperLocTimer < ReadGameClock())
+      ProperLocHouse := CanBuildHouseAt(GetDeedObjTypeByHouseType(gHouse.objtype), gHouse, gHouse.realm, gHouse);
+      ProperLocTimer := ReadGameClock() + 600;
+    endif
+
+    clear_event_queue();
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckHouseExpiration()
+
+  var Periods := GetNotPayedPeriods(gHouse);
+
+  if(Periods >= HOUSEPAY_MAX_PERIODS)
+    
+    if(CInt(GetObjProperty(gHouse, "#DestructionDelay")) < ReadGameClock())
+      if(DestroyHouse(gHouse))
+        return 1;
+      else
+        SetObjProperty(gHouse, "#DestructionDelay", ReadGameClock() + 3600); // opozniamy o godzine, aby nie petlil sie.
+      endif
+    endif
+
+  endif
+
+  InformAboutPayments(gHouse);
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckSpeech(text,who,sign)
+  
+  if(!ProperLocHouse and !IsAdmin(who))   //komendy dostepne gdy domek stoi w niewlasciwym miejscu
+    SendSysMessage(who,ProperLocHouse.errortext,FONT_NORMAL, COLOR_RED);
+    if(text["chcial" + ggm(who,25)  +" to odblokowac"])
+      UnLockHouseItem(who);
+    elseif(text["chcial" + ggm(who,25) + " to odbezpieczyc"])
+      UnSecureHouseItem(who);
+    elseif(text["chcial" + ggm(who,25) + " zniszczyc smietnik"])
+      DestroyTrashBarrel(who);
+    elseif(text["chcial" + ggm(who,25) + " zniszczyc bezpieczny pojemnik"])
+      DestroySecureCont(who);
+    endif
+  else
+    if(text["chcial" + ggm(who,25) + " to unieruchomic"])
+      LockHouseItem(who);
+    elseif(text["chcial" + ggm(who,25) + " to odblokowac"])
+      UnLockHouseItem(who);
+    elseif(text["chcial" + ggm(who,25) + " to zabezpieczyc"])
+      SecureHouseItem(who);
+    elseif(text["chcial" + ggm(who,25) + " to odbezpieczyc"])
+      UnSecureHouseItem(who);
+    elseif(text["chce wyrzucic"])
+      if (!IsYoung(who))
+        KickFromHouse(who,sign);
+      else
+        SendSysMessage(who,"Jestes za mlod" + ggm(who,6) +" by wyrzucac z domu.",FONT_NORMAL, COLOR_RED);
+      endif
+    elseif(text["chcial" + ggm(who,25) + " postawic smietnik"])
+      PlaceTrashBarrel(who);
+    elseif(text["chcial" + ggm(who,25) + " zniszczyc smietnik"])
+      DestroyTrashBarrel(who);
+    elseif(text["odkryj wszystkich"])
+      if (!IsYoung(who))
+        RevealAll(who);
+      else
+        SendSysMessage(who,"Jestes za mlod" + ggm(who,6) +" by odkrywac wszystkich.",FONT_NORMAL, COLOR_RED);
+      endif
+    elseif(text["chcial" + ggm(who,25) + " postawic bezpieczny pojemnik"])
+      PlaceSecureCont(who);
+    elseif(text["chcial" + ggm(who,25) + " zniszczyc bezpieczny pojemnik"])
+      DestroySecureCont(who);
+    elseif(text["chcial" + ggm(who,25) + " udostepnic pojemnik"])
+      GiveFriendsSecureCont(who);
+    elseif(text["chcial" + ggm(who,25) + " ograniczyc dostep do pojemnika"])
+      UnGiveFriendsSecureCont(who);
+    endif
+  endif
+
+  clear_event_queue();
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function LockHouseItem(who)
+
+  if(!IsHouseOwner(who,gHouse) and !IsHouseCoOwner(who,gHouse) and !IsAdmin(who))
+    return;
+  endif
+
+  if(GetLockDownsNum(gHouse) >= GetLockDownsMaxNum(gHouse))
+    SendSysMessage(who,"Nie mozesz unieruchomic wiecej przedmiotow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var LockItem := ObjTarget(who);
+  if(!StandardItemCheck(who,LockItem))
+    ReleaseItem(LockItem);
+    NoLongerBusy(who);
+    return;
+  endif
+
+  ReleaseItem(LockItem);
+  NoLongerBusy(who);
+
+  if(LockItem.container.isa(POLCLASS_MOBILE))
+    SendSysMessage(who,"Chcesz zablokowac przedmiot na sobie?", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(LockItem.container)
+    SendSysMessage(who,"Ten przedmiot jest w pojemniku!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!IsItemInsideHouse(LockItem,gHouse))
+    SendSysMessage(who,"Ten przedmiot nie znajduje sie w twoim domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsLockedDown(LockItem) or IsSecured(LockItem))
+    SendSysMessage(who,"Ten przedmiot jest juz unieruchomiony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  /*
+  if(GetItemConfig(LockItem).StoreAble or IsStackableObj(LockItem.objtype))
+    SendSysMessage(who,"Tego przedmiotu nie mozesz zablokowac.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  */
+
+  if(LockItem.isa(POLCLASS_CONTAINER))
+    var ContNum := CInt(GetObjProperty(gHouse, "LockedConts"));
+
+    if(ContNum >= max(1, CInt(GetLockDownsMaxNum(gHouse)*0.10)))
+      SendSysMessage(who,"Nie mozesz zablokowac wiecej pojemnikow.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!CanPlaceInHouseAtLoc(gHouse,LockItem))
+    SendSysMessage(who,"Nie mozesz unieruchomic przedmiotu tak blisko drzwi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SetItemLockDown(LockItem,gHouse);
+  SendSysMessage(who,"Unieruchomil"+ggm(who,3)+" przedmiot "+LockItem.desc+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UnLockHouseItem(who)
+
+  if(!IsHouseOwner(who,gHouse) and !IsHouseCoOwner(who,gHouse) and !IsAdmin(who))
+    return;
+  endif
+
+  var UnLItem := ObjTarget(who);
+  if(!StandardItemCheck(who,UnLItem,NO_MOVABLE_CHECK))
+    ReleaseItem(UnLItem);
+    NoLongerBusy(who);
+    return;
+  endif
+
+  ReleaseItem(UnLItem);
+  NoLongerBusy(who);
+
+  if(!IsItemInsideHouse(UnLItem,gHouse))
+    SendSysMessage(who,"Ten przedmiot nie znajduje sie w twoim domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsSecured(UnLItem))
+    SendSysMessage(who,"Ten przedmiot jest zabezpieczony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsLockedDown(UnLItem))
+    SendSysMessage(who,"Ten przedmiot nie jest unieruchomiony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  EraseItemLockDown(UnLItem,gHouse);
+  SendSysMessage(who,"Odblokowal"+ggm(who,3)+" przedmiot "+UnLItem.desc+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SecureHouseItem(who)
+
+  if(!IsHouseOwner(who,gHouse) and !IsHouseCoOwner(who,gHouse) and !IsAdmin(who))
+    return;
+  endif
+
+  if(GetSecureNum(gHouse) >= GetSecureMaxNum(gHouse))
+    SendSysMessage(who,"Nie mozesz zabezpieczyc wiecej pojemnikow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var SecureItem := ObjTarget(who);
+  if(!StandardItemCheck(who,SecureItem))
+    ReleaseItem(SecureItem);
+    NoLongerBusy(who);
+    return;
+  endif
+
+  ReleaseItem(SecureItem);
+  NoLongerBusy(who);
+
+  if(SecureItem.container.isa(POLCLASS_MOBILE))
+    SendSysMessage(who,"Chcesz zabezpieczyc przedmiot na sobie?", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(SecureItem.container)
+    SendSysMessage(who,"Ten przedmiot jest w pojemniku!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!SecureItem.isa(POLCLASS_CONTAINER))
+    SendSysMessage(who,"To nie pojemnik.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+ if(!IsItemInsideHouse(SecureItem,gHouse))
+    SendSysMessage(who,"Ten przedmiot nie znajduje sie w twoim domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsLockedDown(SecureItem) or IsSecured(SecureItem))
+    SendSysMessage(who,"Ten przedmiot jest juz unieruchomiony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CanPlaceInHouseAtLoc(gHouse,SecureItem))
+    SendSysMessage(who,"Nie mozesz zabezpieczyc przedmiotu tak blisko drzwi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SetItemSecured(SecureItem,gHouse);
+  SendSysMessage(who,"Zabezpieczyl"+ggm(who,3)+" przedmiot "+SecureItem.desc+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UnSecureHouseItem(who)
+
+  if(!IsHouseOwner(who,gHouse) and !IsHouseCoOwner(who,gHouse) and !IsAdmin(who))
+    return;
+  endif
+
+  var UnSecureItem := ObjTarget(who);
+  if(!StandardItemCheck(who,UnSecureItem,NO_MOVABLE_CHECK))
+    ReleaseItem(UnSecureItem);
+    NoLongerBusy(who);
+    return;
+  endif
+
+  ReleaseItem(UnSecureItem);
+  NoLongerBusy(who);
+
+  if(!IsItemInsideHouse(UnSecureItem,gHouse))
+    SendSysMessage(who,"Ten przedmiot nie znajduje sie w twoim domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsLockedDown(UnSecureItem))
+    SendSysMessage(who,"Ten przedmiot jest unieruchomiony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsSecured(UnSecureItem))
+    SendSysMessage(who,"Ten przedmiot nie jest zabezpieczony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsHouseSecuredCont(UnSecureItem))
+    SendSysMessage(who,"Nie mozesz odbezpieczyc tego pojemnika.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  EraseSecured(UnSecureItem,gHouse);
+  SendSysMessage(who,"Odbezpieczyl"+ggm(who,3)+" przedmiot "+UnSecureItem.desc+".",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlaceTrashBarrel(who)
+
+  if(HaveBarrel(gHouse))
+    SendSysMessage(who,"Ten dom ma juz smietnik.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Place := LocTarget(who);
+  if(!StandardLocCheck(who,Place))
+    return;
+  endif
+
+  NoLongerBusy(who);
+
+  if(CheckPlaceForMulti(Place,who.realm).serial != gHouse.serial)
+    SendSysMessage(who,"Wybrane miejsce nie jest w domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CanPlaceInHouseAtLoc(gHouse,Place))
+    SendSysMessage(who,"Nie mozesz postawic smietnika tak blisko drzwi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var TrashBarrel := CreateItemAtLoc(Place.x,Place.y,GetStandingHeight(Place.x,Place.y,Place.z,who.realm).z,UOBJ_TRASHBARREL,1,who.realm);
+  if(TrashBarrel)
+    SetHouseBarrel(gHouse,TrashBarrel);
+    SetHouseItem(gHouse,TrashBarrel);
+    SendSysMessage(who,"Postawil"+ggm(who,3)+" smietnik.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie udalo Ci sie postawic smietnika.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroyTrashBarrel(who)
+
+  var TrashBarrel := HaveBarrel(gHouse);
+  if(!TrashBarrel)
+    SendSysMessage(who,"Ten dom nie ma smietnika.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(TrashBarrel)
+    if(DestroyItem(TrashBarrel))
+      EraseHouseBarrel(gHouse);
+      SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" smietnik.",FONT_NORMAL,COLOR_GREEN);
+    else
+      SendSysMessage(who," Nie udalo Ci sie zniszczyc smietnika.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Ten dom nie ma smietnika.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RevealAll(who)
+
+  var Count := 0;
+  foreach Mob in (gHouse.mobiles)
+    if((Mob.isa(POLCLASS_MOBILE)) and (Mob.hidden))
+      Mob.hidden := 0;
+      Count := Count + 1;
+    endif
+  endforeach
+
+  if(!Count)
+    SendSysMessage(who, "Nikogo nie znalazl"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+  elseif(Count == 1)
+    PrintTextAbovePrivate(who, "*Znalazl"+ggm(who,3)+" kogos!*", who);
+  else
+    PrintTextAbovePrivate(who, "*Znalazl"+ggm(who,3)+" " + Count + " ukrytych osob!*", who);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PlaceSecureCont(who)
+
+  if(!IsHouseOwner(who,gHouse) and !IsHouseCoOwner(who,gHouse) and !IsAdmin(who))
+    return;
+  endif
+
+  if(GetSecureNum(gHouse) >= GetSecureMaxNum(gHouse))
+    SendSysMessage(who,"Nie mozesz postawic wiecej zabezpieczonych pojemnikow.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Place := LocTarget(who);
+  if(!Place)
+    return;
+  endif
+
+  NoLongerBusy(who);
+
+  if(CheckPlaceForMulti(Place,who.realm).serial != gHouse.serial)
+    SendSysMessage(who,"Wybrane miejsce nie jest w domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CanPlaceInHouseAtLoc(gHouse,Place))
+    SendSysMessage(who,"Nie mozesz postawic bezpiecznego pojemnika tak blisko drzwi.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var z := GetStandZ(Place.x, Place.y, who.realm, Place.z);
+
+  if(z == error or DistZ(z, Place.z) > 15)
+    SendSysMessage(who, "To miejsce jest niedostepne.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var SecureCont := CreateItemAtLoc(Place.x,Place.y,z,UOBJ_SECURED_CONT,1,who.realm);
+  if(SecureCont)
+    SetItemSecured(SecureCont,gHouse);
+    SetHouseSecure(SecureCont,gHouse);
+    SendSysMessage(who,"Postawil"+ggm(who,3)+" bezpieczny pojemnik.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie udalo Ci sie postawic bezpiecznego pojemnika.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DestroySecureCont(who)
+
+  if(!IsHouseOwner(who,gHouse) and !IsHouseCoOwner(who,gHouse) and !IsAdmin(who))
+    return;
+  endif
+
+  var SecureCont := ObjTarget(who);
+  if(!StandardItemCheck(who,SecureCont,NO_MOVABLE_CHECK))
+    ReleaseItem(SecureCont);
+    NoLongerBusy(who);
+    return;
+  endif
+
+  ReleaseItem(SecureCont);
+  NoLongerBusy(who);
+
+  if(!SecureCont.isa(POLCLASS_CONTAINER))
+    SendSysMessage(who,"To nie pojemnik.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+ if(!IsItemInsideHouse(SecureCont,gHouse))
+    SendSysMessage(who,"Ten przedmiot nie znajduje sie w twoim domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(IsLockedDown(SecureCont))
+    SendSysMessage(who,"Ten przedmiot jest juz unieruchomiony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsHouseSecuredCont(SecureCont))
+    SendSysMessage(who,"Nie mozesz znsizczyc tego pojemnika.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(len(EnumerateItemsInContainer(SecureCont)))
+    SendSysMessage(who,"Ten pojemnik nie jest pusty.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  EraseSecured(SecureCont,gHouse);
+
+  if(DestroyItem(SecureCont))
+    SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" bezpieczny pojemnik.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SetItemSecured(SecureCont,gHouse);
+    SetHouseSecure(SecureCont,gHouse);
+    SendSysMessage(who,"Nie udalo Ci sie zniszczyc pojemnika.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GiveFriendsSecureCont(who)
+  
+  if(!IsHouseOwner(who, gHouse) and !IsHouseCoOwner(who, gHouse))
+    SendSysMessage(who,"Ten dom nie nalezy do ciebie",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Wskaz bezpieczny pojemnik!",FONT_NORMAL,COLOR_GREEN);
+  var SecureCont := ObjTarget(who);
+  if(!SecureCont)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  if(!GetObjProperty(SecureCont,"secure"))
+    SendSysMessage(who,"To nie jest bezpieczny pojemnik!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+    
+  SetObjProperty(SecureCont, "AccessFriendSecureCont", 1);
+  SendSysMessage(who,"Udostepniono pojemnik przyjaciolom domu.",FONT_NORMAL,COLOR_GREEN);
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function UnGiveFriendsSecureCont(who)
+  
+  if(!IsHouseOwner(who, gHouse) and !IsHouseCoOwner(who, gHouse))
+    SendSysMessage(who,"Ten dom nie nalezy do ciebie",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz pojemnik, do ktorego chcesz ograniczyc dostep.",FONT_NORMAL,COLOR_GREEN);
+  var SecureCont := ObjTarget(who);
+  
+  var access := GetObjProperty(SecureCont, "AccessFriendSecureCont");
+  
+  if(!access)
+    SendSysMessage(who,"Ten pojemnik nie byl dostepny dla przyjaciol domu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  EraseObjProperty(Securecont, "AccessFriendSecureCont");
+  SendSysMessage(who,"Uniemozliwiono dostep do pojemnika przyjaciolom domu.",FONT_NORMAL,COLOR_GREEN);
+endfunction
+
+//-----------------------------------------------------------------------------

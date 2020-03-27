@@ -1,0 +1,18 @@
+use uo;
+include "include/checks/objchecks";
+include "include/gumpboxes";
+
+program safeopenbox(who,box)
+
+  if(!StandardItemCheck(who, box, NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  if(IsStaff(who))
+    SendViewContainer(who, box);
+    SendSysMessage(who, "Otworzono specjalny pojemnik dostepny tylko dla ekipy.", FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who, "Nie mozesz otworzyc tego pojemnika.", FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram

@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program RuneChangeName(who, rune)
+
+  if(!StandardItemCheck(who,rune))
+    return;
+  endif
+
+  if(GetObjProperty(rune, "x") == error)
+    SendSysMessage(who, "To runo nie jest zaznaczone.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Jak chcial"+ggm(who,1)+" nazwac runo?",FONT_NORMAL,COLOR_GREEN);
+  var RuneDesc := RequestInput(who, rune, "");
+  
+  if(RuneDesc)
+    SetName(Rune,RuneDesc);
+    SendSysMessage(who, "Nazwa runa zostala zmieniona na "+RuneDesc+".",FONT_NORMAL,COLOR_BLUE);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

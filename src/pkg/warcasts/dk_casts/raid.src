@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const DK_WCID                := 75;
+
+//-----------------------------------------------------------------------------
+
+program DkRaid(Parms)
+
+  WarCast(Parms, DK_WCID, 0);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var Mod      := CInt((GetEffectiveSkill(Caster, SKILLID_FANATICISM)/2) + (GetEffectiveSkill(Caster, SKILLID_ZEAL) / 4));
+  var Duration := GetWarCastDuration(Caster, WCT_DARKKNIGHT);
+
+  if(!CanMod(Caster, MOD_ORDER_SLAY))
+    WcFizzleId(Caster, "Jestes juz pod wplywem tego zaklecia.", DK_WCID);
+    return;
+  endif
+
+  GainWarcastPoints(Caster, Caster, DK_WCID, WCGAIN_NORMAL);
+
+  PlaySoundEffect(Caster, SFX_FOCUSATTACK);
+  PlayPcEffect(Caster, FX_SPARK_EFFECT, 46, 0xF, 0x10, 6);
+  DoMod(Caster, MOD_ORDER_SLAY, Mod, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

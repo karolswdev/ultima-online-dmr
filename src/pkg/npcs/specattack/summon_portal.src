@@ -1,0 +1,74 @@
+//-----------------------------------------------------------------------------
+
+include "include/attack";
+include "include/effects";
+include "include/dirs";
+include "include/objects/location";
+include "include/attributes/vitals";
+include "ai/include/specs/summonminions";
+
+include ":magic:magicatt";
+include ":magiceffects:summon";
+
+//-----------------------------------------------------------------------------
+
+program SummonMinionsPortal(Params)
+
+  var me := Params[1];
+  var Mobs := Params[2];
+  var Spec := Params[3];
+
+  var Loc := FindStandableLocToDir(me, me.facing, Spec[5]);
+  
+  if(!Loc)
+    LogError("[SummonMinionsPortal] "+GetName(me)+": Nie udalo sie znalezc odpowiedniej lokacji na portal! Loc: "+GetLocString(me));
+    return;
+  endif
+
+  var Portal := CreatePortal(UOBJ_BLACKGATE, Loc.x, Loc.y, Loc.z, Loc.realm, 1);
+
+  var Amt := 0;
+  var Tries := 0;
+  var MaxTries := Spec[7]*2;
+  
+  while(Amt < Spec[7] and Tries < MaxTries and me)
+    var Mob := CreateSummonedMinion(me, Loc, Mobs, Spec);
+    
+    if(!Mob)
+      LogError("[SummonMinionsPortal] "+me.npctemplate+": Blad: "+Mob.errortext);
+    else
+      Amt += 1;
+    endif
+    
+    Tries += 1;
+    sleep(2);
+  endwhile
+
+  sleep(10);
+
+  HidePortal(Portal);
+  DestroyItem(Portal);
+  
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DealConflagrationDamage(me, Mob, Spec)
+  
+  var Dmg;
+
+  if(Distance(Mob, me) < 10)
+    Dmg := CInt(GetMaxHp(Mob) * Spec[6]);
+    DealManaDamage(Mob, CInt(GetMana(Mob) * Spec[6]), me);
+    DealStaminaDamage(Mob, CInt(GetStamina(Mob) * Spec[6]), me);
+  else
+    Dmg := GetMaxHp(Mob)+1;
+  endif
+
+  PlaySoundEffect(Mob, SFX_FIRE_STRIKE);
+  DoMagicDamage(Mob, me, Dmg, 9, DMGTYPE_FIRE);
+  PlayPcEffect(Mob, FX_FLAMESTRIKE, 0x10, 0x10, 1, Mob.realm);
+
+endfunction
+
+//-----------------------------------------------------------------------------

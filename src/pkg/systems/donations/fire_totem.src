@@ -1,0 +1,69 @@
+use uo;
+use os;
+
+include ":magic:magic";
+include "include/mobile/misc";
+include ":glyphs:glyphs";
+
+program control_firetotem(totem)
+
+	while(1)
+
+	if(GetObjProperty(totem, "Inactive"))
+		sleepms(5000);
+		continue;
+	endif
+	
+	if(totem.container)
+		sleepms(5000);
+		continue;
+	endif
+	
+	
+	if(!GetObjProperty(totem, "NumberOfChargesRemaining"))
+		SetObjProperty(totem, "NumberOfChargesRemaining", RandomInt(400)+50);
+	endif
+	
+	var charges := CInt(GetObjProperty(totem, "NumberOfChargesRemaining"));
+	
+	if(charges <= 0)
+		DestroyItem(totem);
+		return;
+	endif
+	
+	DamageSurroundings(totem);
+	
+	charges := charges - 1;
+	SetObjProperty(totem, "NumberOfChargesRemaining", charges);
+	
+	if(charges <= 0)
+		DestroyItem(totem);
+		return;
+	endif
+	
+	if(RandomInt(3) == 2)
+		PrintTextAbove(totem, charges + " wypelnien many zostalo.", FONT_NORMAL, COLOR_BLUE);
+	endif
+	
+	
+	sleepms(6000);
+		
+	endwhile
+
+
+endprogram
+
+function DamageSurroundings(totem)
+
+foreach mobile in ListMobilesNearLocationEx(totem.x, totem.y, totem.z, 6, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, totem.realm)
+
+	var healAmount := RandomInt(15) + 5;
+	if(mobile.isA(POLCLASS_NPC) && !mobile.script["tamed"])
+		PlayObjectCenteredEffect( mobile, FX_SPLASH, 7, 0x10 );
+		DealDamage(mobile, healAmount);
+		PrintTextAbove(mobile, "*-" + healAmount + "*", FONT_NORMAL, COLOR_RED);
+	endif
+
+endforeach
+
+endfunction

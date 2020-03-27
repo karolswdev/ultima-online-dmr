@@ -1,0 +1,32 @@
+//-----------------------------------------------------------------------------
+
+include "../potion";
+
+//-----------------------------------------------------------------------------
+
+program UseNightSightPotion(who,potion)
+
+  if(!StandardItemCheck(who,potion,NO_COMBAT_CHECK))
+    return;
+  endif
+
+  if(!CanDrink(who,potion))
+    return;
+  endif
+
+  var Strength := GetPotionStrength(potion.objtype);
+  var ExpMod   := GetExpPotionMod(Potion);
+  var QualMod  := GetPotionQualMod(Potion);
+
+  if(!EmptyBottle(who,potion))
+    return;
+  endif
+
+  PlaySoundEffect(who, SFX_SPELL_NIGHT_SIGHT );
+  PlayObjectCenteredEffect( who, FX_BLESS_EFFECT, 10,10);
+  
+  DoMod(who,MOD_LIGHT, Strength , (STANDARD_POTION_MOD_DUR * 2 * QualMod) + (ExpMod * 100));
+  
+endprogram
+
+//-----------------------------------------------------------------------------

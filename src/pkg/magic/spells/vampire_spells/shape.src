@@ -1,0 +1,99 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/calc";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 102;
+
+//-----------------------------------------------------------------------------
+
+program CastShape( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, Cast)
+
+  __ParamUnused(Cast);
+
+  var ModAmount     := CInt(CalcSkillExponential(Caster, SKILLID_VAMPIRE, 5) + CalcSkillExponential(Caster, SKILLID_SPIRITSPEAK, 5) + RandomInt(2));
+  var ShapeDur      := CInt(5 + CalcSkillExponential(Caster, SKILLID_VAMPIRE, 15) + CalcSkillExponential(Caster, SKILLID_SPIRITSPEAK, 10)); // 25s przy 100%.
+  
+  if(!CanMod(Caster,MOD_GRAPHIC))
+    var CasterVamp    := GetEffectiveSkill(Caster,SKILLID_VAMPIRE);
+
+    if(Caster.graphic == 755)
+      if(ExPid(GetObjProperty(Caster, "#VampShapePid")))
+        Fizzle(Caster, "Nie mozesz sie teraz odmienic...");
+      elseif(CasterVamp >= 80)
+        UndoMod(Caster, MOD_GRAPHIC);
+      else
+        Fizzle(Caster, "Nie wiesz jak odmienic sie z powrotem...");
+      endif
+    elseif(GetEquipmentByLayer(Caster, LAYER_MOUNT))
+      Fizzle(Caster, "Na wierzchowcu ciezko Ci bedzie zmienic ksztalt!");
+    endif
+    return;
+  else
+    DoMod(Caster,MOD_GRAPHIC,755,        ShapeDur);
+    DoMod(Caster,MOD_LIFE,    ModAmount,  ShapeDur);
+    DoMod(Caster,MOD_MANA,    ModAmount,  ShapeDur);
+    DoMod(Caster,MOD_STAMINA, ModAmount,  ShapeDur);
+  endif
+
+  SetObjProperty(Caster, "#VampShapePid", GetPid());
+
+  var Paralyzed := array;
+  var Range     := CInt(2 + CalcSkillExponential(Caster, SKILLID_VAMPIRE, 4));
+  var ParaDur   := CInt(Max(CalcSkillExponential(Caster, SKILLID_VAMPIRE, 3), 1));
+  var Num;
+  var Gained := 0;
+
+  ShapeDur := ReadGameClock() + ShapeDur;
+
+  while(ShapeDur > ReadGameClock())
+    Num := 0;
+    foreach Mobile in ListMobilesNearLocation(Caster.x, Caster.y, Caster.z, Range, Caster.realm)
+      if(!(Mobile.serial in Paralyzed))
+        if(CanDamage(Caster, Mobile))
+          if(Dispersed(Caster, Mobile))
+            continue;
+          endif
+
+          PrintTextAbove(Mobile, "*przerazon"+ggm(Mobile,6)+"*");
+          DoMod(Mobile, MOD_PARA, 1, ParaDur);
+          PlaySoundEffect(Mobile, SFX_SPELL_PARALYZE);
+          PlayPcEffect(Mobile, FX_CURSE_EFFECT, 35, 0x10, 0x10, 4);
+          Paralyzed.append(Mobile.serial);
+          
+          Num := Num + 1;
+
+          if(Gained < 3)
+            Gained += GainSpellPoints(Caster, Mobile, MAGICGAIN_OFFENSIVE);
+          endif
+
+          if(Num >= 6)
+            break;
+          endif
+        endif
+      endif
+    endforeach
+
+    sleep(1);
+  endwhile
+
+  EraseObjProperty(Caster, "#VampShapePid");
+  
+  UndoMod(Caster,MOD_GRAPHIC);
+  UndoMod(Caster,MOD_LIFE);
+  UndoMod(Caster,MOD_MANA);
+  UndoMod(Caster,MOD_STAMINA);
+
+endfunction
+
+//-----------------------------------------------------------------------------

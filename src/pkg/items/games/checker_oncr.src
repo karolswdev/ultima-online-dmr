@@ -1,0 +1,32 @@
+//--------------------------------------------------------------------------------
+
+include "board";
+include "include/items";
+
+//--------------------------------------------------------------------------------
+
+program ChessBoard_OnCreate(board)
+
+  SetObjProperty(board,"#Creating",GetPid());
+
+  var Piece;
+
+  for i := 1 to 12
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := BROWN_PIECE;
+    Piece.name    := CHECKER_PIECE_NAME;
+
+    Piece         := CreateItemInCont(Board,UOBJ_PIECE,1);
+    Piece.graphic := LIGHT_PIECE;
+    Piece.name    := CHECKER_PIECE_NAME;
+  endfor
+  
+  foreach Piece in EnumerateItemsInContainer(board)
+    SetObjProperty(Piece,"BoardSer",board.serial);
+  endforeach
+  
+  EraseObjProperty(board,"#Creating");
+  
+endprogram
+
+//--------------------------------------------------------------------------------

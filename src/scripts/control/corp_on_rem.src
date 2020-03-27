@@ -1,0 +1,85 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/items";
+include "include/misc";
+include "include/player/friends";
+include "include/player/loot";
+include "include/objtypes/misc";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+program OnRemoveFromCorpse(who, corpse, item)
+
+  StdOnContainerRemove(who,corpse,item);
+
+  EraseObjProperty(item,"Grabbed");
+
+  var Owner   := 0;
+  var Crimtxt := "";
+
+  if(GetObjProperty(corpse,PROP_CORPSE_OWNER))
+    Owner   := FindPlayerBySerial(GetObjProperty(corpse,PROP_CORPSE_OWNER));
+    Crimtxt := ", gdy wlasciciel ["+Owner.serial+"] byl blue";
+  elseif(GetObjProperty(corpse,PROP_MASTER))
+    Owner   := FindPlayerBySerial(GetObjProperty(corpse,PROP_MASTER));
+    Crimtxt := ", gdy wlasciciel zwierzaka ("+Owner.name+" ["+Owner.serial+"]) byl blue";
+  endif
+
+  if(item.objtype == UOBJ_GOLDCOIN and who != Owner)
+    SplitGold(who, Item);
+  endif
+  
+  if(IsPlayer(who))
+    if(GetObjProperty(item, PROP_OWNER))// __NONPVP__ and GetPvPStatus(item) != error)
+//      EraseObjProperty(item, PROP_PVP_STATUS);
+      EraseItemOwner(item);
+    endif
+  endif
+    
+  if(IsPlayer(Owner))
+    var lRes := CanPlayerLoot(who, Owner);
+    if(lRes)
+      /*if(lRes == 2 /*is friend?*/ and !who.criminal and GetObjProperty(corpse, "DeathStatus") != "Order")
+        SetCriminal(who, 1, "CorpseLoot", "Ograbil przyjaciela kryminaliste "+corpse.desc+" ["+corpse.serial+"]"+Crimtxt+".");
+        SendBad(who, "Rozbierasz zwloki przyjaciela kryminalisty! Za ten niecny wystepek zostaniesz rowniez kryminalista!");
+      endif*/
+      return 1;
+    endif
+
+    if(!who.criminal and GetObjProperty(corpse, "DeathStatus") == "Order")
+      SetCriminal(who, 1, "CorpseLoot", "Ograbil "+corpse.desc+" ["+corpse.serial+"]"+Crimtxt+".");
+      SendBad(who, "Ograbiasz zwloki prawej osoby! Za ten niecny wystepek zostaniesz kryminalista!");
+    endif
+
+    var ev     := struct;
+    ev.+type   := EVID_CORPSE_LOOT;
+    ev.+corpse := corpse;
+    ev.+source := who;
+
+    foreach Npc in ListMobilesNearLocationEx(corpse.x, corpse.y, corpse.z, 6, LISTEX_FLAG_NORMAL+LISTEX_FLAG_HIDDEN, corpse.realm)
+      if(Npc.isa(POLCLASS_NPC))
+        SendEvent(Npc, ev);
+      endif
+    endforeach
+
+  else
+/*  
+    if(!IsAllowedToLootNpc(who, corpse))
+      SetCriminal(who, 1, "CorpseLoot", "Ograbil zwloki npeca, ktorego zabil inny gracz.");
+      SendBad(who, "Grabienie cudzego lupu nie jest zbyt madrym posunieciem!");
+      SendBad(who, "Zaslugujesz na miano kryminalisty!", COLOR_ORANGE);
+    endif*/
+   
+  endif
+
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------

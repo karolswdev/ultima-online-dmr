@@ -1,0 +1,23 @@
+use uo;
+
+include "include/mobile/tamed";
+include "include/objtypes/skills";
+include "include/finding";
+include "include/effects";
+include "include/npcs";
+include "include/move";
+include "include/player/friends";
+include "include/items/containers";
+include "include/client/fonts";
+include "include/attributes/skills";
+include "include/attributes/vitals";
+include "ai/include/tamed";
+
+include ":tinkering:common";
+include ":healing:healing";
+
+program golembox(who,item)
+  
+  ResurrectGolem(who,item, 1);
+
+endprogram

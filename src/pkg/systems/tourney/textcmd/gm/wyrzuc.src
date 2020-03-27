@@ -1,0 +1,31 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/player/misc";
+include "../pkg/systems/wearwolf/wearwolf";
+
+include "../../tourney";
+
+//-----------------------------------------------------------------------------
+
+program GetRidOff(who)
+
+  Detach();
+  SendSysMessage(who,"Wybierz osobe.",FONT_NORMAL,COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  
+  if(IsPlayer(Targ))
+    SendSysMessage(who,"Wykopano "+Targ.name+".",FONT_NORMAL,COLOR_GREEN);
+    var Loc := GetTourneyProp(TRLOC_OUTROOM);
+    MoveObject(Targ, Loc[1], Loc[2], Loc[3], Targ.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    EraseEndProps(Targ);
+    SendSysMessage(Targ,"Zostal"+ggm(Targ,3)+" wyrzucon"+ggm(Targ,6)+" z igrzysk!",FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

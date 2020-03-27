@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+
+include "party";
+include "include/reputation/criminal";
+
+//-----------------------------------------------------------------------------
+
+program HandleParty(Param)
+
+  var who    := Param[1];
+  var Packet := Param[2];
+
+  var Cmd := Packet.GetInt8(5);
+
+  case(Cmd)
+    PARTYCMD_INVITATION:
+    PARTYCMD_ACCEPT_JOIN:     PartyCheckStatus(who, FindPlayerBySerial(Packet.GetInt32(5)));
+    PARTYCMD_TELL_MEMB_MSG:   PartySendPrivateMsg(who, Packet);
+    PARTYCMD_TELL_PARTY_MSG:  PartySendPartyMsg(who, Packet);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------

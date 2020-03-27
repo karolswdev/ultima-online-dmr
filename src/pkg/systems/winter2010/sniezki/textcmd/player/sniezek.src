@@ -1,0 +1,13 @@
+use uo;
+use os;
+
+program sniezek(who)
+    if(!GetObjProperty(who, "#Zbiera"))
+	SendSysMessage(who, "Anulowano.",3,42);
+	return;
+    endif
+
+    EraseObjProperty(who, "#Zbiera");
+    SendSysMessage(who, "Juz mozesz zbierac sniezki.",3,89);
+
+endprogram

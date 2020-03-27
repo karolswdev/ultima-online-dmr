@@ -1,0 +1,149 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/move";
+include "include/player/target";
+
+include ":housing:finding";
+
+//--------------------------------------------------------------------------------
+
+var ItemCfg := ReadConfigFile(ITEMS_CFG);
+
+//--------------------------------------------------------------------------------
+
+program UseSconce(who,Sconce)
+
+  if(!Sconce.movable)
+    if(ItemCfg[Sconce.graphic].PartNeeded)
+      PutOnPart(who,Sconce);
+    else
+      ChangeGrap(who,Sconce);
+    endif
+  else
+    PlaceSconce(who,Sconce);
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function PlaceSconce(who,Sconce)
+
+  if(!StandardItemCheck(who,Sconce))
+    return;
+  endif
+
+  SendSysMessage(who,"Wskaz sciane na ktorej chcesz zawiesic "+Sconce.desc+".",FONT_NORMAL,COLOR_GREEN);
+  
+  var Loc := LocTarget(who);
+  
+  if(!StandardLocCheck(who,Loc,NO_DIST_CHECK))
+    return;
+  endif
+  
+  if(Coordist(who.x,who.y,Loc.x,Loc.y) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var House := GetNearestHouseOf(Loc.x, Loc.y, Loc.z, who.realm, 15, GNHOF_OWNER | GNHOF_COOWNER, who);
+
+  if(!House)
+    SendSysMessage(who, House.errortext, FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  var Obj  := Loc.objtype;
+  var WDir := ItemCfg[Obj].Wall;
+  var IDir := ItemCfg[Sconce.graphic].Dir;
+  var FDir := GetReverseDir(GetDirFromObjToObj(who,Loc));
+    
+  if(WDir != error and IDir != error)
+    if(WDir == IDir)
+      if(WDir == FDir or WDir == FDir - 1 or WDir == FDir + 1)
+        var Mx := 0,My := 0;
+        case(WDir)
+          DIR_S: My := My + 1;
+          DIR_E: Mx := Mx + 1;
+        endcase
+          
+        if(MoveObject(Sconce, Loc.x+Mx, Loc.y+My,Loc.z+15, who.realm, MOVEITEM_FORCELOCATION))
+          Sconce.movable := 0;
+          SendSysMessage(who,"Zawiesil"+ggm(who,3)+" "+Sconce.desc,FONT_NORMAL,COLOR_GREEN);
+          if(House)
+            SetHouseItem(Sconce, House);
+          endif
+        else
+          SendSysMessage(who,"Nie udalo Ci sie tego zawiesic.",FONT_NORMAL,COLOR_RED);
+        endif
+      else
+        SendSysMessage(who,"Ciezko Ci bedzie to zawiesic od strony ktorej nie widzisz.",FONT_NORMAL,COLOR_RED);
+      endif
+    else
+      SendSysMessage(who,"Na tej scianie tego tak nie zawiesisz.",FONT_NORMAL,COLOR_RED);
+    endif
+  else
+    SendSysMessage(who,"Na tym nie zawiesisz tego.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function PutOnPart(who,Sconce)
+
+  SendSysMessage(who,"Co chcesz nalozyc na "+Sconce.desc+"?",FONT_NORMAL,COLOR_GREEN);
+  var Targ := ObjTarget(who);
+  
+  if(!StandardItemCheck(who,Targ))
+    return;
+  endif
+  
+  if(Distance(who,Sconce) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var PartNeeded := CInt(ItemCfg[Sconce.graphic].PartNeeded);
+  
+  if(Targ.graphic != PartNeeded)
+    SendSysMessage(who,"Tego nie uda Ci sie nalozyc.",FONT_NORMAL,COLOR_RED);
+    return;
+  else
+    var ChGrap := CInt(ItemCfg[Sconce.graphic].change);
+    if(ChGrap)
+      if(SubtractAmount(Targ,1))
+        Sconce.graphic := ChGrap;
+        SendSysMessage(who,"Nalozyl"+ggm(who,3)+" przedmiot.",FONT_NORMAL,COLOR_GREEN);
+      else
+        SendSysMessage(who,"Nie udalo Ci sie zalozyc przedmiotu.",FONT_NORMAL,COLOR_RED);
+      endif
+    else
+      SendSysMessage(who,"Nie udalo Ci sie zalozyc przedmiotu.",FONT_NORMAL,COLOR_RED);
+    endif
+  endif
+
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ChangeGrap(who,Sconce)
+
+  if(Distance(who,Sconce) > 2)
+    SendSysMessage(who,"Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var ChGrap := CInt(ItemCfg[Sconce.graphic].change);
+  
+  if(ChGrap)
+    PlaySoundEffect(who,ItemCfg[Sconce.graphic].changesnd);
+    Sconce.graphic := ChGrap;
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------

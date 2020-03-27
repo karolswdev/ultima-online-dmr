@@ -1,0 +1,255 @@
+//--------------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/client/effects";
+include "include/packets";
+
+include ":housing:common";
+include "rolls";
+
+//--------------------------------------------------------------------------------
+
+var MainCfg := ReadConfigFile(":tailoring:tailoring");
+
+var _MaxZ, _MHouse;
+var _ItemsCreated := array;
+
+//--------------------------------------------------------------------------------
+
+program UseRolledCarpet(who, carpet)
+
+  if(!StandardItemCheck(who, carpet, NO_OWNER_CHECK))
+    return;
+  endif
+
+  var Width  := CInt(GetObjProperty(carpet, "Width"));
+  var Height := CInt(GetObjProperty(carpet, "Height"));
+
+  if(!Width or !Height)
+    SendSysMessage(who,"Ten dywan jest porwany.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsGm(who))
+    if(!who.multi)
+      SendSysMessage(who,"Dywan mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    elseif(!IsHouseOwner(who,who.multi) and !IsHouseCoOwner(who,who.multi))
+      SendSysMessage(who,"Dywan mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+  
+  SendSysMessage(who,"Wybierz miejsce.",FONT_NORMAL,COLOR_GREEN);
+
+  var Loc   := LocTarget(who);
+
+  if(!StandardLocCheck(who,Loc))
+    return;
+  endif
+  
+  var Place := struct;
+  Place.+x  := Loc.x;
+  Place.+y  := Loc.y;
+  Place.+z  := GetStandZ(Loc.x, Loc.y, who.realm, Loc.z);
+
+  if(Place.z == error)
+    SendSysMessage(who,"To miejsce nie jest dostepne.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CheckLosAt(who,Place.x,Place.y,Place.z) or coordist(who.x,who.y,Place.x,Place.y) > 2)
+    SendSysMessage(who,"Nie dosiegniesz tego miejsca.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!IsGm(who))
+    _MHouse := CheckPlaceForMulti(Place,who.realm);
+    if(!_MHouse)
+      SendSysMessage(who,"Dywan mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    elseif(!IsHouseOwner(who,_MHouse) and !IsHouseCoOwner(who,_MHouse))
+      SendSysMessage(who,"Dywan mozesz rozlozyc tylko w swoim domu.",FONT_NORMAL,COLOR_RED);
+      return;
+    endif
+  endif
+
+  _MaxZ := Place.z;
+  
+  var BadCoords := array;
+  if(!CheckPlace(who,Place,Width,Height,BadCoords))
+    SendSysMessage(who,"Tu jest za malo miejsca.",FONT_NORMAL,COLOR_RED);
+    foreach Coord in BadCoords
+      PlayPcStEffect(Coord[1], Coord[2], _MaxZ, who.realm, FX_SPARK_EFFECT, 37, 0x10, 0x10, 5);
+    endforeach
+    return;
+  endif
+
+  var MiddG   := CInt(MainCfg[carpet.objtype].Graphic);
+  var LeftG   := CInt(MainCfg[carpet.objtype].Left);
+  var RightG  := CInt(MainCfg[carpet.objtype].Right);
+  var UpG     := CInt(MainCfg[carpet.objtype].Up);
+  var DownG   := CInt(MainCfg[carpet.objtype].Down);
+  var Corner1 := CInt(MainCfg[carpet.objtype].Corner1);
+  var Corner2 := CInt(MainCfg[carpet.objtype].Corner2);
+  var Corner3 := CInt(MainCfg[carpet.objtype].Corner3);
+  var Corner4 := CInt(MainCfg[carpet.objtype].Corner4);
+
+  var w,h;
+
+  if(!MiddG or !LeftG or !RightG or !UpG or !DownG or !Corner1 or !Corner2 or !Corner3 or !Corner4)
+    return;
+  endif
+  
+  for(h:=0;h<Height;h:=h+1)
+    for(w:=0;w<Width;w:=w+1)
+      CreateNewElem(who,Place.x+w,Place.y-h,Place.z+1,MiddG);
+    endfor
+  endfor
+
+  for(h:=0;h<(Height);h:=h+1)
+    CreateNewElem(who,Place.x-1,Place.y-h,Place.z+1,LeftG);
+  endfor
+
+  for(h:=0;h<(Height);h:=h+1)
+    CreateNewElem(who,Place.x+Width,Place.y-h,Place.z+1,RightG);
+  endfor
+
+  for(w:=0;w<(Width);w:=w+1)
+    CreateNewElem(who,Place.x+w,Place.y+1,Place.z+1,DownG);
+  endfor
+
+  for(w:=0;w<(Width);w:=w+1)
+    CreateNewElem(who,Place.x+w,Place.y-Height,Place.z+1,UpG);
+  endfor
+  
+  CreateNewElem(who,Place.x-1,Place.y-Height,Place.z+1,Corner1);
+  CreateNewElem(who,Place.x+Width,Place.y-Height,Place.z+1,Corner2);
+  CreateNewElem(who,Place.x+Width,Place.y+1,Place.z+1,Corner3);
+  CreateNewElem(who,Place.x-1,Place.y+1,Place.z+1,Corner4);
+
+  var Midd;
+
+  foreach Cr in _ItemsCreated
+    Cr.invisible := 0;
+    if(Cr.objtype == MiddG and !Midd)
+      Midd := Cr;
+    endif
+    Cr := Cr.serial;
+  endforeach
+
+  Midd.usescript := ":carpets:carpet";
+  SetObjProperty(Midd,PROP_CREATED_ARRAY, _ItemsCreated);
+  SetObjProperty(Midd,PROP_ROLLED_CARPET,carpet.objtype);
+  SetObjProperty(Midd,"RolledCarpetWidth",Width);
+  SetObjProperty(Midd,"RolledCarpetHeight",Height);
+  DestroyItem(Carpet);
+  SetItemOwner(Midd,who);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function CreateNewElem(who, x, y, z, ObjType)
+
+  var Create := CreateItemAtLoc(x,y,z,ObjType,1,who.realm);
+
+  if(!Create)
+    SendSysMessage(who,"Tu jest za malo miejsca.",FONT_NORMAL,COLOR_RED);
+    DestroyCreated();
+    exit;
+  endif
+
+  Create.invisible := 1;
+  Create.movable   := 0;
+  _ItemsCreated.append(Create);
+
+  if(Create.z != _MaxZ + 1)
+    SendSysMessage(who,"Ten teren jest nie rowny.",FONT_NORMAL,COLOR_RED);
+    DestroyCreated();
+    exit;
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function DestroyCreated()
+
+  foreach Cr in _ItemsCreated
+    DestroyItem(Cr);
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckPlace(who, Place, Width, Height, byref BadCoords)
+
+  var w,h;
+
+  for(h:=0;h<Height;h:=h+1)
+    for(w:=0;w<Width;w:=w+1)
+      if(!CheckPlaceCoords(Place.x+w,Place.y-h,who.realm))
+        BadCoords.append(array(Place.x+w,Place.y-h));
+      endif
+    endfor
+  endfor
+
+  for(h:=0;h<(Height);h:=h+1)
+    if(!CheckPlaceCoords(Place.x-1,Place.y-h,who.realm))
+      BadCoords.append(array(Place.x-1,Place.y-h));
+    endif
+  endfor
+
+  for(h:=0;h<(Height);h:=h+1)
+    if(!CheckPlaceCoords(Place.x+Width,Place.y-h,who.realm))
+      BadCoords.append(array(Place.x+Width,Place.y-h));
+    endif
+  endfor
+
+  for(w:=0;w<(Width);w:=w+1)
+    if(!CheckPlaceCoords(Place.x+w,Place.y+1,who.realm))
+      BadCoords.append(array(Place.x+w,Place.y+1));
+    endif
+  endfor
+
+  for(w:=0;w<(Width);w:=w+1)
+    if(!CheckPlaceCoords(Place.x+w,Place.y-Height,who.realm))
+      BadCoords.append(array(Place.x+w,Place.y-Height));
+    endif
+  endfor
+
+  if(!CheckPlaceCoords(Place.x-1,Place.y-Height,who.realm))
+    BadCoords.append(array(Place.x-1,Place.y-Height));
+  endif
+
+  if(!CheckPlaceCoords(Place.x+Width,Place.y-Height,who.realm))
+    BadCoords.append(array(Place.x+Width,Place.y-Height));
+  endif
+
+  if(!CheckPlaceCoords(Place.x+Width,Place.y+1,who.realm))
+    BadCoords.append(array(Place.x+Width,Place.y+1));
+  endif
+  
+  if(!CheckPlaceCoords(Place.x-1,Place.y+1,who.realm))
+    BadCoords.append(array(Place.x-1,Place.y+1));
+  endif
+
+  return BadCoords.size() == 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckPlaceCoords(x,y,Rlm)
+
+  var Stand := GetStand(x, y, Rlm, _MaxZ);
+  if(Stand.z != _MaxZ or (Stand.multi.serial != _MHouse.serial and _MHouse))
+    return 0;
+  endif
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

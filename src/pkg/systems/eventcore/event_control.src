@@ -1,0 +1,266 @@
+//--------------------------------------------------------------------------------
+
+use datafile;
+
+//--------------------------------------------------------------------------------
+
+include "include/gump_utils";
+include "include/clock";
+include "include/std";
+include ":banking:common";
+include "include/accounts";
+include ":banking:gold";
+
+include "event_data";
+include "common";
+include ":eventcore:operations";
+include ":eventcore:proc_events";
+
+//--------------------------------------------------------------------------------
+
+var gEvents;
+
+//--------------------------------------------------------------------------------
+
+program EventsControl(Parms)
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_CONTROL);
+  PrepareData();
+  CheckStartedEvents();
+  SetScriptController(0);
+  
+  while(1)
+    var ev := wait_for_event(20);
+
+    if(ev)
+      ProcessRecvEvent(ev);
+    endif
+
+    CheckEvents();
+  endwhile
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function PrepareData()
+
+  var Data := GetEventsData();
+  gEvents := dictionary;
+
+  var Keys := GetDataKeys(Data, EVENT_TITLE);
+
+  foreach Key in Keys
+    var Event := GetEventElement(Key);
+    var evData := struct;
+
+    if(Event.GetProp("Disabled"))
+      continue;
+    endif
+
+    var LeftTime := GetTimeLeftForEvent(Event);
+
+    if(LeftTime == error)
+      continue;
+    endif
+
+    evData.+StartDate := PolCore().systime + LeftTime[1];
+    evData.+Script := Event.GetProp("EventScript");
+    evData.+BeforeInterval := Event.GetProp("BeforeInterval");
+    evData.+GlobalMsg := Event.GetProp("GlobalMsg");
+    evData.+Name := Event.GetProp("Name");
+    evData.+BeforeDone := 0;
+
+    gEvents[CInt(Key)] := evData;
+  endforeach
+  
+  syslog("[EventControl]: Event list prepared. Found "+gEvents.size()+" events active.");
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckStartedEvents()
+
+  foreach evData in gEvents
+    var Event := GetEventElement(_evData_iter);
+    var Status := Event.GetProp("Status");
+
+    if(Status and Status != EVENT_STATUS_STOPPED)
+      StartEvent(_evData_iter, evData);
+    endif
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckEvents()
+
+  var curTime := PolCore().systime;
+
+  foreach evData in gEvents
+    if(evData.StartDate)
+      if(curTime > evData.StartDate)
+        StartEvent(_evData_iter, evData);
+      elseif(!evData.BeforeDone and evData.BeforeInterval and curTime > evData.StartDate - evData.BeforeInterval)
+        BroadCastUC(ToUnicode("*dochodza Cie sluchy ze niedlugo rozpocznie sie wydarzenie '")+evData.Name+ToUnicode("'*"), "POL", FONT_NORMAL, COLOR_WHITE);
+        evData.BeforeDone := 1;
+      endif
+    endif
+
+  endforeach
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function ProcessRecvEvent(byref ev)
+
+  ev.evid := CInt(ev.evid);
+  
+  case(ev.msgid)
+    MSGID_START_EVENT:
+      if(gEvents.exists(ev.evid))
+        StartEvent(ev.evid, gEvents[ev.evid], ev.data);
+      elseif(IsStaff(ev.data))
+        SendBad(ev.data, "Nie znaleziono eventa: "+ev.evid+". Czy oby nie jest wylaczony?");
+      endif
+
+    MSGID_STOP_EVENT:
+      if(gEvents.exists(ev.evid))
+        StopEvent(ev.evid, gEvents[ev.evid], ev.data);
+      elseif(IsStaff(ev.data))
+        SendBad(ev.data, "Nie znaleziono eventa: "+ev.evid+". Czy oby nie jest wylaczony?");
+      endif
+
+    MSGID_RELOAD_EVENTS:
+      PrepareData();
+      if(IsStaff(ev.data))
+        SendGood(ev.data, "Przeladowano eventy.");
+      endif
+      
+  endcase
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StartEvent(EvId, byref evData, Source := 0)
+
+  if(!IsStaff(Source))
+    Source := 0;
+  endif
+
+  var Data := GetEventsData();
+  var Event := Data.FindElement(EVENT_TITLE+EvId);
+
+  var Status := Event.GetProp("Status");
+  var Proc := GetProc(Event.GetProp("ProcessId"));
+  
+  if(Status == EVENT_STATUS_STARTED)
+    if(Proc)
+      return 0;
+    else
+      AlertSeers("Event: '"+ToAscii(evData.Name)+"' zostal rozpoczety wczesniej, ale proces nie istnial! Restartowanie...");
+    endif
+  elseif(Status == EVENT_STATUS_STOPPED or !Status)
+    Event.EraseProp("ProcData"); // reset danych dla pewnosci
+    Event.EraseProp("ProcInfo"); 
+    AlertSeers("Event: '"+ToAscii(evData.Name)+"' zostal rozpoczety!");
+  else
+    return 0;
+  endif
+
+  var LeftTime := GetTimeLeftForEvent(Event);
+
+  if(LeftTime)
+    evData.StartDate := PolCore().systime + LeftTime[1];
+  else
+    evData.StartDate := 0;
+  endif
+
+  evData.BeforeDone := 0;
+
+  if(Status != EVENT_STATUS_STARTED)
+    BroadCastUC(Event.GlobalMsg, "POL",FONT_BOLD, COLOR_WHITE);
+  endif
+
+  var Script := start_script(evData.Script, EvId);
+
+  if(!Script)
+    if(Source)
+      SendBad(Source, "Blad podczas uruchamiania skryptu: "+Script.errortext);
+      return 0;
+    endif
+  endif
+
+  Event.SetProp("Status", EVENT_STATUS_STARTED);
+  Event.SetProp("ProcessId", Script.pid);
+
+  if(Source)
+    SendGood(Source, "Event zostal uruchomiony");
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function StopEvent(EvId, byref evData, Source := 0)
+
+  if(!IsStaff(Source))
+    Source := 0;
+  endif
+
+  var Data := GetEventsData();
+  var Event := Data.FindElement(EVENT_TITLE+EvId);
+
+  var Status := Event.GetProp("Status");
+  var Proc := GetProc(Event.GetProp("ProcessId"));
+  
+  if(Status == EVENT_STATUS_STOPPED)
+    if(!Proc)
+      if(Source)
+        SendGood(Source, "Event zostal juz zatrzymany, proces nie istnieje.");
+      endif
+      return 0;
+    endif
+  endif
+  
+  if(Proc)
+    if(Status == EVENT_STATUS_STOPING)
+      if(Source)
+        SendGood(Source, "Proces eventa zostal zabity.");
+      endif
+      Event.SetProp("Status", EVENT_STATUS_STOPPED);
+      Event.EraseProp("ProcessId");
+      Proc.kill();
+      if(Source)
+        SendBad(Source, "Zabito proces eventa: '"+Proc.name+"'", COLOR_ORANGE);
+      endif
+    else
+      if(Source)
+        SendGood(Source, "Wyslano zatrzymanie do procesu eventa: '"+Proc.name+"'");
+      endif
+      AlertSeers("Event: '"+ToAscii(evData.Name)+"' zostanie zatrzymany!");
+      Event.SetProp("Status", EVENT_STATUS_STOPING);
+      SendEventMessage(EvId, MSGID_STOP_EVENT, Source);
+    endif
+  else
+    if(Source)
+      SendGood(Source, "Proces juz nie istnial, wiec status zostanie zmieniony na zatrzymany!");
+    endif
+    Event.SetProp("Status", EVENT_STATUS_STOPPED);
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

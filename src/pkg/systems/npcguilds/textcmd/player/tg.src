@@ -1,0 +1,60 @@
+//--------------------------------------------------------------------------
+// Modified: 2007-03-26
+//--------------------------------------------------------------------------
+
+include "include/misc";
+include "include/msgs";
+include "include/client/fonts";
+
+include ":npcguilds:guilds";
+
+//--------------------------------------------------------------------------
+
+program GuildTitleCmd(who, text)
+
+  var PlayerData := GetObjProperty(who, PROP_NGDDATA);
+  var GuildData := GetNGdData();
+  var GdIds := array;
+  var GdTitles := array;
+  var GdNames := array;
+
+  foreach GdData in (PlayerData.Guilds)
+    if(GdData.Flags & NGPF_MEMBER)
+      var Guild := GuildData.FindElement(NGUILD_TITLE+_GdData_iter);
+      var Title := GetNpcGuildTitle(Guild.GetProp(GDPROP_TYPE), GdData.Level);
+      var Name := Guild.GetProp(GDPROP_NAME);
+
+      GdIds.append(_GdData_iter);
+      GdTitles.append(Title);
+      GdNames.append(Name);
+    endif
+  endforeach
+
+  if(!GdIds.size())
+    SendSysMessage(who, "Nie nalezysz do zadnej gildii.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!text or text == "?")
+    SendSysMessage(who, "Twoje tytuly to:", FONT_NORMAL, COLOR_GREEN);
+
+    foreach Title in GdTitles
+      SendSysMessage(who, _Title_iter+". "+Title+" w gildii "+GdNames[_Title_iter]+".", FONT_NORMAL, COLOR_BLUE);
+    endforeach
+
+  else
+
+    var tIdx := CInt(text);
+
+    if(tIdx > 0 and tIdx <= GdTitles.size())
+      SetTitleSuffix(who, GdTitles[tIdx]);
+      SendSysMessage(who, "Jestes teraz znan"+ggm(who,6)+" jako "+GdTitles[tIdx]+".", FONT_NORMAL, COLOR_GREEN);
+    else
+      SendSysMessage(who, "Nie posiadasz tytulu o numerze "+tIdx+".", FONT_NORMAL, COLOR_RED);
+    endif
+
+  endif
+
+endprogram
+
+//--------------------------------------------------------------------------

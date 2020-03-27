@@ -1,0 +1,76 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use math;
+
+//-----------------------------------------------------------------------------
+
+include "include/effects";
+include "include/objtypes/magic";
+include "include/checks/stdchecks";
+include "include/client/fonts";
+include "include/attributes/main";
+
+//-----------------------------------------------------------------------------
+
+const MGTO_COLOR_DARK        := 1336;
+const MGTO_COLOR_LIGHT       := 1328;
+
+//-----------------------------------------------------------------------------
+
+program MagicTreningOrb(Parms)
+
+  var Caster := Parms[1];
+  var Orb    := Parms[2];
+
+  if(!IsPlayer(Caster) or Orb.objtype != UOBJ_MAGICTRENORB)
+    return;
+  endif
+
+  sleepms(300);
+
+  ChangeOrbColor(Orb, MGTO_COLOR_DARK, MGTO_COLOR_LIGHT);
+  PlayStationaryEff(Orb.x, Orb.y, Orb.z, FX_MARK_EFFECT, 0x10, 0x10, 0, Orb.realm);
+  ChangeOrbColor(Orb, MGTO_COLOR_LIGHT, MGTO_COLOR_DARK);
+
+  PrintTextAbove(Orb, "*"+GetMagicCastScore(Caster)+"*", FONT_NORMAL, COLOR_GREEN_LIGHT);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function ChangeOrbColor(Orb, ClSet, ClEnd)
+
+  while(Abs(ClSet - ClEnd))
+    Orb.color := ClSet;
+    sleepms(100);
+    if(ClSet > ClEnd)
+      ClSet := ClSet - 1;
+    else
+      ClSet := ClSet + 1;
+    endif
+  endwhile
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetMagicCastScore(Caster)
+
+  var Int    := GetIntelligence(Caster);
+  var Magery := GetBaseSkill(Caster, SKILLID_MAGERY);
+  var Eval   := GetBaseSkill(Caster, SKILLID_EVALINT);
+  var Medit  := GetBaseSkill(Caster, SKILLID_MEDITATION);
+  var Rand   := RandomInt(10);
+  var Skills := array(GetBaseSkill(Caster, SKILLID_DRUID), GetBaseSkill(Caster, SKILLID_NECRO), GetBaseSkill(Caster, SKILLID_VAMPIRE), GetBaseSkill(Caster, SKILLID_WEARWOLF));
+  Skills.sort();
+  var Bonus  := Skills[Skills.size()];
+
+  return CInt(Int/4 + Magery/5 + Eval/5 + Medit/5 + Bonus/10 + Rand);
+
+endfunction
+
+//-----------------------------------------------------------------------------

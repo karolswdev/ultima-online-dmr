@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use polsys;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/events";
+include "include/npcs";
+include "include/const/cfgs";
+
+//-----------------------------------------------------------------------------
+
+program MainPushHook()
+
+  print("PushHook: ["+GetPid()+"] Done.");
+  return 1;
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+exported function PushHook(walker, obstructors)
+
+  if(walker.cmdlevel or walker.dead)
+    return 1;
+  endif
+
+  if(CInt(GetObjProperty(walker,"#pushTimer")) + 500 > ReadMillisecondClock())
+    return 0;
+  endif
+
+  SetObjProperty(walker,"#pushTimer",ReadMillisecondClock());
+
+  var Pass := 1;
+
+  foreach Mob in Obstructors
+    if(Mob.isa(POLCLASS_NPC))
+      if(!Mob.hidden and !Mob.concealed)
+        if(GetNpcConfig(Mob).CityNpc)
+          Pass := 0;
+          walker.hidden := 0;
+          SendChEvent(Mob,walker,EVID_PUSH);
+        endif
+      endif
+    endif
+  endforeach
+
+  return Pass;
+
+endfunction
+
+//-----------------------------------------------------------------------------

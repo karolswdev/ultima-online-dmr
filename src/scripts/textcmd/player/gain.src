@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/happygain";
+include "include/clock";
+include "include/msgs";
+include "include/checks/stdchecks";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program GainCmd(who, text)
+
+	return;
+
+  if(text == "start")
+    var Res := SetHappyGain(who);
+
+    if(Res == error)
+      if(IsHappyGain(who))
+        SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_YELLOW);
+      else
+        SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
+      endif
+    else
+      SendSysMessage(who, "Teraz mozesz cieszyc sie z przyspieszonego przyrostu przez "+DescGameTime(GetHappyGainTime())+"!", FONT_NORMAL, COLOR_BLUE);
+    endif
+  elseif(text and IsStaff(who))
+    var sp := SplitWords(text);
+
+    if(sp[1] == "set")
+      var Val := CInt(sp[2]);
+      who.acct.SetProp("CumulHappyGain", array(CUnixTime(0, RLT_SDATE), Val) );
+    endif
+  endif
+
+  if(IsHappyGain(who))
+    var HappyTime := CInt(GetObjProperty(who, "HappyGain"));
+    SendSysMessage(who, "Przyspieszony przyrost bedzie trwac jeszcze przez "+GameTime(HappyTime - ReadGameClock()), FONT_NORMAL, COLOR_BLUE);
+  endif
+    
+  CheckHappyGainCumulation(who);
+  var Days := GetHappyGainCumulation(who);
+
+  if(!Days)
+    SendSysMessage(who, "Nie posiadasz skumulowanych dni przyspieszonego przyrostu.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Posiadasz "+Days+" dni skumulowanego przyspieszonego przyrostu.", FONT_NORMAL, COLOR_WHITE);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

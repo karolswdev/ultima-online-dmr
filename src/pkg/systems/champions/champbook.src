@@ -1,0 +1,139 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/gumps";
+include "include/msgs";
+include "include/player/young";
+include "include/misc";
+include "include/finding";
+include "champions";
+
+//-----------------------------------------------------------------------------
+
+var gChampNr,gWho, gBook;
+
+//-----------------------------------------------------------------------------
+
+program ChampionBook(_who,_Book)
+
+  var ChampData := GetGlobalProperty(PROP_CHDATA);
+
+  gWho      := _who;
+  gBook     := _Book;
+  gChampNr   := CInt(GetObjProperty(gBook,PROP_CHAMPNR));
+
+  if(!gChampNr)
+    LogError("[ChampionBook] Brak numeru mistrza w ksiedze "+gBook.serial, LOGF_SCRIPTS);
+    return;
+  endif
+
+  if(!ChampData)
+    LogError("[ChampionBook] Nie znaleziono danych mistrzow przy probie otwarcia ksiegi "+gBook.serial, LOGF_SCRIPTS);
+    return;
+  endif
+
+  GInit(100,100);
+  GCheckerTrans(10,10,280,280);
+  GGumpPic(0,0,0x1fe);
+
+  if(PrintText())
+    GButton(330,190,0x25f8,0x25f9,0);
+    GButton(360,190,0x25fb,0x25fc,1);
+  else
+    if(IsAdmin(gWho))
+      GButton(330,190,0x25f8,0x25f9,0);
+      GButton(360,190,0x25fb,0x25fc,1);
+    else
+      GButton(360,190,0x25f8,0x25f9,0);
+    endif
+  endif
+
+  var Res := GSend(gWho)[0];
+
+  if(Res)
+    OpenPortal();
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PrintText()
+
+  var ChampCfg := ReadConfigFile(CHAMP_CFG);
+
+  var Res := GetChampState(gChampNr);
+  var Nr  := GetChampFightNr();
+
+  case(Res)
+    CHST_GL_WAIT:       PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GWait"));
+    CHST_BUSY:          if(gChampNr == Nr)
+                          PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"Fight"+gChampNr));
+                        else
+                          PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GFight"));
+                        endif
+    CHST_CH_WAIT:       if(gChampNr == Nr)
+                          PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"Wait"+gChampNr));
+                        else
+                          PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GWait"));
+                        endif
+    CHST_OGATE:         PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GOGate"));
+    CHST_CAN_FIGHT:     PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"Free"+gChampNr));
+                        return 1;
+    CHST_GL_BEFORE:     PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GBefore"));
+    CHST_GL_AFTER:      PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GAfter"));
+    CHST_NOACTIV_DAY:   PrintTextOut(GetConfigStringArray(ChampCfg["BookText"],"GNAD"));
+  endcase
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function PrintTextOut(Arr)
+
+  var x,y;
+
+  x := 35;
+  y := 10;
+
+  foreach Text in Arr
+    GTextLine(x,y,995,Text);
+    y := y + 20;
+    if(y > 200)
+      y := 10;
+      x := 230;
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function OpenPortal()
+
+  if(IsAdmin(gWho))
+    SendSysMessage(gWho, "Otwieranie bramy...");
+    SendChampOpenGate(gBook,gWho);
+    return;
+  endif
+
+  var Res := GetChampState(gChampNr);
+
+  if(IsYoung(gWho))
+    SendSysMessage(gWho, "Jeszcze jestes zbyt mlod"+ggm(gWho,6)+", aby otworzyc ten portal.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(Res == CHST_CAN_FIGHT)
+    SendChampOpenGate(gBook,gWho);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+
+
+

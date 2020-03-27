@@ -1,0 +1,79 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+
+//-----------------------------------------------------------------------------
+
+include "include/start";
+include "include/str";
+include "include/finding";
+include "include/accounts";
+include "include/std";
+
+//-----------------------------------------------------------------------------
+
+var Time;
+
+//-----------------------------------------------------------------------------
+
+program ControlBans(Parms)
+
+  SetLogRunCycles(LST_CONTROL);
+
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+ while(1)
+   CheckBans();
+   sleep(360);
+ endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CheckBans()
+
+  foreach Acc in ListAccounts()
+    Acc := FindAccount(Acc);
+    if(Acc.banned and !IsAccountFrozen(Acc) and !IsAccountDeactivated(Acc))
+      Time := Acc.GetProp("BanTime");
+      if(Time == -1)
+        continue;
+      endif
+      if(!Time)
+        Time := 604800;
+        Acc.SetProp("BanTime",Time);
+      endif
+      if(Acc.GetProp("LastLogin") + Time < ReadGameClock())
+        Acc.unban();
+        Acc.enable();
+
+        var BansArch := Acc.GetProp("BansArchive");
+        if(!BansArch or !BansArch.size())
+          BansArch := array;
+        endif
+
+        var Reason := ClStr(Acc.GetProp("BanReason"));
+        var WhoBan := CInt(Acc.GetProp("WhoBan"));
+        var WhoName := FindPlayerBySerial(WhoBan).name;
+
+        if(WhoName)
+          WhoBan := WhoName;
+        endif
+
+        BansArch.append(array{Reason, WhoBan, Time});
+        Acc.SetProp("BansArchive", BansArch);
+
+        Acc.EraseProp("BanTime");
+        Acc.EraseProp("BanReason");
+        Acc.EraseProp("WhoBan");
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

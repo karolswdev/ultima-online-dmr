@@ -1,0 +1,73 @@
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/skills";
+include "include/skills/std";
+include "include/checks/objchecks";
+
+include ":potionkeg:potionkeg";
+
+//-----------------------------------------------------------------------------
+
+program wylej(who)
+
+  SendSysMessage(who, "Wskaz keg, ktory chcesz oproznic. ",FONT_NORMAL,COLOR_GREEN);
+  var keg := Target(who);
+
+  if(!StandardItemCheck(who,keg))
+    return;
+  endif
+
+  if(keg.ObjType != UOBJ_POTIONKEG )
+    SendSysMessage(who, "To nie jest keg",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(GetPotionsInKeg(keg) <= 0)
+    SendSysMessage(who, "Keg jest pusty.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  elseif(keg.Locked)
+    SendSysMessage(who, "Ten keg jest zalakowany.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(keg.isa(POLCLASS_CONTAINER) and keg.ObjType == UOBJ_POTION_KEG)
+    PourFromKeg(who, keg);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function PourFromKeg(who,keg)
+
+  SendSysMessage(who, "Gdzie wylac zawartosc kega?",FONT_NORMAL,COLOR_GREEN);
+  var toItem := ObjTarget(who);
+
+  if(!StandardItemCheck(who,toItem,NO_MOVABLE_CHECK | NO_OWNER_CHECK ))
+    return 0;
+  endif
+
+  if(Distance(who,toItem) > 1)
+    SendSysMessage(who, "Stoisz za daleko.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  if(toItem.ObjType != UOBJ_TRASHBARREL)
+    SendSysMessage(who, "To nie jest smietnik.",FONT_NORMAL,COLOR_RED);
+    return 0;
+  endif
+
+  PlaySoundEffect(who, SOUND_EFFECT_POUR);
+  sleep(2);
+  ReducePotionsInKeg(keg, GetPotionsInKeg(keg));
+  
+  if(GetObjProperty(Keg, "Quality"))
+    Keg.color := KEG_NORMAL_COLOR;
+    EraseObjProperty(Keg, "Quality");
+    RenameKeg(Keg);
+  endif
+  
+  SendSysMessage(who, "Oprozniono zawartosc kega.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction

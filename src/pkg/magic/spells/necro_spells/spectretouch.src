@@ -1,0 +1,66 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/reputation/murderer";
+include "include/packets";
+include "../pkg/systems/tourney/tourney";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 70;
+
+//-----------------------------------------------------------------------------
+
+program CastSpectreTouch( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(IsInTourneyIsland(Caster.x, Caster.y))
+    Fizzle(Caster, "Czar prysl...");
+    return;
+  endif
+
+  var Range := CInt(GetMagicSkillValue(Caster, SpellGlob.Type) / 30) + CInt(GetMindSkillValue(Caster, SpellGlob.Type) / 30);
+  var Dmg   := 0;
+  var Num   := 0;
+  var Gained := 0;
+
+  foreach mobile in ListMobilesNearLocation(CastOn.x, CastOn.y, CastOn.z, Range,Caster.realm)
+    if(CanDamage(Caster,mobile, 0, CastOn))
+
+      if(Dispersed(Caster, Mobile))
+        continue;
+      endif
+
+      if(Reflected(mobile, Caster))
+        mobile := Caster;
+      endif
+
+      PlaySoundEffect(mobile, SFX_SPELL_EXPLOSION);
+      PlaySoundEffect(mobile, SFX_FIREBLAST);
+      PlayPcEffect(mobile, FX_EXPLODE_3, 47, 0x7, 0xF, 2);
+      Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, mobile, SpellGlob.Type);
+      var DmgRes := DoMagicDamage(mobile, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type);
+      AddMurdReport(mobile, Caster);
+
+      Num := Num + 1;
+
+      if(Gained < 3 and DmgRes > 0) 
+        Gained += GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+      endif
+
+      if(Num >= 5)
+        break;
+      endif
+    endif
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

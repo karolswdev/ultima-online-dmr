@@ -1,0 +1,16 @@
+use uo;
+use os;
+
+include ":instances:instances";
+include ":spawnnet:spawnnet";
+include "include/effects";
+include "include/gumps";
+
+program control_instancestone(stone)
+
+	while(1)
+		DoCheck(stone);
+		sleepms(30000);
+	endwhile
+	
+endprogram

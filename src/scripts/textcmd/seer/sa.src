@@ -1,0 +1,58 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program SayAboveCmd(who, text)
+
+  if(!text)
+    SendSysMessage(who, "Wpisz tekst.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  
+
+  var Color := 0;
+  
+  if(GetObjProperty(who, "SaColor"))
+	Color := CInt(GetObjProperty(who, "SaColor"));
+  endif
+  
+  
+
+  if(text["col="])
+    var Pos  := find(text, "col=", 0)+4;
+    var ePos := find(text," ",Pos);
+    if(!ePos)
+      ePos := len(text);
+    endif
+    Color := text[Pos, ePos-Pos+1];
+	SetObjProperty(who, "SaColor", CInt(Color));
+    text["col="+Color] := "";
+    Color := CInt(Color);
+  endif
+
+  SendSysMessage( who, "Nad czym powiedziec?", FONT_NORMAL, COLOR_GREEN);
+
+  var OnObj := ObjTarget(who, TGTOPT_NOCHECK_LOS);
+  if(OnObj)
+    if(Color)
+      PrintTextAbove(OnObj, text, FONT_NORMAL, Color);
+    else
+      PrintTextAbove(OnObj, text);
+    endif
+  else
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

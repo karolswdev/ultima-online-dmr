@@ -1,0 +1,282 @@
+//-----------------------------------------------------------------------------
+
+include "renthouse";
+include "include/checks/objchecks";
+include "include/move";
+
+include ":npcguilds:common";
+
+//-----------------------------------------------------------------------------
+
+const MAX_RENTTIME := 4838400; // 56 dni
+
+//-----------------------------------------------------------------------------
+
+program HrSign(who,Sign)
+
+  var Owner := GetOwner(Sign);
+  var HrNr  := GetHrNr(Sign);
+
+  if(!HrNr)
+    LogError("HrSign: "+Sign.serial+" who: "+who.serial+" Znak bez numeru! ", LOGF_SCRIPTS);
+    return;
+  endif
+  var City  := GetHrCity(Sign);
+  if(!City)
+    LogError("HrSign: "+Sign.serial+" who: "+who.serial+" Znak bez miasta! ", LOGF_SCRIPTS);
+    return;
+  endif
+
+  var House := GetHr(City,HrNr);
+  if(!House)
+    LogError("HrSign: "+Sign.serial+" who: "+who.serial+" Znak bez domu! ", LOGF_SCRIPTS);
+    return;
+  endif
+
+  if(!CheckRentHouse(Sign))
+    EraseRentHouse(House);
+    Owner := 0;
+  endif
+
+  GInit();
+  GPage();
+  GResPic(90,90,2620,380,280);
+  GResPic(98,95,3600,367,265);
+
+  GTextLine(170,120,550,"Dom w miescie "+City+", Nr "+HrNr);
+
+  GPage();
+  if(Owner.name)
+    var BItems := GetHrBlockedItems(Sign);
+    GTextLine(140,150,560,"Wlasciciel "+Owner.name);
+    GTextLine(130,300,550,"Pozostaly czas wynajmu:");
+    GTextLine(130,320,570,DescGameTime((GetStartTime(Sign) + GetRentTime(Sign)) - ReadGameClock()));
+    if(who.cmdlevel)
+      GTextLine(330,320,999,RealTime((GetStartTime(Sign) + GetRentTime(Sign)) - ReadGameClock()));
+    endif
+    
+    if(Owner.serial == who.serial or IsAdmin(who))
+
+      GTextLine(140,220,560,"Zmien Zamki");
+      GButton(120,220,2714, 2715,1);
+
+      if(GetStartTime(Sign) + HR_RESIGN_TIME < ReadGameClock())
+        GTextLine(140,240,560,"Zrezygnuj");
+        GButton(120,240,2714, 2715,2);
+        GTextLine(320,240,560,"Przedluz wynajm");
+        GButton(300,240,2714, 2715,4);
+      endif
+      
+    endif
+    
+    if(CanControlHr(who,Sign))
+
+      GTextLine(140,190,560,"Przyjaciele");
+      GButtonPage(120,190,2714, 2715,2);
+
+      GTextLine(140,270,560,"Zablokowane : "+BItems.size() + "/" + MAX_HR_BLOCKED_ITEMS);
+
+      if(HrHaveVendor(Sign))
+        GTextLine(310,270,560,"Jeden Kupiec");
+      else
+        GTextLine(330,270,560,"Brak Kupca");
+      endif
+
+    endif
+
+  else
+    GTextLine(140,150,560,"Do wynajmu u wlasciciela.");
+  endif
+
+  GPage();
+
+  var Friends := GetHrFriends(Sign),i := 0;
+  
+  foreach Friend in Friends
+    Friend := FindPlayerBySerial(Friend);
+    if(Friend.name)
+      if(Owner.serial == who.serial)
+        GButton(120,160+(i*20),2714,2715,11+i);
+      endif
+      GTextLine(140,160+(i*20),570,Friend.name);
+      i := i + 1;
+    endif
+  endforeach
+
+  if(Owner.serial == who.serial)
+    GButton(120,300,2714,2715,3);
+    GTextLine(140,300,550,"Dodaj przyjaciela");
+  endif
+
+  GButtonPage(425,300,2714,2715,1);
+  GTextLine(380,300,550,"Wroc");
+
+  var Res := GSend(who)[0];
+  
+  case(Res)
+    1:  ChangeLocks(who,House);
+    2:  Resign(who,House);
+    3:  AddHrFriend(who,Sign);
+    4:  ExtensionRent(who,Sign,House);
+  endcase
+  
+  if(Res > 10 and Res <= 10 + MAX_HR_FRIENDS)
+    EraseFriend(who,Sign,Res-10);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function Resign(who,House)
+
+  if(YesNo(who,"Napewno?"))
+    EraseRentHouse(House);
+    SendSysMessage(who,"Zrezygnowal"+ggm(who,3)+" z wynajmu domu.",FONT_NORMAL,COLOR_GREEN);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChangeLocks(who,House)
+
+  SendSysMessage(who,"Wybierz klucz.",FONT_NORMAL,COLOR_GREEN);
+  var Key := ObjTarget(who);
+  
+  if(!StandardItemCheck(who,Key))
+    return;
+  endif
+  
+  if(Key.objtype < UOBJ_KEYSTART or Key.objtype > UOBJ_KEYEND)
+    SendSysMessage(who,"To nie klucz!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(GetItemLockID(Key))
+    SendSysMessage(who,"Ten klucz jest juz wyrobiony.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var Doors := FindHrDoors(House);
+  
+  var LockID := AlLocLockId();
+
+  foreach Door in Doors
+    SetItemLockID(Door,LockID);
+    SetLock(Door,95);
+  endforeach
+
+  SetItemLockID(Key,LockID);
+  Key.newbie := 1;
+
+  SendSysMessage(who,"Zmienil"+ggm(who,3)+" zamki w drzwiach.",FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function EraseFriend(who,Sign,Nr)
+
+  var Friends := GetHrFriends(Sign);
+  
+  var Friend := FindPlayerBySerial(Friends[Nr]);
+
+  if(!Friend)
+    SendSysMessage(who,"Nie ma takiego przyjaciela.",FONT_NORMAL,COLOR_RED);
+    Friends.erase(Nr);
+    SetHrFriends(Sign,Friends);
+    return;
+  endif
+  
+  SendSysMessage(who,"Chcesz skasowac przyjaciela "+Friend.name+"?",FONT_NORMAL,COLOR_GREEN);
+  if(!YesNo(who,"Napewno?"))
+    return;
+  endif
+
+  Friends.erase(Nr);
+  SetHrFriends(Sign,Friends);
+  SendSysMessage(who,"Skasowal"+ggm(who,3)+" przyjaciela "+Friend.name,FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AddHrFriend(who,Sign)
+
+  var Friends := GetHrFriends(Sign);
+
+  if(Friends.size() >= MAX_HR_FRIENDS)
+    SendSysMessage(who,"Nie mozesz dodac wiecej przyjaciol.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Kogo chcesz dodac do przyjaciol?",FONT_NORMAL,COLOR_GREEN);
+  var NewFriend := ObjTarget(Who);
+  
+  if(!StandardMobCheck(who,NewFriend))
+    return;
+  endif
+  
+  if(!IsPlayer(NewFriend) or who == NewFriend)
+    SendSysMessage(who,"Tego nie mozesz dodac.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(IsHrFriend(Sign,NewFriend))
+    SendSysMessage(who,"Ta osoba jest juz przyjacielem.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  Friends.append(NewFriend.serial);
+  SetHrFriends(Sign,Friends);
+  
+  SendSysMessage(who,"Dodal"+ggm(who,3)+" nowego przyjaciela - "+NewFriend.name,FONT_NORMAL,COLOR_GREEN);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ExtensionRent(who,Sign,House)
+
+  var GLvl      := GetPlayerNpcGuildCityLvl(who, House.City);
+  var rentTime  := GetRentTime(Sign);
+  var startTime := GetStartTime(Sign);
+  
+  var SelTime := SelectRentTime(who, House);
+
+  if(!SelTime)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var NewTime := SelTime + rentTime;
+
+  var Cost := GetRentHousePrice(House, SelTime, GLvl);
+  
+  if((NewTime - (ReadGameClock() - startTime)) > MAX_RENTTIME)
+    SendSysMessage(who,"Nie mozesz teraz przedluzyc wynajmu na tak dlugo. Sprobuj pozniej.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  SendSysMessage(who,"Koszt przedluzenia wynajmu o "+GameTime(SelTime)+" to "+cost+" gp.",FONT_NORMAL,COLOR_GREEN);
+  
+  if(!YesNo(who,"Na pewno?"))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  if(!SpendGold(who, cost))
+    SendSysMessage(who,"Nie masz wystarczajacej ilosci zlota.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  SetRentTime(Sign, NewTime);
+  
+  SendSysMessage(who,"Przedluzyl"+ggm(who,3)+" wynajm domku o "+GameTime(SelTime)+".",FONT_NORMAL,COLOR_GREEN);
+  
+endfunction
+
+//-----------------------------------------------------------------------------

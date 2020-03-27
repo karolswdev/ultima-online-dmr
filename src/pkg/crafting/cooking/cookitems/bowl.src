@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/move";
+include "include/player/nutrition";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program UseBowl(who, Item)
+
+  if(!StandardItemCheck(who, Item))
+    return;
+  endif
+
+  SendSysMessage(who, "Wskaz przedmiot.", FONT_NORMAL, COLOR_GREEN);
+
+  var ItemCfg := ReadConfigFile(ITEMS_CFG);
+  var tItem   := ObjTarget(who);
+
+  if(!StandardItemCheck(who, tItem))
+    return;
+  endif
+
+  var BowlObj := GetItemObjType(ItemCfg[tItem.objtype].BowlObjType);
+
+  if(!BowlObj)
+    SendSysMessage(who, "Nie wydaje sie by mozna bylo cos przelac z tego przedmiotu do miski.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(DestroyItem(Item))
+    var pItem := CreateItemInPack(who, BowlObj);
+    if(pItem)
+      SetObjProperty(pItem, PROP_FOODQUALITY, GetFoodQual(tItem));
+      SubItemUses(tItem, 1);
+    endif
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

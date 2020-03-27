@@ -1,0 +1,110 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/dirs";
+include "include/objtypes/misc";
+include "include/objects/location";
+include "include/effects";
+
+include "train_iterations";
+
+//-----------------------------------------------------------------------------
+
+const PDUM_DIFF              := 10;
+const PDUM_SK_GAIN           := 40;
+
+//-----------------------------------------------------------------------------
+
+program UsePickPocketDFummy(who, dummy)
+
+  if(!StandardItemCheck(who, dummy, NO_MOVABLE_CHECK  | NO_OWNER_CHECK))
+    return;
+  elseif(Distance(who, Dummy) > 1)
+    SendSysMessage(who, "Stoisz za daleko.", FONT_NORMAL, COLOR_RED);
+    return;
+  elseif(ExPid(GetObjProperty(Dummy, "#swinging")))
+    SendSysMessage(who, "Ten maniekin jest w uzyciu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_PICK_DUMMY);
+
+  var IterData := DefineTrainIterations(who, SKILLID_STEALING);
+  var Res;
+  
+  while(TrainIteration(who, IterData))
+    Res := PickDummy(who, Dummy, IterData);
+    
+    if(Res == error)
+      break;
+    endif
+
+  endwhile
+
+  FinishTrainIteration(who, IterData);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function PickDummy(who, Dummy, byref IterData)
+
+  TrainIterationGump(who, IterData, "Trenujesz na manekinie...");
+
+  var Diff := PDUM_DIFF;
+
+  if(GetEffectiveSkill(who, SKILLID_STEALING) >= CInt(PDUM_SK_GAIN * 0.6))
+    Diff := Diff + CInt(PDUM_DIFF * 1.5);
+  endif
+
+  if(CheckSkill(who, SKILLID_STEALING, Diff, 0))
+    PlaySoundEffect(who, 0x58 );
+    SendSysMessage(who, GetTrainIterDesc(IterData)+" Chwycil"+ggm(who,3)+" worek!",FONT_NORMAL,COLOR_GREEN);
+  else
+    PlaySoundEffect(who, 0x41 );
+    SendSysMessage(who, GetTrainIterDesc(IterData)+" Worek wypsnal Ci sie z rak.",FONT_NORMAL,COLOR_RED);
+  endif
+
+  if(GetBaseSkill(who,SKILLID_STEALING) >= MAX_ITEMTRAIN_SKVAL)
+    SendSysMessage(who, "Nie nauczysz sie wiecej z prostego okradania lalki.",FONT_NORMAL,COLOR_RED);
+  else
+    AwardPoints(who, SKILLID_STEALING, PDUM_SK_GAIN, NO_STAT_AWARD);
+  endif
+
+  return AnimateDummy(who, Dummy);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function AnimateDummy(who, Dummy)
+
+  SetObjProperty(Dummy, "#swinging", GetPid());
+
+  if(Dummy.objtype == UOBJ_PDUMMYFREEZE_NS)
+    Dummy.graphic := UOBJ_PDUMMYSWING_NS;
+    sleepms(3600);
+    Dummy.graphic := UOBJ_PDUMMYFREEZE_NS;
+  elseif(Dummy.objtype == UOBJ_PDUMMYFREEZE_EW)
+    Dummy.graphic := UOBJ_PDUMMYSWING_EW;
+    sleepms(3600);
+    Dummy.graphic := UOBJ_PDUMMYFREEZE_EW;
+  else
+    sleep(3);
+  endif
+
+  if(Distance(who, Dummy) > 1)
+    SendSysMessage(who, "Oddalil"+ggm(who, 3)+" sie!", FONT_NORMAL, COLOR_RED);
+    return error;
+  endif
+
+  EraseObjProperty(Dummy, "#swinging");
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------

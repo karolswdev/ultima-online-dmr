@@ -1,0 +1,197 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/packets";
+include "include/calc";
+include "include/items/temp_storage";
+include ":wearwolf:common";
+include "include/mobile/npcs/specs";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID   := 92;
+
+//-----------------------------------------------------------------------------
+
+program CastNaturesCurse( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(!CanGetMagicStatMod(CastOn))
+    Fizzle(Caster, "Czar nie daje efektu na tej osobie.");
+    return;
+  endif
+  
+  if(IsWearWolfMorphed(Caster))
+    Fizzle(Caster, "Nie mozesz w tej formie rzucic tego czaru.");
+    return;
+  endif
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  var Duration    := CInt(GetDruidSpellDur( Caster ) / 3);
+  var ModAmount   := CInt(CalcSkillExponential(Caster, SKILLID_DRUID, 7));
+  ModAmount       := Resisted(CastOn, Caster, ModAmount, SpellGlob.Circle, SpellGlob.Type);
+  ModAmount       := 0 - ModAmount;
+
+  if(CastOn.isa(POLCLASS_NPC))
+    var Factor := 1.0 - CDbl(GetMaxHp(CastOn) / 1000);
+    if(Factor > 1.0)
+      Factor := 1.0;
+    elseif(Factor <= 0.15)
+      Factor := 0.15;
+    endif
+
+    ModAmount := CInt(ModAmount * 0.75);
+    Duration  := CInt(Duration * Factor);
+  endif
+
+  DoNaturesCurseSpellEffect (CastOn);
+  PlaySoundEffect(CastOn, SFX_SPELL_CURSE);
+
+  if(CanSkillModAny(CastOn, array(SKILLID_SWORDSMANSHIP, SKILLID_AXESMANSHIP, SKILLID_MACEFIGHTING, SKILLID_WRESTLING, SKILLID_PARRY, SKILLID_FENCING, SKILLID_ARCHERY)))
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE); 
+  endif
+
+  DoSkillMod (CastOn, SKILLID_SWORDSMANSHIP, ModAmount, Duration);
+  DoSkillMod (CastOn, SKILLID_AXESMANSHIP,   ModAmount, Duration);
+  DoSkillMod (CastOn, SKILLID_MACEFIGHTING,  ModAmount, Duration);
+  DoSkillMod (CastOn, SKILLID_WRESTLING,     ModAmount, Duration);
+  DoSkillMod (CastOn, SKILLID_FENCING,       ModAmount, Duration);
+  DoSkillMod (CastOn, SKILLID_PARRY,         ModAmount, Duration);
+  DoSkillMod (CastOn, SKILLID_ARCHERY,       ModAmount, Duration);
+
+  if(CastOn.isa(POLCLASS_NPC))
+    var Res := BreakNpcSpecial(CastOn, NSPEC_STONEFALL);
+    if(Res > 0)
+      SendSysMessage(Caster, "Przelamal"+ggm(Caster,3)+" koncetracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_WHITE);
+    elseif(Res < 0)
+      SendSysMessage(Caster, "Prawie przelamal"+ggm(Caster,3)+" koncentracje "+GetName(CastOn)+"!", FONT_NORMAL, COLOR_ORANGE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoNaturesCurseSpellEffect (character)
+  var oldx := character.x;
+  var oldy := character.y;  
+  var items := {};
+
+  items.append (PullTempItemAtLoc (character.x+1, character.y, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc (character.x, character.y-1, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc (character.x-1, character.y, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc (character.x, character.y+1, character.z, UOBJ_INVISITEM,character.realm));
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  sleepms (250);
+  
+  items.append (PullTempItemAtLoc (character.x+1, character.y+1, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc (character.x+1, character.y-1, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc (character.x-1, character.y-1, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc (character.x-1, character.y+1, character.z, UOBJ_INVISITEM,character.realm));
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  CheckMovement (character, oldx, oldy, items);
+  sleepms (250);
+  
+  items.append (PullTempItemAtLoc(character.x+2, character.y, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc(character.x, character.y-2, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc(character.x-2, character.y, character.z, UOBJ_INVISITEM,character.realm));
+  items.append (PullTempItemAtLoc(character.x, character.y+2, character.z, UOBJ_INVISITEM,character.realm));
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  CheckMovement (character, oldx, oldy, items);
+  sleepms (250);
+  
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  CheckMovement (character, oldx, oldy, items);
+  sleepms (250);
+  
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  CheckMovement (character, oldx, oldy, items);
+  sleepms (250);
+
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  CheckMovement (character, oldx, oldy, items);
+  sleepms (250);
+  
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+  CheckMovement (character, oldx, oldy, items);
+  sleepms (250);
+
+  foreach item in items
+    IncrementGraphic (item);
+  endforeach
+
+  PlayPcEffect(character, FX_CURSE_EFFECT, 75, 7, 0xf, 1);
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IncrementGraphic (item)
+
+  Item.movable   := 0;
+  Item.color     := 33;
+  Item.invisible := 0;
+
+  case (item.graphic)
+    3676:    item.graphic := 3679;
+    3679:    item.graphic := 3682;
+    3682:    item.graphic := 3685;
+    3685:    item.graphic := 3688;
+    3688:    ReturnTempItem(item);
+    default: item.graphic := 3676;
+  endcase
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMovement (character, byref oldx, byref oldy, items)
+  if (character.x == oldx and character.y == oldy)
+    return;
+  endif
+
+  MoveObject (items[1], character.x + 2, character.y,   character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[2], character.x,     character.y-2, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[3], character.x-2,   character.y,   character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[4], character.x,     character.y+2, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[5], character.x+1,   character.y+1, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[6], character.x+1,   character.y-1, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[7], character.x-1,   character.y-1, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[8], character.x-1,   character.y+1, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[9], character.x+1,   character.y,   character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[10],character.x,     character.y-1, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[11],character.x-1,   character.y,   character.z, 0, MOVEITEM_IGNOREMOVABLE);
+  MoveObject (items[12],character.x,     character.y+1, character.z, 0, MOVEITEM_IGNOREMOVABLE);
+
+  oldx := character.x;
+  oldy := character.y;
+endfunction
+
+//-----------------------------------------------------------------------------

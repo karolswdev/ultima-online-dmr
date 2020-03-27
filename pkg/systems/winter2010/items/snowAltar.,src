@@ -1,8 +1,0 @@
-use uo;
-use os;
-
-include "include/others";
-
-program use_MeditationAltar(who, theAltar)
-
-	

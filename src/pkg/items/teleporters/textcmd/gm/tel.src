@@ -1,0 +1,33 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "../../teleporters";
+include "include/cmds/cancmd";
+include "include/move";
+
+//-----------------------------------------------------------------------------
+
+program ShowTele(who,text)
+ 
+  if(!CanUseCmd(who, "tel"))
+    return 0;
+  endif
+
+  var Split := SplitWords(text);
+  case(Split[1])
+    "go":     GoToTele(who,Split[2]);
+  endcase
+
+  case(text)
+    "hide":   Hide(who);
+    "show":   Show(who);
+    "ghide":  GlobalHide(who);
+    "gshow":  GlobalShow(who);
+    "info":   GetInfo(who);
+    default:  SendSysMessage(who, " .tel [hide/show/ghide/gshow/info/go]"); return;
+  endcase
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

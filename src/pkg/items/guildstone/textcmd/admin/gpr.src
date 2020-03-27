@@ -1,0 +1,39 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/player/target";
+include ":guildstone:guild";
+
+//-----------------------------------------------------------------------------
+
+program GuildProp(who,text)
+ 
+  var Trg := ObjTarget(who);
+  
+  if(GetGuildId(Trg))
+
+    var Guild := FindGuild(GetGuildId(Trg));
+    
+    text := Splitwords(text);
+    case(text[1])
+      "get":   SendSysMessage(who,"["+text[2]+"] "+Guild.GetProp(text[2]),FONT_NORMAL,COLOR_GREEN);
+      "set":   Guild.SetProp(text[2],text[3]);
+               SendSysMessage(who,"Ustawiono ["+text[2]+"] "+Guild.GetProp(text[2]),FONT_NORMAL,COLOR_GREEN);
+      "era":   Guild.EraseProp(text[2]);
+               SendSysMessage(who,"Kasacja ["+text[2]+"] "+Guild.GetProp(text[2]),FONT_NORMAL,COLOR_GREEN);
+      default: SendSysMessage(who,".gpr [e/s/g]",FONT_NORMAL,COLOR_GREEN);
+    endcase
+
+    return Guild.GetProp(text);
+  else
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endif
+ 
+endprogram
+
+//-----------------------------------------------------------------------------

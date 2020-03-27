@@ -1,0 +1,77 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use util;
+
+//-----------------------------------------------------------------------------
+
+include ":ai_handler:utils/misc";
+include "include/attributes/skills";
+include "include/mobile/npcs/utils";
+
+include "bulks";
+include ":crafting:mat_groups";
+include ":ai_speech:/utils/speech";
+
+//-----------------------------------------------------------------------------
+
+program BulkCheck(Data)
+
+  if(!AIHandler_Init(Data))
+    return;
+  endif
+
+  var cfgElem := GetNpcConfig(Data.npc);
+
+  if(cfgElem.BulkSkill == error)
+    return;
+  endif
+
+  var BulkForce := GetObjProperty(Data.source, "#BulkForce");
+
+  if(BulkForce)
+    SpawnBulk(Data.npc, Data.source, CInt(cfgElem.BulkSkill));
+    EraseObjProperty(Data.source, "#BulkForce");
+    return;
+  endif
+
+  if(GetBaseSkill(Data.source, CInt(cfgElem.BulkSkill)) >= BULK_SK_NEEDED)
+    var Bulk := GetBulkData(Data.npc, Data.source);
+
+    if(!Bulk[2])
+      NpcSpeechJustSay(Data.npc, Data.source, "Jak bedziesz czesto mnie zaopatrzac to mozesz trafic na okazje i dostac specjalne zamowienie!");
+    endif
+
+    if(Bulk[1] + BULK_TIME_COUNTER < ReadGameClock() or IsDebug(Data.source, "BulkDebug"))
+      Bulk[1] := ReadGameClock();
+      Bulk[3] := 0;
+    endif
+
+    var curAdd := Min(CInt(Data.price), BULK_MAX_ONETIME);
+
+    if(Bulk[3] + curAdd > BULK_MAX_ONETIME)
+      curAdd := BULK_MAX_ONETIME - Bulk[3];
+    endif
+
+    Bulk[2] += curAdd;
+    Bulk[3] += curAdd;
+    Bulk[5] += CInt(Data.price);
+
+    if(Bulk[2] >= BULK_MIN_COUNT)
+      var Chance := 1 + CInt(BULK_CHANCE * (CDbl(Bulk[2] - BULK_MIN_COUNT) / CDbl(BULK_MAX_COUNT -  BULK_MIN_COUNT)));
+
+      if(HaveChance(Chance))
+        SpawnBulk(Data.npc, Data.source, CInt(cfgElem.BulkSkill));
+        Bulk[1] := ReadGameClock();
+        Bulk[2] := 0;
+        Bulk[3] := 0;
+        Bulk[4] += 1;
+      endif
+    endif
+
+    SetBulkData(Data.npc, Data.source, Bulk);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

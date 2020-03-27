@@ -1,0 +1,28 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program UnFreezeAll(who)
+
+  var nr;
+
+  foreach Player in EnumerateOnlineCharacters()
+    if(Player.frozen)
+      nr := nr + 1;
+      Player.frozen := 0;
+    endif
+  endforeach
+
+  SendSysMessage(who,nr+" zostalo odmrozonych.",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

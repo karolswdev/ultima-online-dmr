@@ -1,0 +1,37 @@
+//-----------------------------------------------------------------------------
+
+include "include/checks/objchecks";
+include "include/objtypes/skills";
+include "include/objtypes/misc";
+
+//-----------------------------------------------------------------------------
+
+program UseDyes(who, dyes)
+
+  if(!StandardItemCheck(who,dyes))
+    return;
+  endif
+
+  SendSysMessage(who, "Wybierz wiadro w ktorym chcesz zafarbowac wode.",FONT_NORMAL,COLOR_GREEN);
+  var dyetub := ObjTarget(who, TGTOPT_CHECK_LOS);
+
+  if(!StandardItemCheck(who,dyetub))
+    return;
+  endif
+
+  if(dyetub.objtype != UOBJ_DYETUB)
+    SendSysMessage(who, "To nie wiadro z woda!",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var color := SelectColor(who, dyetub);
+  
+  if( color > 1001 or color <= 1 or !CInt(color))
+    SendSysMessage(who,"Tego koloru nie wolno uzywac!",FONT_NORMAL,COLOR_RED);
+  else
+    dyetub.color := color;
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

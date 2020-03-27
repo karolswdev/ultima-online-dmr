@@ -1,0 +1,281 @@
+//-----------------------------------------------------------------------------
+
+include "include/noto";
+include "include/mount";
+include "../pkg/systems/champions/champions";
+include "../pkg/systems/spawnnet/spawnnet";
+include ":quests:quest_ctrl";
+include "../pkg/items/lostitems/lostitems";
+include "../pkg/magic/magiceffects/summon";
+include "include/loots";
+include "include/player/misc";
+include "include/log";
+include ":traits:traits";
+include ":glyphs:glyphs";
+include ":halloween:halloween";
+include ":discord:outbound";
+
+//-----------------------------------------------------------------------------
+
+program NpcDeath(corpse)
+
+  set_script_option(SCRIPTOPT_NO_RUNAWAY,1);
+  
+  if(GetObjProperty(corpse, PROP_CREATED))
+    SetFlag(corpse, NPCF_NO_LOOT);
+  endif
+
+  if(IsSetFlag(corpse, NPCF_GUARD_KILL) or IsSetFlag(corpse, NPCF_NO_CORPSE))
+    corpse.invisible := 1;
+  endif
+
+  var Template := GetObjProperty(corpse, PROP_NPCTEMP);
+  CheckQuestNpcDeath(corpse);
+  CheckSpawnnet(corpse);
+
+  if(GetObjProperty(corpse,"SetColor") != error)
+    corpse.color := CInt(GetObjProperty(corpse,"SetColor"));
+  endif
+
+  var killer := GetLastHitter(corpse);
+
+  if(killer and !IsSetFlag(corpse, NPCF_GUARD_KILL))
+    if(!IsSummoned(corpse) and !GetPrevTamed(corpse))
+      AdjustNoto(killer, corpse);
+    endif
+  endif
+
+  var Master := FindPlayerBySerial(GetObjProperty(corpse, PROP_MASTER));
+  if(Master and Template != "playervendor")
+    SetObjProperty(corpse, "DeathStatus", __IfElse(Master.murderer, "Murderer", __IfElse(Master.criminal, "Criminal", "Order")));
+  endif
+  
+  if(IsPlayer(killer) and killer.cmdlevel)
+    LogMsg(KILL_LOG, Killer, corpse);
+  endif
+
+  var cfgElem := GetNpcConfig(Template);
+  var deathsound := CInt(cfgElem.deathsound);
+  
+  // Halloween
+  SpawnGhost(cfgElem, Template, corpse);
+
+  if(deathsound)
+    PlaySoundEffect(corpse, deathsound);
+  endif
+
+  if(cfgElem.LeaveMount)
+    DismountNpcAfterDeath(corpse);
+  else
+    DismountAndKill(corpse,Template);
+  endif
+
+  DestroyNpcStorageArea(corpse);
+  
+  if(IsSummoned(corpse))
+    CheckSumDie(corpse);
+    
+    if(!IsSetFlag(corpse, NPCF_MIN_LOOT))
+      sleepms(200);
+      DestroyItem(corpse);
+      return;
+    endif
+  else
+    CheckTraitNpcKilled(Killer, corpse);
+  endif
+
+  if(IsSetFlag(corpse, NPCF_GUARD_KILL))
+    DestroyItem(corpse);
+    return;
+  endif
+
+  var bCreateLoot := 1;
+
+  if(cfgElem.Champion)
+    if(GetChampState(cfgElem.Champion) != CHST_BUSY)
+      bCreateLoot := 0;
+    endif
+    SendChampDeath(corpse, cfgElem.Champion);
+  endif
+  
+  if(Template)
+    if(!GetNpcConfig(Killer).GrabLoot and bCreateLoot)
+      var Elem   := cfgElem;
+      
+      if(!IsSetFlag(corpse, NPCF_NO_LOOT))
+        var QuantMult := 1.0;
+        var GoldMult := 1.0;
+
+        if(IsSetFlag(corpse, NPCF_MIN_LOOT))
+          QuantMult := 0.5;
+        endif
+
+        if(IsSetFlag(corpse, NPCF_DOUBLE_LOOT))
+          QuantMult := QuantMult * 2;
+          GoldMult := GoldMult * 2;
+        endif
+
+        if(killer.isa(POLCLASS_NPC))
+          GoldMult := GoldMult / 2.0;
+        endif
+
+        var Loots := GetConfigStringArray(Elem,"lootgroup");
+
+	var reps := 0;
+
+	if(GetObjProperty(corpse, "SuperLoot"))
+	    reps := CInt(GetObjProperty(corpse, "SuperLoot"));
+	endif
+
+	while(reps > 0)
+	    foreach Loot in Loots
+		CreateLoot(corpse, Loot, LOOTS_CFG, 0, QuantMult, GoldMult);
+	    endforeach
+	    reps -= 1;
+	endwhile
+	
+
+        foreach Loot in Loots
+          CreateLoot(corpse, Loot, LOOTS_CFG, 0, QuantMult, GoldMult);
+        endforeach
+
+        if(Loots.size() and !IsSetFlag(corpse, NPCF_NO_CORPSE))
+          CreateLostItemLoot(Corpse);
+        endif
+
+        if(Elem.ammotype)
+          CreateItemInCont(corpse,CInt(Elem.ammotype),CInt(Elem.ammoamount));
+        endif
+      endif
+    else
+      PrintTextAbove(Killer,"*yoink*");
+    endif
+
+    UnSetFlag(corpse, NPCF_NO_LOOT);
+  endif
+  
+  if(IsSetFlag(corpse, NPCF_NO_CORPSE))
+    foreach item in ListRootItemsInContainer(corpse)
+      MoveObject(item, corpse.x, corpse.y, corpse.z, corpse.realm, MOVEITEM_FORCELOCATION);
+    endforeach
+    DestroyItem(corpse);
+  endif
+
+  if(cfgElem.GoldSpread)
+    SpreadGold(corpse,cfgElem.GoldSpread);
+  endif
+  
+  if(cfgElem.GivesGlyphs)
+	CreateItemInCont(corpse, "glyph", 1);
+	if(RandomInt(4)==2)
+		PresetDiscordMessage("Kolejny raz pada potezna bestia..." + cfgElem.Name);
+	endif
+  endif
+  
+  // glyphs
+  
+  var mod := GetGlyphMod(killer, "WbeastSlaying");
+  if(mod)
+	if(RandomInt(100) <= mod)
+		HealDamage(killer, 200);
+		PrintTextAbove(killer, "Zabojca bestii");
+	endif
+  endif
+  
+  var mmod := GetGlyphMod(killer, "MbeastSlaying");
+  if(mmod)
+	if(RandomInt(100) <= mmod)
+		HealDamage(killer, 200);
+		HealMana(killer, killer, 200);
+		PrintTextAbove(killer, "Zabojca bestii");
+	endif
+  endif
+  
+  /*__NOPVP__  
+  var FirstAttacker := FindPlayerBySerial(GetObjProperty(corpse, PROP_FIRST_ATTACKER));
+  if(IsPlayer(FirstAttacker) and corpse)
+    var PvPStatus :=  GetPvPStatus(FirstAttacker);
+    foreach item in EnumerateItemsInContainer(corpse)
+      if(GetItemPvPStatus(item) == error)
+        SetItemPvPStatus(item, {FirstAttacker,PvPStatus});
+      endif
+    endforeach
+  endif*/
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function DestroyNpcStorageArea(corpse)
+
+  var ser := GetObjProperty(corpse, PROP_AISERIAL);
+  if(!ser)
+    return;
+  endif
+
+  var MerchantStorage := FindStorageArea( VENDOR_STORAGE );
+
+  if(MerchantStorage)
+    var inv_fs          := CStr(ser) + VENDOR_FS_CONTNAME;
+    var inv_pb          := CStr(ser) + VENDOR_PB_CONTNAME;
+    var inv_1c          := CStr(ser) + VENDOR_1C_CONTNAME;
+
+    DestroyRootItemInStorageArea(merchantstorage, inv_fs);
+    DestroyRootItemInStorageArea(merchantstorage, inv_pb);
+    DestroyRootItemInStorageArea(merchantstorage, inv_1c);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function SpreadGold(corpse,Spread)
+
+  Spread    := SplitWords(Spread);
+
+  Spread[2] := CInt(Spread[2]);
+
+  var x,y,Rx,Ry,Rz,RLoc;
+  var LMods := {};
+
+  for(x:=(0-Spread[2]);x<=Spread[2];x:=x+1)
+    for(y:=(0-Spread[2]);y<=Spread[2];y:=y+1)
+      LMods.append({x,y});
+    endfor
+    sleepms(3);
+  endfor
+
+  var Sc := LMods.size();
+
+  for(x:=1;x<=Sc;x:=x+1)
+    if(!corpse)
+      return;
+    endif
+    
+    RLoc := 0;
+    while(!RLoc)
+      y    := RandomInt(LMods.size())+1;
+      RLoc := LMods[y];
+    endwhile
+    LMods.erase(y);
+    Rx := corpse.x + RLoc[1];
+    Ry := corpse.y + RLoc[2];
+    Rz := GetStandZ(Rx, Ry, corpse.realm, GSF_GETMAPZ);
+
+    if(Rz != error)
+      if(CheckLosAt(corpse, Rx, Ry, Rz))
+        CreateItemAtLoc(Rx, Ry, Rz, UOBJ_GOLDCOIN, RandomDiceRoll(Spread[1]), corpse.realm);
+        PlayStationaryEff(Rx, Ry, Rz, FX_FLAMESTRIKE, 0x0a, 0x1e, 0, corpse.realm );
+        foreach Mob in ListMobilesNearLocation(Rx, Ry, Rz, 10, corpse.realm)
+          if(Mob)
+            PlaySoundEffect( Mob, SFX_SPELL_FLAME_STRIKE );
+            break;
+          endif
+        endforeach
+      endif
+      sleepms(100);
+    endif
+  endfor
+
+endfunction
+
+//-----------------------------------------------------------------------------

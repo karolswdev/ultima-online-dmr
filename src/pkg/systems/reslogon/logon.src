@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/cmds/cmds";
+
+//-----------------------------------------------------------------------------
+
+program Res_Logon(who)
+
+  if(GetGlobalProperty(PROP_RESLOGON))
+    if(!who.cmdlevel and !IsAdmin(who) and !IsGm(who))
+      SendSysMessage(who,"Swiat sie jescze nie obudzil!",FONT_NORMAL, COLOR_RED);
+      BanAccount(who.acct, "Logowanie przed UPem", 1200);
+    else
+      SendSysMessage(who,"Ograniczony login wlaczony.",FONT_NORMAL, COLOR_BLUE);
+    endif
+  endif
+  
+endprogram
+
+//-----------------------------------------------------------------------------

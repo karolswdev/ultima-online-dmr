@@ -1,0 +1,118 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+include "include/buildings";
+include "include/findcity";
+include "include/proc";
+include "include/std";
+include "include/move";
+
+include ":renthouse:renthouse";
+
+//-----------------------------------------------------------------------------
+
+program AddBuildings(who, Cities)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(ExPid(GetGlobalProperty("#AddingBuildings")))
+    return;
+  endif
+  
+  SetGlobalProperty("#AddingBuildings",GetPid());
+
+  var Grounds,x,y,nr := 0,ExGrounds,Coords,all := 0,RlmID := -1;
+
+  if(!Cities)
+    SendSysMessage(who,".addb [RlmID/city/all]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  UnloadConfigFile(CITIES_CFG);
+  
+  if(Cities == "all")
+    Cities := GetCities();
+  else
+    Cities := SplitWords(Cities);
+    if(Cities.size() == 1 and len(Cities[1]) == 1)
+      RlmID := CInt(Cities[1]);
+      Cities := GetCities();
+    endif
+  endif
+
+  var Rlm,RlmAdd := 0;
+  var HousesCoords;
+  
+  if(RlmID != -1)
+    RlmAdd := GetRealmById(RlmID);
+  endif
+  
+  foreach City in Cities
+    
+    while(City["_"])
+      City["_"] := " ";
+    endwhile
+    
+    Coords    := GetCityCoords(City);
+    Rlm       := GetCItyRealm(City);
+    HousesCoords := GetCityHousesCoords(City, 0);
+
+    if(RlmAdd)
+      if(Rlm != RlmAdd)
+        continue;
+      endif
+    endif
+    
+    if(Coords)
+      //Elem.pvalue := City;
+      UnloadConfigFile(BUILDINGS_CFG+Rlm);
+
+      SendSysMessage(who,"Dodawanie budynkow w "+City+". PID="+GetPid(),FONT_NORMAL,COLOR_GREEN);
+      nr := 0;
+
+      Grounds   := GetCityBuildingsGround(City);
+      ExGrounds := GetCityBuildingsExGround(City);
+
+      if(Grounds.size() and Grounds)
+        for(x:=CInt(Coords[1]);x<=CInt(Coords[3]);x:=x+1)
+          for(y:=CInt(Coords[2]);y<=CInt(Coords[4]);y:=y+1)
+            var Key := CStr(CInt(x))+"-"+CStr(CInt(y));
+            if(!ExGrounds[Key])
+              if(Grounds[CInt(GetMapInfo(x,y,Rlm).landtile)])
+                if(!IsInBuilding(x,y,Rlm) and !HousesCoords.exists(Key))
+                  AppendConfigFileElem(BUILDINGS_CFG+Rlm,"Bd",Key,{});
+                  nr := nr + 1;
+                  all := all + 1;
+                endif
+              endif
+            endif
+          endfor
+        endfor
+      endif
+    
+      foreach Coord in GetCityBuildGrounds(City)
+        SendSysMessage(who,"Dodawanie oznaczonych domow N="+Nr,FONT_NORMAL,COLOR_GREEN);
+        for(x:=Coord[1];x<=Coord[3];x:=x+1)
+          for(y:=Coord[2];y<=Coord[4];y:=y+1)
+            var Key := CStr(CInt(x))+"-"+CStr(CInt(y));
+            if(!IsInBuilding(x,y,Rlm) and !HousesCoords.exists(Key))
+              AppendConfigFileElem(BUILDINGS_CFG+Rlm,"Building",Key,{});
+              nr := nr + 1;
+              all := all + 1;
+            endif
+          endfor
+        endfor
+      endforeach
+    
+    endif
+  
+    UnloadConfigFile(BUILDINGS_CFG+Rlm);
+    SendSysMessage(who,"Dodano "+nr+" coordow w miescie "+City+".",FONT_NORMAL,COLOR_BLUE);
+  endforeach
+  
+  SendSysMessage(who,"Dodano "+all+" coordow wszystkich.",FONT_NORMAL,COLOR_BLUE);
+  
+endprogram
+
+//-----------------------------------------------------------------------------

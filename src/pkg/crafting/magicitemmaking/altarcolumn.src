@@ -1,0 +1,634 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/poison";
+include "include/move";
+include "include/items/temp_storage";
+include "altar";
+include "crystals";
+
+include ":housing:housing";
+include ":magicitems:magicitems";
+include ":quests:quest_ctrl";
+
+//-----------------------------------------------------------------------------
+
+var alayout   := {};
+var adata     := {};
+var MainCfg   := ReadConfigFile("crystals");
+var AltarCenter,_AltarOwner,SymUP,SymDOWN,SymLEFT,SymRIGHT,AltarLights,AltarColumns;
+
+//-----------------------------------------------------------------------------
+
+program AltarColumn(who,column)
+
+  if(!StandardItemCheck(who,column,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  AltarCenter := FindAltarCenter(column);
+
+  if(!AltarCenter)
+    return;
+  endif
+
+  _AltarOwner  := FindAltarOwner(AltarCenter);
+
+  if(GetHouseSerial(AltarCenter))
+    var House := GetHouse(AltarCenter);
+    if(!House)
+      DestroyAltar(who,AltarCenter);
+      return;
+    endif
+  endif
+  
+  if(!CanAccessAltar(AltarCenter, who))
+    SendSysMessage(who,"Ten oltarz nie nalezy do Ciebie.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!ReserveItem(AltarCenter))
+    SendSysMessage(who,"Oltarz jest w uzyciu.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  var res := BuildAltarGump(who);
+
+  if(!res)
+    return;
+  endif
+  
+  case(res)
+    1:        DestroyAltar(who,AltarCenter);
+    2:        StartRitual(who);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildAltarGump(who)
+
+  var AltarOwnerName := _AltarOwner.name;
+  if(!AltarOwnerName or _AltarOwner.cmdlevel)
+    AltarOwnerName   := "Nieznany";
+  endif
+  
+  var FirstReg     := IdentifyPrefixReagent(AltarCenter);
+  var FirstRegDesc := "";
+  var RegDesc      := "";
+  if(FirstReg)
+    RegDesc := GetDescForItem(FirstReg.objtype);
+    if(RegDesc and IsReg(FirstReg.objtype,MAGIC_PREFIX_MOD))
+      FirstRegDesc := GetAmount(FirstReg) + " " + RegDesc;
+    else
+      FirstRegDesc := "nieznany skladnik";
+    endif
+  endif
+
+  var SecReg       := IdentifySuffixReagent(AltarCenter);
+  var SecRegDesc   := "";
+  RegDesc          := "";
+
+  if(SecReg)
+    RegDesc := GetDescForItem(SecReg.objtype);
+    if(RegDesc and IsReg(SecReg.objtype,MAGIC_SUFFIX_MOD))
+      SecRegDesc := GetAmount(SecReg) + " " + RegDesc;
+    else
+      SecRegDesc := "nieznany skladnik";
+    endif
+  endif
+  
+  alayout.append("resizepic 100 100 3600 400 260");
+  alayout.append("text      200 130 550 "+len(adata));
+  adata.append("Wlasciciel: "+AltarOwnerName);
+  alayout.append("text      140 160 550 "+len(adata));
+  adata.append("I.");
+  alayout.append("text      140 180 550 "+len(adata));
+  adata.append("II.");
+
+  alayout.append("text      160 160 560 "+len(adata));
+  adata.append(FirstRegDesc);
+  alayout.append("text      160 180 560 "+len(adata));
+  adata.append(SecRegDesc);
+  
+  alayout.append("button 120 250 2706 2707 1 0 2");
+  alayout.append("text   140 250 550 "+len(adata));
+  adata.append("Rozpocznij rytual.");
+  
+  if(CanAccessAltar(AltarCenter, who))
+    alayout.append("button 120 280 2706 2707 1 0 1");
+    alayout.append("text   140 280 550 "+len(adata));
+    adata.append("Zniszcz oltarz i odzyskaj deeda.");
+  endif
+  
+  return SendDialogGump(who,alayout,adata)[0];
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function IsReg(ObjType,Check := 0)
+
+  if(ObjType in GetPrefixCrystals() and Check and Check == MAGIC_PREFIX_MOD)
+    return 1;
+  endif
+
+  if(ObjType in GetSuffixCrystals() and Check and Check == MAGIC_SUFFIX_MOD)
+    return 1;
+  endif
+
+  var MagicCrSc := GetAllCrystalsScrolls();
+
+  foreach Scroll in MagicCrSc
+    if(ObjType == Cint(MainCfg[Scroll].firstreg) and Check and Check == MAGIC_PREFIX_MOD)
+      return 1;
+    endif
+    if(ObjType == Cint(MainCfg[Scroll].secreg) and Check and Check == MAGIC_SUFFIX_MOD)
+      return 1;
+    endif
+  endforeach
+  
+  var OtherMixes := GetOtherMagicMixes();
+
+  foreach MixObj in OtherMixes
+    if(ObjType == Cint(MainCfg[MixObj].firstreg) and Check and Check == MAGIC_PREFIX_MOD)
+      return 1;
+    endif
+    if(ObjType == Cint(MainCfg[MixObj].secreg) and Check and Check == MAGIC_SUFFIX_MOD)
+      return 1;
+    endif
+  endforeach
+
+  return 0;
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function StartRitual(who)
+
+  if(_AltarOwner != who)
+    SendSysMessage(who,"Nie jestes wlasciciel"+ggm(who,9)+" tego oltarza.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(!CheckAltarDelay())
+    SendSysMessage(who,"Magiczny oltarz jest za slaby.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
+  if(len(ListMobilesNearLocation(AltarCenter.x,AltarCenter.y,AltarCenter.z,1)))
+    SendSysMessage(who, "Ktos stoi za blisko oltarza.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  var CenterItem := IdentifyItemInAltarCenter(AltarCenter);
+  var Prereg     := IdentifyPrefixReagent(AltarCenter);
+  var Sufreg     := IdentifySuffixReagent(AltarCenter);
+  var CrSc       := GetAllCrystalsScrolls();
+  var FirstReg,SecReg;
+
+  if(!CenterItem or !PreReg or !SufReg)
+    return 0;
+  endif
+  
+  if(!ReserveItem(CenterItem) or !ReserveItem(PreReg) or !ReserveItem(SufReg) or !CenterItem.movable or !PreReg.movable or !SufReg.movable)
+    return 0;
+  endif
+  
+  if(PreReg.objtype in GetPrefixCrystals() and SufReg.objtype in GetSuffixCrystals())
+    MagicItem(who,CenterItem,PreReg,SufReg);
+    return 1;
+  endif
+  
+  foreach Scroll in CrSc
+    FirstReg := SplitWords(MainCfg[Scroll].firstreg);
+    SecReg   := SplitWords(MainCfg[Scroll].secreg);
+    if(PreReg.objtype == Cint(FirstReg[1]) and GetAmount(PreReg) == Cint(FirstReg[2]) and SufReg.objtype == Cint(SecReg[1]) and GetAmount(SufReg) == Cint(SecReg[2]) )
+      MakeMagicCrystalScroll(who,CenterItem,PreReg,SufReg);
+      return 1;
+    endif
+  endforeach
+
+  var OtherMixes := GetOtherMagicMixes();
+
+  foreach MixObj in OtherMixes
+    if(MixObj == CenterItem.objtype)
+      FirstReg := SplitWords(MainCfg[MixObj].firstreg);
+      SecReg   := SplitWords(MainCfg[MixObj].secreg);
+
+      if(PreReg.objtype == Cint(FirstReg[1]) and SufReg.objtype == Cint(SecReg[1]) )
+        var fAmt := CInt(FirstReg[2]);
+        var sAmt := CInt(SecReg[2]);
+
+        if(!fAmt)
+          fAmt := GetAmount(CenterItem);
+        endif
+
+        if(!sAmt)
+          sAmt := GetAmount(CenterItem);
+        endif
+
+        if(GetAmount(PreReg) == fAmt and GetAmount(SufReg) == sAmt)
+          MakeMagicOtherMix(who,CenterItem,PreReg,SufReg);
+          return 1;
+        endif
+
+      endif
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MagicItem(who,CenterItem,PreReg,SufReg)
+
+  var CanBe  := GetMagicModsType(CenterItem);
+  var PreMod := GetMagicModByCrystal(PreReg.objtype);
+  var SufMod := GetMagicModByCrystal(SufReg.objtype);
+  var PreObj := PreReg.objtype;
+
+  if(CanBeMagicItem(CenterItem))
+    if(!(PreMod in CanBe.prefix) or !(SufMod in CanBe.suffix))
+      SendSysMessage(who, "Ten przedmiot nie moze miec takich wlasciwosci.", FONT_NORMAL, COLOR_RED);
+      return 0;
+    endif
+  else
+    SendSysMessage(who, "Ten przedmiot nie moze byc magiczny.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  
+  if(IsMagicItem(CenterItem))
+    SendSysMessage(who, "Ten przedmiot juz jest magiczny.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  if(GetItemPoisonLvl(CenterItem) or CenterItem.newbie)
+    SendSysMessage(who, "Ten przedmiot nie moze byc magiczny.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  if(CenterItem.quality > 1 or CenterItem.color != 0)
+    SendSysMessage(who, "Ten przedmiot nie moze byc magiczny.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+  
+  var MagicPreLvl := GetItemMakeMod(PreReg);
+  var MagicSufLvl := GetItemMakeMod(SufReg);
+  var MagicLvl    := Cint(Cint(MagicPreLvl + MagicSufLvl)/2);
+  var PreDiff     := Cint(MainCfg[PreReg.objtype].Diff) - 5;
+  var SufDiff     := Cint(MainCfg[SufReg.objtype].Diff) - 5;
+  var PreMagDiff  := PreDiff - 20;
+  var SufMagDiff  := SufDiff - 20;
+  var Points      := Cint(Cint(MainCfg[PreReg.objtype].Points) + Cint(MainCfg[SufReg.objtype].Points)*0.75);
+
+  if(MagicLvl < 1)
+    MagicLvl := 1;
+  endif
+
+  if(PreMagDiff < 0)
+    PreMagDiff := 0;
+  endif
+  if(SufMagDiff < 0)
+    SufMagDiff := 0;
+  endif
+
+  var MagicMods   := {};
+  MagicMods.+prefix := PreMod;
+  MagicMods.+suffix := SufMod;
+
+  if(!DoStartAnimation(who))
+    return 0;
+  endif
+  
+  if(!who) // dodatkowe sprawdzenie czy przypadkiem nie jest offline
+    DoFailAnimation(who);
+    return 0;
+  endif
+
+  SetAltarDelay();
+
+  if(CheckMoreSkill(who,SKILLID_MAGICITEMMAKING,PreDiff,0) and CheckMoreSkill(who,SKILLID_MAGICITEMMAKING,SufDiff,0) and CheckSkill(who,SKILLID_MAGERY,PreMagDiff,0) and CheckSkill(who,SKILLID_MAGERY,SufMagDiff,0))
+    if(!MakeItemMagic(CenterItem,MagicLvl,MagicMods))
+      DoFailAnimation(who);
+      return;
+    elseif(!DestroyItem(PreReg) or !DestroyItem(SufReg))
+      DoFailAnimation(who);
+      return;
+    endif
+    DoSuccessAnimation(who);
+    IdentifyMagicItem(who,CenterItem, MinMax(CInt(GetEffectiveSkill(who, SKILLID_MAGICITEMMAKING)/20), 1, 5) );
+    AwardPoints(who,SKILLID_MAGICITEMMAKING,Points);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_MAGICITEMMAKING, array(CenterItem, PreObj));
+  else
+    DoFailAnimation(who);
+    DestroyItem(PreReg);
+    DestroyItem(SufReg);
+    SendSysMessage(who, "Rytual sie nie powiodl.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeMagicCrystalScroll(who,CenterItem,PreReg,SufReg)
+
+  if(CenterItem.objtype != UOBJ_BLANK_SCROLL)
+    return 0;
+  elseif(GetAmount(CenterItem) != 1)
+    return 0;
+  endif
+
+  var ScrollObj   := GetMagicScrollObjType(PreReg.objtype,SufReg.objtype);
+  var Diff        := Cint(MainCfg[ScrollObj].Diff);
+  var Points      := Cint(MainCfg[ScrollObj].Points)*2;
+  var MagDiff     := Diff - 20;
+
+  if(MagDiff < 0)
+    MagDiff := 0;
+  endif
+
+  if(!DoStartAnimation(who))
+    return 0;
+  endif
+
+  if(!who) // dodatkowe sprawdzenie czy przypadkiem nie jest offline
+    return 0;
+  endif
+
+  SetAltarDelay();
+
+  if(CheckMoreSkill(who,SKILLID_MAGICITEMMAKING,Diff,0) and CheckSkill(who,SKILLID_MAGERY,MagDiff,0))
+    var MagicCrystalScroll := CreateItemAtTempLoc(GetMadeDescriptor(ScrollObj, who, MTYPE_MAGIC, 1));
+    if(!MagicCrystalScroll)
+      DoFailAnimation(who);
+      return;
+    elseif(!DestroyItem(CenterItem) or !DestroyItem(PreReg) or !DestroyItem(SufReg))
+      DestroyItem(MagicCrystalScroll);
+      DoFailAnimation(who);
+      return;
+    endif
+    DoSuccessAnimation(who);
+    MoveObject(MagicCrystalScroll, AltarCenter.x, AltarCenter.y, AltarCenter.z, AltarCenter.realm, MOVEITEM_FORCELOCATION);
+    AwardPoints(who,SKILLID_MAGICITEMMAKING,Points);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_MAGICITEMMAKING, array(MagicCrystalScroll, 0));
+  else
+    DoFailAnimation(who);
+    DestroyItem(PreReg);
+    DestroyItem(SufReg);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function MakeMagicOtherMix(who,CenterItem,PreReg,SufReg)
+
+  var ProdObj     := CInt(MainCfg[CenterItem.objtype].Product);
+  var Diff        := Cint(MainCfg[CenterItem.objtype].Diff);
+  var Points      := Cint(MainCfg[CenterItem.objtype].Points)*2;
+  var ReqSkill    := CInt(MainCfg[CenterItem.objtype].ReqSkill);
+  var MagDiff     := Diff - 20;
+  var ProdAmt     := CInt(MainCfg[CenterItem.objtype].ProdAmt);
+
+  if(!ProdAmt)
+    if(IsStackableObj(ProdObj))
+      ProdAmt := GetAmount(CenterItem);
+    else
+      ProdAmt := 1;
+    endif
+  endif
+
+  if(GetBaseSkill(who, SKILLID_MAGICITEMMAKING) < ReqSkill)
+    SendSysMessage(who, "Twa wiedza jest za mala na umagicznienie tego przedmiotu.", FONT_NORMAL, COLOR_RED);
+    return 0;
+  endif
+
+  if(MagDiff < 0)
+    MagDiff := 0;
+  endif
+
+  if(!DoStartAnimation(who))
+    return 0;
+  endif
+
+  if(!who) // dodatkowe sprawdzenie czy przypadkiem nie jest offline
+    return 0;
+  endif
+
+  SetAltarDelay();
+
+  if(CheckMoreSkill(who,SKILLID_MAGICITEMMAKING,Diff,0) and CheckSkill(who,SKILLID_MAGERY,MagDiff,0))
+    var Product := CreateItemAtTempLoc(GetMadeDescriptor(ProdObj, who, MTYPE_MAGIC, 1), ProdAmt);
+    if(!Product)
+      DoFailAnimation(who);
+      return;
+    elseif(!DestroyItem(CenterItem) or !DestroyItem(PreReg) or !DestroyItem(SufReg))
+      DestroyItem(Product);
+      DoFailAnimation(who);
+      return;
+    endif
+    DoSuccessAnimation(who);
+    MoveObject(Product, AltarCenter.x, AltarCenter.y, AltarCenter.z, AltarCenter.realm, MOVEITEM_FORCELOCATION);
+    AwardPoints(who,SKILLID_MAGICITEMMAKING,Points);
+    SendQuestEvent(who, EVQID_ITEM_CREATE, SKILLID_MAGICITEMMAKING, array(Product, 0));
+  else
+    DoFailAnimation(who);
+    DestroyItem(PreReg);
+    DestroyItem(SufReg);
+    if(IsStackableObj(CenterItem.objtype))
+      var rAmt := CInt(RandomInt(CInt(GetAmount(CenterItem) / 8))+1);
+      if(!SubtractAmount(CenterItem, rAmt))
+        DestroyItem(CenterItem);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoStartAnimation(who)
+
+  // nie mozna zrobic w srodku returna, bo sie rozkrzacza grafy. 
+  // Sprawdzamy w miedzy czasie i na koniec zwracamy 0, jesli goscia nie bylo.
+  var bOffline := 0; 
+  Detach();
+
+  SymUP        := FindAltarElements(AltarCenter,UOBJ_ALTAR_SYMBOL2);
+  SymDOWN      := FindAltarElements(AltarCenter,UOBJ_ALTAR_SYMBOL8);
+  SymLEFT      := FindAltarElements(AltarCenter,UOBJ_ALTAR_SYMBOL4);
+  SymRIGHT     := FindAltarElements(AltarCenter,UOBJ_ALTAR_SYMBOL6);
+  AltarColumns := FindAltarElements(AltarCenter,UOBJ_ALTAR_COLUMN);
+  AltarLights  := FindAltarElements(AltarCenter,UOBJ_ALTAR_GREENLIGHTOFF);
+
+  if(!SymUP or !SymDOWN or !SymLEFT or !SymRIGHT or !AltarColumns or !AltarLights)
+    return 0;
+  endif
+
+  foreach Light in AltarLights
+    Light.graphic := GRAPHIC_ALTAR_GREENLIGHTON;
+  endforeach
+
+  var Lights := array;
+  
+  var Light := PullTempItemAtLoc(AltarCenter.x+1,AltarCenter.y+1,AltarCenter.z+5,UOBJ_ALTAR_CANDLE, AltarCenter.realm);
+  Lights.append(Light);
+
+  Light := PullTempItemAtLoc(AltarCenter.x-1,AltarCenter.y+1,AltarCenter.z+5,UOBJ_ALTAR_CANDLE,AltarCenter.realm);
+  Lights.append(Light);
+
+  Light := PullTempItemAtLoc(AltarCenter.x+1,AltarCenter.y-1,AltarCenter.z+5,UOBJ_ALTAR_CANDLE, AltarCenter.realm);
+  Lights.append(Light);
+
+  Light := PullTempItemAtLoc(AltarCenter.x-1,AltarCenter.y-1,AltarCenter.z+5,UOBJ_ALTAR_CANDLE,AltarCenter.realm);
+  Lights.append(Light);
+
+  PlaySoundEffect(who,SFX_SPELL_MASS_CURSE);
+  PlayStationaryEff(SymLEFT.x,SymLEFT.y,SymLEFT.z,FX_HEAL_EFFECT,0xa,0xa,0,AltarCenter.realm);
+  PlayStationaryEff(SymRIGHT.x,SymRIGHT.y,SymRIGHT.z,FX_HEAL_EFFECT,0xa,0xa,0,AltarCenter.realm);
+  sleepms(1000);
+  SymLEFT.graphic  := UOBJ_ALTAR_SYMBOL_CHANGE;
+  SymRIGHT.graphic := UOBJ_ALTAR_SYMBOL_CHANGE;
+  sleepms(100);
+
+  if(!who) // moze sie wylogowal?
+    bOffline := 1;
+  endif
+
+  PlaySoundEffect(who,SFX_SPELL_MARK);
+  PlayStationaryEff(SymUP.x,SymUP.y,SymUP.z,FX_MARK_EFFECT,0xa,0xf,0,AltarCenter.realm);
+  PlayStationaryEff(SymDOWN.x,SymDOWN.y,SymDOWN.z,FX_MARK_EFFECT,0xa,0xf,0,AltarCenter.realm);
+  sleepms(1000);
+  
+  var SymbolLeft  := PullTempItemAtLoc(SymLEFT.x, SymLEFT.y, SymLEFT.z, UOBJ_MAGIC_SYMBOL1, AltarCenter.realm);
+  var SymbolRight := PullTempItemAtLoc(SymRIGHT.x, SymRIGHT.y, SymRIGHT.z, UOBJ_MAGIC_SYMBOL1, AltarCenter.realm);
+
+  var ChangeGraph := {
+    UOBJ_MAGIC_SYMBOL2,
+    UOBJ_MAGIC_SYMBOL3,
+    UOBJ_MAGIC_SYMBOL4,
+    UOBJ_MAGIC_SYMBOL5
+  };
+
+  var i;
+  
+  if(SymbolLeft and SymbolRight)
+
+    PlaySoundEffect(who,SFX_SPELL_INVISIBILITY);
+
+    for(i := 1;i<= len(ChangeGraph);i:=i+1)
+      SymbolLeft.graphic := ChangeGraph[i];
+      SymbolRight.graphic := ChangeGraph[i];
+      sleepms(400);
+      
+      if(!who) // moze sie wylogowal?
+        bOffline := 1;
+      endif
+    endfor
+
+    if(who)
+      PlaySoundEffect(who,SFX_SPELL_MAGIC_REFLECTION);
+    endif
+
+    for(i := 1;i<= len(ChangeGraph);i:=i+1)
+      SymbolLeft.graphic := ChangeGraph[i];
+      SymbolRight.graphic := ChangeGraph[i];
+      MoveObject(SymbolLeft, SymbolLeft.x, SymbolLeft.y, SymbolLeft.z+i, SymbolLeft.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+      MoveObject(SymbolRight, SymbolRight.x, SymbolRight.y, SymbolRight.z+i, SymbolRight.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+      sleepms(400);
+      
+      if(!who) // moze sie wylogowal?
+        bOffline := 1;
+      endif
+    endfor
+    
+    if(who)
+      PlaySoundEffect(who,SFX_SPELL_FIRE_FIELD);
+    endif
+
+    MoveObject(SymbolLeft, AltarCenter.x-1, AltarCenter.y, SymbolLeft.z, SymbolLeft.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+    MoveObject(SymbolRight, AltarCenter.x+1, AltarCenter.y, SymbolRight.z, SymbolRight.realm, MOVEITEM_FORCELOCATION | MOVEITEM_IGNOREMOVABLE);
+
+    for(i := 1;i<= len(ChangeGraph);i:=i+1)
+      SymbolLeft.graphic := ChangeGraph[i];
+      SymbolRight.graphic := ChangeGraph[i];
+      sleepms(400);
+
+      if(!who) // moze sie wylogowal?
+        bOffline := 1;
+      endif
+    endfor
+    
+  endif
+
+  if(who)
+    PlaySoundEffect(who,SFX_SPELL_ARCH_PROTECTION);
+  endif
+
+  PlayStationaryEff(SymUP.x,SymUP.y,SymUP.z-5,FX_GLOW,0xa,0xf,0,AltarCenter.realm);
+  PlayStationaryEff(SymDOWN.x,SymDOWN.y,SymDOWN.z-5,FX_GLOW,0xa,0xf,0,AltarCenter.realm);
+  sleepms(300);
+
+  ReleaseItem(SymbolLeft);
+  ReleaseItem(SymbolRight);
+
+  ReturnTempItem(SymbolLeft);
+  ReturnTempItem(SymbolRight);
+
+  foreach Item in Lights
+    ReleaseItem(Item);
+    ReturnTempItem(Item);
+  endforeach
+
+  if(who and bOffline)
+    SendSysMessage(who, "Nie byl"+ggm(who,3)+" obecn"+ggm(who,6)+" w trakcie rytualu!", FONT_NORMAL, COLOR_RED);
+  endif
+
+  return !bOffline;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoSuccessAnimation(who)
+
+  if(!SymUP or !SymDOWN or !SymLEFT or !SymRIGHT or !AltarColumns or !AltarLights)
+    return 0;
+  endif
+
+  foreach Light in AltarLights
+    Light.graphic := GRAPHIC_ALTAR_GREENLIGHTOFF;
+  endforeach
+
+  SymLEFT.graphic  := SymLEFT.objtype;
+  SymRIGHT.graphic := SymRIGHT.objtype;
+
+  PlaySoundEffect(who,SFX_SPELL_BLESS);
+  PlayStationaryEff(AltarCenter.x,AltarCenter.y,AltarCenter.z,FX_BLESS_EFFECT,0xf,0xf,0,AltarCenter.realm);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function DoFailAnimation(who)
+
+  foreach Light in AltarLights
+    Light.graphic := GRAPHIC_ALTAR_GREENLIGHTOFF;
+  endforeach
+
+  if(!SymUP or !SymDOWN or !SymLEFT or !SymRIGHT or !AltarColumns or !AltarLights)
+    return 0;
+  endif
+  
+  SymLEFT.graphic  := SymLEFT.objtype;
+  SymRIGHT.graphic := SymRIGHT.objtype;
+
+  PlaySoundEffect(who,SFX_SPELL_MASS_DISPEL);
+  PlayStationaryEff(AltarCenter.x,AltarCenter.y,AltarCenter.z,FX_SMOKE,0xf,0xf,0,AltarCenter.realm);
+
+endfunction
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,686 @@
+//--------------------------------------------------------------------------------
+
+include "arena";
+include "include/npcs";
+include "include/std";
+include "include/objtypes/magic";
+include "include/logerror";
+include "include/equipment";
+include "include/reputation/murderer";
+include "include/resurrect";
+include "include/events";
+
+//--------------------------------------------------------------------------------
+
+var Chk := {0,0},Diff,Parms,ArenaCenter,ArenaRange := 0;
+
+//--------------------------------------------------------------------------------
+
+program MainArenaFight(stone)
+
+  ArenaFight(stone);
+  CheckScores(stone);
+  EraseObjProperty(stone,"#InUse");
+  EraseObjProperty(stone,"StartFight");
+  sleepms(1500);
+
+endprogram
+
+//--------------------------------------------------------------------------------
+
+function ArenaFight(stone)
+
+  if(!CheckArena(stone))
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_CONTROL);
+
+  Parms      := GetObjProperty(stone,"StartFight");
+  var who    := SystemFindObjectBySerial(CInt(Parms[1]));
+  if(!who)
+    return 0;
+  endif
+  var type  := CInt(Parms[3]);
+  var Opponent;
+  var OppPlace     := FindArenaOppPlace(stone);
+  var FighterPlace := FindArenaFighterPlace(stone);
+
+  ArenaCenter      := FindArenaCenter(stone);
+  ArenaRange       := FindArenaRange(stone);
+  Diff             := CInt(Parms[4]);
+  var Opps         := {};
+
+  case(type)
+    PLAYER_FIGHT:     Opponent := SystemFindObjectBySerial(CInt(Parms[2]));
+                      if(!Opponent)
+                        return 0;
+                      endif
+                      MoveObject(Opponent,OppPlace.x,OppPlace.y,OppPlace.z);
+                      MoveObject(who,FighterPlace.x,FighterPlace.y,FighterPlace.z);
+                      who.frozen      := 1;
+                      Opponent.frozen := 1;
+                      var Check := CreateItemAtLoc(ArenaCenter.x,ArenaCenter.y,ArenaCenter.z,UOBJ_GOLDCOIN,1,stone.realm),i;
+                      Check.graphic := 1;
+                      SetName(Check,"Arena");
+                      for(i:=3;i>0;i:=i-1)
+                        if(Check)
+                          PrintTextAbove(Check,"*"+i+"*");
+                        endif
+                        sleep(1);
+                      endfor
+                      DestroyItem(Check);
+                      who.frozen      := 0;
+                      Opponent.frozen := 0;
+                      SetObjProperty(who,"#AFight",ReadGameClock());
+                      SetObjProperty(opponent,"#AFight",ReadGameClock());
+                      NoMurderReport(who);
+                      NoMurderReport(Opponent);
+
+    NPC_FIGHT:        Opponent := CreateNpc(CStr(Parms[2]),OppPlace.x,OppPlace.y,OppPlace.z,stone.realm, DEF_PARMS, NPCF_NO_LOOT | NPCF_GUARD_KILL);
+                      SetObjProperty(who,"#AFight",ReadGameClock());
+                      if(!Opponent)
+                        LogError("ArenaFight: Nie mozna bylo stworzyc NPC "+Parms[2], LOGF_SCRIPTS);
+                        return 0;
+                      endif
+                      MoveObject(who,FighterPlace.x,FighterPlace.y,FighterPlace.z,who.realm,MOVECHAR_FORCELOCATION);
+                      SendChEvent(Opponent,who,EVID_ENGAGED);
+    NPC_GROUP:        var Opp;
+                      foreach Temp in SplitWords(Parms[2])
+                        Opp := CreateNpc(Cstr(Temp),OppPlace.x,OppPlace.y,OppPlace.z,stone.realm, DEF_PARMS, NPCF_NO_LOOT | NPCF_GUARD_KILL);
+                        if(!Opp)
+                          LogError("ArenaFight: Nie mozna bylo stworzyc NPC Grupa: "+Parms[2]+" "+Temp, LOGF_SCRIPTS);
+                          return 0;
+                        endif
+                        Opps.append(Opp);
+                      endforeach
+                      Opponent := Opps;
+                      MoveObject(who,FighterPlace.x,FighterPlace.y,FighterPlace.z);
+                      foreach Oppon in Opps
+                        SendChEvent(Oppon,who,EVID_ENGAGED);
+                      endforeach
+                      SetObjProperty(who,"#AFight",ReadGameClock());
+    TOUR_FIGHT:       Opponent := SystemFindObjectBySerial(CInt(Parms[2]));
+                      if(!Opponent)
+                        return 0;
+                      endif
+                      MoveObject(Opponent,OppPlace.x,OppPlace.y,OppPlace.z);
+                      MoveObject(who,FighterPlace.x,FighterPlace.y,FighterPlace.z);
+                      who.frozen      := 1;
+                      Opponent.frozen := 1;
+                      TourFightEquipment(stone,who);
+                      TourFightEquipment(stone,Opponent);
+                      var Check := CreateItemAtLoc(ArenaCenter.x,ArenaCenter.y,ArenaCenter.z,UOBJ_GOLDCOIN,1,stone.realm),i;
+                      Check.graphic := 1;
+                      SetName(Check,"Arena");
+                      for(i:=3;i>0;i:=i-1)
+                        if(Check)
+                          PrintTextAbove(Check,"*"+i+"*");
+                        endif
+                        sleep(1);
+                      endfor
+                      DestroyItem(Check);
+                      who.frozen      := 0;
+                      Opponent.frozen := 0;
+                      SetObjProperty(who,"#AFight",ReadGameClock());
+                      SetObjProperty(opponent,"#AFight",ReadGameClock());
+  endcase
+
+  var WhoName := who.name;
+  while(Opponent.name["<random>"])
+    sleepms(500);
+  endwhile
+  var OppName := Opponent.name;
+  if(!WhoName)
+    WhoName := "smialek";
+  endif
+  if(!OppName)
+    OppName := "wrog";
+  endif
+  var ArenaCh;
+
+  while(stone)
+    case(type)
+      TOUR_FIGHT:
+      PLAYER_FIGHT:   if(!Opponent)
+                        PrintTextAbove(stone,OppName + " uciekl"+ggm(Opponent,4)+"!",FONT_NORMAL,COLOR_RED);
+                        PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_GREEN);
+                        EndFight(stone,who,Opponent,type);
+                        return 0;
+                      endif
+                      if(Opponent.dead)
+                        EndFight(stone,who,Opponent,type);
+                        PrintTextAbove(stone,"Wygral"+ggm(who,4)+" "+WhoName+"!",FONT_NORMAL,COLOR_GREEN);
+                        PrintTextAbove(stone,"Walka zakonczona!",FONT_NORMAL,COLOR_BLUE);
+                        return 0;
+                      endif
+      NPC_FIGHT:      if(!Opponent)
+                        PrintTextAbove(stone,WhoName + " wygral"+ggm(who,4)+"!",FONT_NORMAL,COLOR_GREEN);
+                        PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+                        EndFight(stone,who,Opponent,type);
+                        return 0;
+                      endif
+      NPC_GROUP:      chk := 0;
+                      foreach Opp in Opponent
+                        if(Opp)
+                          chk := 1;
+                        endif
+                      endforeach
+                      if(!chk)
+                        PrintTextAbove(stone,WhoName + " wygral"+ggm(who,4)+"!",FONT_NORMAL,COLOR_GREEN);
+                        PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+                        EndFight(stone,who,Opponent,type);
+                        return 0;
+                      endif
+    endcase
+
+    if(!who)
+      PrintTextAbove(stone,WhoName + " uciekl!",FONT_NORMAL,COLOR_RED);
+      PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+      EndFight(stone,who,Opponent,type);
+      return 0;
+    endif
+
+    if(who.dead)
+      PrintTextAbove(stone,"Wygral"+ggm(Opponent,4)+" "+OppName+"!",FONT_NORMAL,COLOR_GREEN);
+      PrintTextAbove(stone,"Walka zakonczona!",FONT_NORMAL,COLOR_BLUE);
+      EndFight(stone,who,Opponent,type,Opponent);
+      return 0;
+    endif
+
+    //delay przed 1 sprawdzeniem by mobki zdarzyly sie zespawnowac
+    if(ArenaCh <> 0)
+      sleepms(500);
+    endif
+
+    ArenaCh := CheckArenaPlace(stone,who,Opponent,type,WhoName,OppName);
+    if(ArenaCh == 1)
+      EndFight(stone,who,Opponent,type);
+      return 0;
+    elseif(ArenaCh == 2)
+      EndFight(stone,who,Opponent,type,Opponent);
+      return 0;
+    endif
+
+    sleep(2);
+
+  endwhile
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function EndFight(stone,who,Opponent,type,Winner := 0)
+
+  // czas, aby bandaze wrocily do trupa itp.
+  sleep(3);
+
+  if(!Opponent)
+    Opponent := FindPlayerBySerial(CInt(Parms[2]));
+  endif
+  if(!who)
+    who := FindPlayerBySerial(CInt(Parms[1]));
+  endif
+  if(!Winner.isa(POLCLASS_MOBILE) or Winner.isa(POLCLASS_NPC))
+    Winner := who;
+  endif
+
+  var WasInArena := IsInArena(who,ArenaCenter,ArenaRange);
+  MoveObject(who,stone.x,stone.y+1,stone.z,stone.realm,MOVECHAR_FORCELOCATION);
+  MoveItemsIfDead(stone,who);
+  chk := 0;
+
+  case(type)
+    PLAYER_FIGHT:  MoveObject(Opponent, stone.x, stone.y-1, stone.z, stone.realm, MOVECHAR_FORCELOCATION);
+                   MoveItemsIfDead(stone,Opponent);
+                   if(Winner == who)
+                     GainScore(stone,type,Winner,Opponent);
+                   elseif(Winner == Opponent)
+                     GainScore(stone,type,Winner,who);
+                   endif
+                   SetCriminal(who, 0);
+                   SetCriminal(Opponent, 0);
+                   EraseObjProperty(who, PROP_NOREPORT);
+                   EraseObjProperty(Opponent, PROP_NOREPORT);
+                   EraseObjProperty(who,"#AFight");
+                   EraseObjProperty(opponent,"#AFight");
+
+                   return 1;
+    NPC_FIGHT:     if(Opponent)
+                     if(IsInArena(Opponent,ArenaCenter,ArenaRange))
+                       chk := 1;
+                     endif
+                     KillNPC(Opponent);
+                   endif
+                   EraseObjProperty(who,"#AFight");
+
+                   if(!chk)
+                     if(!WasInArena)
+                       chk := -1;
+                     endif
+                   endif
+                   
+    NPC_GROUP:     foreach Opp in Opponent
+                     if(Opp)
+                       if(IsInArena(Opp,ArenaCenter,ArenaRange))
+                         chk := 1;
+                       endif
+                       KillNPC(Opp);
+                     endif
+                   endforeach
+                   EraseObjProperty(who,"#AFight");
+
+                   if(!chk)
+                     if(!WasInArena)
+                       chk := -1;
+                     endif
+                   endif
+
+    TOUR_FIGHT:    MoveObject(Opponent, stone.x, stone.y-1, stone.z, stone.realm, MOVECHAR_FORCELOCATION);
+                   MoveItemsIfDead(stone,Opponent);
+                   EraseObjProperty(who,"#TourFight");
+                   EraseObjProperty(Opponent,"#TourFight");
+                   if(Winner == who)
+                     EndTourFight(stone,Winner,Opponent);
+                   elseif(Winner == Opponent)
+                     EndTourFight(stone,Winner,who);
+                   endif
+                   SetCriminal(who, 0);
+                   SetCriminal(Opponent, 0);
+                   EraseObjProperty(who,"#AFight");
+                   EraseObjProperty(opponent,"#AFight");
+                   return 1;
+  endcase
+
+  if(chk >= 0)
+    if(chk)
+      Diff := (Diff * -1);
+    endif
+    GainScore(stone,type,Winner,Opponent,Diff);
+  endif
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function CheckArenaPlace(stone,who,Opponent,type,WhoName,OppName)
+
+  chk := {0,0};
+
+  case(type)
+    TOUR_FIGHT:
+    PLAYER_FIGHT:
+    NPC_FIGHT:      foreach Mob in ListMobilesNearLocationEx(ArenaCenter.x,ArenaCenter.y,ArenaCenter.z,ArenaRange+3,LISTEX_FLAG_HIDDEN + LISTEX_FLAG_NORMAL + LISTEX_FLAG_GHOST,stone.realm)
+                      if(Mob == who)
+                        if(IsInArena(Mob,ArenaCenter,ArenaRange))
+                          chk[1] := 1;
+                        endif
+                      elseif(Mob == Opponent)
+                        if(IsInArena(Mob,ArenaCenter,ArenaRange))
+                          chk[2] := 1;
+                        endif
+                      elseif(IsSummoned(Mob))
+                        KillNPC(Mob);
+                      elseif(IsTamed(Mob) or IsPlayer(Mob))
+                        MoveObject(Mob, stone.x-1, stone.y, stone.z, stone.realm, MOVECHAR_FORCELOCATION);
+                      else
+                        KillNPC(Mob);
+                      endif
+                      sleepms(5);
+                    endforeach
+
+                    if(!chk[1])
+                      PrintTextAbove(stone,WhoName + " wysz"+ggm(who,13)+" poza arene!",FONT_NORMAL,COLOR_RED);
+                      PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+                      return 2;
+                    elseif(!chk[2])
+                      PrintTextAbove(stone,OppName + " wysz"+ggm(Opponent,13)+" poza arene!",FONT_NORMAL,COLOR_RED);
+                      PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+                      return 1;
+                    endif
+
+    NPC_GROUP:      foreach Mob in ListMobilesNearLocationEx(ArenaCenter.x,ArenaCenter.y,ArenaCenter.z,ArenaRange+3,LISTEX_FLAG_HIDDEN + LISTEX_FLAG_NORMAL + LISTEX_FLAG_GHOST,stone.realm)
+                      if(Mob == who)
+                        if(IsInArena(Mob,ArenaCenter,ArenaRange))
+                          chk[1] := 1;
+                        endif
+                      elseif((Mob in Opponent))
+                        if(IsInArena(Mob,ArenaCenter,ArenaRange))
+                          chk[2] := 1;
+                        endif
+                      elseif(IsSummoned(Mob))
+                        KillNPC(Mob);
+                      elseif(IsTamed(Mob) or IsPlayer(Mob))
+                        MoveObject(Mob, stone.x-1, stone.y, stone.z, stone.realm, MOVECHAR_FORCELOCATION);
+                      else
+                        KillNPC(Mob);
+                      endif
+                      sleepms(5);
+                    endforeach
+
+                    if(!chk[1])
+                      PrintTextAbove(stone,WhoName + " wysz"+ggm(who,13)+" poza arene!",FONT_NORMAL,COLOR_BLUE);
+                      PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+                      return 2;
+                    elseif(!chk[2])
+                      PrintTextAbove(stone,OppName + " wysz"+ggm(Opponent,13)+" poza arene!",FONT_NORMAL,COLOR_BLUE);
+                      PrintTextAbove(stone,"Walka zakonczona",FONT_NORMAL,COLOR_BLUE);
+                      return 1;
+                    endif
+  endcase
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function MoveItemsIfdead(stone,who)
+
+  var ArenaChest  := FindArenaChest(stone);
+  var ArenaPack   := FindArenaPack(ArenaChest,who);
+  var Count := 0;
+  if(who.dead)
+    var Corpse,c := 0;
+    while(!Corpse and c < 500)
+      Corpse := SystemFindObjectBySerial(CInt(GetObjProperty(who,"CorpseSerial")));
+      sleepms(100);
+      c := c + 1;
+    endwhile
+    var List   := ListRootItemsInContainer(Corpse);
+    if(len(List))
+      if(ArenaChest)
+        foreach item in List
+          Count := 0;
+
+          if(item.movable)
+            if(!ReserveItem(Item))
+              while(!ReserveItem(Item) and Count < 20)
+                Count += 1;
+                sleepms(100);
+              endwhile
+            endif
+            SetItemOwner(item,who);
+            MoveItemToArenaChest(item,ArenaPack);
+            ReleaseItem(Item);
+          endif
+        endforeach
+      endif
+      DestroyItem(Corpse);
+    endif
+    foreach Mob in ListMobilesNearLocationEx(ArenaCenter.x,ArenaCenter.y,ArenaCenter.z,ArenaRange,LISTEX_FLAG_HIDDEN + LISTEX_FLAG_NORMAL,stone.realm)
+      if(IsTamed(Mob))
+        MoveObject(Mob,stone.x+1, stone.y, stone.z, stone.realm, MOVECHAR_FORCELOCATION);
+      endif
+      sleepms(5);
+    endforeach
+    ResurrectPlayer(who);
+  endif
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GainScore(stone,type,Winner,Opponent,Diff := 0)
+
+//  if(!IsPlayer(Winner) or Winner.cmdlevel)
+//   return 0;
+//  endif
+
+  var i,Score,Scores,Points := 0,MaxPkt := 0;
+  var ArenaCfg := ReadConfigFile(ARENA_CFG);
+  var Nr := abs(Diff);
+
+  case(type)
+    PLAYER_FIGHT:   Scores     := GetObjProperty(stone,"PlayerScores");
+    NPC_FIGHT:      Points     := SplitWords(GetConfigString(ArenaCfg["Points"],"Level_"+Nr));
+                    MaxPkt     := CInt(Points[2]);
+                    Points     := CInt(Points[1]);
+                    Scores     := GetObjProperty(stone,"Scores");
+    NPC_GROUP:      Points     := SplitWords(GetConfigString(ArenaCfg["Points"],"GroupLevel_"+Nr));
+                    MaxPkt     := CInt(Points[2]);
+                    Points     := CInt(Points[1]);
+                    Scores     := GetObjProperty(stone,"Scores");
+    default:        return 0;
+  endcase
+
+  if(!Scores)
+    Scores := {};
+  endif
+  chk := 0;
+  for(i:=1;i<=len(Scores);i:=i+1)
+    Score := Scores[i];
+    if(Winner.serial == CInt(Score[1]))
+      chk := i;
+      break;
+    endif
+  endfor
+
+  case(type)
+    PLAYER_FIGHT:   if(chk)
+                      Score    := Scores[chk];
+                      if(!(Opponent.serial in Score[2]))
+                        Score[2].append(Opponent.serial);
+                      endif
+                      Scores[chk] := Score;
+                    else
+                      Scores.append({Winner.serial,{Opponent.serial}});
+                    endif
+                    Scores := SortPlayerScores(Scores);
+                    SetObjProperty(stone,"PlayerScores",Scores);
+                    SendSysMessage(Winner,Opponent.name + " zostal"+ggm(Opponent,4)+" dodan"+ggm(Opponent,6)+" do twojej listy.",FONT_NORMAL,COLOR_GREEN);
+    NPC_FIGHT:
+    NPC_GROUP:      if(chk)
+                      Score    := Scores[chk];
+                      if(Diff < 0)
+                        Score[2] := Score[2] - Points;
+                      else
+                        if(CInt(Score[2]) > MaxPkt and MaxPkt)
+                          Diff := 0;
+                        else
+                          Score[2] := Score[2] + Points;
+                        endif
+                      endif
+                      Scores[chk] := Score;
+                    else
+                      var Pt := Points;
+                      if(Diff < 0)
+                        Pt := Pt * -1;
+                      endif
+                      Scores.append({Winner.serial,Pt});
+                      Score := Scores[len(Scores)];
+                    endif
+                    Scores := SortScores(Scores);
+                    SetObjProperty(stone,"Scores",Scores);
+
+                    if(Diff > 0)
+                      SendSysMessage(Winner,"Zdobyl"+ggm(Winner,3)+" "+Points+" punktow. Masz juz "+CInt(Score[2])+" punktow.",FONT_NORMAL,COLOR_GREEN);
+                    elseif(Diff < 0)
+                      SendSysMessage(Winner,"Stracil"+ggm(Winner,3)+" "+Points+" punktow. Masz teraz "+CInt(Score[2])+" punktow.",FONT_NORMAL,COLOR_RED);
+                    endif
+  endcase
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SortScores(Scores)
+
+  var i,s,Sc,ScN;
+  for(s:=1;s<=10;s:=s+1)
+    for(i:=1;i<len(Scores);i:=i+1)
+      Sc  := Scores[i];
+      ScN := Scores[i+1];
+      if(Sc[2] < ScN[2])
+        Scores[i]   := ScN;
+        Scores[i+1] := Sc;
+      endif
+      sleepms(5);
+    endfor
+    sleepms(5);
+  endfor
+
+  return Scores;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function SortPlayerScores(Scores)
+
+  var i,s,Sc,ScN;
+  for(s:=1;s<=10;s:=s+1)
+    for(i:=1;i<len(Scores);i:=i+1)
+      Sc  := Scores[i];
+      ScN := Scores[i+1];
+      if(len(Sc[2]) < len(ScN[2]))
+        Scores[i]   := ScN;
+        Scores[i+1] := Sc;
+      endif
+    endfor
+  endfor
+
+  return Scores;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function TourFightEquipment(stone,who)
+
+  SetObjProperty(who,"#TourFight",stone.serial);
+  var Weap      := GetWeaponObjType(who);
+  var Eqp       := "TourEquipment";
+  if(Weap == 1)
+    Eqp := "MageTourEquipment";
+  endif
+
+  var ArenaCfg  := ReadConfigFile(ARENA_CFG);
+  var Equipment := GetConfigStringArray(ArenaCfg[Eqp],"Equip");
+  var Items     := GetConfigStringArray(ArenaCfg[Eqp],"Item");
+  var StackItems:= GetConfigStringArray(ArenaCfg[Eqp],"Stack");
+  if(!Equipment)
+    LogError("TourFightEquipment: Arena Config: Nie mozna znalezc Tour Equipment!", LOGF_SCRIPTS);
+    return 0;
+  endif
+  UnEquipAll(who);
+  var ArenaChest := FindArenaChest(stone);
+  var ArenaPack  := FindArenaPack(ArenaChest,who);
+  foreach itm in ListRootItemsInContainer(who.backpack)
+    if(itm.objtype != UOBJ_SPELLBOOK)
+      SetItemOwner(itm,who);
+      MoveItemToArenaChest(itm,ArenaPack);
+    endif
+  endforeach
+
+  var Item;
+  if(Weap and Weap != 1)
+    if(Weap == UOBJ_TOURBOW)
+      CreateItemInPack(who,UOBJ_ARROW,150);
+    endif
+    Item := CreateItemAtLoc(6104,1240,0,CInt(Weap),1);
+    SetObjProperty(Item,"TourItem",who.serial);
+    if(!Item)
+      LogError("TourFightEquipment: Nie mozna bylo stworzyc broni "+Weap+"!", LOGF_SCRIPTS);
+    else
+      if(!EquipItem(who,item))
+        DestroyItem(item);
+      endif
+    endif
+  endif
+
+  foreach Equip in Equipment
+    Item := CreateItemAtLoc(6104,1240,0,CInt(Equip),1);
+    SetObjProperty(Item,"TourItem",who.serial);
+    if(!Item)
+      LogError("TourFightEquipment: Nie mozna bylo stworzyc przedmiotu "+Equip+"!", LOGF_SCRIPTS);
+    else
+      if(!EquipItem(who,item))
+        DestroyItem(item);
+      endif
+    endif
+  endforeach
+
+  foreach Str in Items
+    Item := CreateItemInpack(who,CInt(Str),1);
+    SetObjProperty(Item,"TourItem",who.serial);
+    if(!Item)
+      LogError("TourFightEquipment: Nie mozna bylo stworzyc przedmiotu "+Str+"!", LOGF_SCRIPTS);
+    endif
+  endforeach
+
+  CreateItemFromStackString(who.backpack,StackItems,"TourItem",who.serial);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function GetWeaponObjType(who)
+  var Skills := {
+    SKILLID_MACEFIGHTING,
+    SKILLID_WRESTLING,
+    SKILLID_SWORDSMANSHIP,
+    SKILLID_FENCING,
+    SKILLID_ARCHERY
+  };
+
+  var SkVals := {};
+  foreach Sk in Skills
+    SkVals.append(GetBaseSkillBaseValue(who,Sk));
+  endforeach
+
+  var i,s,Sk,sMax := CInt(len(Skills)-1),MaxS := len(Skills);
+  for(s:=1;s<=MaxS;s:=s+1)
+    for(i:=1;i<=sMax;i:=i+1)
+      if(SkVals[i] < SkVals[i+1])
+        Sk := Skills[i];
+        Skills[i]   := Skills[i+1];
+        Skills[i+1] := Sk;
+        Sk := SkVals[i];
+        SkVals[i]   := SkVals[i+1];
+        SkVals[i+1] := Sk;
+      endif
+    endfor
+  endfor
+
+  var Mag := GetBaseSkillBaseValue(who,SKILLID_MAGERY);
+  if(Skills[1] == SKILLID_WRESTLING and Mag > 400)
+    return 1;
+  elseif(GetBaseSkillBaseValue(who,Skills[1]) <= Mag)
+    return 1;
+  endif
+
+
+  if(Skills[1] == SKILLID_MACEFIGHTING and (GetBaseSkillBaseValue(who,SKILLID_LUMBERJACKING) > 400))
+    return UOBJ_TOURAXE;
+  endif
+
+  case(Skills[1])
+    SKILLID_MACEFIGHTING:   return UOBJ_TOURMACE;
+    SKILLID_SWORDSMANSHIP:  return UOBJ_TOURSWORD;
+    SKILLID_FENCING:        return UOBJ_TOURFENC;
+    SKILLID_ARCHERY:        return UOBJ_TOURBOW;
+  endcase
+
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------
+
+function IsInArena(Mob,byref ArenaCenter,byref ArenaRange)
+
+  if((Mob.x >= ArenaCenter.x - ArenaRange and Mob.x <= ArenaCenter.x + ArenaRange) and (Mob.y >= ArenaCenter.y - ArenaRange and Mob.y <= ArenaCenter.y + ArenaRange))
+    return 1;
+  endif
+  return 0;
+
+endfunction
+
+//--------------------------------------------------------------------------------

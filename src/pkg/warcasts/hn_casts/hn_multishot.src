@@ -1,0 +1,55 @@
+//-----------------------------------------------------------------------------
+
+include "include/packets";
+include "include/gumps";
+include "include/calc";
+include "include/dirs";
+include "include/objects/location";
+
+include ":wearwolf:wearwolf";
+include ":tracking:tracking";
+include ":detecthidden:common";
+
+//-----------------------------------------------------------------------------
+
+const HN_WCID                := 163;
+
+//-----------------------------------------------------------------------------
+
+program HnPenetrate(Parms)
+
+  WarCast(Parms, HN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+  var VpSkill  := CalcSkillExponential(Caster, SKILLID_HUNTER, 10);
+  var SpSkill  := CalcSkillExponential(Caster, SKILLID_INSIGHT, 10);
+  var Duration := Max(120, CInt(VpSkill + (SpSkill / 2)) * 20) + RandomInt(20);
+  var lRange   := Max(3, CInt((VpSkill + SpSkill)/6));
+
+  PlaySoundEffect(Caster,SFX_BLADEWEAVE);
+  PlayPcStEffect( Caster.x, Caster.y, Caster.z, Caster.realm, FX_SPARK_EFFECT, 70, 0x10, 0x10, 2);
+
+  if(CanMod(Caster, MOD_MULTI_SHOT))
+    GainWarcastPoints(Caster, Caster, HN_WCID, WCGAIN_NORMAL);
+  endif
+
+  UndoMod(Caster, MOD_FIRE_DMG);
+  UndoMod(Caster, MOD_COLD_DMG);
+  UndoMod(Caster, MOD_FIRE_BLOOD);
+  UndoMod(Caster, MOD_EXPLO_DMG);
+  UndoMod(Caster, MOD_MANA_DMG);
+
+  DoMod( Caster, MOD_MULTI_SHOT, lRange, Duration);
+  
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------

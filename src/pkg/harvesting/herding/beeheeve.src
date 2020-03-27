@@ -1,0 +1,186 @@
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/skills/std";
+include "include/items";
+
+include "beeheeve";
+include ":housing:common";
+include ":baseitems:common";
+
+//-----------------------------------------------------------------------------
+
+var points := 0;
+
+//-----------------------------------------------------------------------------
+
+program UseBeeHeeve(who,beeheeve)
+
+  if(!StandardItemCheck(who,beeheeve,NO_MOVABLE_CHECK))
+    return;
+  endif
+
+  Points := GetDefaultPointsValue(SKILLID_HERDING);
+  var Owner  := 0;
+  
+  if(!GetItemBINr(Beeheeve))
+    Owner  := FindBeeHeeveOwner(BeeHeeve);
+
+    if(!Owner)
+      DestroyBeeHeeve(BeeHeeve);
+      return;
+    endif
+  endif
+
+  GInit();
+  GResPic(300,300,2620,250,120);
+
+  if(Owner)
+    GGumpPic(350,220,100);
+    GTextLine(390,232,999,"Wlasciciel:");
+    FillName( GetRealName(Owner) );
+    
+    if(Owner == who or IsGm(who))
+      GButton(385,393,2117,2118,3);
+      GTextLine(405,390,650,"Zniszcz");
+    endif
+  endif
+
+  var HAmount := CInt(GetObjProperty(beeheeve,"HAmount"));
+  var WAmount := CInt(GetObjProperty(beeheeve,"WAmount"));
+  
+  GResPic(310, 340, 0xBB8, 70, 46);
+  GTilePicHue(323, 355, UOBJ_HONEY, __IfElse(HAmount, 0, 999));
+  GTextLine(390,340,650,"Miod");
+  GButton(370,343,2117,2118,1);
+
+  GResPic(470, 340, 0xBB8, 70, 46);
+  GTilePicHue(483, 355, UOBJ_WOSK, __IfElse(WAmount, 0, 999));
+  GTextLine(430,365,650,"Wosk");
+  GButton(465,368,2117,2118,2);
+  
+
+  var Res := GSend(who)[0];
+  case(Res)
+    1:       GetHoney(who,beeheeve);
+    2:       GetWosk(who,beeheeve);
+    3:       DestroyBeeHeeve(beeheeve,who);
+    default: SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+  endcase
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function FillName(OwnerName)
+
+  var Name := SplitWords(OwnerName);
+
+  if(Name.size() == 3)
+    GTextLine(365,252,650, Name[1]);
+    GTextLine(365,271,650, Name[2]);
+    GTextLine(365,290,650,Name[3]);
+  elseif(Name.size() == 2)
+    GTextLine(365,252,650,Name[1]);
+    GTextLine(365,271,650,Name[2]);
+  else
+    GTextLine(365,252,650,OwnerName);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetHoney(who,beeheeve)
+
+  var skill_herd := GetEffectiveSkill(who,SKILLID_HERDING);
+  var Amount := CInt(skill_herd/10) + ToMin(CInt((skill_herd - 100) / 4), 0);
+  var HAmount := CInt(GetObjProperty(beeheeve,"HAmount"));
+ 
+  if(!HAmount)
+    SendSysMessage(who,"W tym ulu nie ma jeszcze miodu.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!Amount)
+    SendSysMessage(who,"Twa wiedza jest za mala by moc zebrac miod.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Zbierasz miod...", FONT_NORMAL, COLOR_GREEN);
+
+  if(!MakeNoise(who, 0x248))
+    return;
+  endif
+ 
+  var dmg := CInt(20 - (skill_herd/10));
+
+  if(!CheckSkill(who,SKILLID_HERDING,70,points))
+    DealDamage(who,RandomInt(dmg),who);
+  endif
+
+  if(Amount>HAmount)
+    Amount := HAmount;
+  endif
+
+  EraseObjProperty(beeheeve,"HAmount");
+  EraseObjProperty(beeheeve,"NextRaise");
+  var itmDesc := GetHarvestDescriptor(UOBJ_HONEYDEW, who);
+  var Honey := CreateItemInPack(who,itmDesc,Amount);
+
+  if(Honey)
+    SendSysMessage(who,"Zebral"+ggm(who,3)+" "+Amount+" miodu.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w plecaku!", FONT_NORMAL, COLOR_RED);
+  endif
+ 
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetWosk(who,beeheeve)
+
+  var skill_herd := GetEffectiveSkill(who,SKILLID_HERDING);
+  var Amount := CInt(skill_herd/10) + ToMin(CInt((skill_herd - 100) / 4), 0);
+  var WAmount := CInt(GetObjProperty(beeheeve,"WAmount"));
+
+  if(!WAmount)
+    SendSysMessage(who,"W tym ulu nie ma jeszcze wosku.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(!Amount)
+    SendSysMessage(who,"Twa wiedza jest za mala by moc zebrac wosk.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  SendSysMessage(who,"Zbierasz wosk...", FONT_NORMAL, COLOR_GREEN);
+
+  if(!MakeNoise(who, 0x248))
+    return;
+  endif
+
+  var dmg := CInt(20 - (skill_herd/10));
+
+  if(!CheckSkill(who,SKILLID_HERDING,70,points))
+    DealDamage(who,RandomInt(dmg),who);
+  endif
+
+  if(Amount > WAmount)
+    Amount := WAmount;
+  endif
+
+  EraseObjProperty(beeheeve,"WAmount");
+  EraseObjProperty(beeheeve,"NextRaise");
+  var itmDesc := GetHarvestDescriptor(UOBJ_WOSK, who);
+  var Wosk := CreateItemInPack(who,itmDesc,Amount);
+
+  if(Wosk)
+    SendSysMessage(who,"Zebral"+ggm(who,3)+" "+Amount+" wosku.", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who,"Nie masz miejsca w plecaku!", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

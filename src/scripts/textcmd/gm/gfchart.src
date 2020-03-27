@@ -1,0 +1,65 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/misc";
+
+//-----------------------------------------------------------------------------
+
+const WINX_MAX := 640;
+const WINY_MAX := 480;
+
+//-----------------------------------------------------------------------------
+
+program GfChartCmd(who, text)
+
+  __ParamUnused(text);
+
+  GInit();
+
+  GResPic(0, 0, BKGND_GOLDTRIM, WINX_MAX+3, WINY_MAX+4);
+  GTextLine(200, 6, 67, "Gump Color Chart" );
+  GButton(WINX_MAX - 63, 11, 0x848, 0x849, 1);
+
+  var i;
+  for( i := 1; i <= 40 ; i := i + 1 )
+    GTextLine(16, i*11+15, i, "aeiouAEIOU12345 - " + CStr(i) );
+    GTextLine(206, i*11+15, i+40, "aeiouAEIOU12345 - " + CStr(i+40) );
+    if ( i < 21 )
+      GTextLine(396, i*11+15, i+80, "aeiouAEIOU12345 - " + CStr(i+80) );
+    endif
+  endfor
+
+  GTextLine(396, 260, 90, "Czysty czarny");
+  GTextLine(500, 260, 90, "1" );
+  GTextLine(396, 275, 1153, "Czysty bialy" );
+  GTextLine(500, 275, 90, "1153" );
+  GTextLine(396, 290, 1209, "Czerwony" );
+  GTextLine(500, 290, 90, "1209" );
+  GTextLine(396, 305, 1109, "Czarny" );
+  GTextLine(500, 305, 90, "1109" );
+  GTextLine(396, 320, 1424, "Zielony" );
+  GTextLine(500, 320, 90, "1424" );
+  GTextLine(396, 335, 1320, "Niebieski" );
+  GTextLine(500, 335, 90, "1320" );
+  GTextLine(396, 350, 999, "Siwy" );
+  GTextLine(500, 350, 90, "999" );
+  GTextLine(396, 365, 1152, "Lodowy" );
+  GTextLine(500, 365, 90, "1152" );
+  GTextLine(396, 380, 1301, "Srebrny" );
+  GTextLine(500, 380, 90, "1301" );
+  GTextLine(396, 395, 90, "Widmowy" );
+  GTextLine(500, 395, 90, "16385" );
+  GTextLine(396, 410, 1121, "Zloty" );
+  GTextLine(500, 410, 90, "1121" );
+  GTextLine(396, 425, 1024, "Agapit" );
+  GTextLine(500, 425, 90, "1024" );
+  GTextLine(396, 440, 2001, "Valoryt" );
+  GTextLine(500, 440, 90, "2001" );
+
+  GSend( who );
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,63 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/clock";
+include "include/std";
+include "include/start";
+
+//-----------------------------------------------------------------------------
+
+var curTime;
+var SecDelay,StartHour,Duration;
+
+//-----------------------------------------------------------------------------
+
+program happyHour(Parms)
+  if(!FillGlobCtrl(Parms))
+    return 0;
+  endif
+
+  SetLogRunCycles(LST_CONTROL);
+
+  var Cfg;
+
+  while (1)          
+    UnloadConfigFile(":happyhour:happyhour");
+    Cfg := ReadConfigFile(":happyhour:happyhour");
+
+    if(!Cfg)
+      LogError("Saver: Nie znaleziono konfiga! :happyhour:happyhour");
+      sleep(900);
+    else
+      SecDelay := GetConfigInt(Cfg["Conf"], "SecDelay");
+      StartHour := CInt(GetConfigInt(Cfg["Conf"], "StartHour"));
+      Duration   := CInt(GetConfigInt(Cfg["Conf"], "Duration")) + StartHour;
+
+      curTime := ExtractTimeComponents(polcore().systime);
+
+      if (curTime.hour >= StartHour and curTime.hour < Duration)
+        //happyhour  
+        if(!GetGlobalProperty("#HH"))
+          Broadcast("Nad krainami Sosarii zaczyna unosic sie magiczna won mikstury poprawiajacej koncentracje.",FONT_NORMAL,COLOR_YELLOW_LIGHT);
+          SetGlobalProperty( "#HH", 1 );
+        endif
+      else
+        //brakhappyhour   
+        if(GetGlobalProperty("#HH"))
+          Broadcast("Powietrze Sosarii zaczyna sie rozrzedzac, efekt mikstury zanika.",FONT_NORMAL,COLOR_YELLOW_LIGHT);
+          EraseGlobalProperty("#HH");
+        endif
+      endif
+
+      sleep(SecDelay);
+
+    endif
+
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------

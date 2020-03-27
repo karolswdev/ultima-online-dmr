@@ -1,0 +1,224 @@
+//-----------------------------------------------------------------------------
+
+include "include/skills/std";
+include "include/getobj";
+include "include/repair";
+include "include/dirs";
+include "include/tools";
+include "include/player/target";
+include "include/move";
+include "include/events";
+
+include ":crafting:creation";
+include ":blades:cutting";
+include ":quests:quest_ctrl";
+include ":artifacts:artifacts";
+include ":harvesting:iterations";
+include ":harvesting:harvest";
+include ":harvesting:harvcont";
+include ":bulks:common";
+include ":bowcraft:common";
+
+//-----------------------------------------------------------------------------
+
+program LumberJack(who,axe)         
+
+  if(!StandardItemCheck(who,axe,NO_COMBAT_CHECK))
+    return;
+  endif
+  
+  if(!IsToolEquipped(who, axe))
+    return;
+  endif 
+  
+  var Loc := LocTarget(who);
+
+  if(!StandardLocCheck(who,Loc,NO_COMBAT_CHECK|NO_ITEMCONT_CHECK | NO_DIST_CHECK | NEW_DIST_CHECK, 1))
+    return;
+  endif
+
+  if(SetHarvestContainerFromLoc(who, Loc, SKILLID_LUMBERJACKING))
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_HARV_LUMBERJACKING);
+
+  var ItemCfg  := ReadConfigFile(ITEMS_CFG);
+
+  if(IsTreeObjType(Loc.objtype))
+    MainChopTree(who,axe, Loc, GetTreeConfig(Loc.objtype));
+  elseif(IsFurniture(Loc))
+    ChopFurniture(who,Loc);
+  elseif(ItemCfg[Loc.objtype].repairable)
+    RepairBowCraftItem(who,Loc);
+  else
+    CheckOtherChop(who,axe,Loc);
+  endif
+ 
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function MainChopTree(who, axe, tree, cfgTree)
+
+  SendSysMessage(who, "Zacz"+ggm(who,5)+" scinac drzewo...",FONT_NORMAL,COLOR_GREEN);
+
+  var IterData := DefineHarvestIterations(who, SKILLID_LUMBERJACKING);
+  var Res;
+
+  while(HarvestIteration(who, IterData))
+    Res := ChopTree(who,axe, tree, cfgTree, IterData);
+    CheckActions(who);
+    
+    if(Res == error)
+      break;
+    endif
+
+  endwhile
+
+  FinishHarvestIteration(who, IterData);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckActions(who)
+
+  if(RandomInt(1000) < 2)
+    if(RandomInt(1000) < 100)
+      var Ent := CreateRPNpc("ent",who,who.realm);
+      if(Ent)
+        SaveSkillSum(Ent);
+        SendChEvent(Ent,who,EVID_ENGAGED);
+      endif
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChopTree(who,axe, tree, cfgTree, byref IterData)
+
+  if(GetEquipmentByLayer(who, LAYER_MOUNT) and !who.cmdlevel)
+    SendSysMessage(who,"Ciezko Ci bedzie scinac drzewo bedac na wierzchowcu!",FONT_NORMAL,COLOR_RED);
+    return error;
+  elseif(!axe)
+    SendSysMessage(who,"Topor rozpadl sie!",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  if(cfgTree.NoSeasonFall)
+    if(GetCurrentSeason() == SEASON_FALL)
+      SendSysMessage(who, "Jesienia nie zetniesz tego drzewa.", FONT_NORMAL, COLOR_RED);
+      return error;
+/*
+  __NONPVP__ DELETED
+    elseif(IsInNonPvPArea(who.x,who.y,who.realm)) //non pvp nie powinno sie moc scinac ohii tak jak nie mozna kopiac royalu, nie ma tez ognistych skor.
+      SendSysMessage(who, "Kora drzewa wydaje sie byc niesamowicie twarda.", FONT_NORMAL, COLOR_RED);
+      return error;*/
+    endif
+  endif
+  
+  TurnCharTowardLocation(who, tree);
+  
+  if(!CheckToolWear(who,axe,SKILLID_LUMBERJACKING))
+    return error;
+  endif
+
+  var LogType  := GetItemObjType(cfgTree.Log);
+
+  if(IsBlockedSkillForClass(who, SKILLID_LUMBERJACKING))
+    SendSysMessage(who, "Nie wiesz jak sie tym poslugiwac...",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+
+  if(!LogType)
+    SendSysMessage(who, "Cos jest nie tak...", FONT_NORMAL, COLOR_RED);
+    LogError("LogType niezdefiniowany dla "+hex(cfgTree.Log), LOGF_SCRIPTS);
+    return error;
+  endif
+
+  var Cfg        := ReadConfigFile(ITEMS_CFG);
+  var TimeMod := 0.5 + (CDbl(Cfg[LogType].LogMod) / (GetMaxMaterialModByMadeType(MTYPE_LOG)-1)) * 0.5;
+
+  if(!IsDebug(who, "LumberDebug"))
+    if(!HarvestDelay(who, IterData, SFX_SKILL_LUMBERJACK, UACTION_CHOP, 0, TimeMod))
+      return error;
+    endif
+  endif
+  
+  if(!axe)
+    return;
+  endif
+
+  var Skill      := CInt(Cfg[LogType].Skill);
+  var Points     := 30 + CInt(Skill / 2);
+  var Amount     := Max(2, CInt(GetBaseSkill(who,SKILLID_LUMBERJACKING) / 10) + CInt(GetOverSkill(who,SKILLID_LUMBERJACKING) / 5) + CInt(CheckItemQuality(axe) / 5) + CInt(GetEffectiveSkill(who, SKILLID_AXESMANSHIP) / 50));
+  var Name       := GetDps(LogType);
+  Amount         := HarvestResource("wood",tree.x,tree.y,1,Amount,who.realm);
+
+  if(Name)
+    Name := Name + "ych";
+  endif
+
+  if(LogType)
+    if(HarvestOverflowed(who))
+
+      SendSysMessage(who, "Prawie cos scial"+ggm(who,3)+", ale czujesz jakby to bylo juz ponad Twoje sily...", FONT_NORMAL, COLOR_ORANGE);
+
+    elseif(CheckSkill(who,SKILLID_LUMBERJACKING,Skill,0))
+      if(Amount)
+        var itmDesc := GetHarvestDescriptor(LogType, who);
+        var Logs := CreateHarvResource(who,SKILLID_LUMBERJACKING,itmDesc,Amount);
+        if(Logs)
+          SendSysMessage(who, GetHarvestIterDesc(IterData) + " Scial"+ggm(who,3)+" "+Amount+" "+Name+" klod i wlozyl"+ggm(who,3)+" je do plecaka.",FONT_NORMAL,COLOR_GREEN);
+          CheckOthers(who);
+          AwardPoints(who,SKILLID_LUMBERJACKING,Points);
+          SendQuestEvent(who, EVQID_HARVEST, SKILLID_LUMBERJACKING, Logs);
+        else
+          SendSysMessage(who,"Nie masz juz miejsca w plecaku.",FONT_NORMAL,COLOR_RED);
+          return error;
+        endif
+      else
+        SendSysMessage(who,"To drzewo wyglada juz na wystarczajaco obciete.",FONT_NORMAL,COLOR_RED);
+        return error;
+      endif
+    else
+      if(GetEffectiveSkill(who, SKILLID_LUMBERJACKING) < 25)
+        AwardPoints(who,SKILLID_LUMBERJACKING,Points);
+      endif
+      SendSysMessage(who,"Zniszczyl"+ggm(who,3)+" klody.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  else
+    SendSysMessage(who,"To drzewo nie wyglada na uzyteczne.",FONT_NORMAL,COLOR_RED);
+    return error;
+  endif
+  
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckOthers(who)
+
+  if(RandomInt(1000) < 35 + GetOverSkill(who, SKILLID_LUMBERJACKING)*1.5)
+    var itmDesc := GetHarvestDescriptor(UOBJ_DEADWOOD, who);
+    var Wood := CreateHarvResource(who, SKILLID_LUMBERJACKING, itmDesc, (RandomInt(2)+1));
+
+    if(Wood)
+      SendSysMessage(who,"Sci"+ggm(who,5)+" troche martwego drzewa.",FONT_NORMAL,COLOR_BLUE);
+    endif
+  elseif(HaveChance(15))
+    var Amt := 6 + CInt(GetEffectiveSkill(who,SKILLID_LUMBERJACKING) / 20) + RandomInt(3);
+    var it := CreateHarvResource(who, SKILLID_LUMBERJACKING, GetHarvestDescriptor(0x0f8d, who), Amt);
+    if(it)
+      SendSysMessage(who, "Znalazl"+ggm(who,3)+" troche pajeczych sieci!",FONT_NORMAL,COLOR_BLUE);
+    endif
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

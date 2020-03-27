@@ -1,0 +1,45 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-26
+//-----------------------------------------------------------------------------
+
+include "include/items/containers";
+
+include ":housing:common";
+
+//-----------------------------------------------------------------------------
+
+program can_insert(who, backpack, movetype, inserttype, adding_item, existing_stack)
+ 
+  __ParamUnused(movetype);
+  __ParamUnused(inserttype);
+
+  var Item := adding_item;
+  if(!Item)
+    Item := existing_stack;
+  endif
+
+  if(item.objtype == UOBJ_GAMEPIECE)
+    return 0;
+  endif
+
+  if(backpack.objtype == UOBJ_SECURED_CONT and IsPlayer(who))
+    var house := GetHouse( backpack );
+
+    if(house and !IsHouseOwner(who,house) and !IsHouseCoOwner(who,house) and !IsHouseFriend(who,house) and !IsAdmin(who))
+      SendSysMessage(who,"Ten pojemnik jest zamkniety!",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+
+  if(backpack.objtype == UOBJ_RUNEBOOK)
+    if(item.objtype != UOBJ_RUNE and item.objtype != UOBJ_RECALLSCROLL and item.objtype != UOBJ_RUNEBOOK)
+      SendSysMessage(who, "Nie mozesz tego wlozyc do runebooka.",FONT_NORMAL,COLOR_RED);
+      return 0;
+    endif
+  endif
+  
+  return StdCanContainerInsert(who, backpack, item);
+
+endprogram
+
+//-----------------------------------------------------------------------------

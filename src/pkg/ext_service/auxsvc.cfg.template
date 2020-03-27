@@ -1,0 +1,8 @@
+AuxService
+{
+    Port 5009
+    Script :ext_service:ext_serv
+
+    IpMatch 192.168.10.0/255.255.255.0
+    IpMatch 127.0.0.1/255.255.255.255
+}

@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 5;
+
+//-----------------------------------------------------------------------------
+
+program CastMagicArow( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Dispersed(Caster, CastOn))
+    return;
+  endif
+
+  PlayMovingEff( Caster, CastOn, FX_MAGIC_ARROW, 5, 1, 1);
+  PlaySoundEffect ( Caster, SFX_SPELL_MAGIC_ARROW );
+
+  var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
+
+  if(Reflected(CastOn, Caster))
+    PlayMovingEff( CastOn, Caster, FX_MAGIC_ARROW, 5, 1, 1);
+    PlaySoundEffect( CastOn, SFX_SPELL_MAGIC_ARROW );
+    CastOn := Caster;
+  endif
+
+  if(DoMagicDamage(CastOn, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_OFFENSIVE);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

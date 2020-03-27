@@ -1,0 +1,29 @@
+//--------------------------------------------------------------------------------
+
+use util;
+
+//--------------------------------------------------------------------------------
+
+include "include/gumps";
+include "include/finding";
+include "include/misc";
+include "include/player/target";
+include "include/clock";
+include ":makrocheck:makro";
+
+//--------------------------------------------------------------------------------
+
+program SendAskGump(who)
+
+  var Targ  := ObjTarget(who);
+ 
+  if(!IsPlayer(Targ))
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+ 
+  SendMakroGump(Targ, who);
+
+endprogram
+
+//--------------------------------------------------------------------------------

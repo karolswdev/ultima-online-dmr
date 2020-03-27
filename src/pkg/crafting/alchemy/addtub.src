@@ -1,0 +1,132 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use cfgfile;
+
+//-----------------------------------------------------------------------------
+
+include "include/objtypes/skills";
+include "include/client/fonts";
+include "include/misc";
+include "include/msgs";
+
+//-----------------------------------------------------------------------------
+
+const MAX_AMT := 4;
+
+//-----------------------------------------------------------------------------
+
+var tcfg     := ReadConfigFile("tub");
+var types    := GetConfigStringKeys(tcfg);
+var objtypes := {};
+var iamount,iobjtype;
+
+//-----------------------------------------------------------------------------
+
+program AddReg(who,tub, movetype, inserttype, adding_item, existing_stack)
+
+  var Item := adding_item;
+  if(inserttype == INSERT_INCREASE_STACK)
+    Item := existing_stack;
+  endif
+
+  foreach Itm in EnumerateItemsInContainer(tub)
+    MoveItemToContainer(Itm,who.backpack);
+  endforeach
+
+  if(!item.movable)
+    return;
+  endif
+
+  iamount   := item.amount;
+  iobjtype  := item.objtype;
+
+  foreach type in types
+    objtypes.append(tcfg[type].Objtype);
+  endforeach
+
+  if(iobjtype in objtypes)
+    Insert(who,tub,item);
+  else
+    MoveItemToContainer(item,who.backpack);
+    SendSysMessage(who, "Z tego nic nie zrobisz.",FONT_NORMAL,COLOR_RED);
+  endif
+
+endprogram
+
+function Insert(who,tub,item)
+
+  var Amt  := CInt(GetObjProperty(tub,"Amt"));
+  var Type := Getobjproperty(tub,"Type");
+  var Msg;
+
+  if(Type and Amt)
+    Msg := tcfg[Type].Msg;
+    if(iobjtype != tcfg[Type].ObjType)
+      SendSysMessage(who,"W tej barylce jest juz troche "+msg+".",FONT_NORMAL,COLOR_GREEN);
+      MoveItemToContainer(item,who.backpack);
+      return;
+    endif
+  endif
+
+  if(!Amt)
+    Amt := 0;
+    SetObjProperty(tub,"Amt",Amt);
+  endif
+
+  if(Amt >= MAX_AMT)
+    SendSysMessage(who, "Do tej barylki nie wlozysz juz wiecej "+msg+".",FONT_NORMAL,COLOR_RED);
+    MoveItemToContainer(item,who.backpack);
+    return;
+  endif
+
+  var SAmt := IAmount;
+  
+  if(Amt + IAmount > MAX_AMT)
+    SAmt := (MAX_AMT - Amt);
+    Amt  := MAX_AMT;
+  else
+    Amt  := Amt + IAmount;
+  endif
+
+  if(!SubtractAmount(Item,SAmt))
+    SendSysMessage(who,"Nie mozesz tego tu wlozyc.",FONT_NORMAL,COLOR_RED);
+    MoveItemToContainer(item,who.backpack);
+    return;
+  endif
+
+  Type := GetType(IObjType);
+  if(!Type)
+    return 0;
+  endif
+  
+  msg  := tcfg[Type].Msg;
+
+  SendSysMessage(who,"Wlozyl"+ggm(who,3)+" troche "+msg+" do barylki.",FONT_NORMAL,COLOR_GREEN);
+  
+  if(Item)
+    MoveItemToContainer(Item,who.backpack);
+  endif
+  
+  SetObjProperty(tub,"Amt",Amt);
+  SetObjProperty(tub,"Type",Type);
+  SetObjProperty(tub,"LastOwner",who.serial);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetType(objtype)
+
+  foreach Type in Types
+    if(tcfg[type].ObjType == objtype)
+      return type;
+    endif
+  endforeach
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------

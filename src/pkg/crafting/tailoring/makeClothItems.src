@@ -1,0 +1,581 @@
+//-----------------------------------------------------------------------------
+
+include ":quests:quest_ctrl";
+include "include/gumpboxes";
+include "include/gump_utils";
+include "include/getobj";
+include "include/skills/gumps";
+include "include/skills/std";
+include "include/repair";
+include "include/findcity";
+include "include/checks/locchecks";
+include "include/buildings";
+include "include/tools";
+
+include ":artifacts:artifacts";
+include ":crafting:creation";
+include ":crafting:receptures";
+include ":crafting:exceptional";
+include ":bulks:common";
+
+//-----------------------------------------------------------------------------
+
+program Tailoring(who, SewingKit)
+
+  if(!StandardItemCheck(who, SewingKit))
+    return;
+  endif
+
+  TriggerTipEvent(who, TEID_CRAFT_TAILORING);
+  var CraftData := TinkerCraftGump(who);
+
+  if(!CraftData)
+    return;
+  endif
+  
+  start_script(":tailoring:craft_item", array(who, SewingKit, CraftData));
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function TinkerCraftGump(who)
+
+  var doCraft := 0;
+  var butRes;
+  var LastCraft := GetCraftLastCreation(who, SKILLID_TAILORING);
+
+  while(IsLoggedIn(who) and doCraft == 0)
+
+    InitSkillGlob(who, ":tailoring:tailoring", SKILLID_TAILORING);
+    SkillGlob.expPropName := "exchk";
+
+    BuildMainTailorGump(LastCraft.iters);
+
+    case(butRes)
+      2:   BuildShirtsGump();
+      3:   BuildPantsGump();
+      4:   BuildRobeGump();
+      5:   BuildHatsGump();
+      6:   BuildMiscGump();
+      
+      12:  BuildLeatherGump();
+      13:  BuildStuddedGump();
+      14:  BuildFemaleGump();
+      15:  BuildShoesGump();
+      16:  BuildContGump();
+
+      20:  BuildBoneArmorGump(who);
+      21:  BuildLeatherSamuraiGump();
+      22:  BuildStuddedSamuraiGump();
+      23:  BuildElvenHideGump(); // ML
+      24:  BuildElvenArmorGump(); // ML
+
+      30:  BuildCarpetGump(LastCraft.itemSize);
+      31:  BuildTapestryGump();
+    endcase
+
+    BuildMainTailorEndGump(who);
+
+    var GumpRes := GSend(who);
+    butRes := CInt(GumpRes[0]);
+    LastCraft.iters := GetCraftItersFromGumpRes(GumpRes, 1);
+
+    case(butRes)
+    
+      1:
+        if(!SkillGlob.cfg[LastCraft.objtype])
+          SendSysMessage(who,"Jeszcze nic nie szyl"+ggm(who,3)+".",FONT_NORMAL,COLOR_RED);
+          doCraft := -1;
+        else
+          doCraft := 1;
+        endif
+       
+      97: RepairThis(who);
+          doCraft := -1;
+        
+      0:
+      99:
+      
+        SendSysMessage(who,"Anulowano.", FONT_NORMAL, COLOR_RED);
+        doCraft := -1;
+
+      default:
+        if(butRes in (SkillGlob.avObjTypes))
+          doCraft := 1;
+
+          if(SkillGlob.cfg[butRes].ChooseSize)
+            var Size := ChooseSize(who, butRes);
+
+            if(!Size)
+              doCraft := 0;
+            else
+              LastCraft.objtype := butRes;
+              LastCraft.itemSize := Size;
+            endif
+          else
+            LastCraft.objtype := butRes;
+          endif
+        endif
+    endcase
+
+  endwhile
+
+  SetCraftLastCreation(who, SKILLID_TAILORING, LastCraft);
+
+  if(doCraft == 1 and LastCraft.objtype and SkillGlob.cfg[LastCraft.objtype])
+    return LastCraft;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainTailorGump(ProdIters)
+
+  BuildMainGump();
+
+  GTextLine(200,  90, 1153, "Menu Krawiectwa");
+  GButton( 70, 384,   3, 4,   1);
+  GButton(410, 380, 243, 241, 99);
+  GTextLine( 90, 380, 900, "To co ostatnio");
+  
+  GTextLine( 90, 410, 900, "Napraw przedmiot");
+  GButton( 70, 414,   3, 4,   97);
+  
+  GTextLine(250, 408, 670, "Powtorz:");
+  BQGAddTextBox(320, 408, 60, 20, 1410, ProdIters, BQG_EDITABLE, 1, 1);
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMainTailorEndGump(who)
+
+  var Buttons   := struct;
+  Buttons.+Up   := dictionary;
+  Buttons.+Down := dictionary;
+
+  Buttons.Up[2]    := "Koszule";
+  Buttons.Up[3]    := "Spodnie";
+  Buttons.Up[4]    := "Szaty";
+  Buttons.Up[5]    := "Czapki";
+  Buttons.Up[6]    := "Rozne";
+
+  Buttons.Down[12]    := "Skorzane";
+  Buttons.Down[13]    := "Utwardzane";
+  Buttons.Down[14]    := "Damskie";
+  Buttons.Down[15]    := "Buty";
+  Buttons.Down[16]    := "Pojemniki";
+
+  if(GetBaseSkill(who,SKILLID_TAILORING) >= 100)
+    Buttons.Down[20] := "Kosciane";
+  endif
+  
+  Buttons.Down[21] := "Skorzana Samuraja";
+  Buttons.Down[22] := "Utwardzana Samuraja";
+  Buttons.Up[23] := "Elfia Skorzana"; // ML
+  Buttons.Up[24] := "Elfia Wzmacniana"; //ML
+
+  Buttons.Up[30] := "Dywany";
+  Buttons.Up[31] := "Gobeliny";
+
+  BuildSkillMenu(Buttons);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShirtsGump()
+
+     AddGumpElem( 5399, 60,  145, 60,   170, 110, 170);
+     AddGumpElem( 7933, 170, 145, 160,  170, 210, 170);
+     AddGumpElem( 8189, 270, 145, 250,  170, 310, 170);
+     AddGumpElem( 8097, 375, 145, 345,  170, 410, 170);
+
+     AddGumpElem( 5397, 75,  210, 50,   235, 110, 235);
+     AddGumpElem( 8095, 170, 210, 150,  235, 210, 235);
+     AddGumpElem( 8059, 270, 210, 250,  235, 310, 235);
+     AddGumpElem(0x3175,375, 210, 355,  235, 410, 235); // ML
+
+     AddGumpElem(0x27a1,75,  280, 50,   305, 110, 305);
+     AddGumpElem(0x279c,170, 280, 160,  305, 210, 305);
+     AddGumpElem(0x3176,375, 280, 355,  305, 410, 305); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildPantsGump()
+
+     AddGumpElem( 5422, 40,  175, 50,   200, 100, 200);
+     AddGumpElem( 5433, 140, 175, 150,  200, 200, 200);
+     AddGumpElem(0x279B,250, 175, 250,  200, 310, 200);
+     AddGumpElem(0x2FC3,370, 175, 365,  200, 420, 200); // ML
+     
+     AddGumpElem( 5431, 80,  270, 50,   295, 100, 295);
+     AddGumpElem( 5398, 160, 270, 150,  295, 200, 295);
+     AddGumpElem(0x279A,280, 270, 250,  295, 310, 295);
+     
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildRobeGump()
+
+     AddGumpElem( 7937, 40,   155, 40,   180, 110, 180);
+     AddGumpElem( 7935, 180,  155, 165,  180, 230, 180);
+     AddGumpElem(0x2782,300,  155, 280,  180, 335, 180);
+     AddGumpElem(0x2FB9,400,  155, 375,  180, 435, 180); // ML
+     
+     AddGumpElem(39237, 90,   250, 40,   275, 110, 275, 0, 7939);
+     AddGumpElem(0x2799, 180,  250, 165,  275, 230, 275);
+     AddGumpElem(0x2783,300,  250, 280,  275, 335, 275);
+     AddGumpElem(0x2FBA,400,  250, 375,  275, 435, 275); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildMiscGump()
+
+     AddGumpElem( 5441, 60,  175, 60,   200, 110, 200);
+     AddGumpElem(0x27a0,205, 175, 160,  200, 210, 200);
+     AddGumpElem( 2668, 300, 175, 260,  200, 310, 200);
+     AddGumpElem( 45312,380, 175, 350,  200, 400, 200, 0, 5989);
+
+     AddGumpElem( 5435, 60,  270, 60,   295, 110, 295);
+     AddGumpElem( 5437, 180, 270, 160,  295, 210, 295);
+     AddGumpElem( 2648, 290, 270, 260,  295, 310, 295);
+     AddGumpElem( 43690,380, 270, 350,  295, 400, 295, 0, 5029);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildHatsGump()
+
+     AddGumpElem( 5439, 75,  145, 60,   170, 110, 170);
+     AddGumpElem( 5443, 165, 145, 150,  170, 200, 170);
+     AddGumpElem( 5912, 225, 145, 270,  170, 320, 170);
+     AddGumpElem( 5909, 380, 145, 360,  170, 410, 170);
+
+     AddGumpElem( 5913, 95,  215, 60,   240, 110, 240);
+     AddGumpElem( 5914, 165, 215, 150,  240, 200, 240);
+     AddGumpElem(0x2798,305, 215, 270,  240, 320, 240);
+     AddGumpElem( 5907, 370, 215, 360,  240, 410, 240);
+
+     AddGumpElem( 5908, 70,  285, 60,   310, 110, 310);
+     AddGumpElem( 5915, 160, 285, 210,  310, 260, 310);
+     AddGumpElem( 5916, 330, 285, 360,  310, 410, 310);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLeatherGump()
+
+     AddGumpElem( 7609, 80,  175, 60,   200, 110, 200, "czapka");
+     AddGumpElem( 5063, 160, 175, 160,  200, 210, 200, "karczek");
+     AddGumpElem( 5062, 270, 175, 250,  200, 310, 200, "rekawiczki");
+     AddGumpElem( 5069, 375, 175, 350,  200, 410, 200, "naramienniki");
+     
+     AddGumpElem( 5067, 75,  270, 50,   295, 110, 295, "nogawice");
+     AddGumpElem( 5068, 175, 270, 150,  295, 210, 295, "tunika");
+     AddGumpElem(0x2776,270, 270, 250,  295, 310, 295, "jingasa");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStuddedGump()
+
+     AddGumpElem( 5078, 80,  175, 60,   200, 110, 200, "karczek");
+     AddGumpElem( 5077, 160, 175, 160,  200, 210, 200, "rekawiczki");
+     AddGumpElem( 5076, 270, 175, 250,  200, 310, 200, "naramienniki");
+     AddGumpElem( 5082, 375, 175, 350,  200, 410, 200, "nogawice");
+
+     AddGumpElem( 5083, 75,  270, 50,   295, 110, 295, "tunika");
+     AddGumpElem(0x2784,160, 270, 160,  295, 210, 295, "jingasa");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildFemaleGump()
+
+     AddGumpElem( 7178, 55,  175, 60,   200, 110, 200, "biustonosz");
+     AddGumpElem( 7180, 160, 175, 160,  200, 210, 200, "biustonosz");
+     AddGumpElem( 7168, 270, 175, 265,  200, 310, 200, "spodnie");
+     AddGumpElem( 7176, 375, 175, 360,  200, 410, 200, "spodniczka");
+
+     AddGumpElem( 7174, 50,  270, 50,   295, 110, 295, "damska zbroja");
+     AddGumpElem( 7170, 160, 270, 150,  295, 210, 295, "damska zbroja");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildContGump()
+
+     AddGumpElem( 3702,   115, 145, 90,   170, 150, 170);
+     AddGumpElem( 3705,   115, 215, 90,   240, 150, 240);
+     AddGumpElem( 0xA724, 260, 145, 300,  170, 350, 170, 0, 3702);
+     AddGumpElem( 0xA805,   260, 215,   300, 240,   350, 240, 0, 3702);
+
+     AddGumpElem( 3701,     70,  275,   60,  300,   110, 300);
+     AddGumpElem( 0xA366,   180, 275,   190, 300,   240, 300, 0, 3701);
+     AddGumpElem( 0xA90F  , 310, 275,   340, 300,   380, 300, 0, 0x0E76);
+     
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildShoesGump()
+
+     AddGumpElem( 5901, 75, 175, 60,  200, 100, 200);
+     AddGumpElem( 5903, 230, 175, 190,  200, 240, 200);
+     AddGumpElem(0x2796,330, 175, 330,  200, 370, 200);
+
+     AddGumpElem( 5899, 70, 270, 60,  295, 100, 295);
+     AddGumpElem( 5905, 210, 270, 190,  295, 240, 295);
+     AddGumpElem(0x2FC4,360, 270, 330,  295, 370, 295); // ML
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildBoneArmorGump(who)
+ 
+   if(GetBaseSkill(who, SKILLID_TAILORING) >= 95)
+
+     AddGumpElem( 0x1451, 80,  175, 60,   200, 110, 200, "helm");
+     AddGumpElem( 0x1450, 150, 175, 160,  200, 210, 200, "rekawiczki");
+     AddGumpElem( 0x144e, 250, 175, 250,  200, 310, 200, "naramienniki");
+     AddGumpElem( 0x1452, 375, 175, 350,  200, 410, 200, "nogawice");
+
+     AddGumpElem( 0x144f, 75,  270, 50,   295, 110, 295, "tunika");
+
+   endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildLeatherSamuraiGump()
+
+     AddGumpElem(0x2778,80,  175, 60,   200, 110, 200, "kabuto");
+     AddGumpElem(0x277A,160, 175, 160,  200, 210, 200, "mempo");
+     AddGumpElem(0x277E,270, 175, 250,  200, 310, 200, "hiro sode");
+     
+     AddGumpElem(0x2786,75,  270, 50,   295, 110, 295, "suneate");
+     AddGumpElem(0x277B,175, 270, 150,  295, 210, 295, "Do");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildStuddedSamuraiGump()
+
+     AddGumpElem(0x2789,80,  175, 60,   200, 110, 200, "kabuto");
+     AddGumpElem(0x279D,160, 175, 160,  200, 210, 200, "mempo");
+     AddGumpElem(0x277F,270, 175, 250,  200, 310, 200, "hiro sode");
+     
+     AddGumpElem(0x2787,75,  270, 50,   295, 110, 295, "suneate");
+     AddGumpElem(0x277C,175, 270, 150,  295, 210, 295, "Do");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildElvenHideGump() // ML
+
+     AddGumpElem(0x2B76, 80,  175, 60,   200, 110, 200, "karczek");
+     AddGumpElem(0x2B75, 160, 175, 160,  200, 210, 200, "rekawiczki");
+     AddGumpElem(0x2B77, 270, 175, 250,  200, 310, 200, "naramienniki");
+     
+     AddGumpElem(0x2B78, 75,  270, 50,   295, 110, 295, "nogawice");
+     AddGumpElem(0x2B74, 175, 270, 160,  295, 210, 295, "tunika");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildElvenArmorGump() // ML
+
+     AddGumpElem(0x2FC7, 80,  175, 60,   200, 110, 200, "karczek");
+     AddGumpElem(0x2FC6, 160, 175, 160,  200, 210, 200, "rekawiczki");
+     AddGumpElem(0x2FC8, 270, 175, 250,  200, 310, 200, "naramienniki");
+     
+     AddGumpElem(0x2FC9, 75,  270, 50,   295, 110, 295, "nogawice");
+     AddGumpElem(0x2FC5, 175, 270, 160,  295, 210, 295, "tunika");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildCarpetGump(Size)
+
+  if(Size)
+    GTextLine(180, 150,  999, "Ostatnia wielkosc:");
+    GTextLine(290, 150,  1420, Size[1]+" x "+Size[2]);
+  endif
+
+  AddGumpElem( UOBJ_RRED_CARPET,    80,  180, 100, 200, 80,  215 ,"czerwony dywan");
+  AddGumpElem( UOBJ_RBLUE_CARPET,   210, 180, 230, 200, 210, 215 ,"niebieski dywan");
+  AddGumpElem( UOBJ_RBRONZE_CARPET, 340, 180, 360, 200, 340, 215 ,"brazowy dywan");
+
+  AddGumpElem( UOBJ_RBLUE2_CARPET,    80,  280, 100, 300, 80, 315 ,"niebieski dywan");
+  AddGumpElem( UOBJ_RBEZOWY_CARPET,  210, 280, 230, 300, 210, 315 ,"bezowy dywan");
+  AddGumpElem( UOBJ_RCBEZOWY_CARPET, 340, 280, 360, 300, 340, 315 ,"ciemny bezowy dywan");
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildTapestryGump()
+
+  AddGumpElem( UOBJ_TAPESTRY1,       140, 150, 160, 170, 120, 185);
+  AddGumpElem( UOBJ_ROLLEDTAP1,      300, 150, 320, 180, 300, 185);
+
+  AddGumpElem( UOBJ_ROLLEDTAP2,      120, 240, 140, 270, 120, 275);
+  AddGumpElem( UOBJ_ROLLEDTAP3,      300, 240, 320, 270, 300, 275);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RepairThis(who)
+
+  SendSysMessage(who, "Wybierz przedmiot do naprawy.",FONT_NORMAL,COLOR_GREEN);
+  var ItemToRepair := ObjTarget(who);
+  if(!StandardItemCheck(who,ItemToRepair))
+    return;
+  endif
+
+  if(!RepairThisItem(who, ItemToRepair))
+    SendSysMessage(who, "Tego przedmiotu tak nie naprawisz!", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTailorMatObj(Item)
+
+  var MatObj := 0;
+  var cfg := ReadConfigFile(":tailoring:tailoring");
+  var Mat := SplitWords(cfg[Item.objtype].material);
+
+  if(!Mat)
+    return 0;
+  endif
+
+  if(Mat[1] == "leathers")
+    MatObj := GetLeatherObjByColor(Item.color);
+  else
+    MatObj := GetItemObjType(Mat[1]);
+  endif
+
+  return MatObj;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function GetTailorMatRepairAmount(Item)
+
+  var cfg := ReadConfigFile(":tailoring:tailoring");
+  var Amt := CInt(cfg[Item.objtype].RepairAmount);
+
+  return Max(Amt, 1);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function RepairThisItem(who,Item)
+
+  if(IsArtifact(Item) or GetBulkLevel(Item))
+    RepairItem(who, Item, SKILLID_TAILORING, UOBJ_MYSTICLEATHER, SCISSORS_SOUND);
+    return 1;
+  endif
+
+  var matObj := GetTailorMatObj(Item);
+  var Amt := GetTailorMatRepairAmount(Item);
+
+  if(matObj)
+    RepairItem( who, Item, SKILLID_TAILORING, matObj, SCISSORS_SOUND, 0, 0, 0, Amt);
+    return 1;
+  endif
+
+  return 0;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ChooseSize(who, ObjType)
+
+  GInit(200, 60);
+  GNoDispose();
+  GNoClose();
+  GPage();
+  
+  GResPic(0, 0, 2600, 250, 430);
+  GResPic(25, 59, 5100, 200, 25);
+  GResPic(25, 350, 5100, 200, 25);
+
+  GTextLine(80, 30, 1153, "Wybor wielkosci");
+  
+  GButton( 60,  380, 0xF7, 0xF8, 1 );
+  GButton( 130, 380, 0xF3, 0xF1, 2 );
+  GTextLine(40,80,999,"Szerokosc");
+  GTextLine(150,80,999,"Dlugosc");
+
+  GSetRadioGroup(1);
+
+  var i;
+  var MaxWidth := SkillGlob.cfg[ObjType].MaxWidth;
+  var MaxLength := SkillGlob.cfg[ObjType].MaxLength;
+
+  for(i:=1;i<=MaxLength;i:=i+1)
+    GRadioButton(50, 75+(i*30), 0x867, 0x869, i+1);
+    GTextLine(80,    80+(i*30), 640, i);
+  endfor
+
+  GSetRadioGroup(2);
+  for(i:=1;i<=MaxLength;i:=i+1)
+    GRadioButton(150,75+(i*30), 0x867, 0x869, (MaxWidth+i+1));
+    GTextLine(180,   80+(i*30), 640, i);
+  endfor
+
+  var res  := GSend(who);
+  var Size :=  {1,1};
+
+  if(res[0] == 2 or !res[0])
+    return 0;
+  endif
+
+  for(i:=2;i<=(MaxWidth+1);i:=i+1)
+    if(res[i])
+      Size[1] := i - 1;
+      break;
+    endif
+  endfor
+
+  for(i:=(MaxWidth+2);i<=(MaxLength+MaxWidth+2);i:=i+1)
+    if(res[i])
+      Size[2] := i - MaxWidth - 1;
+      break;
+    endif
+  endfor
+
+  return Size;
+
+endfunction
+
+//-----------------------------------------------------------------------------

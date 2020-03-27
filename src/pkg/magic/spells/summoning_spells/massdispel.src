@@ -1,0 +1,107 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "../pkg/magic/magiceffects/summon";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 54;
+
+//-----------------------------------------------------------------------------
+
+program CastMassDispel( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  var CasterMagery     := GetEffectiveSkill(caster, SKILLID_MAGERY);
+  var Range            := CInt(CasterMagery / 10);
+  var Count            := 0;
+  var AllMobs          := ListMobilesNearLocation( CastOn.x, CastOn.y, CastOn.z, Range, CastOn.realm );
+  var Gained := 0;
+
+  if(AllMobs[1] != CastOn)
+    foreach Mob in AllMobs
+      Count := Count + 1;
+      if(Mob == CastOn)
+        AllMobs[len(AllMobs) + 1] := AllMobs[1];
+        AllMobs[1]                := CastOn;
+        AllMobs[Count]            := AllMobs[len(AllMobs)];
+        AllMobs[len(AllMobs)]     := 0;
+        break;
+      endif
+    endforeach
+  endif
+
+  Count := 0;
+
+  PlaySoundEffect( Caster, 0x202 );
+  foreach Mob in AllMobs
+
+    if(CanDamage(Caster,Mob, 0, CastOn))
+
+      if(Reflected(Mob, Caster))
+        Mob := caster;
+      endif
+
+      if(IsSummoned(Mob) and !IsSetFlag(Mob, NPCF_MIN_LOOT))
+        Count := Count + 1;
+        PlaySoundEffect( caster, 0x202 );
+        PlayStationaryEff( Mob.x, Mob.y, Mob.z, FX_HEAL_EFFECT, 0xa, 0xa );
+        var Master := GetMaster(CastOn);
+        if(Master)
+          var MasterResist := GetEffectiveSkill(Master, SKILLID_MAGICRESISTANCE);
+          var Chance       := CInt(MasterResist * 0.5);
+          var cfgElem      := GetNpcConfig(Mob);
+
+          if(cfgElem.DispelResist)
+            Chance := CInt(MasterResist * (CInt(cfgElem.DispelResist) * 0.01));
+          endif
+          if((RandomInt(100) + 1) > Chance)
+            if(Gained < 3)
+              Gained += GainSpellPoints(Caster, Mob, MAGICGAIN_OFFENSIVE);
+            endif
+            KillSummonedCreature(Mob, Master);
+          endif
+        else
+          if(Gained < 3)
+            Gained += GainSpellPoints(Caster, Mob, MAGICGAIN_OFFENSIVE);
+          endif
+          KillSummonedCreature(Mob);
+        endif
+        if(Mob)
+          SendChEvent(Mob,Caster,EVID_ENGAGED);
+        endif
+      elseif(Mob.isA(POLCLASS_NPC))
+        if(IsNpcElemental(Mob, NPCELEM_UNDEAD))
+          Count := Count + 1;
+          PlayStationaryEff( Mob.x, Mob.y, Mob.z, FX_HEAL_EFFECT, 0xa, 0xa,0,Mob.realm );
+          SendChEvent(Mob,Caster,EVID_PEACEMADE);
+          SendChEvent(Mob,Caster,EVID_ENGAGED);
+          PlaySoundEffect(Caster, 0x202);
+          PlayObjectCenteredEffect(Mob, 0x37b9, 0x03, 0x0a);
+          var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, Mob, SpellGlob.Type);
+          if(DoMagicDamage(Mob, Caster, Dmg, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+            if(Gained < 3)
+              Gained += GainSpellPoints(Caster, Mob, MAGICGAIN_OFFENSIVE);
+            endif
+          endif
+        endif
+      endif
+
+    endif
+
+    if(Count >= 5 and IsPlayer(Caster))
+      break;
+    endif
+
+  endforeach
+
+endfunction
+
+//-----------------------------------------------------------------------------

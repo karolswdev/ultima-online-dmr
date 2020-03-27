@@ -1,0 +1,1111 @@
+//--------------------------------------------------------------------------
+// Modified: 2005-06-02
+//--------------------------------------------------------------------------
+
+include "include/gumpboxes";
+include "include/move";
+include "include/std";
+
+include ":quests:crquest";
+include ":npcguilds:guilds";
+include ":npcguilds:gd_gump";
+
+include ":npcguilds:shared";
+
+//--------------------------------------------------------------------------
+
+var who, _NGdData, _NGdEData, NGdId;
+
+InitNGdData(_NGdData);
+InitNGdData(_NGdEData);
+
+//--------------------------------------------------------------------------
+
+program NpcGuildsCmd(_who, text)
+
+  SetLogRunCycles(LST_CMD);
+
+  who  := _who;
+  text := SplitWords(text);
+
+  case(text[1])
+    "eg":     ProcNpcGuilds(CInt(text[2]));
+
+    "g":      ProcNpcGuildControl(CInt(text[2]));
+
+    "ag":     ProcAddNpcGuild();
+
+    "npcs":   ShowNpcQuestIds();
+              return;
+
+    "memb":   ShowAllGuildMembers();
+              return;
+
+    "gq":     ShowGeneratedQuests(text);
+              return;
+
+    "cres":   if(IsAdmin(who))
+                SendSysMessage(who, "Uruchomiono nowy NGdCtrl skrypt.",FONT_NORMAL, COLOR_GREEN);
+                start_script(":npcguilds:ngd_ctrl");
+                return;
+              endif
+  endcase
+
+  var Res;
+
+  BuildMainGdGump();
+
+  while(IsLoggedIn(who))
+    
+    Res := GSend(who);
+
+    if(!Res or !Res[0])
+      break;
+    endif
+
+    case(Res[0])
+      1:      ProcNpcGuilds();
+
+      2:      ProcAddNpcGuild();
+      
+      3:      ProcNpcGuildControl();
+    endcase
+
+    BuildMainGdGump();
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function BuildMainGdGump()
+
+  GInit(20, 20);
+  GResPic(0, 0, 3600, 500, 320);
+  GTextLine(210, 20, 680, "Npc Guilds Menu");
+
+  GButton(80,  63, 2117, 2118, 1);
+  GTextLine(100,  60, 550, "Lista Gildii");
+
+  GButton(80,  93, 2117, 2118, 3);
+  GTextLine(100,  90, 550, "Kontrola Gildii");
+
+  GButton(240, 63, 2117, 2118, 2);
+  GTextLine(260, 60, 550, "Dodawanie Gildii");
+
+  var GProps := GetNGdGlobalProps();
+
+  var GdCrInfo  := GProps.GetProp(GDGPROP_GDCRINFO);
+  var GdUpInfo  := GProps.GetProp(GDGPROP_GDUPINFO);
+
+  BuildQuestElemModSegInfo(GdCrInfo, "Ostatnio stworzona Gildia:",     40, 200);
+  BuildQuestElemModSegInfo(GdUpInfo, "Ostatnio zmodyfikowana Gildia:", 40, 250);
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ProcNpcGuilds(GId := 0)
+
+  var Modif := 0;
+
+  if(!GId)
+    NGdId := SelectNpcGuild(who);
+    if(!NGdId)
+      return 0;
+    endif
+  else
+    NGdId := GId;
+  endif
+
+  var Res := AssignNGdData(NGdId, _NGdEData);
+
+  if(!Res)
+    return Res;
+  endif
+
+  BuildShowNpcGuild();
+
+  while(IsLoggedIn(who))
+
+    Res := GSend(who);
+    if(Modif)
+      SaveNGdData(Res, _NGdEData);
+    endif
+
+    if(Res[0] >= 20  and Res[0] <= 52)
+
+      ChangeNGdFlag(_NGdEData, CInt(Res[0]-20));
+
+    elseif(Res[0] > 100 and Res[0] <= 100 + NGD_MAXTYPES)
+
+      _NGdEData.QuestTypes.erase(Res[0]-100);
+
+    elseif(Res[0] > 200 and Res[0] <= 200 + GetMaxSkillId())
+
+      if(_NGdEData.SkIDs[Res[0]-200] in _NGdEData.MainSkIDs)
+        _NGdEData.MainSkIDs.erase(RetIndex(_NGdEData.MainSkIDs, _NGdEData.SkIDs[Res[0]-200]));
+      endif
+      _NGdEData.SkIDs.erase(Res[0]-200);
+
+    elseif(Res[0] > 300 and Res[0] <= 300 + _NGdEData.SkIDs.size())
+
+      if(_NGdEData.SkIDs[Res[0]-300] in _NGdEData.MainSkIDs)
+        _NGdEData.MainSkIDs.erase(RetIndex(_NGdEData.MainSkIDs, _NGdEData.SkIDs[Res[0]-300]));
+      else
+        _NGdEData.MainSkIDs.append(_NGdEData.SkIDs[Res[0]-300]);
+      endif
+
+    elseif(Res[0] > 400 and Res[0] <= 400 + _NGdEData.Cities.size())
+
+      _NGdEData.Cities.erase(Res[0]-400);
+
+    else
+
+      case(Res[0])
+        5:        Modif := 1;
+
+        6:        Modif := 0;
+
+        7:        NGdId := SelectNpcGuild(who);
+                  if(!NGdId)
+                    return 0;
+                  endif
+                  AssignNGdData(NGdId, _NGdEData);
+
+        10:       var City := ChooseCityGump(who);
+                  if(!(City in _NGdEData.Cities))
+                    _NGdEData.Cities.append(City);
+                  else
+                    SendSysMessage(who, "Miasto "+City+" zostalo juz dodane.", FONT_NORMAL, COLOR_RED);
+                  endif
+
+        11:       AddNGdQuestType(_NGdEData);
+
+        12:       _NGdEData.Type   := ChooseNGdTypeGump(who);
+
+        13:       _NGdEData.Status := ChooseNGdStatusGump(who);
+
+        14:       var SkID := ChooseSkillIDGump(who);
+                  if(SkID)
+                    if(!(SkID-1 in _NGdEData.SkIDs))
+                      _NGdEData.SkIDs.append(SkID-1);
+                    else
+                      SendSysMessage(who,"Umiejetnosc "+GetSkillConfigElem(SkID-1).Name+" zostala juz dodana.", FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        15:       var Check := SetNpcGuild(NGdId, _NGdEData, who);
+                  if(Check)
+                    SendSysMessage(who, "Zmieniono Gildie, ID: "+NGdId, FONT_NORMAL, COLOR_GREEN);
+                    Modif := 0;
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyNpcGuild(_NGdEData);
+                  if(Check)
+                    SendSysMessage(who, "Gildia zweryfikowana pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        17:       SendSysMessage(who,"Chcesz skasowac Gildie ID: ["+NGdId+"] ?",FONT_NORMAL, COLOR_GREEN);
+                  if(YesNo(who, "Na pewno?"))
+                    var Check := DeleteNpcGuild(NGdId);
+                    if(Check)
+                       SendSysMessage(who, "Gildia ID: ["+NGdId+"] zostala skasowana.", FONT_NORMAL, COLOR_BLUE);
+                      return 0;
+                    else
+                      SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        default:  return;
+      endcase
+    endif
+
+    if(Modif)
+      BuildEditNpcGuild();
+    else
+      BuildShowNpcGuild();
+    endif
+  endwhile
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function BuildShowNpcGuild()
+
+  BGDInit("Gildia ID "+NGdId, 650, 550, 7);
+
+  GButton(390, 513, 2117, 2118, 5);
+  GTextLine(410, 510, 999, "Modyfikuj");
+
+  if(IsAdmin(who))
+    GButton(490, 513, 2117, 2118, 17);
+    GTextLine(510, 510, 999, "Usun");
+  endif
+
+  BuildNpcGuildInfo(_NGdEData, BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function BuildEditNpcGuild()
+
+  BGDInit("Modyfikowanie Gildii ID "+NGdId, 650, 550, 6);
+
+  GButton(390, 513, 2117, 2118, 15);
+  GTextLine(410, 510, 999, "Zmien");
+
+  GButton(490, 513, 2117, 2118, 16);
+  GTextLine(510, 510, 999, "Weryfikuj");
+
+  BuildNpcGuildInfo(_NGdEData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ProcAddNpcGuild()
+
+  BuildAddNpcGuild();
+
+  while(IsLoggedIn(who))
+
+    var Res := GSend(who);
+    SaveNGdData(Res, _NGdData);
+
+    if(Res[0] >= 20  and Res[0] <= 52)
+
+      ChangeNGdFlag(_NGdData, CInt(Res[0]-20));
+
+    elseif(Res[0] > 100 and Res[0] <= 100 + NGD_MAXTYPES)
+
+      _NGdData.QuestTypes.erase(Res[0]-100);
+
+    elseif(Res[0] > 200 and Res[0] <= 200 + GetMaxSkillId())
+
+      if(_NGdData.SkIDs[Res[0]-200] in _NGdData.MainSkIDs)
+        _NGdData.MainSkIDs.erase(RetIndex(_NGdData.MainSkIDs, _NGdData.SkIDs[Res[0]-200]));
+      endif
+      _NGdData.SkIDs.erase(Res[0]-200);
+
+    elseif(Res[0] > 300 and Res[0] <= 300 + _NGdData.SkIDs.size())
+
+      if(_NGdData.SkIDs[Res[0]-300] in _NGdData.MainSkIDs)
+        _NGdData.MainSkIDs.erase(RetIndex(_NGdData.MainSkIDs, _NGdData.SkIDs[Res[0]-300]));
+      else
+        _NGdData.MainSkIDs.append(_NGdData.SkIDs[Res[0]-300]);
+      endif
+
+    elseif(Res[0] > 400 and Res[0] <= 400 + _NGdData.Cities.size())
+
+      _NGdData.Cities.erase(Res[0]-400);
+
+    else
+
+      case(Res[0])
+        10:       var City := ChooseCityGump(who);
+                  if(!(City in _NGdData.Cities))
+                    _NGdData.Cities.append(City);
+                  else
+                    SendSysMessage(who, "Miasto "+City+" zostalo juz dodane.", FONT_NORMAL, COLOR_RED);
+                  endif
+
+        11:       AddNGdQuestType(_NGdData);
+
+        12:       _NGdData.Type   := ChooseNGdTypeGump(who);
+
+        13:       _NGdData.Status := ChooseNGdStatusGump(who);
+
+        14:       var SkID := ChooseSkillIDGump(who);
+                  if(SkID)
+                    if(!(SkID-1 in _NGdData.SkIDs))
+                      _NGdData.SkIDs.append(SkID-1);
+                    else
+                      SendSysMessage(who,"Umiejetnosc "+GetSkillConfigElem(SkID-1).Name+" zostala juz dodana.", FONT_NORMAL, COLOR_RED);
+                    endif
+                  endif
+
+        15:       var nId := AddNpcGuild(_NGdData, who);
+                  if(nId)
+                    SendSysMessage(who, "Dodano nowa Gildie, ID: "+nId, FONT_NORMAL, COLOR_GREEN);
+                    InitNGdData(_NGdData);
+                  else
+                    SendSysMessage(who, "Blad: "+nId.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        16:       var Check := VerifyNpcGuild(_NGdData);
+                  if(Check)
+                    SendSysMessage(who, "Gildia zweryfikowana pomyslnie.", FONT_NORMAL, COLOR_BLUE);
+                  else
+                    SendSysMessage(who, "Blad: "+Check.errortext, FONT_NORMAL, COLOR_RED);
+                  endif
+
+        default:  return;
+      endcase
+    endif
+
+    BuildAddNpcGuild();
+  endwhile
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function BuildAddNpcGuild()
+
+  BGDInit("Dodawanie Gildii", 650, 550);
+
+  GButton(390, 513, 2117, 2118, 15);
+  GTextLine(410, 510, 999, "Dodaj");
+
+  GButton(490, 513, 2117, 2118, 16);
+  GTextLine(510, 510, 999, "Weryfikuj");
+
+  BuildNpcGuildInfo(_NGdData, BQG_EDITABLE | BQG_SHOWTITLES | BQG_SHOWEXTRA);
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function BuildNpcGuildInfo(byref Data, Flags := 0)
+
+  BQGAddTextBox(100, 50, 300, 20, FCLR_TEBOX, Data.Name, Flags, 1, 5, "Nazwa:");
+
+  var GdTypeName := "";
+
+  if(Data.Type)
+    GdTypeName := GetNgdTypeName(Data.Type);
+  endif
+
+  GTextLine(100, 70, 999, "xSet");
+  GTextLine(150, 70, 999, "ySet");
+  GTextLine(200, 70, 999, "xEnd");
+  GTextLine(250, 70, 999, "yEnd");
+  GTextLine(300, 70, 999, "Realm");
+
+  if(Flags & BQG_EDITABLE)
+    var Builds := array;
+    foreach Building in (Data.Buildings)
+      Builds.append(CombineWords(Building));
+    endforeach
+
+    BQGAddTextBox(100, 90, 300, 20, FCLR_TEBOX, Builds, Flags, 10, 10, "Budynki:");
+  else
+    GResPic(90, 87, 0xBB8, 320, 206);
+    var n := 0;
+
+    foreach Building in (Data.Buildings)
+      GTextLine(100, 95+n*20, FCLR_TEBOX, Building[1]);
+      GTextLine(150, 95+n*20, FCLR_TEBOX, Building[2]);
+      GTextLine(200, 95+n*20, FCLR_TEBOX, Building[3]);
+      GTextLine(250, 95+n*20, FCLR_TEBOX, Building[4]);
+      GTextLine(300, 95+n*20, FCLR_TEBOX, GetRealmById(Building[5]));
+      n := n + 1;
+    endforeach
+  endif
+
+  BQGAddTextBox(505, 375, 120, 20, FCLR_TEBOX, GdTypeName, Flags, 1, 0, "Typ:");
+  if(Flags & BQG_EDITABLE)
+    GButton(475, 375, 2714, 2715, 12);
+  endif	
+
+  BQGAddTextBox(505, 405, 120, 20, FCLR_TEBOX, GetNGdStatusName(Data.Status), Flags, 1, 0, "Status:");
+  if(Flags & BQG_EDITABLE)
+    GButton(475, 405, 2714, 2715, 13);
+  endif
+
+  if(Flags & BQG_SHOWEXTRA)
+    if(Flags & BQG_SHOWTITLES)
+      GTextLine(430, 20, 670, "Typy Questow:");
+    endif
+    if(Flags & BQG_EDITABLE and Data.QuestTypes.size() < NGD_MAXTYPES)
+      GButton(560, 23, 2117, 2118, 11);
+      GTextLine(580, 20, 999, "Dodaj");
+    endif
+
+    var n;
+  
+    GResPic(425, 40, 0xa3c, 200, 400);
+
+    for(n:=0;n<Data.QuestTypes.size();n:=n+1)
+      GTextLine(435, 47+n*20, 670, GetQuestTypeName(Data.QuestTypes[n+1][1]));
+      GTextLine(505, 47+n*20, 670, GetQuestSubTypeName(Data.QuestTypes[n+1][2]));
+      if(Flags & BQG_EDITABLE)
+        GButton(615, 50+n*20, 2117, 2118, 101+n);
+      endif
+    endfor
+
+    GTextLine(280, 300, 670, "Miasta:");
+    if(Flags & BQG_EDITABLE and Data.Cities.size() < NGD_MAXCITIES)
+      GButton(360, 303, 2117, 2118, 10);
+      GTextLine(380, 300, 999, "Dodaj");
+    endif
+    GResPic(280, 320, 0xa3c, 135, 120);
+
+    for(n:=0;n<Data.Cities.size();n:=n+1)
+      GTextLine(290, 327+n*20, 670, Data.Cities[n+1]);
+      if(Flags & BQG_EDITABLE)
+        GButton(405, 330+n*20, 2117, 2118, 401+n);
+      endif
+    endfor
+
+    BQGAddTextBox(505, 435, 120, 20, FCLR_TEBOX, "Qt tylko z Gd", Flags, 1, 0, "Flagi:");
+    BQGCheckBox(472, 432, Flags, Data.Flags & NGF_QGD_ONLY, 20);
+    
+    BQGAddTextBox(505, 465, 120, 20, FCLR_TEBOX, "Do wygasniecia", Flags, 1, 0);
+    BQGCheckBox(472, 462, Flags, Data.Flags & NGF_EXPIRED, 21);
+    
+    if(Flags & BQG_SHOWTITLES)
+      GTextLine(30, 310, 670, "Um:");
+    endif
+    if(Flags & BQG_EDITABLE and Data.SkIDs.size() < NGD_MAXSKIDS)
+      GButton(30, 333, 2117, 2118, 14);
+      GTextLine(50, 330, 999, "Dodaj");
+    endif
+  
+    GResPic(90, 300, 0xa3c, 180, 220);
+    
+    GAddPageData(258,290,2650,2651,258,507,2648,2647);
+    GPage();
+
+    for(n:=0;n<Data.SkIDs.size();n:=n+1)
+      GCheckNextPage(10);
+      GTextLine(100, 307+GNPCount()*20, 670, GetSkillConfigElem(Data.SkIDs[n+1]).Name);
+      if(Flags & BQG_EDITABLE)
+        if(Data.SkIDs[n+1] in Data.MainSkIDs)
+          GButton(245, 312+GNPCount()*20, 2361,2362,(301+n));
+        else
+          GButton(245, 312+GNPCount()*20, 2362,2361,(301+n));
+        endif
+        GButton(260, 310+GNPCount()*20, 2117, 2118, 201+n);
+      else
+        if(Data.SkIDs[n+1] in Data.MainSkIDs)
+          GGumpPic(245, 312+n*20, 2361);
+        endif
+      endif
+    endfor
+
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function SaveNGdData(Res, byref Data)
+
+  Data.Name     := CroppedId(Res[5]);
+
+  var i, Build;
+
+  Data.Buildings := array;
+
+  for(i:=0;i<10;i:=i+1)
+    Build := CroppedId(Res[i+10]);
+    if(Build)
+      Build := SplitWords(Build);
+      Data.Buildings.append(Build);
+    endif
+  endfor
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function AddNGdQuestType(byref Data)
+
+  var Type := ChooseTypeGump(who);
+
+  if(Type)
+    var SubType := ChooseSubTypeGump(who, GetQuestAvSubTypes(Type));
+    if(SubType)
+      Data.QuestTypes.append(array(Type, SubType));
+    endif
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ProcNpcGuildControl(GId := 0)
+
+  var Data := GetNGdData();
+
+  if(!GId)
+    NGdId := SelectNpcGuild(who);
+    if(!NGdId)
+      return 0;
+    endif
+  else
+    NGdId := GId;
+  endif
+
+  var Guild := Data.FindElement(NGUILD_TITLE+NGdId);
+
+  if(!Guild)
+    var Err := error;
+    Err.errortext := "Nie znaleziono Gildii ID: "+NGdId;
+    return Err;
+  endif
+
+  BuildNpcGuildControl(Guild);
+
+  while(IsLoggedIn(who))
+
+    var Res := GSend(who);
+
+    if(Res[0] > 200)
+
+      DestroyNGdBoard(Guild, Res[0] - 200);
+
+    elseif(Res[0] > 100)
+
+      MoveToNGdBoard(Guild, Res[0] - 100);
+
+    else
+      case(Res[0])
+        7:        NGdId := SelectNpcGuild(who);
+                  if(!NGdId)
+                    return 0;
+                  endif
+                  Guild := Data.FindElement(NGUILD_TITLE+NGdId);
+
+        10:       CmdAssignNpcsToGuild();
+
+        11:       CmdResignNpcsFromGuild();
+
+        12:       CmdAssignNpcGuildMaster();
+
+        13:       CmdAssignNpcToGuild();
+
+        14:       CmdResignNpcFromGuild();
+
+        15:       BuildGuildNpcsGump(who, NGdId, Guild, BQG_EDITABLE | BQG_SHOWEXTRA);
+
+        16:       BuildGuildMembersGump(who, NGdId, Guild, BQG_EDITABLE | BQG_SHOWEXTRA);
+
+        17:       BuildNGdBoard(Guild);
+
+        18:       CmdReassignNpcMembers();
+
+        20:       MoveToNGdMaster(Guild);
+
+        default:  return;
+      endcase
+    endif
+
+    BuildNpcGuildControl(Guild);
+  endwhile
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function CmdAssignNpcsToGuild()
+
+  var Result := AssignNpcsToGuild(NGdId);
+  if(Result == error)
+    SendSysMessage(who, "Blad! "+Result.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Przypisano "+Result+" Npc do Gildii.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function CmdResignNpcsFromGuild()
+
+  var Result := ResignNpcsFromGuild(NGdId);
+  if(Result == error)
+    SendSysMessage(who, "Blad! "+Result.errortext, FONT_NORMAL, COLOR_RED);
+  else
+    SendSysMessage(who, "Wypisano "+Result+" Npc do Gildii.", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function CmdAssignNpcGuildMaster()
+
+  var Npc := ObjTarget(who);
+
+  if(!Npc.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie NPC.", FONT_NORMAL, COLOR_RED);
+  elseif(!IsInNpcGuild(Npc, NGdId))
+    SendSysMessage(who, "Ten NPC nie nalezy do tej Gildii.", FONT_NORMAL, COLOR_RED);
+  else
+    var Result := AssignNpcGuildMaster(Npc, NGdId);
+    if(Result == error)
+      SendSysMessage(who, "Blad! "+Result.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who, "Przypisano "+Npc.name+" jako Mistrza Gildii.", FONT_NORMAL, COLOR_GREEN);
+    endif
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function CmdAssignNpcToGuild()
+
+  var Npc := ObjTarget(who);
+
+  if(!Npc.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie NPC.", FONT_NORMAL, COLOR_RED);
+  elseif(IsInNpcGuild(Npc, NGdId))
+    SendSysMessage(who, "Ten NPC nalezy juz do Gildii ID: "+NGdId+".", FONT_NORMAL, COLOR_RED);
+  elseif(!IsOnGuildGround(NGdId, Npc.x, Npc.y, Npc.realm))
+    SendSysMessage(who, "Ten NPC nie znajduje sie na terenie Gildii ID: "+NGdId+".", FONT_NORMAL, COLOR_RED);
+  else
+    var Data   := GetNGdData();
+    var Guild  := Data.FindElement(NGUILD_TITLE+NGdId);
+    var Result := AssignNpcToGuild(Npc, NGdId, Guild);
+    if(Result == error)
+      SendSysMessage(who, "Blad! "+Result.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who, "Przypisano NPC "+Npc.name+" do Gildii ID: "+NGdId+".", FONT_NORMAL, COLOR_GREEN);
+    endif
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function CmdResignNpcFromGuild()
+
+  var Npc := ObjTarget(who);
+
+  if(!Npc.isa(POLCLASS_NPC))
+    SendSysMessage(who, "To nie NPC.", FONT_NORMAL, COLOR_RED);
+  elseif(!IsInNpcGuild(Npc, NGdId))
+    SendSysMessage(who, "Ten NPC nie nalezy do Gildii ID: "+NGdId+".", FONT_NORMAL, COLOR_RED);
+  else
+    var Result := ResignNpcFromGuild(Npc, NGdId);
+    if(Result == error)
+      SendSysMessage(who, "Blad! "+Result.errortext, FONT_NORMAL, COLOR_RED);
+    else
+      SendSysMessage(who, "Wypisano NPC "+Npc.name+" z Gildii ID: "+NGdId+".", FONT_NORMAL, COLOR_GREEN);
+    endif
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function CmdReassignNpcMembers()
+
+  if(!IsAdmin(who))
+    return;
+  endif
+
+/*
+  var GuildData := GetNGdData();
+  var GuildIDs  := GetDataKeys(GuildData, NGUILD_TITLE);
+  var i         := 1;
+  var PlData    := dictionary;
+  var Members, PlayerData, GdInfo, Guild;
+
+  foreach GuildID in GuildIDs
+    Guild := GuildData.FindElement(NGUILD_TITLE+GuildId);
+    if(Guild)
+      Members := Guild.GetProp(GDPROP_MEMBERS);
+      foreach Member in Members
+        Member := FindPlayerBySerial(Member);
+        if(Member)
+          PlayerData := GetObjProperty(Member, PROP_NGDDATA);
+          GdInfo     := PlayerData.Guilds[CInt(GuildId)];
+          PlData[ZeroFill(GdInfo.Exp,10)+"_"+Member.serial] := array(Member, Guild.GetProp(GDPROP_NAME), GetNpcGuildTitle(Guild.GetProp(GDPROP_TYPE), GdInfo.Level), GdInfo.Exp, GuildId);
+        endif
+      endforeach
+    endif
+  endforeach
+*/
+endfunction
+
+//--------------------------------------------------------------------------
+
+function BuildNGdBoard(byref Guild)
+
+  SendSysMessage(who, "Wskaz miejsce tablicy.", FONT_NORMAL, COLOR_GREEN);
+  var Loc := LocTarget(who);
+
+  if(!Loc)
+    SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  var Board := CreateItemAtLoc(Loc.x, Loc.y, Loc.z, UOBJ_NGD_BOARD, 1, who.realm);
+
+  if(Board)
+    SetName(Board, "Tablica Gildii "+ClStr(Guild.GetProp(GDPROP_NAME)));
+    SetObjProperty(Board, GDBPROP_GDID, NGdId);
+    var Boards := Guild.GetProp(GDPROP_BOARD);
+    if(!Boards or !Boards.size())
+      Boards := array;
+    endif
+    Boards.append(Board.serial);
+    Guild.SetProp(GDPROP_BOARD, Boards);
+    SendSysMessage(who, "Dodano tablice "+Board.serial+".", FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage(who, "Nie udalo sie stworzyc tablicy Gildii.", FONT_NORMAL, COLOR_RED);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function DestroyNGdBoard(byref Guild, Nr)
+
+  SendSysMessage(who, "Zniszczyc tablice NR: "+Nr+" z Gildii "+Guild.GetProp(GDPROP_NAME)+"?", FONT_NORMAL, COLOR_GREEN);
+  if(YesNo(who,"Zniszczyc?"))
+    var Boards := Guild.GetProp(GDPROP_BOARD);
+    var Board  := FindItemBySerial(Boards[Nr]);
+
+    if(!Board)
+      SendSysMessage(who, "Tablica nie istnieje.", FONT_NORMAL, COLOR_RED);
+    else
+      DestroyItem(Board);
+      SendSysMessage(who, "Zniszczono Tablice.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+    Boards.erase(Nr);
+    Guild.SetProp(GDPROP_BOARD, Boards);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function MoveToNGdBoard(byref Guild, Nr)
+
+  var Board := FindItemBySerial(Guild.GetProp(GDPROP_BOARD)[Nr]);
+  if(!Board)
+    SendSysMessage(who, "Tablica nie istnieje.", FONT_NORMAL, COLOR_RED);
+  else
+    MoveObject(who, Board.x, Board.y, Board.z, Board.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    SendSysMessage(who, "Przenoszenie do ["+Board.desc+", "+Board.x+","+Board.y+","+Board.z+" "+Board.realm+"]", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function MoveToNGdMaster(byref Guild)
+
+  var Master := FindNpcBySerial(Guild.GetProp(GDPROP_MASTER));
+  if(!Master)
+    SendSysMessage(who, "Mistrz nie istnieje.", FONT_NORMAL, COLOR_RED);
+  else
+    MoveObject(who, Master.x, Master.y, Master.z, Master.realm, MOVECHAR_FORCELOCATION, MOVETYPE_CMD);
+    SendSysMessage(who, "Przenoszenie do Mistrza ["+Master.name+"]", FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function BuildNpcGuildControl(byref Guild)
+
+  var Master     := FindNpcBySerial(Guild.GetProp(GDPROP_MASTER));
+  var MasterName := "N/A";
+  if(Master)
+    MasterName := Master.name;
+  endif
+
+  var Boards := Guild.GetProp(GDPROP_BOARD);
+  var n;
+
+  BGDInit("Kontrola Gildii ID "+NGdId, 650, 350, 7);
+
+  GButton(40, 60, 0x25FE, 0x25FF, 10);
+  GTextLine(75, 65, 670, "Przypisz Npcow do Gildii");
+
+  GButton(40, 90, 0x25FE, 0x25FF, 11);
+  GTextLine(75, 95, 670, "Wypisz Npcow z Gildii");
+
+  GTextLine(270, 65, 999, "Mistrz:");
+  if(Master)
+    GButton(320, 67, 2117, 2118, 20);
+  endif
+  GTextLine(340, 65, 550, MasterName);
+  GTextLine(520, 65, 670, CInt(Guild.GetProp(GDPROP_MASTER)));
+
+  GResPic(270, 115, 0xA3C, 340, 200);
+
+  GTextLine(270, 95, 999, "Tablice:");
+  GTextLine(320, 95, 999, "G");
+  GTextLine(500, 95, 999, "Z");
+  GTextLine(340, 95, 999, "Nazwa");
+  GTextLine(520, 95, 999, "Serial");
+
+  if(Boards.size() and Boards)
+    n := 1;
+    foreach Board in Boards
+      Board := FindItemBySerial(Board);
+      GTextLine(290, 107+n*20, 1419, n);
+      GButton(320, 107+n*20, 2117, 2118, 100+n);
+      GButton(500, 107+n*20, 2117, 2118, 200+n);
+      GTextCrop(340, 105+n*20, 150, 20, 550, Board.desc);
+      GTextLine(520, 105+n*20, 670, Board.serial);
+      n := n + 1;
+    endforeach
+  else
+    GTextLine(340, 125, 550, "Nie istnieja");
+  endif
+
+  GButton(40, 120, 0x25FE, 0x25FF, 12);
+  GTextLine(75, 125, 670, "Przypisz Mistrza Gildii");
+  
+  GButton(40, 150, 0x25FE, 0x25FF, 13);
+  GTextLine(75, 155, 670, "Przypisz Npc do Gildii");
+
+  GButton(40, 180, 0x25FE, 0x25FF, 14);
+  GTextLine(75, 185, 670, "Wypisz Npc z Gildii");
+
+  GButton(40, 210, 0x25FE, 0x25FF, 17);
+  GTextLine(75, 215, 670, "Zbuduj tablice");
+
+  GButton(40, 270, 0x25FE, 0x25FF, 15);
+  GTextLine(75, 275, 670, "Pokaz NPC nalezace do Gildii");
+  
+  GButton(40, 300, 0x25FE, 0x25FF, 16);
+  GTextLine(75, 305, 670, "Czlonkowie");
+  
+  if(IsAdmin(who))
+    GButton(160, 300, 0x25FE, 0x25FF, 18);
+    GTextLine(195, 305, 670, "Przepisz");
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ChangeNGdFlag(byref Data, Bit)
+
+  Bit := CInt(Pow(2, CInt(Bit)));
+
+  if(Data.Flags & Bit)
+    SetBitOff(Data.Flags, Bit);
+  else
+    SetBitOn(Data.Flags, Bit);
+  endif
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ShowNpcQuestIds()
+
+  BGDInit("Typy Questow przypisane Npecom", 600, 500);
+  GAddPageData(565,18,2650,2651,565,467,2648,2647);
+  GPage();
+  
+  GTextLine(30,  40, 999, "Nr");
+  GTextLine(100, 40, 999, "Template");
+  GTextLine(380, 40, 999, "Typ");
+  GTextLine(460, 40, 999, "PodTyp");
+
+  var QTypes, i := 1;
+
+  foreach Template in GetAllNpcTemplates()
+    QTypes := GetConfigStringArray(GetNpcConfig(Template), NGD_QTYPE);
+    if(QTypes.size())
+      GCheckNextPage(15);
+      GTextLine(30, 60+GNPCount()*25, 1419, i);
+      GTextLine(100,60+GNPCount()*25, 550, Template);
+      foreach Type in QTypes
+        if(Type != QTypes[1])
+          GCheckNextPage(20);
+        endif
+        Type    := SplitWords(Type);
+        Type[1] := CInt(Type[1]);
+        Type[2] := CInt(Type[2]);
+        GTextLine(380,60+GNPCount()*25, 550, GetQuestTypeName(Type[1]));
+        GTextLine(460,60+GNPCount()*25, 550, GetQuestSubTypeName(Type[2]));
+      endforeach
+      GGumpPic(30, 83+GNPCount()*25, 0x2487);
+      GGumpPic(250, 83+GNPCount()*25, 0x2487);
+      GGumpPic(340, 83+GNPCount()*25, 0x2487);
+      i := i + 1;
+    endif
+
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//--------------------------------------------------------------------------
+
+function ShowAllGuildMembers()
+
+  var GuildData := GetNGdData();
+  var GuildIDs  := GetDataKeys(GuildData, NGUILD_TITLE);
+  var i         := 1;
+  var PlData    := dictionary;
+  var Members, PlayerData, GdInfo, Guild;
+
+  foreach GuildID in GuildIDs
+    Guild := GuildData.FindElement(NGUILD_TITLE+GuildId);
+    if(Guild)
+      Members := Guild.GetProp(GDPROP_MEMBERS);
+      foreach Member in Members
+        Member := FindPlayerBySerial(Member);
+        if(Member)
+          PlayerData := GetObjProperty(Member, PROP_NGDDATA);
+          GdInfo     := PlayerData.Guilds[CInt(GuildId)];
+          PlData[ZeroFill(GdInfo.Exp,10)+"_"+Member.serial] := array(Member, Guild.GetProp(GDPROP_NAME), GetNpcGuildTitle(Guild.GetProp(GDPROP_TYPE), GdInfo.Level), GdInfo.Exp, GuildId);
+        endif
+      endforeach
+    endif
+  endforeach
+
+  var Keys := PlData.keys();
+  Keys.reverse();
+
+  BGDInit("Czlonkowie wszystkich Gildii: "+PlData.size(), 700, 500, 0, 1);
+  GAddPageData(665,18,2650,2651,665,467,2648,2647);
+  
+  GTextLine(30, 40, 999, "Nr");
+  GTextLine(70, 40, 999, "Imie");
+  GTextLine(280,40, 999, "GId");
+  GTextLine(305,40, 999, "Nazwa Gildii");
+  GTextLine(470,40, 999, "Tytul");
+  GTextLine(580,40, 999, "Exp");
+  GMultiPage();
+
+  foreach Key in Keys
+    GCheckNextPage(20);
+    GTextLine(30, 60+GNPCount()*20, 999, i+".");
+    GTextLine(70, 60+GNPCount()*20, 550, GetRealName(PlData[Key][1]));
+    GTextLine(280,60+GNPCount()*20, 570, PlData[Key][5]);
+    GTextLine(305,60+GNPCount()*20, 1419, PlData[Key][2]);
+    GTextLine(470,60+GNPCount()*20, 550, PlData[Key][3]);
+    GTextLine(580,60+GNPCount()*20, 570, PlData[Key][4]);
+    i := i + 1;
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ShowGeneratedQuests(text)
+
+  var GuildData   := GetNGdData();
+  var QuestData   := GetQuestData(QGROUP_NPCGUILDS);
+  var QuestIDs    := array;
+  var Quest, GenQuestData, Guild, i;
+
+  InitQuestGenData(GenQuestData);
+
+  for(i:=1;i<text.size();i:=i+1)
+    if(text[i] == "gid")
+      Guild := GuildData.FindElement(NGUILD_TITLE+CInt(text[i+1]));
+      if(!Guild)
+        SendSysMessage(who, "Nie znaleziono Gildii ID: "+CInt(text[i+1]), FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    elseif(text[i] == "lvl")
+      GenQuestData.Level := CInt(text[i+1]);
+      if(GenQuestData.Level < 0 or GenQuestData.Level > 5)
+        SendSysMessage(who, "Bledny Level: "+GenQuestData.Level+" (0-5)", FONT_NORMAL, COLOR_RED);
+        return;
+      endif
+    endif
+  endfor
+
+  if("src" in text)
+    SendSysMessage(who,"Wskaz zrodlo.", FONT_NORMAL, COLOR_GREEN);
+    GenQuestData.Source     := ObjTarget(who);
+    if(!GenQuestData.Source.isa(POLCLASS_MOBILE))
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if("trg" in text)
+    SendSysMessage(who,"Wskaz gracza.", FONT_NORMAL, COLOR_GREEN);
+    GenQuestData.Player     := ObjTarget(who);
+    if(!IsPlayer(GenQuestData.Player))
+      SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+      return;
+    endif
+  endif
+
+  if(!Guild)
+    SendSysMessage(who, "Nie okreslono Gildii. [gid 1].", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  GenQuestData.GdType     := Guild.GetProp(GDPROP_TYPE);
+  GenQuestData.QuestTypes := Guild.GetProp(GDPROP_QTYPES);
+
+  case(Guild.GetProp(GDPROP_STATUS))
+    NGDSTATUS_ORDER:     SetBitOn(GenQuestData.CrFlags, QGLOCF_GOOD);
+    NGDSTATUS_CHAOS:     SetBitOn(GenQuestData.CrFlags, QGLOCF_MURDER);
+    NGDSTATUS_NEUTRAL:   SetBitOn(GenQuestData.CrFlags, QGLOCF_NEUTRAL);
+                         SetBitOn(GenQuestData.CrFlags, QGLOCF_GOOD);
+  endcase
+
+  var GdFlags := Guild.GetProp(GDAPROP_FLAGS);
+
+  if(GdFlags & NGF_QGD_ONLY)
+    SetBitOn(GenQuestData.CrFlags, QCRF_QGD_ONLY);
+  endif
+
+  if(GenQuestData.Source.isa(POLCLASS_NPC))
+    foreach Type in GetConfigStringArray(GetNpcConfig(GenQuestData.Source), NGD_QTYPE)
+      Type    := SplitWords(Type);
+      Type[1] := CInt(Type[1]);
+      Type[2] := CInt(Type[2]);
+      GenQuestData.QuestTypes.append(Type);
+    endforeach    
+  endif
+
+  GenerateQuestIDs(GenQuestData, QuestIDs);
+
+  BGDInit("Wybrano "+QuestIDs.size()+" Questow.", 600, 500, 0, 1);
+  GAddPageData(565,18,2650,2651,565,467,2648,2647);
+  GMultiPage();
+  
+  GTextLine(30,  40, 999, "Nr");
+  GTextLine(60,  40, 999, "ID");
+  GTextLine(100, 40, 999, "Tytul");
+  GTextLine(300, 40, 999, "Gain");
+  GTextLine(355, 40, 999, "Lvl");
+  GTextLine(380, 40, 999, "Typ");
+  GTextLine(460, 40, 999, "PodTyp");
+
+  i := 1;
+
+  foreach QuestID in QuestIDs
+    Quest := QuestData.FindElement(QUEST_TITLE+QuestId);
+
+    if(Quest)
+      GCheckNextPage(20);
+      GTextLine(30, 60+GNPCount()*20, 1419, i);
+      GTextLine(60, 60+GNPCount()*20, 1419, QuestID);
+      GTextLine(100,60+GNPCount()*20, 550, Quest.GetProp(QPROP_TITLE));
+      GTextLine(300,60+GNPCount()*20, 670, (Quest.GetProp(QPROP_LEVEL) * 2) * (Quest.GetProp(QPROP_STAGES)).size() * NGD_EXP_MODIFIER);
+      GTextLine(355,60+GNPCount()*20, 999, Quest.GetProp(QPROP_LEVEL));
+      GTextLine(380,60+GNPCount()*20, 550, GetQuestTypeName(Quest.GetProp(QPROP_TYPE)));
+      GTextLine(460,60+GNPCount()*20, 550, GetQuestSubTypeName(Quest.GetProp(QPROP_SUBTYPE)));
+      i := i + 1;
+    endif
+
+  endforeach
+
+  GSend(who);
+
+endfunction
+
+//-----------------------------------------------------------------------------

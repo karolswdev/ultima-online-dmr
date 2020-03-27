@@ -1,0 +1,166 @@
+//-----------------------------------------------------------------------------
+
+use npc;
+
+//-----------------------------------------------------------------------------
+
+include "include/merc";
+include "ai/include/npcspeech";
+include "ai/include/npch";
+include ":banking:common";
+include "include/smartrun";
+include "ai/setup/citynpcsetup";
+include "ai/include/smartrun";
+
+//-----------------------------------------------------------------------------
+
+var DeedCfg    := ReadConfigFile(":housing:itemdesc");
+
+//-----------------------------------------------------------------------------
+
+program Appraiser()
+
+  SetLogRunCycles(LST_AI);
+
+  EnableEvents(EVID_ITEM_GIVEN);
+  EnableEvents(EVID_SPEECH,SPEECH_RANGE);
+  EnableEvents(EVID_ENGAGED);
+  EnableEvents(EVID_DAMAGED);
+
+  while(me)
+    if(!ev)
+      ev := wait_for_event(waittime);
+    endif
+
+    StdHandleEvent(ev);
+    StdCityNpcEventLoop();
+    
+  endwhile
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function StdHandleEvent(byref ev)
+
+  if(!ev)
+    return 0;
+  endif
+
+  case(ev.type)
+    EVID_ITEM_GIVEN:         if(CanNpcSpeakWith(ev.source))
+                               ProcessDeedSale(ev.source, ev.item);
+                             else
+                               MoveToPack(ev.item, ev.source);
+                             endif
+
+                             ev := 0;
+
+                             return 1;
+  endcase
+
+  return StdMercHandleEvent(ev);
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function CheckMySpeech(who, text)
+
+  if(text["ocen"])
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      Appraise(who);
+    endif
+  elseif(text["witaj"] or text["witam"])
+    if(CanNpcSpeakWith(who))
+      TurnToward(who);
+      Say("Witaj, moze chcesz sprzedac jakis deed na dom?");
+    endif
+  else
+    return 0;
+  endif
+
+  return 1;
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function Appraise(who)
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+  
+  PrintTextAbovePrivate(me, "Wybierz przedmiot do oceny.", who);
+  
+  ev := SendNpcHandleEvent(EVID_NH_ITEM_SELECT,who,me);
+
+  if(ev)
+    var Trg := Ev.item;
+    if(!Trg)
+      PrintTextAbovePrivate(me, "Rozmyslil"+ggm(who,3)+" sie?", who);
+      return;
+    endif
+  
+    if(Trg.container != who.backpack)
+      PrintTextAbovePrivate(me, "To nie twoje!", who);
+      return;
+    endif
+
+    if(!DeedCfg[Trg.objtype].HouseObjType)
+      PrintTextAbovePrivate(me, "Nie jestem tym zainteresowany!", who);
+      return;
+    endif
+  
+    var Amt := CInt(DeedCfg[Trg.objtype].VendorSellsFor / 2);
+    if(Amt)
+      PrintTextAbovePrivate(me,"Dam Ci " + Amt + " gp za tego deeda.", who);
+    else
+      PrintTextAbovePrivate(me, "Nie jestem tym zainteresowany.", who);
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function ProcessDeedSale(who,trg)
+
+  if(IsWalking())
+    SetWalkPause();
+  endif
+
+  if(!DeedCfg[Trg.objtype].HouseObjType)
+    PrintTextAbovePrivate(me, "Nie jestem tym zainteresowany!", who);
+    return;
+  endif
+
+  var bankbox := FindBankBox(who);
+  if(!bankbox)
+    PrintTextAbovePrivate(me, "Nie moge znalezc twojej skrzynki bankowej!", who);
+    MoveItemToContainer(trg, who.backpack);
+    return;
+  endif
+  
+  var Amt := CInt(DeedCfg[Trg.objtype].VendorSellsFor / 2);
+
+  if(!amt)
+    PrintTextAbovePrivate(me, "Nie jestem tym zainteresowany.", who);
+  endif
+
+  if(!CreateGold(bankbox,amt))
+    PrintTextAbovePrivate(me, "Twoja skrzynka bankowa jest pelna!", who);
+  else
+    if(!DestroyItem(trg))
+      SubtractGold(bankBox,amt);
+      PrintTextAbovePrivate(me, "Probujesz mnie oszukac?!?", who);
+    else
+      PrintTextAbovePrivate(me, amt+" zlota zostalo zdeponowane w twojej skrzyni bankowej.", who);
+    endif
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

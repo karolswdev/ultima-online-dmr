@@ -1,0 +1,38 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/checks/stdchecks";
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program MassSquelch(who,text)
+
+  text := SplitWords(text);
+  text[1] := CInt(text[1]);
+  text[2] := CInt(text[2]);
+  
+  if(!text[1] or !text[2])
+    SendSysMessage(who,".massq range sec",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var n := 0;
+  
+  foreach Mob in ListObjectsInBox(who.x-text[1],who.y-text[1],-127,who.x+text[1],who.y+text[1],127,who.realm)
+    if(IsPlayer(Mob) and !Mob.cmdlevel)
+      Mob.squelch(text[2]);
+      n := n + 1;
+    endif
+  endforeach
+  
+  SendSysMessage(who,"Uciszono "+n+" osob na "+text[2]+" sec.",FONT_NORMAL,COLOR_GREEN);
+
+endprogram
+
+//-----------------------------------------------------------------------------

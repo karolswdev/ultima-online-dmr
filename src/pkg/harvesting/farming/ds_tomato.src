@@ -1,0 +1,22 @@
+//-----------------------------------------------------------------------------
+
+use uo;
+
+//-----------------------------------------------------------------------------
+
+include "include/items";
+
+//-----------------------------------------------------------------------------
+
+program DestroyTomato(Item)
+
+  foreach sItem in ListItemsAtLocation(Item.x, Item.y, Item.z+7, Item.realm)
+    if(sItem.objtype == Item.objtype+1)
+      DestroyItem(sItem);
+      break;
+    endif
+  endforeach
+
+endprogram
+
+//-----------------------------------------------------------------------------

@@ -1,0 +1,18 @@
+//-----------------------------------------------------------------------------
+
+include "include/coords";
+include "include/checks/objchecks";
+
+//-----------------------------------------------------------------------------
+
+program get_coords(who, item)
+
+  if(!StandardItemCheck(who, item,NO_MOVABLE_CHECK))
+    return;
+  endif
+  
+  PrintTextAbovePrivate(who, ToSextant(who.x, who.y, who.realm), who);
+
+endprogram
+
+//-----------------------------------------------------------------------------

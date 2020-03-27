@@ -1,0 +1,57 @@
+//-----------------------------------------------------------------------------
+
+include "../../spawnnet";
+include "../../spawnchest";
+include "include/gumpboxes";
+include "include/std";
+include "include/move";
+include "include/cmds/cancmd";
+include "include/player/misc";
+
+//-----------------------------------------------------------------------------
+
+program  SChest(who,text)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!CanUseCmd(who, "schest"))
+    return 0;
+  endif
+
+  var txt := splitwords(text);
+
+  case(txt[1])
+    "ghide":     HideGlobalChests(who);
+    "gshow":     ShowGlobalChests(who);
+    "run":       RunGlobalChests(who);
+    "stop":      StopGlobalChests(who);
+    "go":        GoToChest(who,txt);
+    "near":      ShowNearChests(who,CInt(txt[2]));
+    default:     SendSysMessage(who," .schest [gshow/ghide/run/stop/near/go]", FONT_NORMAL, COLOR_RED);
+  endcase
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function GoToChest(who,text)
+  if(!text[2])
+    SendSysMessage(who, ".schest go [nr Chest]",FONT_NORMAL,COLOR_BAD);
+    return;
+  endif
+
+  var Chest := FindChestByNr(CInt(text[2]));
+  if(Chest == error)
+    SendSysMessage(who, "Bledny numer.",FONT_NORMAL,COLOR_BAD);
+    return;
+  elseif(Chest == 0)
+    SendSysMessage(who, "Miejsce wolne.",FONT_NORMAL,COLOR_BAD);
+    return;
+  else
+    SendSysMessage(who, "Chest "+text[2]+" x: "+Chest.x+" y: "+Chest.y+" z: "+Chest.z+" R: "+Chest.realm,FONT_NORMAL,COLOR_GOOD);
+    MoveObject(who,Chest.x,Chest.y,Chest.z,Chest.realm,MOVECHAR_FORCELOCATION);
+  endif
+
+endfunction
+
+//-----------------------------------------------------------------------------

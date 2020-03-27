@@ -1,0 +1,21 @@
+use uo;
+use os;
+
+include "include/gumps";
+
+program showGumps(parms)
+
+	var who := parms[1];
+	var Minutes := parms[2];
+
+	GInit(0, 0);
+    GPage(1);
+    GResPic(195, 213, 9250, 459, 119);
+    GGumpPic(145, 188, 10400, 0); 
+    GGumpPic(622, 188, 10410, 0); 
+    GTextLine(372, 227, 0, "Zwiekszony przyrost");
+    GTextLine(221, 256, 55, "Twoja postac uczy sie w zwiekszonym tempie (300%) przez kolejne");
+    GTextLine(400, 286, 39, Minutes + " minut");
+    GSend(who);
+	
+endprogram

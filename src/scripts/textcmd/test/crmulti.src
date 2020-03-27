@@ -1,0 +1,50 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-04
+//-----------------------------------------------------------------------------
+
+use uo;
+use os;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/std";
+include "include/client/fonts";
+include "include/player/target";
+
+//-----------------------------------------------------------------------------
+
+program CreateMultiById(who,Id)
+
+  SetLogRunCycles(LST_CMD);
+
+  if(!Id)
+    SendSysMessage(who,".cmulti [id]",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Desc := GetItemDescriptor(Id);
+  
+  if(lower(Desc.ObjClass) != "house")
+    SendSysMessage(who,"To nie dom.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Targ := LocTarget(who);
+  
+  if(!Targ)
+    SendSysMessage(who,"Anulowano.",FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+  
+  var Res := CreateMultiAtLocation(Targ.x,Targ.y,Targ.z,id,CRMULTI_IGNORE_ALL);
+
+  if(!res)
+    SendSysMessage(who,"Nie mozna bylo zniszczyc multi : " + res.errortext,FONT_NORMAL,COLOR_RED);
+  else
+    SendSysMessage(who,"Stworzono multi "+hex(Res.objtype)+".",FONT_NORMAL,COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

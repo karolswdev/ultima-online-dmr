@@ -1,0 +1,34 @@
+//-----------------------------------------------------------------------------
+
+include ":magic:magic";
+include "include/poison";
+include "include/checks/stdchecks";
+
+//-----------------------------------------------------------------------------
+
+const SPELL_ID := 20;
+
+//-----------------------------------------------------------------------------
+
+program CastCure( nSpellParms )
+
+  SpellCast(nSpellParms, SPELL_ID, TRGT_MOB, TRGO_HARMFUL);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function SpellAction(Caster, CastOn)
+
+  if(Reflected(CastOn, Caster))
+    CastOn := Caster;
+  endif
+
+  // spelltype bedzie poison - wiec do magic zatruje
+  if(DoMagicDamage(CastOn, Caster, 1, SpellGlob.Circle, SpellGlob.DmgType, SpellGlob.Type) > 0)
+    GainSpellPoints(Caster, CastOn, MAGICGAIN_DEFENSIVE);
+  endif
+  
+endfunction
+
+//-----------------------------------------------------------------------------

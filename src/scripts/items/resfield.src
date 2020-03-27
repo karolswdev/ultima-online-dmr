@@ -1,0 +1,98 @@
+//-----------------------------------------------------------------------------
+
+use util;
+
+//-----------------------------------------------------------------------------
+
+include "include/effects";
+include "include/player/misc";
+include "include/poison";
+include "include/resurrect";
+
+//-----------------------------------------------------------------------------
+
+const CURE_BREAK := 60;
+const HEAL_BREAK := 45;
+
+//-----------------------------------------------------------------------------
+
+var i;
+    
+//-----------------------------------------------------------------------------
+
+program ResField(who,Field)
+
+  if(who.concealed)
+    return;
+  endif
+
+  if(who.dead)
+  
+    for(i:=1;i<=3;i:=i+1)
+      PlayPcStEffect(Field.x, Field.y, Field.z, Field.realm, FX_HEAL_EFFECT, 40, 0x1F, 0x1F, 3);
+      sleep(1);
+      if(Field.x != who.x or Field.y != who.y)
+        return;
+      endif
+    endfor
+
+    if(Field.x == who.x or Field.y == who.y)
+      if(Resurrection(who,1))
+        PrintTextAbove(Field,"*An Corp*");
+        PlaySoundEffect(who, SFX_SPELL_RESSURECTION);
+        SetObjProperty(who,"Ressurected",{Field.serial,ReadGameClock()});
+      endif
+    endif
+    
+  elseif(GetPoisonLevel(who))
+  
+    if(CInt(GetObjProperty(who,"#SpiritualityCure")) < ReadGameClock())
+
+      for(i:=1;i<=2;i:=i+1)
+        PlayPcStEffect(Field.x, Field.y, Field.z, Field.realm, FX_HEAL_EFFECT, 60, 0x1F, 0x1F, 3);
+        sleep(1);
+        if(Field.x != who.x or Field.y != who.y)
+          return;
+        endif
+      endfor
+      
+      if(Field.x == who.x or Field.y == who.y)
+        if(GetPoisonLevel(who))
+          PrintTextAbove(Field,"*An Nox*");
+          CurePoison(who);
+          PlaySoundEffect(who, SFX_SPELL_CURE);
+          PlayPcEffect(who, FX_BLESS_EFFECT, 90, 0x1F, 0x1F, 3);
+          SetObjProperty(who,"#SpiritualityCure",ReadGameClock() + CURE_BREAK);
+        endif
+      endif
+    endif
+    
+  elseif(GetHp(who) < GetMaxHp(who))
+  
+    if(CInt(GetObjProperty(who,"#SpiritualityHeal")) < ReadGameClock())
+
+      for(i:=1;i<=2;i:=i+1)
+        PlayPcStEffect(Field.x, Field.y, Field.z, Field.realm, FX_HEAL_EFFECT, 91, 0x1F, 0x1F, 3);
+        sleep(1);
+        if(Field.x != who.x or Field.y != who.y)
+          return;
+        endif
+      endfor
+
+      if(Field.x == who.x or Field.y == who.y)
+        if(GetHp(who) < GetMaxHp(who))
+          PrintTextAbove(Field,"*In Vas Mani*");
+          PlayPcEffect(who, FX_SPARK_EFFECT, 100, 0x1F, 0x1F, 3);
+          PlaySoundEffect(who, SFX_SPELL_HEAL);
+          HealMobile(who,30 + RandomInt(10),who);
+        endif
+      endif
+    
+      SetObjProperty(who,"#SpiritualityHeal",ReadGameClock() + HEAL_BREAK);
+    endif
+    
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

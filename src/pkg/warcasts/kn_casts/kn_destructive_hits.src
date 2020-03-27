@@ -1,0 +1,42 @@
+//-----------------------------------------------------------------------------
+
+include "../pkg/warcasts/warcasts";
+include "include/packets";
+
+//-----------------------------------------------------------------------------
+
+const KN_WCID                := 129;
+
+//-----------------------------------------------------------------------------
+
+program KnDestructiveHits(Parms)
+
+  WarCast(Parms, KN_WCID, 0, TRGT_NONE, TRGO_NONE);
+
+endprogram
+
+//-----------------------------------------------------------------------------
+
+function CastAction(Caster, CastOn)
+
+  __ParamUnused(CastOn);
+
+
+  var SkKensai := GetEffectiveSkill(Caster, SKILLID_KENSAI);
+  var SkTact   := GetEffectiveSkill(Caster, SKILLID_TACTICS);
+
+  var Duration := CInt(GetWarCastDuration(Caster, WCT_KENSAI) / 2);
+  var ModAmt   := 5 + CInt(SkKensai / 5) + CInt(SkTact / 10) + RandomInt(4);
+
+  PlayPcEffect(Caster, FX_HEAL_EFFECT, 1340, 0x10, 0x1A, 0);
+  PlayPcEffect(Caster, FX_MARK_EFFECT, 1340, 0x10, 0x10, 0);
+  PlaySoundEffect(Caster, SFX_KIATTACK);
+  PlaySoundEffect(Caster, SFX_FREN_WHIRLWIND);
+
+  DoMod(Caster, MOD_DISARM, ModAmt, Duration);
+
+  return 1;
+
+endfunction
+
+//--------------------------------------------------------------------------------
