@@ -10,8 +10,11 @@ Language|Message|
 |---|------|
 |![Polish](docs/img/poland.png)|Proszę przeczytać [ten dokument](docs/contrib_pl.md), aby dowiedzieć się jak pomóc w rozwoju tego projektu.
 
-## Hosting your own DM:R
+## Using DM:R
 
 * Make sure you have the latest version of Docker installed
 * 
+
+## Build status
+
 

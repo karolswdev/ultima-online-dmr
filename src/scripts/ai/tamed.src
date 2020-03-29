@@ -511,9 +511,9 @@ function ProcessFightSpeech(who,text)
         if(!NewLoc)
             return;
         endif
-        foreach mob in ListMobilesNearLocation(who.x, who.y, who.z, 9)
+        foreach mob in ListMobilesNearLocation(who.x, who.y, who.z, 9, who.realm)
             if(GetMasterSerial(mob) == me.master.serial)
-				SendChEvent(me, NewLoc, EVID_RUN, "priormax");
+				      SendChEvent(me, NewLoc, EVID_RUN, "priormax");
             endif
          endforeach
   elseif((text[lower(me.name) + " podejdz"]) or (text["podejdzcie"]))
