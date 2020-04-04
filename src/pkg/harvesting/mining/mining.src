@@ -706,7 +706,7 @@ endfunction
 
 function DoSth(who)
 
-  if(WhoMining < 65)
+  if(WhoMining < 85)
     return;
   endif
 
@@ -716,7 +716,7 @@ function DoSth(who)
 
   var it;
   
-  case (RandomInt(3))
+  case (RandomInt(6))
 
     1: it := CreateRPNpc("earthelemental",who, who.realm);
        if(it)

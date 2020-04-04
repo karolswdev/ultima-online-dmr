@@ -130,6 +130,22 @@ function BuildHouse( who, deed )
   if(DeedCreated)
     SetPropCreated(who,created.house);
   endif
+  
+  // Dodaj wszystkie postaci z konta
+  
+  if(!who.cmdlevel)
+	  var i := 1;
+	  for(i := 1; i < 6; i := i + 1)
+		var char := who.acct.getcharacter(i);
+		if(char)
+			if(char.serial != who.serial)
+			  var CoOwners := GetHouseCoOwners(created.house);
+			  CoOwners.append(char.serial);
+			  SetHouseCoOwners(created.house,CoOwners);
+			endif
+		endif
+	  endfor
+   endif
 
 endfunction
 
