@@ -16,7 +16,6 @@ program market(_who,text)
     "del": EraseMarket(who, DataFile, text[2]);
     default: SendSysMessage(who, ".mp [add]", FONT_NORMAL, COLOR_RED);
   endcase
-  
   CreateDataFile(MP_FILE);
 
 endprogram
