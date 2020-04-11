@@ -287,6 +287,9 @@ function BuildGoLocGump(who)
 
   GButton(30,312,2714,2715,13);
   GTextLine(60,312,560,"instancje");
+  
+  GButton(30,332,2714,2715,14);
+  GTextLine(60,332,560,"Nowa mapa 2020");
 
   var Res := GSend(who)[0];
 
@@ -306,6 +309,7 @@ function BuildGoLocGump(who)
     11: SType := "Eremen";
     12: SType := "goqsane";
     13: SType := "Instances";
+	14: SType := "Nowa mapa 2020";
 	
   endcase
 
