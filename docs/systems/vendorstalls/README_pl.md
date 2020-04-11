@@ -25,7 +25,7 @@ Aby postawić stragan należy wykonać następujące czynności:
 
 ![konfiguracja](img/vendorstall-details.png)
 
-Standardowo, stragan otwarty jest na 48 tygodni. 
+Standardowo, stragan otwarty jest na 48 tygodni (28 dni w czasie rzeczywistym).  
 
 * **Cena** - zmienia cene za okres 40 tygodni. Cenę podajemy w tys.
 * **Obroc** - obraca znak
