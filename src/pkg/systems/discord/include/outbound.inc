@@ -78,9 +78,12 @@ endfunction
 
 function PackAndSendMessage(channel_id, token, content, username, avatar_url)
 	
-	syslog("Discord: channel_id: " + channel_id);
-	syslog("Discord: token: " + token);
-	syslog("Sending (1):" + "https://discordapp.com/api/webhooks/"+channel_id+"/"+token);
+	var onlineUsers := EnumerateOnlineCharacters().size();
+	
+	if(onlineUsers < 2)
+		// don't spam!
+		return;
+	endif
 	
 	
 	HTTPRequest(
