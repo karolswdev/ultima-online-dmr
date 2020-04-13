@@ -149,7 +149,10 @@ program Mining( who , tool )
   var gType;
 
   case(tool.objtype)
-    UOBJ_PICKAXE: 
+    UOBJ_PICKAXE:
+      if(GetObjProperty(who, "MiningDebug"))
+        SendSysMessage(who, "Szukam " + landtile + " w configu");
+      endif
       if(IsGround(LandTile,SObjType,"Mine"))
         gType := "Mine";
       else
