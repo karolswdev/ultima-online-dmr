@@ -16,8 +16,13 @@ var Info;
   var SObjType := Loc.objtype;
   
   SendSysMessage(who, "Landtile: " + Landtile);
+  SendSysMessage(who, "Objtype: " + SObjType);
+  
+  var statics := ListStaticsAtLocation(Loc.x, Loc.y, Loc.z, who.realm);
+  
+  foreach(var static in statics)
+	SendSysMessage(who, "Statici: " + static.objtype);
+  endforeach
   
   endif
-  
-
 endprogram
