@@ -21,7 +21,7 @@ var Info;
   var statics := ListStaticsAtLocation(Loc.x, Loc.y, Loc.z, who.realm);
   var static;
   
-  foreach(static in statics)
+  foreach static in statics
 	SendSysMessage(who, "Statici: " + static.objtype);
   endforeach
   
