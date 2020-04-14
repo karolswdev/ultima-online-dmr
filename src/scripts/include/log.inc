@@ -75,7 +75,7 @@ function LogMsg(LogKind, who, what := -1)
   endif
 
   // SEQ logging.
-  LogElem[1] := "@t"
+  LogElem[1] := "@t";
   LogElem[2] := PolCore().systime;
   LogElem[3] := "Account";
   LogElem[4] := acct;
