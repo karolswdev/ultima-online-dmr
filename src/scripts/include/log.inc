@@ -81,8 +81,8 @@ function LogMsg(LogKind, who, what := -1)
   LogElem[4] := acct;
   LogElem[5] := "Character";
   LogElem[5] := GetRealName(who);
-  LogElem[6] := "LogType";
-  LogElem[7] := LogType;
+  LogElem[6] := "LogKind";
+  LogElem[7] := LogKind;
   
   
   
