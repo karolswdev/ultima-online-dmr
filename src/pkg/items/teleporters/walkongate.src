@@ -18,16 +18,16 @@ include ":teleporters:common";
 program WalkOnGate(who, gate)
 
   if(GetObjProperty(gate, "LinkedInstanceStone"))
-	var stone := SystemFindObjectBySerial(CInt(GetObjProperty(gate, "LinkedInstanceStone")));
+    var stone := SystemFindObjectBySerial(CInt(GetObjProperty(gate, "LinkedInstanceStone")));
+    
+    if(!who.cmdlevel)
+      if(!IsParticipant(stone, who))
+        SendSysMessage(who, "Nie jestes uczestnikiem wyprawy do " + GetInstanceName(stone));
+        return;
+      endif
+    endif
 	
-	if(!who.cmdlevel)
-		if(!IsParticipant(stone, who))
-			SendSysMessage(who, "Nie jestes uczestnikiem wyprawy do " + GetInstanceName(stone));
-			return;
-		endif
-	endif
-	
-   endif
+  endif
 
   if(GetObjProperty(Gate,"NoTele"))
     return;

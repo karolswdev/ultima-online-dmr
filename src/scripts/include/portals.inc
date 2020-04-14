@@ -167,6 +167,10 @@ endfunction
 
 function PortalTele(who, x, y, z, Rlm := 0, Type := MOVETYPE_PORTAL)
 
+  if(who.cmdlevel)
+    SendSysMessage(who, "Przenosimy Cie do: x: " + x + " y: " + y + " z:" + z);
+  endif
+
   if(!who.isa(POLCLASS_MOBILE))
     return 0;
   endif
@@ -201,7 +205,7 @@ function PortalTele(who, x, y, z, Rlm := 0, Type := MOVETYPE_PORTAL)
     var Sy   := who.y;
     var Sz   := who.z;
     var SRlm := who.realm;
-    var Res  := MoveObject(who,x, y, z, Rlm, 0, Type);
+    var Res  := MoveObject(who, x, y, z, Rlm, 0, Type);
     
     if(!Res)
       var Mods := GetLocMods(2);

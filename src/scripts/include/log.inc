@@ -74,16 +74,26 @@ function LogMsg(LogKind, who, what := -1)
     acct := "NPC";
   endif
 
-  LogElem[1] := PolCore().systime;
-  LogElem[2] := GetRealName(who);
-  LogElem[3] := acct;
+  // SEQ logging.
+  LogElem[1] := "@t"
+  LogElem[2] := PolCore().systime;
+  LogElem[3] := "Account";
+  LogElem[4] := acct;
+  LogElem[5] := "Character";
+  LogElem[5] := GetRealName(who);
+  LogElem[6] := "LogType";
+  LogElem[7] := LogType;
+  
+  
+  
   
   case(LogKind)
     KILL_LOG:     if(who == what)
                     return;
                   endif
     
-                  LogElem[4] := {CInt(what.x),CInt(what.y),CInt(what.z),what.realm};
+				  LogElem[8] := 
+                  LogElem[9] := {CInt(what.x),CInt(what.y),CInt(what.z),what.realm};
                   if(what.isa(POLCLASS_CORPSE))
                     LogElem[5] := GetName(what);
                     LogElem[6] := ClStr(GetObjProperty(what, PROP_NPCTEMP));
