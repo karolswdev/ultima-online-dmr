@@ -92,10 +92,11 @@ function LogMsg(LogKind, who, what := -1)
                     return;
                   endif
     
-				  LogElem[8] := 
+				  LogElem[8] := "Location";
                   LogElem[9] := {CInt(what.x),CInt(what.y),CInt(what.z),what.realm};
                   if(what.isa(POLCLASS_CORPSE))
-                    LogElem[5] := GetName(what);
+					LogElem[10] := "VictimName";
+                    LogElem[10] := GetName(what);
                     LogElem[6] := ClStr(GetObjProperty(what, PROP_NPCTEMP));
                   elseif(what.isa(POLCLASS_NPC))
                     LogElem[5] := GetName(what);
