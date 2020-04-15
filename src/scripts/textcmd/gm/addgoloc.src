@@ -94,7 +94,7 @@ function SelectType(who)
   GTextLine(60,112,560,"Grobowce");
 
   GButton(30,132,2714,2715,4);
-  GTextLine(60,132,560,"Cmentarze");
+  GTextLine(60,132,560,"Eremen2020");
 
   GButton(30,152,2714,2715,5);
   GTextLine(60,152,560,"Inne");
@@ -134,7 +134,7 @@ function SelectType(who)
     1: SType   := "City";
     2: SType   := "Dungeon";
     3: SType   := "Tombs";
-    4: SType   := "Cementary";
+    4: SType   := "Ere2020";
     5: SType   := "Other";
     6: SType   := "WarZone";
     7: SType   := "Temples";
