@@ -49,6 +49,8 @@ function LogMsg(LogKind, who, what := -1)
     return;
   endif
 
+  return;
+
   var Cfg := ReadConfigFile(LOGOPT_CFG);
 
   if(!Cfg[LE_LOGCMDS].Enabled)
