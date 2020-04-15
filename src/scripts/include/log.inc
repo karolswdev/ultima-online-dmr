@@ -80,51 +80,66 @@ function LogMsg(LogKind, who, what := -1)
   LogElem[3] := "Account";
   LogElem[4] := acct;
   LogElem[5] := "Character";
-  LogElem[5] := GetRealName(who);
-  LogElem[6] := "LogKind";
-  LogElem[7] := LogKind;
-  
-  
-  
+  LogElem[6] := GetRealName(who);
+  LogElem[7] := "LogKind";
+  LogElem[8] := LogKind;
+
+  var iterator := 8;
   
   case(LogKind)
     KILL_LOG:     if(who == what)
                     return;
                   endif
     
-				  LogElem[8] := "Location";
-                  LogElem[9] := {CInt(what.x),CInt(what.y),CInt(what.z),what.realm};
+				          LogElem[iterator++] := "Location";
+                  LogElem[iterator++] := {CInt(what.x),CInt(what.y),CInt(what.z),what.realm};
+                  LogElem[iterator++] := "VictimName";
                   if(what.isa(POLCLASS_CORPSE))
-					LogElem[10] := "VictimName";
-                    LogElem[10] := GetName(what);
-                    LogElem[6] := ClStr(GetObjProperty(what, PROP_NPCTEMP));
+                    LogElem[iterator++] := GetName(what);
                   elseif(what.isa(POLCLASS_NPC))
-                    LogElem[5] := GetName(what);
-                    LogElem[6] := what.npctemplate;
+                    LogElem[iterator++] := what.npctemplate;
                   elseif(what.dead)
-                    LogElem[5] := "duch "+GetRealName(GetName(what));
-                    LogElem[6] := what.acctname;
+                    LogElem[iterator++] := "duch "+GetRealName(GetName(what));
+                    LogElem[iterator++] := "VictimAccountName"
+                    LogElem[iterator++] := what.acctname;
                   else
-                    LogElem[5] := GetRealName(GetName(what));
-                    LogElem[6] := what.acctname;
+                    LogElem[iterator++] := "VictimAccountName"
+                    LogElem[iterator++] := what.acctname;
                   endif
+
+                  LogElem[iterator++] := "@mt";
+                  LogElem[iterator++] := "Postac {Character} ({Account}) zabila {VictimName} ({VictimAccountName}) w lokacji {Location}.";
                   
                   
     DESTROY_LOG:  if(what.isa(POLCLASS_ITEM) and GetObjProperty(what, PROP_CREATED))
                     return;
                   endif
 
-                  LogElem[4] := what.desc;
-                  LogElem[5] := what.name;
-                  LogElem[6] := what.serial;
+                  LogElem[iterator++] := "ItemDescription";
+                  LogElem[iterator++] := what.desc;
+
+                  LogElem[iterator++] := "ItemName"
+                  LogElem[iterator++] := what.name;
+
+                  LogElem[iterator++] := "ItemSerial";
+                  LogElem[iterator++] := what.serial;
+
+                  
                   if(what.container)
-                    LogElem[7] := CInt(what.container.serial);
+                    LogElem[iterator++] := "ItemContainerSerial";
+                    LogElem[iterator++] := CInt(what.container.serial);
                   else
-                    LogElem[7] := what.x+","+what.y+","+what.z+" "+what.realm;
+                    LogElem[iterator++] := "ItemLocation"
+                    LogElem[iterator++] := what.x+","+what.y+","+what.z+" "+what.realm;
                   endif
+
+                  LogElem[iterator++] := "@mt";
+                  LogElem[iterator++] := "Postac {Character} ({Account}) zniszczyla przedmiot {ItemDescription} ({ItemName}) z serialem {ItemSerial}. Lokacja to {ItemLocation} pojemnik to {ItemContainerSerial}.";
                   
     QSITEMS_LOG:
-    FBITEMS_LOG:  LogElem[4] := {what.x,what.y,what.z,what.realm};
+    FBITEMS_LOG:  
+                  return;
+                  LogElem[4] := {what.x,what.y,what.z,what.realm};
                   if(what.isa(POLCLASS_NPC))
                     LogElem[5] := what.npctemplate;
                     LogElem[6] := what.serial;
@@ -139,9 +154,12 @@ function LogMsg(LogKind, who, what := -1)
                     return;
                   endif
     
-                  LogElem[4] := {what.x,what.y,what.z,what.realm};
+                  LogElem[iterator++] := "ItemLocation";
+                  LogElem[iterator++] := {CInt(what.x),CInt(what.y),CInt(what.z),what.realm};
                   if(what.isa(POLCLASS_NPC))
-                    LogElem[5] := what.npctemplate;
+                    LogElem[iterator++] := "NpcTemplate";
+                    LogElem[iterator++] := what.npctemplate;
+                    LogElem[iterator++] := "NpcSerial";
                     LogElem[6] := what.serial;
                   elseif(what.isa(POLCLASS_ITEM))
                     LogElem[5] := what.desc;
