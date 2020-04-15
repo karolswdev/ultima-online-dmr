@@ -1,16 +1,12 @@
 use uo;
 use os;
+use basic;
 
 include "include/misc";
 
 program textcmd_seq(who)
 
     var seqStatement := struct;
-
-    var timeStamp := "t";
-    var template := "mt";
-    var user := "User";
-    var userAccount := who.acctname;
 
     seqStatement["@t"] := PolCore().systime();
     seqStatement["@mt"] := "Uzytkownik {User} zniszczyl mnie.";
@@ -22,7 +18,7 @@ program textcmd_seq(who)
 
     var payload := struct;
 
-    var res := HttpRequest(url, method, struct{ data := seqStatement,
+    var res := HttpRequest(url, method, struct{ data := PackJson(seqStatement),
                         headers := struct{
     "Content-Type" := "application/json"
     }});
