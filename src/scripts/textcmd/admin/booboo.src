@@ -1,0 +1,8 @@
+use uo;
+use os;
+
+program textcmd_booboo(who)
+
+SendSysMessage(who, "boo");
+
+endprogram
