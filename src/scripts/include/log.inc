@@ -51,6 +51,8 @@ function LogMsg(LogKind, who, what := -1)
 
   return;
 
+  /*
+
   var Cfg := ReadConfigFile(LOGOPT_CFG);
 
   if(!Cfg[LE_LOGCMDS].Enabled)
@@ -253,6 +255,8 @@ function LogMsg(LogKind, who, what := -1)
   endcase
 
   LogToFile(LOG_PKG+LogKind,Pack(LogElem));
+
+  */
   
 endfunction
 
