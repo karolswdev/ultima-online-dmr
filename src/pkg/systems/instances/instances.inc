@@ -413,6 +413,9 @@ function DoStart(stone)
 		var runeObject := SystemFindObjectBySerial(rune);
 		if(runeObject)
 			PrintTextAbove(runeObject, "Forcing spawns!", FONT_NORMAL, COLOR_RED);
+			if(GetRuneRespawnTime(runeObject) < 4320)
+				SetRuneRespawnTime(runeObject, 4320);
+			endif
 			SetRunning(runeObject);
 			ForceSpawn(runeObject);
 		endif
