@@ -7,8 +7,8 @@ program textcmd_seq(who)
 
     var seqStatement := struct;
 
-    var timeStamp := "@t";
-    var template := "@mt";
+    var timeStamp := "t";
+    var template := "mt";
     var user := "User";
     var userAccount := who.acctname;
 
@@ -21,7 +21,7 @@ program textcmd_seq(who)
 
     var payload := struct;
 
-    var res := HttpRequest(url, method, struct{ data := seqStatement });
+    var res := HttpRequest(url, method, struct{ data := seqStatement, headers :=  });
 
     SendSysMessage(who, "Sent to SEQ. Res was " + res);
 
