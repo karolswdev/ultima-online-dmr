@@ -214,7 +214,10 @@ function ManageStone(who, stone)
     GTextLine(96, 312, 0, "Force stop");
 
 	GButton(76, 335, 1210, 1209, 7);
-    GTextLine(96, 3335, 0, "Zmien ilosc bazowych punktow");
+    GTextLine(96, 332, 0, "Zmien ilosc bazowych punktow");
+
+	GButton(76, 355, 1210, 1209, 8);
+    GTextLine(96, 352, 0, "Linkuj skrzynie");
 	
     GTextLine(71, 90, 0, linkedRuneNumber);
     GTextLine(99, 90, 0, "run");
