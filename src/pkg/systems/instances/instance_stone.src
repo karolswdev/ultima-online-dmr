@@ -220,8 +220,8 @@ function ManageStone(who, stone)
 	GButton(76, 345, 1210, 1209, 5);
     GTextLine(96, 342, 0, "Force start");
 	
-	GButton(76, 365, 1210, 1209, 6);
-    GTextLine(96, 362, 0, "Force stop");
+	GButton(76, 375, 1210, 1209, 6);
+    GTextLine(96, 372, 0, "Force stop");
 
 
 	
