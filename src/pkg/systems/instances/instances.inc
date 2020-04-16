@@ -10,6 +10,7 @@ const INSTANCE_DIFFICULTY_HEROIC := 2;
 const INSTANCE_DIFFICULTY_EPIC := 3;
 
 const RUNE := 0xA300;
+const CHEST := 0xA400;
 const TELEPORTER := 0x6200;
 
 include ":discord:outbound";
@@ -248,6 +249,31 @@ function GetInstanceRunes(stone)
 
 endfunction
 
+function AddInstanceChest(stone, chest)
+
+	if(!GetObjProperty(stone, "LinkedChests"))
+		SetObjProperty(stone, "LinkedChests", array{});
+	endif
+
+	var chests := GetObjProperty(stone, "LinkedChests");
+
+	if(chest.serial in chests)
+		return 0;
+	else
+		if(chest.objtype != CHEST)
+			return 0;
+		endif
+
+		SetObjProperty(chest, "InstanceStoneSerialNumber", stone.serial);
+		chests.append(chest.serial);
+		SetObjProperty(stone, "LinkedChests", chests);
+		return 1;
+	endif
+
+	return 1;
+
+endfunction
+
 function AddInstanceRune(stone, rune)
 
 	if(!GetObjProperty(stone, "LinkedRunes"))
@@ -408,6 +434,8 @@ function DoStart(stone)
 	SetObjProperty(stone, "LastRun", ReadGameClock());
 	
 	var runes := GetObjProperty(stone, "LinkedRunes");
+
+	var chests := GetObjProperty(stone, "LinkedChests");
 	
 	foreach rune in runes
 		var runeObject := SystemFindObjectBySerial(rune);
@@ -420,7 +448,15 @@ function DoStart(stone)
 			ForceSpawn(runeObject);
 		endif
 	endforeach
-	
+
+	foreach chest in chests
+		var chestObject := SystemFindObjectBySerial(chest);
+		if(chestObject)
+			PrintTextAbove(chestObject, "Forcing spawns!", FONT_NORMAL, COLOR_RED);
+			SetRunning(chestObject);
+			ForceSpawn(chestObject);
+		endif
+	endforeach
 	syslog("Instances: Starting instance " + GetInstanceName(stone));
 	
 	PlayStationaryEff(stone.x,stone.y,stone.z, FX_FLAMESTRIKE, 0x0a, 0x1e, 0, stone.realm );
@@ -445,15 +481,24 @@ function DoStop(stone)
 		EraseObjProperty(stone, "Participants");
 		EraseObjProperty(stone, "InstanceLeader");
 		var runes := GetObjProperty(stone, "LinkedRunes");
+		var chests := GetObjProperty(stone, "LinkedChests");
 	
-	foreach rune in runes
-		var runeObject := SystemFindObjectBySerial(rune);
-		if(runeObject)
-			PrintTextAbove(runeObject, "About to stop!", FONT_NORMAL, COLOR_RED);
-			AnnihilateSpawns(runeObject);
-			SetStopped(runeObject);
-		endif
-	endforeach
+		foreach rune in runes
+			var runeObject := SystemFindObjectBySerial(rune);
+			if(runeObject)
+				PrintTextAbove(runeObject, "About to stop!", FONT_NORMAL, COLOR_RED);
+				AnnihilateSpawns(runeObject);
+				SetStopped(runeObject);
+			endif
+		endforeach
+
+		foreach chest in chests
+			var chestObject := SystemFindObjectBySerial(chest);
+			if(chestObject)
+				PrintTextAbove(chestObject, "About to stop!", FONT_NORMAL, COLOR_RED);
+				SetStopped(chestObject);
+			endif
+		endforeach
 	
 	endif
 	

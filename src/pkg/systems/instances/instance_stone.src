@@ -170,7 +170,6 @@ function ManageStone(who, stone)
 	
 	var linkedRuneNumber := 0;
 
-	
 	var runes := GetObjProperty(stone, "LinkedRunes");
 	if(runes != error)
 		linkedRuneNumber := runes.size();
@@ -190,30 +189,32 @@ function ManageStone(who, stone)
 	var currentMobs := GetCurrentNumberOfSpawns(stone);
 	//var currentMobs := 0;
 	var maxMobs := GetMaxNumberOfSpawns(stone);
+
+	var currentPoints := GetBasePoints(stone);
 	
 	var instanceTimeout := GetInstanceTimeout(stone) + " h";
 
 	GInit(0, 0);
     GPage(1);
     GResPic(19, 19, 5170, 500, 377);
-    GTextLine(253, 58, 32, GetInstanceName(stone));
-    GButton(76, 175, 1209, 1209, 1);
-    GTextLine(96, 172, 0, "Linkuj spawn rune");
-    GButton(76, 215, 1210, 1209, 2);
-    GTextLine(96, 212, 0, "Zmien nazwe dungeona");
-    GButton(76, 255, 1210, 1209, 3);
-    GTextLine(96, 252, 0, "Zmien ilosc godzin na reset");
-	GButton(76, 295, 1210, 1209, 4);
-    GTextLine(96, 292, 0, "Dodaj teleportery");
+    GTextLine(253, 58, 32, GetInstanceName(stone) + "(" + currentPoints + " punktow bazowych)");
+    GButton(76, 165, 1209, 1209, 1);
+    GTextLine(96, 162, 0, "Linkuj spawn rune");
+    GButton(76, 195, 1210, 1209, 2);
+    GTextLine(96, 192, 0, "Zmien nazwe dungeona");
+    GButton(76, 225, 1210, 1209, 3);
+    GTextLine(96, 222, 0, "Zmien ilosc godzin na reset");
+	GButton(76, 255, 1210, 1209, 4);
+    GTextLine(96, 252, 0, "Dodaj teleportery");
 	
-	GButton(76, 295, 1210, 1209, 4);
-    GTextLine(96, 292, 0, "Dodaj teleportery");
+	GButton(76, 285, 1210, 1209, 5);
+    GTextLine(96, 282, 0, "Force start");
 	
-	GButton(76, 335, 1210, 1209, 5);
-    GTextLine(96, 332, 0, "Force start");
-	
-	GButton(76, 355, 1210, 1209, 6);
-    GTextLine(96, 352, 0, "Force stop");
+	GButton(76, 315, 1210, 1209, 6);
+    GTextLine(96, 312, 0, "Force stop");
+
+	GButton(76, 335, 1210, 1209, 7);
+    GTextLine(96, 3335, 0, "Zmien ilosc bazowych punktow");
 	
     GTextLine(71, 90, 0, linkedRuneNumber);
     GTextLine(99, 90, 0, "run");
@@ -238,11 +239,39 @@ function ManageStone(who, stone)
 		ForceStart(who, stone);
 	elseif(res == 6)
 		ForceStop(who, stone);
+	elseif(res == 7)
+		ChangeBasePoints(who, stone);
+	elseif(res == 8)
+		LinkChest(who, stone);
 	endif
 
     SendSysMessage(who, res);
 	
-	
+endfunction
+
+function ChangeBasePoints(who, stone)
+
+	SendSysMessage(who, "Wprowadz nowa wartosc punktow:", FONT_NORMAL, GREEN_COLOR);
+	var points := RequestInput(who, who.backpack, "");
+
+	var pointsAsNumber := CInt(points);
+
+	if(!pointsAsNumber)
+		SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+		return;
+	else
+		if(pointsAsNumber > 100)
+			SendSysMessage(who, "Za duza liczba punktow!", FONT_NORMAL, RED_COLOR);
+			return;
+		elseif (pointsAsNumber <= 0)
+			SendSysMessage(who, "Punkty nie moga byc ujemne ani zerowe", FONT_NORMAL, RED_COLOR);
+			return;
+		endif
+
+		SetBasePoints(stone, pointsAsNumber);
+		SendSysMessage(who, "Ustawiono ilosc punktow na " + pointsAsNumber, FONT_NORMAL, GREEN_COLOR);
+	endif
+
 endfunction
 
 function LinkRune(who, stone)
@@ -255,6 +284,34 @@ function LinkRune(who, stone)
 	
 		if(trg.isA(POLCLASS_ITEM))
 			if(AddInstanceRune(stone, trg))
+				SendSysMessage(who, "Dodano.", FONT_NORMAL, GREEN_COLOR);
+			else
+				SendSysMessage(who, "Nie dodano.", FONT_NORMAL, RED_COLOR);
+			endif
+		else
+			SendSysMessage(who, "To nie jest przedmiot.", FONT_NORMAL, RED_COLOR);
+		endif
+		
+		trg := Target(who);
+		
+		if(!trg)
+			break;
+		endif
+		
+	endwhile
+	
+endfunction
+
+function LinkChest(who, stone)
+
+	SendSysMessage(who, "Dodawaj chesta. Esc = koniec.", FONT_NORMAL, GREEN_COLOR);
+	
+	var trg := Target(who);
+	
+	while(trg)
+	
+		if(trg.isA(POLCLASS_ITEM))
+			if(AddInstanceChest(stone, trg))
 				SendSysMessage(who, "Dodano.", FONT_NORMAL, GREEN_COLOR);
 			else
 				SendSysMessage(who, "Nie dodano.", FONT_NORMAL, RED_COLOR);
@@ -338,7 +395,3 @@ function ForceStop(who, stone);
 	DoStop(stone);
 	
 endfunction
-	
-	
-	
-	
