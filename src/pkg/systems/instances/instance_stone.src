@@ -199,28 +199,28 @@ function ManageStone(who, stone)
     GResPic(19, 19, 5170, 500, 407);
     GTextLine(253, 58, 32, GetInstanceName(stone) + "(" + currentPoints + " punktow bazowych)");
     	
-	GButton(76, 165, 1210, 1209, 4);
+	GButton(76, 165, 1210, 1209, 1);
     GTextLine(96, 162, 0, "Dodaj teleportery");
 
-	GButton(76, 195, 1209, 1209, 1);
+	GButton(76, 195, 1209, 1209, 2);
     GTextLine(96, 192, 0, "Linkuj spawn rune");
     
-    	GButton(76, 225, 1210, 1209, 8);
+    	GButton(76, 225, 1210, 1209, 3);
     GTextLine(96, 222, 0, "Linkuj skrzynie");
 		
-	GButton(76, 255, 1210, 1209, 2);
+	GButton(76, 255, 1210, 1209, 4);
     GTextLine(96, 252, 0, "Zmien nazwe dungeona");
     	
-	GButton(76, 285, 1210, 1209, 3);
+	GButton(76, 285, 1210, 1209, 5);
     GTextLine(96, 282, 0, "Zmien ilosc godzin na reset");
     	
-	GButton(76, 315, 1210, 1209, 7);
+	GButton(76, 315, 1210, 1209, 6);
     GTextLine(96, 312, 0, "Zmien ilosc bazowych punktow");
    
-	GButton(76, 345, 1210, 1209, 5);
+	GButton(76, 345, 1210, 1209, 7);
     GTextLine(96, 342, 0, "Force start");
 	
-	GButton(76, 375, 1210, 1209, 6);
+	GButton(76, 375, 1210, 1209, 8);
     GTextLine(96, 372, 0, "Force stop");
 
 
@@ -237,21 +237,21 @@ function ManageStone(who, stone)
     var res := GSend(who)[0];
 	
 	if(res == 1)
-		LinkRune(who, stone);
-	elseif(res == 2)
-		ChangeName(who, stone);
-	elseif(res == 3)
-		ChangeHours(who, stone);
-	elseif(res == 4)
 		LinkTeleporter(who, stone);
-	elseif(res == 5)
-		ForceStart(who, stone);
-	elseif(res == 6)
-		ForceStop(who, stone);
-	elseif(res == 7)
-		ChangeBasePoints(who, stone);
-	elseif(res == 8)
+	elseif(res == 2)
+		LinkRune(who, stone);
+	elseif(res == 3)
 		LinkChest(who, stone);
+	elseif(res == 4)
+		ChangeName(who, stone);
+	elseif(res == 5)
+		ChangeHours(who, stone);
+	elseif(res == 6)
+		ChangeBasePoints(who, stone);	
+	elseif(res == 7)
+		ForceStart(who, stone);
+	elseif(res == 8)
+		ForceStop(who, stone);
 	endif
 
     SendSysMessage(who, res);
