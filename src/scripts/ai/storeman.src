@@ -56,7 +56,7 @@ function MoveToStore(who, item)
 	
 	if(StdCanContainerInsert(who, storeBox, item))
 	
-		var res := MoveItemToContainer(item, storeBox, -1, -1, 2);
+		var res := MoveItemToContainer(item, storeBox, -1, -1, 1);
 		if(res)
 			Say("Przyjal" + GGm(me, 8) + " przedmiot!");
 		else
