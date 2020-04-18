@@ -32,12 +32,12 @@ program StoreMan_AI()
     endif
 
     if(ev.type == EVID_ITEM_GIVEN)
-	  if(ev.item.objtype == UOBJ_STORE_TICKET))
+	  if(ev.item.objtype == UOBJ_STORE_TICKET)
 		if(!RealizeTicket(ev.item, ev.source))
 			MoveToPack(ev.source, ev.item);
 		endif
 	  else
-			MoveToStore(ev.source, ev.item);
+		MoveToStore(ev.source, ev.item);
 	  endif
       ev := 0;
     else
