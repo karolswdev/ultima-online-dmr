@@ -56,13 +56,13 @@ function MoveToStore(who, item)
 	
 	if(StdCanContainerInsert(who, storeBox, item))
 	
-		var res := MoveItemToContainer(item, storeBox, -1, -1, 1);
+		var res := MoveItemToContainer(item, storeBox, -1, -1, 2);
 		if(res)
 			Say("Przyjal" + GGm(me, 8) + " przedmiot!");
 		else
 			Say("Nie moge tego teraz przyjac.");
 			if(who.cmdlevel)
-				Say("Problem: " + res.error);
+				Say("Problem: " + res.errortext);
 			endif
 		endif
 	endif
