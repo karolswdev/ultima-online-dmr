@@ -55,8 +55,8 @@ function MoveToStore(who, item)
 	var storeBox := FindStoreBox(who);
 	
 	if(StdCanContainerInsert(who, storeBox, item))
-		if(MoveItemToContainer(item, storeBox))
-			Say("Przyjal" + GGm(me, 3));
+		if(MoveItemToContainer(item, storeBox, -1, -1, 1))
+			Say("Przyjal" + GGm(me, 8) + " przedmiot!");
 		endif
 	endif
 	
