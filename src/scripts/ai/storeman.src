@@ -31,10 +31,14 @@ program StoreMan_AI()
       ev := wait_for_event(waittime);
     endif
 
-    if(ev.type == EVID_ITEM_GIVEN and ev.item.objtype == UOBJ_STORE_TICKET)
-      if(!RealizeTicket(ev.item, ev.source))
-        MoveToPack(ev.source, ev.item);
-      endif
+    if(ev.type == EVID_ITEM_GIVEN)
+	  if(ev.item.objtype == UOBJ_STORE_TICKET))
+		if(!RealizeTicket(ev.item, ev.source))
+			MoveToPack(ev.source, ev.item);
+		endif
+	  else
+			MoveToStore(ev.source, ev.item);
+	  endif
       ev := 0;
     else
       StdCityNpcHandleEvent(ev);
@@ -46,12 +50,24 @@ program StoreMan_AI()
 
 endprogram
 
+function MoveToStore(who, item)
+
+	var storeBox := FindStoreBox(who);
+	
+	if(StdCanContainerInsert(who, storeBox, item))
+		if(MoveItemToContainer(item, storeBox))
+			Say("Przyjal" + GGm(me, 3));
+		endif
+	endif
+	
+endfunction
+
 //-----------------------------------------------------------------------------
 
 function CheckMySpeech(who, text)
  
   text := lower(text);
-
+ 
   if(text["magazyn"])
 
     TurnToward(who);
