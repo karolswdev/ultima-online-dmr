@@ -9,7 +9,7 @@
 
 Language|Message|
 |---|------|
-|![Polish](docs/img/poland.png)|Proszę przeczytać [ten dokument](docs/contrib_pl.md), aby dowiedzieć się jak pomóc w rozwoju tego projektu.
+|![Polish](docs/img/poland.png)|Proszę przeczytać [ten dokument](contrib_pl.md), aby dowiedzieć się jak pomóc w rozwoju tego projektu.
 
 ## Using DM:R
 
