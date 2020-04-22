@@ -56,7 +56,7 @@ git version 2.17.1.windows.2
     ![pliki na dysku](docs/img/clone-fs.png)
 
     * Dodaj upstream 
-        * przejdź do orginalnego źrudła i skopiuj link z ``Clone or download`` (tak jak poprzednio). Następnie w cmd wpisz:
+        * Tak jak poprzednio w cmd wpisz:
     ````
 
     git remote add upstream git://github.com/karolswdev/ultima-online-dmr.git
@@ -70,7 +70,18 @@ git version 2.17.1.windows.2
     ````
     git merge upstream/develop develop
     ````
-    Powinno pojawić się:
+    Powinien pojawić się tekst informujący o aktualnym stanie. 
+    
+    *    * Może to być informacja o tym że: 
+    
+    ``develop is up to date``,
+
+    *    * lub
+
+    ``nothing to merge``, 
+
+    *   * W przypadku gdy zostały pobrane nowe pliki powinna pojawić się lista plików, która została zaktualizowana, przykład poniżej:
+
     ````
         Updating 0ff944e..74e0e05
         Fast-forward
@@ -82,7 +93,7 @@ git version 2.17.1.windows.2
         docs/img/change.png                                |  Bin 0 -> 8448 bytes
 
     ````
-    * Sprawdź czy masz aktualną bazę 
+* Sprawdź czy masz aktualną bazę 
     ````
     git rebase upstream/develop
     ````
