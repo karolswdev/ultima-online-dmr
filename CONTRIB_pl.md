@@ -55,6 +55,50 @@ git version 2.17.1.windows.2
 
     ![pliki na dysku](docs/img/clone-fs.png)
 
+    * Dodaj upstream 
+        * Tak jak poprzednio w cmd wpisz:
+    ````
+
+    git remote add upstream git://github.com/karolswdev/ultima-online-dmr.git
+
+    ````
+    * Aktualizuj Upstream: 
+    ````
+    git fetch upstream
+    ````
+    * Scal upstream: 
+    ````
+    git merge upstream/develop develop
+    ````
+    Powinien pojawić się tekst informujący o aktualnym stanie. 
+    
+    *    * Może to być informacja o tym że: 
+    
+    ``develop is up to date``,
+
+    *    * lub
+
+    ``nothing to merge``, 
+
+    *   * W przypadku gdy zostały pobrane nowe pliki powinna pojawić się lista plików, która została zaktualizowana, przykład poniżej:
+
+    ````
+        Updating 0ff944e..74e0e05
+        Fast-forward
+        .gitignore                                         |    4 +-
+        CODEOWNERS                                         |    1 +
+        CONTRIB_pl.md                                      |  155 +
+        README.md                                          |    2 +-
+        ci/1-docker-hub-login.sh                           |    5 +-
+        docs/img/change.png                                |  Bin 0 -> 8448 bytes
+
+    ````
+* Sprawdź czy masz aktualną bazę 
+    ````
+    git rebase upstream/develop
+    ````
+    !! Za każdym razem przed rozpoczęciem pracy "Aktualizuj i scal" upstream. 
+
 ### Pierwsze zmiany
 
 Ten krótki dział wytłumaczy Ci jak wprowadzać zmiany na główne repozytorium. W tym przypadku będziemy zmieniali plik *npcdesc.cfg* zawierający definicje mobów.
@@ -127,6 +171,27 @@ M       src/config/npcdesc.cfg
 * Następnie, stwórzmy commita, commit to paczka zmian. 
 
 * ``git commit -am "<wiadomosc, ktora opisze co konkretnie zmieniamy>"``, w naszym przypadku ``git commit -am "Zmieniono predkosc Baku z 212 do 213, bo byl za wolny"``
+
+* Jeśli pojawi się następujący komunikat:
+
+````
+     *** Please tell me who you are.
+    
+        Run
+
+        git config --global user.email "you@example.com"
+        git config --global user.name "Your Name"  
+````
+
+Należy wprowadzić swój e-mail oraz Imię/pseudonim do Gita wpisując komendy:
+
+````
+
+       git config --global user.email " twoj-email@gmail.com"
+       git config --global user.name "Imię/pseudonim" 
+
+  
+````
 
 * Teraz jesteśmy gotowi na to, aby wrzucić nasze lokalne zmiany w chmure. Aby to zrobić, wpisz następującą komendę w cmd:
 
