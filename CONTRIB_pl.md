@@ -56,7 +56,7 @@ git version 2.17.1.windows.2
     ![pliki na dysku](docs/img/clone-fs.png)
 
     * Dodaj upstream 
-        * przejdź do orginalnego źrudła i skopiuj link z ``Clone or download``. Następnie w cmd wpisz:
+        * przejdź do orginalnego źrudła i skopiuj link z ``Clone or download`` (tak jak poprzednio). Następnie w cmd wpisz:
     ````
 
     git remote add upstream git://github.com/karolswdev/ultima-online-dmr.git
@@ -163,19 +163,24 @@ M       src/config/npcdesc.cfg
 
 * Jeśli pojawi się następujący komunikat:
 
-    ````
+````
      *** Please tell me who you are.
     
         Run
 
         git config --global user.email "you@example.com"
         git config --global user.name "Your Name"  
-    ````
+````
 
 Należy wprowadzić swój e-mail oraz Imię/pseudonim do Gita wpisując komendy:
 
-    `` git config --global user.email " twoj-email@gmail.com"
-       git config --global user.name "Imię/pseudonim" ``
+````
+
+       git config --global user.email " twoj-email@gmail.com"
+       git config --global user.name "Imię/pseudonim" 
+
+  
+````
 
 * Teraz jesteśmy gotowi na to, aby wrzucić nasze lokalne zmiany w chmure. Aby to zrobić, wpisz następującą komendę w cmd:
 
