@@ -289,7 +289,10 @@ function GetMountTemplate(MountId,Color := 0)
       1133:   case(MountId)
                 0x3e91: return "worg";
               endcase
-      1154:   case(MountId)
+      1152:   case(MountId)
+                0x3ea2: return "icemustang";
+              endcase
+	  1154:   case(MountId)
                 0x3eb8: return "snowridgeback";
               endcase
       1161:   case(MountId)
