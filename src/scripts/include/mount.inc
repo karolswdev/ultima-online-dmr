@@ -292,7 +292,7 @@ function GetMountTemplate(MountId,Color := 0)
       1152:   case(MountId)
                 0x3ea2: return "icemustang";
               endcase
-	  1154:   case(MountId)
+	    1154:   case(MountId)
                 0x3eb8: return "snowridgeback";
               endcase
       1161:   case(MountId)
@@ -315,20 +315,22 @@ function GetMountTemplate(MountId,Color := 0)
                 0x3e90: return "widmowachimera";
                 0x3ebb: return "widmowykoszmar";
               endcase 
-			  
-		2964:   case(MountId)
-					0x3ea4: return "toxicostard";
-				endcase
-		2063:   case(MountId)
-					0x3ebe: return "naturaldragon";
-				endcase
-				
-		2106:   case(MountId)
-					0x3ebb: return "smiercionosnykoszmar";
-                endcase
-		1195:   case(MountId)
-					0x3ebc: return "lodowcowyzuk";
-				endcase
+		    2964: 
+              case(MountId)
+					      0x3ea4: return "toxicostard";
+				      endcase
+		    2063:
+             case(MountId)
+					      0x3ebe: return "naturaldragon";
+				      endcase
+		    2106:   
+              case(MountId)
+					        0x3ebb: return "smiercionosnykoszmar";
+              endcase
+		    1195:   
+              case(MountId)
+					      0x3ebc: return "lodowcowyzuk";
+				      endcase
     endcase
   endif
 
