@@ -76,11 +76,11 @@ exported function MegaCliloc( who, byref packet )
     if(Obj.isa(POLCLASS_ITEM))
 
       if(GetObjProperty(Obj, "Epic"))
-        main_desc += "<BASEFONT COLOR=#FF0000>";
+        main_desc := "<BASEFONT COLOR=#FF0000>";
       endif
 
       if(exp)
-        main_desc += "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
+        main_desc := "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
       endif
 
       if( Obj.amount > 1 )
@@ -191,7 +191,7 @@ exported function MegaCliloc( who, byref packet )
 //--------------------------------------------------------------------------
     elseif(Obj.isa(POLCLASS_MOBILE))
       if(Obj.title_race)
-        main_desc += Obj.title_race + "<br>";
+        main_desc := Obj.title_race + "<br>";
       endif
 
       if(Obj.title_guild)
