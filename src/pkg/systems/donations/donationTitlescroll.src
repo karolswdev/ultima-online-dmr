@@ -3,6 +3,7 @@ use os;
 
 include "include/misc";
 include "include/gumpboxes";
+include "include/msgs";
 
 program use_titleScroll(who, scroll)
 
@@ -26,7 +27,7 @@ program use_titleScroll(who, scroll)
         return;
     endif
 
-    if(!YesNo("Na pewno ustawic podpis: " + input + "?"))
+    if(!YesNo(who, "Na pewno ustawic podpis: " + input + "?"))
         SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
         return;
     endif
