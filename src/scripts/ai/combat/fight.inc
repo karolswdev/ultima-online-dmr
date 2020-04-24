@@ -244,7 +244,8 @@ function ShouldChangeOpponent(newOpp)
   endif
 
   if(opponent.isa(POLCLASS_NPC) and IsPlayer(newOpp))
-    Chance := CInt(Chance * 2);
+    //Chance := CInt(Chance * 2);
+    Chance := Chance;
   elseif(newOpp.isa(POLCLASS_NPC) and IsPlayer(opponent))
     Chance := CInt(Chance * 0.4);
   endif

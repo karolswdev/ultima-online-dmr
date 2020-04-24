@@ -31,6 +31,8 @@ program UseAggroOil(who, potion)
 			Oiled.+time := readgameclock();
 			SetObjProperty(item, "Oiled", Oiled);
 		  endif
+
+		  PrintTextAbove(item, "*natarte*", FONT_NORMAL, COLOR_RED);
 	
   else
 
