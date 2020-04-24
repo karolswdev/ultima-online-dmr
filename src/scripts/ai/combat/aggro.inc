@@ -272,6 +272,7 @@ function AggroNpcOpponentHealed(Npc, Healer, Amount)
     
     if(DecreaseAggro(Amount))
       PrintTextAbove(Npc, "*wrrrr*");
+      SendSysMessage(Healer, "Twoje czyny wzbudzily zlosc przeciwnika!", FONT_NORMAL, COLOR_GREEN);
     endif
     
   endif

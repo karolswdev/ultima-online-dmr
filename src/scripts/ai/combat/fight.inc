@@ -212,9 +212,9 @@ function CheckAnchorDelay(byref HpPerc, byref ManaPerc)
       var Name := GetName(me.opponent);
 
       if(Name)
-        SayUC(ToUnicode("*zapamiêtuje "+Name+"*"));
+        SayUC(ToUnicode("*zapamiï¿½tuje "+Name+"*"));
       else
-        SayUC(ToUnicode("*zapamiêtuje wroga*"));
+        SayUC(ToUnicode("*zapamiï¿½tuje wroga*"));
       endif
     endif*/
 
@@ -459,7 +459,20 @@ function CheckAutoDispel()
   if(SpecFlag & NSPECF_AUTODISPEL)
     if(Specs[NSPEC_AUTODISPEL][3] < ReadGameClock())
       if(Specs[NSPEC_AUTODISPEL][1] > RandomInt(100))
-        CastSpell(me,opponent,MDISPEL_SPID);
+        // oiled
+        var level := IsOiledShield();
+        if(level)
+          var chance := level.level * 15;
+          if(RandomInt(100) < chance)
+            if(RandomInt(4) == 1)
+              Say("Argh, ten olej!");
+            endif
+          else
+            CastSpell(me,opponent,MDISPEL_SPID);
+          endif
+        else
+            CastSpell(me,opponent,MDISPEL_SPID);
+        endif
       endif
       Specs[NSPEC_AUTODISPEL][3] := ReadGameClock() + Specs[NSPEC_AUTODISPEL][2];
     endif

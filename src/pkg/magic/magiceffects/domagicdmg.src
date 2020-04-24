@@ -110,10 +110,12 @@ program DoMagicalDamage(DmgParms)
 			Dmg := Dmg + dmgmod;
 		endif
 	endif
+
+  var isFastCast := GetObjProperty(Caster, "#FastCast");
+  if(isFastCast)
+    Dmg := CInt(Dmg * 1.2);
+  endif
 	
-	
-	
-  
     if(CastOn.isa(POLCLASS_NPC))
       var Res     := 0;
       var Elems   := GetNpcElementals(CastOn);
