@@ -506,7 +506,7 @@ function CheckTamedMaster()
   var HpPerc := 1.0 + 0.5 * (1.0 - GetHpPercent(me));
   var Chance := CInt(Min(100, 4.0 + Max(0, CDbl(GetMaxHp(me) / 20) - 20) * HpPerc));
 
-  if(Chance > RandomInt(1000))
+  if(Chance > RandomInt(5000))
     var Master := GetMaster(opponent);
     
     if(Distance(me, Master) < 16 and !Master.dead and !Master.cmdlevel and (IsLoggedIn(Master) or !IsFullyLogout(Master)) )
@@ -522,7 +522,7 @@ function CheckTamedMaster()
     else
       SeekNewPlayerTarget();
     endif
-  elseif(Chance*0.5 > RandomInt(1000))
+  elseif(Chance*0.5 > RandomInt(5000))
     SeekNewPlayerTarget();
   endif
 
