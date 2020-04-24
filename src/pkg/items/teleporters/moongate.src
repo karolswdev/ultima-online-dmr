@@ -131,26 +131,7 @@ program WalkOnMoonGate(who, MoonGate)
        return;
     endif
 	
-	if(who.dead)
 		PortalTele(who, x, y, z, realm, MOVETYPE_PORTAL);
-		return;
-	endif
-    
-    var moonstone := FindItemInContainer(who.backpack, 0x0f13);
-	if(!moonstone)
-		if(!who.dead)
-			SendSysMessage(who, "Nie posiadasz rubinow, ktore potrzebne sa do odbycia podrozy.", FONT_NORMAL, RED_COLOR);
-			return;
-		endif
-	else
-		if(!who.dead)
-			if(SubtractAmount(moonstone, 1))
-				PortalTele(who, x, y, z, realm, MOVETYPE_PORTAL);
-			endif
-		else
-				PortalTele(who, x, y, z, realm, MOVETYPE_PORTAL);
-		endif
-	endif
 
     who := SystemFindObjectBySerial(who.serial);
     while(who.x == x and who.y == y and who.z == z)
