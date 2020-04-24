@@ -53,9 +53,15 @@ use cfgfile;
 // 300 - major glyph of stealth - adds 8 steps for stealth
 // 400 - minor glyph of impressive shot
 
+// 04/23/2020
+
+// new all mage glyphs
+// 800 - major glyph of stronger electric bolt
+// 801 - major glyph of faster electric bolt
+
 function MajorGlyphs()
 
-	return { 100, 101, 102, 103, 200, 201, 202, 203, 300, 500, 501 };
+	return { 100, 101, 102, 103, 200, 201, 202, 203, 300, 500, 501, 800, 801 };
 
 endfunction
 
@@ -67,30 +73,30 @@ endfunction
 
 function FindGlyph(who, glyphID, noWear) 
 
-    var book:=FindGlyphBook(who);
+    var book := FindGlyphBook(who);
     if(!book)
-	return 0;
+	    return 0;
     endif
-    if(book.container!=who.backpack)
+    if(book.container != who.backpack)
      return 0;
     endif
 
     if(!GetObjProperty(book, "GlyphBookCreatedTime"))
-	SetObjProperty(book, "GlyphBookCreatedTime", ReadGameClock());
+	    SetObjProperty(book, "GlyphBookCreatedTime", ReadGameClock());
     endif
 
     var difference := ReadGameClock() - CInt(GetObjProperty(book, "GlyphBookCreatedTime"));
 
     if(difference > 2419200) // 28 days
-	SendSysMessage(who, "Ksiega glifow magicznie ulatnia sie.", FONT_NORMAL, COLOR_RED);
-	DestroyItem(book);
-	return 0;
+	    SendSysMessage(who, "Ksiega glifow magicznie ulatnia sie.", FONT_NORMAL, COLOR_RED);
+	    DestroyItem(book);
+	    return 0;
     endif
 
     if(difference > 2000000) // 20 days
-	if(RandomInt(350) == 3)
-	    SendSysMessage(who, "Twoja ksiega glifow niedlugo sie rozpadnie ...", FONT_NORMAL, COLOR_RED);
-	endif
+	    if(RandomInt(350) == 3)
+	        SendSysMessage(who, "Twoja ksiega glifow niedlugo sie rozpadnie ...", FONT_NORMAL, COLOR_RED);
+	    endif
     endif
 
 
@@ -109,9 +115,9 @@ endfunction
 function FindGlyphBook( who )
 
     if(!GetObjProperty(who, "GlyphBookId"))
-	return 0;
+	    return 0;
     else
-	return SystemFindObjectBySerial(GetObjProperty(who, "GlyphBookId"));
+	    return SystemFindObjectBySerial(GetObjProperty(who, "GlyphBookId"));
     endif
     
 endfunction
@@ -183,6 +189,8 @@ function GetGlyphDesc(glyphId)
 	601: return "Glif cudnego rzemieslnika";
 	602: return "Glif grawera";
 	603: return "Glif wytrwalego gornika";
+    800: return "Glif mocnego magicznego ciosu";
+    801: return "Glif szybkiego magicznego ciosu";
     endcase
     
 endfunction

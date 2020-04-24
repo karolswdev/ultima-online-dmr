@@ -1,0 +1,75 @@
+use basic;
+use uo;
+
+include "include/misc";
+include "include/client/misc";
+include ":banking:common";
+include ":donations:bagofbanking/bagofbanking";
+
+program use_bankingBag ( who, bag )
+
+    if(GetObjProperty(bag, "Created"))
+        if(!who.cmdlevel)
+		    SendSysMessage(who, "Cos nie tak z tym workiem...", FONT_NORMAL, RED_COLOR);
+		    return;
+        endif
+    endif
+    
+    if(!GetObjProperty(bag, "Owner"))
+		SendSysMessage(who, "Worek jest od teraz powiazany z Toba", FONT_NORMAL, COLOR_BLUE);
+        var chances := RandomInt(40) + 1;
+        SetObjProperty(bag, "SpecialUses", 40);
+		SetObjProperty(bag, "Owner", who.serial);
+        SetName(bag, bag.name);
+		return;
+    endif
+
+    SetObjProperty(bag, "SpecialUses", CInt(GetObjProperty(bag, "SpecialUses"))-1);
+    
+    if(CInt(GetObjProperty(bag, "SpecialUses")) < 0)
+		MoveAllItemsToBank( bag, who );
+    else
+		OpenBagBank (bag, who);
+    endif
+    
+    SetName(bag, bag.name); // w celu odswiezenia tooltipa
+    
+endprogram
+
+function MoveAllItemsToBank ( bag, who )
+
+    var b := FindBBankBox(CInt(GetObjProperty(bag, "Owner")));
+    var bbox := FindBankBox(who);
+    
+    foreach itm in ListRootItemsInContainer(b);
+		MoveItemToContainer(itm, bbox);
+    endforeach
+    
+    WipeBBankBox(b);
+    
+    SendSysMessage(who, "Mistyczny worek wyparowuje a jego przedmiotu laduja w twoim banku...", FONT_NORMAL, COLOR_BLUE);
+    DestroyItem(bag);
+
+endfunction
+
+function OpenBagBank (bag, who )
+
+    var b := FindBBankBox(CInt(GetObjProperty(bag, "Owner")));
+    
+    if(b)
+		var ret := SendOpenSpecialContainer(who, b);
+		if(!ret)
+			SendSysMessage(who, "Blad: " + ret, FONT_NORMAL, COLOR_BLUE);
+		else
+			SendSysMessage(who, "Przegladam..." + ret , FONT_NORMAL, COLOR_BLUE);
+		endif
+    endif
+
+endfunction
+
+
+    
+    
+
+    
+    

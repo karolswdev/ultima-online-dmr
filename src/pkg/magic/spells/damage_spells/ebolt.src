@@ -30,6 +30,15 @@ function SpellAction(Caster, CastOn)
 
   var Dmg := CalcSpellDamage(SpellGlob.Circle, Caster, CastOn, SpellGlob.Type);
 
+  var glyphMod := GetGlyphMod(Caster, "StrongerEbolt");
+
+  if(glyphMod > 0)
+    if(RandomInt(5) == 2)
+      PrintTextAbove(Caster, "Corp Por", FONT_NORMAL, RED_COLOR);
+    endif
+    Dmg := CInt(Dmg * 1.2);
+  endif
+
   if(Reflected(CastOn, Caster))
     CastOn := Caster;
     PlayMovingEff( caster, CastOn, FX_ENERGY_BOLT, 0xa, 0x1e );

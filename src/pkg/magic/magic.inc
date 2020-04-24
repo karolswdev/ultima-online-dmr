@@ -132,7 +132,7 @@ function __SpellCast(byref SpellParms, SpellID, Type, Noto)
   if(Noto & TRGO_HARMFUL)
     if(IsPlayer(Caster))
       if(!GetObjProperty(Caster, "BlockAskCityCast") and FindCity(Caster))
-        if(!YesNoEx(Caster, "Jesteœ w mieœcie, gdzie czarowanie ofensywne jest zabronione.|Czy na pewno chcesz rzuciæ czar ofensywny?|Ryzykujesz zaatakowanie przez stra¿nika."))
+        if(!YesNoEx(Caster, "Jesteï¿½ w mieï¿½cie, gdzie czarowanie ofensywne jest zabronione.|Czy na pewno chcesz rzuciï¿½ czar ofensywny?|Ryzykujesz zaatakowanie przez straï¿½nika."))
           Fizzle(Caster,"Anulowano.");
           return 0;
         endif
@@ -221,13 +221,21 @@ function __SpellCast(byref SpellParms, SpellID, Type, Noto)
     Caster.squelch(2);
   endif
 
-  var Delay           := GetCircleValue(SpellGlob.Circle,"SpellDelay");
+  var Delay := GetCircleValue(SpellGlob.Circle,"SpellDelay");
   
   if(SpellGlob.FastCast)
 	if(Caster.cmdlevel)
 		SendSysMessage(Caster, "Delay := 0");
 	endif
-	Delay := 0;
+	  Delay := 0;
+  endif
+
+  // FasterEbolt support
+  if(SpellID == 42)
+    var fasterMod := GetGlyphMod(Caster, "FasterEbolt");
+    if(fasterMod > 0)
+      Delay := Delay - CInt(fasterMod * 100);
+    endif
   endif
   
   var SpellManaCost   := GetCircleValue(SpellGlob.Circle,"UMana") + SpellGlob.AdditionalMana;
@@ -282,7 +290,7 @@ function __SpellCast(byref SpellParms, SpellID, Type, Noto)
 
   // lets play first animation & ensure memory is thread safe
   if(Caster.ip)
-	Malloc(Caster);
+	  Malloc(Caster);
   endif
 
   if(AnimId)
