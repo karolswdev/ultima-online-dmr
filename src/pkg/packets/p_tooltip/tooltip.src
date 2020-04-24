@@ -74,10 +74,15 @@ exported function MegaCliloc( who, byref packet )
     var main_desc := "";
 //--------------------------------------------------------------------------    
     if(Obj.isa(POLCLASS_ITEM))
-      if(exp)
-        main_desc := "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
+
+      if(GetObjProperty(Obj, "Epic"))
+        main_desc += "<BASEFONT COLOR=#FF0000>";
       endif
-      
+
+      if(exp)
+        main_desc += "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
+      endif
+
       if( Obj.amount > 1 )
         Desc := Desc + "Sztuk: " + Obj.Amount + "<br>";
       endif
@@ -95,20 +100,25 @@ exported function MegaCliloc( who, byref packet )
       endif
 	  
 	  if(GetObjProperty(Obj, "ToolTip"))
-		Desc := Desc + "<BASEFONT COLOR=#993333>" + GetObjProperty(Obj, "ToolTip") + "<br>";
+		  Desc := Desc + "<BASEFONT COLOR=#993333>" + GetObjProperty(Obj, "ToolTip") + "<br>";
 	  endif
 
 	  if(GetObjProperty(Obj, "SpecialTag"))
-		Desc := Desc + "<BASEFONT COLOR=#00ff00>" + GetObjProperty(Obj, "SpecialTag") + "<br>";
+		  Desc := Desc + "<BASEFONT COLOR=#00ff00>" + GetObjProperty(Obj, "SpecialTag") + "<br>";
 	  endif
 	  
 	  if(GetObjProperty(Obj, "Paragon"))
-		Desc := Desc + "<BASEFONT COLOR=#840037 BGCOLOR=#ffffff> Potezny potwor <br />";
+		  Desc := Desc + "<BASEFONT COLOR=#840037 BGCOLOR=#ffffff> Potezny potwor <br />";
 	  endif
 
 	  if(GetObjProperty(Obj, "UsesRemaining"))
 	    Desc := Desc + "<BASEFONT COLOR=#FF3399>Uzycia: " + CInt(GetObjProperty(Obj, "UsesRemaining")) + "<br>";
 	  endif
+
+    if(GetObjProperty(Obj, "SpecialUses"))
+      Desc := Desc + "<BASEFONT COLOR=#BBBDDD>Pozostalo uzyc: " + CInt(GetObjProperty(Obj, "SpecialUses")) + "<br>";
+    endif
+
 
       if ( Obj.newbie )
         Desc := Desc + "<BASEFONT COLOR=#77baeb>Poblogoslawiony<br>";
@@ -181,7 +191,7 @@ exported function MegaCliloc( who, byref packet )
 //--------------------------------------------------------------------------
     elseif(Obj.isa(POLCLASS_MOBILE))
       if(Obj.title_race)
-        main_desc := Obj.title_race + "<br>";
+        main_desc += Obj.title_race + "<br>";
       endif
 
       if(Obj.title_guild)
@@ -189,8 +199,12 @@ exported function MegaCliloc( who, byref packet )
       endif
 
 	  if(GetObjProperty(Obj, "Paragon"))
-		Desc := Desc + "<BASEFONT COLOR=#840037 BGCOLOR=#ffffff> Potezny potwor <br />";
-	  endif	  
+		  Desc := Desc + "<BASEFONT COLOR=#840037 BGCOLOR=#ffffff> Potezny potwor <br>";
+	  endif
+
+    if(GetObjProperty(Obj, "DonationMessage"))
+      Desc := Desc + "<BASEFONT COLOR=#08bf1a> " + GetObjProperty(Obj, "DonationMessage") + "<br>";
+    endif
 
       var arr := dictionary;
       ExtractToolTipProp(Obj,arr);
