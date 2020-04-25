@@ -272,6 +272,7 @@ function AggroNpcOpponentHealed(Npc, Healer, Amount)
     
     if(DecreaseAggro(Amount))
       PrintTextAbove(Npc, "*wrrrr*");
+      SendSysMessage(Healer, "Twoje czyny wzbudzily zlosc przeciwnika!", FONT_NORMAL, COLOR_GREEN);
     endif
     
   endif
@@ -294,24 +295,29 @@ function IsOiledShield()
 
 	var Oiled;
 
-   if(GetObjProperty(opponent, "Oiled"))
-	Oiled := GetObjProperty(opponent, "Oiled");
+  if(GetObjProperty(opponent, "Oiled"))
+	  Oiled := GetObjProperty(opponent, "Oiled");
 	if(Oiled)
       return Oiled.level;
 	else
       return 0;  
 	endif
-   endif
+  endif
    
-   if(IsTamed(opponent))
-	var master := GetMaster(opponent);
-	var masterVetSkill := GetEffectiveSkill(opponent, SKILLID_VETERINARY);
-	var level := CInt(masterVetSkill/5);
-	return level;
-   endif
+  if(IsTamed(opponent))
+    var master := GetMaster(opponent);
+    var level := 0;
+    var masterVetSkill := GetEffectiveSkill(master, SKILLID_VETERINARY);
+    level += CInt(masterVetSkill/25);
+      if(IsMageBySkill(master))
+        if(IsSummoned(opponent))
+          var masterEvalintSkill := GetEffectiveSkill(master, SKILLID_EVALINT);
+          level  += CInt(masterEvalintSkill/50);
+        endif
+      endif
+	  return level;
+  endif
 	
-   
-   
    var hand1 := Getequipmentbylayer(opponent,LAYER_HAND1);
    var hand2 := Getequipmentbylayer(opponent,LAYER_HAND2);
    

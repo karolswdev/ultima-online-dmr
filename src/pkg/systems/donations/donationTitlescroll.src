@@ -1,0 +1,42 @@
+use uo;
+use os;
+
+include "include/misc";
+include "include/gumpboxes";
+include "include/msgs";
+
+program use_titleScroll(who, scroll)
+
+    if(GetObjProperty(who, "DonationMessage"))
+        SendSysMessage(who, "Juz masz nadany tytul. Poczekaj jeszcze!", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(GetObjProperty(scroll, "Created"))
+        if(!who.cmdlevel)
+            SendSysMessage(who, "Cos jest nie tak z tym piorem...", FONT_NORMAL, RED_COLOR);
+            return;
+        endif
+    endif
+
+    SendSysMessage(who, "Wpisz tytul, jaki chcial" + GGm(who, 1) + " uzyskac...", FONT_NORMAL, COLOR_BLUE);
+    var input := RequestInput(who, who.backpack, "");
+
+    if(!input || input["<br"])
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+
+    if(!YesNo(who, "Na pewno ustawic podpis: " + input + "?"))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(DestroyItem(scroll))
+        var finalDonationMessage := "<i>" + input + "</i>";
+        SetObjProperty(who, "DonationMessage", finalDonationMessage);
+        SendSysMessage(who, "Nadano Tobie tytul. Zrestartuj Ultima Online, aby zobaczyc go w grze juz teraz.", FONT_NORMAL, COLOR_GREEN);
+        SetObjProperty(who, "DonationMessageTime", ReadGameClock());
+    endif
+
+endprogram

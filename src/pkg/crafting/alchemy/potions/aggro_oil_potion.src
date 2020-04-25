@@ -17,17 +17,12 @@ program UseAggroOil(who, potion)
   var item := ObjTarget(who);
   
   if(item.isA(POLCLASS_NPC))
-  
-			if(item.npctemplate["summoned"])
-				SendSysMessage(who, "Olejem mozna natrzec tylko nieprzywolane zwierzeta.", FONT_NORMAL, COLOR_RED);
-				return;
-			endif
-			
+  		
 			if(!EmptyBottle(who, potion, 1))
 				return;
 			endif
 			
-			if(potion.objtype == UOBJ_AGGRO_OIL_POTION)
+		  if(potion.objtype == UOBJ_AGGRO_OIL_POTION)
 			Oiled.+level := 4;
 			Oiled.+time := readgameclock();
 			SetObjProperty(item, "Oiled", Oiled);
@@ -36,6 +31,8 @@ program UseAggroOil(who, potion)
 			Oiled.+time := readgameclock();
 			SetObjProperty(item, "Oiled", Oiled);
 		  endif
+
+		  PrintTextAbove(item, "*natarte*", FONT_NORMAL, COLOR_RED);
 	
   else
 

@@ -212,9 +212,9 @@ function CheckAnchorDelay(byref HpPerc, byref ManaPerc)
       var Name := GetName(me.opponent);
 
       if(Name)
-        SayUC(ToUnicode("*zapamiêtuje "+Name+"*"));
+        SayUC(ToUnicode("*zapamiï¿½tuje "+Name+"*"));
       else
-        SayUC(ToUnicode("*zapamiêtuje wroga*"));
+        SayUC(ToUnicode("*zapamiï¿½tuje wroga*"));
       endif
     endif*/
 
@@ -244,7 +244,8 @@ function ShouldChangeOpponent(newOpp)
   endif
 
   if(opponent.isa(POLCLASS_NPC) and IsPlayer(newOpp))
-    Chance := CInt(Chance * 2);
+    //Chance := CInt(Chance * 2);
+    Chance := Chance;
   elseif(newOpp.isa(POLCLASS_NPC) and IsPlayer(opponent))
     Chance := CInt(Chance * 0.4);
   endif
@@ -459,7 +460,20 @@ function CheckAutoDispel()
   if(SpecFlag & NSPECF_AUTODISPEL)
     if(Specs[NSPEC_AUTODISPEL][3] < ReadGameClock())
       if(Specs[NSPEC_AUTODISPEL][1] > RandomInt(100))
-        CastSpell(me,opponent,MDISPEL_SPID);
+        // oiled
+        var level := IsOiledShield();
+        if(level)
+          var chance := level.level * 15;
+          if(RandomInt(100) < chance)
+            if(RandomInt(4) == 1)
+              Say("Argh, ten olej!");
+            endif
+          else
+            CastSpell(me,opponent,MDISPEL_SPID);
+          endif
+        else
+            CastSpell(me,opponent,MDISPEL_SPID);
+        endif
       endif
       Specs[NSPEC_AUTODISPEL][3] := ReadGameClock() + Specs[NSPEC_AUTODISPEL][2];
     endif
@@ -492,7 +506,7 @@ function CheckTamedMaster()
   var HpPerc := 1.0 + 0.5 * (1.0 - GetHpPercent(me));
   var Chance := CInt(Min(100, 4.0 + Max(0, CDbl(GetMaxHp(me) / 20) - 20) * HpPerc));
 
-  if(Chance > RandomInt(1000))
+  if(Chance > RandomInt(5000))
     var Master := GetMaster(opponent);
     
     if(Distance(me, Master) < 16 and !Master.dead and !Master.cmdlevel and (IsLoggedIn(Master) or !IsFullyLogout(Master)) )
@@ -508,7 +522,7 @@ function CheckTamedMaster()
     else
       SeekNewPlayerTarget();
     endif
-  elseif(Chance*0.5 > RandomInt(1000))
+  elseif(Chance*0.5 > RandomInt(5000))
     SeekNewPlayerTarget();
   endif
 

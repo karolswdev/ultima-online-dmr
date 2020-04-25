@@ -220,9 +220,34 @@ endfunction
 
 //--------------------------------------------------------------------------------
 
+function CheckDonationMessage(who)
+
+  if(!GetObjProperty(who, "DonationMessage"))
+    return;
+  endif
+
+  var gc := ReadGameClock();
+
+  var time := CInt(GetObjProperty(who, "DonationMessageTime"));
+
+  if(time)
+    var difference := gc - time;
+    if(difference > 2592000)
+      EraseObjProperty(who, "DonationMessage");
+      EraseObjProperty(who, "DonationMessageTime");
+      SendSysMessage(who, "Stracil" + GGm(who, 3) + "swoj tytul...", FONT_NORMAL, COLOR_RED);
+    endif
+  endif
+
+endfunction
+
 function CheckHunger(who)
 
   if(who.cmdlevel)
+    return;
+  endif
+
+  if(GetAge(who) < 23)
     return;
   endif
 

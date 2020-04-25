@@ -1,0 +1,26 @@
+use uo;
+use os;
+
+include "include/misc";
+include "include/effects";
+include "include/resurrect";
+
+program use_ankhStone(who, stone)
+
+    if(who.cmdlevel)
+        SendSysMessage(who, "Nie musisz tego uzywac do wskrzeszenia siebie.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(!who.dead)
+        return;
+    endif
+
+    PlayObjectCenteredEffect(who , FX_EXPLODE_3, 7, 0x10 );
+    PlaySoundEffect(who, SFX_SPELL_EXPLOSION );
+    PlaySoundEffect(who, SFX_SPELL_LIGHTNING);
+    PlayLightningBoltEffect(who);
+
+    Resurrection(who, 1);
+
+endprogram
