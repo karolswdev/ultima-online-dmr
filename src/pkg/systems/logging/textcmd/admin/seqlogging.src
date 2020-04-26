@@ -7,6 +7,9 @@ include "include/client/fonts";
 program textcmd_seqTesting(who);
 
    
+    var time := polcore().systime;
+    
+    SendSysMessage(who, "Time:" + time);
 
     var keysSectionFinished := 1;
 
