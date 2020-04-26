@@ -32,6 +32,7 @@ function LogToSeq(logStruct, who := 0)
 
     if(who)
         SendSysMessage(who, "Url: " + url);
+    endif
 
     var jsonHeaders := PackJson(headers);
     var jsonData := PackJson(logStruct);
