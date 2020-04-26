@@ -8,16 +8,16 @@ Read about posting RAW events into a Seq sink here -> https://docs.datalust.co/d
 function LogToSeq(logStruct)
 
     if(logStruct["@mt"] == error)
-        return error "Invalid log object. No message template passed!";
+        return error { errortext := "Invalid log object. No message template passed!" };
     endif
 
     var url := GetSeqUrl();
     if(!url)
-        return error "No valid URL provided";
+        return error { errortext := "No valid URL provided" };
     endif
     var headers := ConstructSeqHeaders();
     if(!headers)
-        return error "Could not consturct headers. Check URL";
+        return error { errortext := "Could not consturct headers. Check URL" };
     endif
 
 
