@@ -10,6 +10,12 @@ function LogPlayerLogon(player)
     logObject["PlayerCoords"] := { player.x, player.y, player.z, player.realm };
     logObject["@mt"] := "{PlayerName} (S: {PlayerSerial}/A: {AccountName}) zalogowal sie.";
 
+    var res := LogToSeq(logObject);
+
+    print("Player logon LOG:")
+    print(res);
+    print("-----------------");
+
     return LogToSeq(logObject);
 
 endfunction
