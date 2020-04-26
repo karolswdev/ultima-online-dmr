@@ -1,0 +1,17 @@
+use uo;
+use os;
+
+include "seq";
+include "common";
+
+program log(parms)
+
+    var subject := parms[1];
+    var logType := parms[2];
+
+    if(logType == LOGTYPE_LOGON)
+        LogPlayerLogon(subject);
+    endif
+
+endprogram
+        

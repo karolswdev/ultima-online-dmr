@@ -82,7 +82,9 @@ program OnLogon(who)
     Beard.movable := 0;
   endif
 
-  LogPlayerLogon(who);
+
+  var parms := {who, LOGTYPE_LOGON};
+  start_script(":logging:log_async", parms);
   
   // New Years 2018
   if(!GetObjProperty(who, "NY2018"))

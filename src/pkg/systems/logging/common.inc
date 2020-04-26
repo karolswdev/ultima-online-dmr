@@ -1,6 +1,10 @@
 use os;
 include ":logging:seq";
 
+const LOGTYPE_LOGON := 1;
+const LOGTYPE_KILL := 2;
+// etc.
+
 function LogPlayerLogon(player)
 
     var logObject := struct;
@@ -12,10 +16,6 @@ function LogPlayerLogon(player)
     logObject["@mt"] := "{PlayerName} (S: {PlayerSerial}/A: {AccountName}) zalogowal sie.";
 
     var res := LogToSeq(logObject);
-
-    print("Player logon LOG:");
-    print(res);
-    print("-----------------");
 
     return res;
 endfunction
