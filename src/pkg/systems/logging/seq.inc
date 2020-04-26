@@ -6,20 +6,32 @@ use cfgfile;
 The log events are passed in as structs.
 Read about posting RAW events into a Seq sink here -> https://docs.datalust.co/docs/posting-raw-events
 */
-function LogToSeq(logStruct)
+function LogToSeq(logStruct, who := 0)
 
     if(logStruct["@mt"] == error)
+        if(who != 0)
+            SendSysMessage(who, "No @mt template passed" );
+        endif
         return error { errortext := "Invalid log object. No message template passed!" };
     endif
 
     var url := GetSeqUrl();
     if(!url)
+        if(who != 0)
+            SendSysMessage(who, "No valid URL provided" );
+        endif
         return error { errortext := "No valid URL provided" };
     endif
     var headers := ConstructSeqHeaders();
     if(!headers)
+        if(who != 0)
+            SendSysMessage(who, "No headers could be constructed. Check URL" );
+        endif
         return error { errortext := "Could not consturct headers. Check URL" };
     endif
+
+    if(who)
+        SendSysMessage(who, "Url: " + url);
 
     var jsonHeaders := PackJson(headers);
     var jsonData := PackJson(logStruct);
@@ -29,6 +41,8 @@ function LogToSeq(logStruct)
         data := jsonData,
         headers := jsonHeaders
     });
+
+    return result;
 
 endfunction
 
