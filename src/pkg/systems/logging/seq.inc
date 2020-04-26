@@ -1,4 +1,5 @@
 use basic;
+use cfgfile;
 
 
 /*
@@ -20,10 +21,13 @@ function LogToSeq(logStruct)
         return error { errortext := "Could not consturct headers. Check URL" };
     endif
 
+    var jsonHeaders := PackJson(headers);
+    var jsonData := PackJson(logStruct);
+
 
     var result := HttpRequest(url, "POST", struct{
-        data := PackJson(logStruct),
-        headers := PackJson(headers);
+        data := jsonData,
+        headers := jsonHeaders
     });
 
 endfunction
@@ -60,19 +64,19 @@ function GetSeqUrl()
         return error;
     endif
 
-    var urlElem := FindConfigElem(cfgFile, "Url")
+    var urlElem := FindConfigElem(cfgFile, "Url");
 
     if(!urlElem)
         return error;
     endif
 
-    return GetConfigString(securityElem, "SeqUrl");
+    return GetConfigString(urlElem, "SeqUrl");
 
 endfunction
 
 function ConstructSeqHeaders()
 
-    var apiKey = GetApiKey();
+    var apiKey := GetApiKey();
 
     if(!apiKey)
         return error;
@@ -80,9 +84,9 @@ function ConstructSeqHeaders()
 
     var header := struct;
 
-    header["Content-Type"] = "application/json";
+    header["Content-Type"] := "application/json";
     if(Len(apiKey) > 2)
-        header["X-Seq-ApiKey"] = apiKey;
+        header["X-Seq-ApiKey"] := apiKey;
     endif
 
     return header;
