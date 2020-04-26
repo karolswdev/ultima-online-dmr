@@ -1,6 +1,6 @@
 use basic;
 use cfgfile;
-use "include/clock";
+include "include/clock";
 
 /*
 The log events are passed in as structs.
