@@ -1,12 +1,14 @@
 use basic;
 use cfgfile;
-
+use "include/clock";
 
 /*
 The log events are passed in as structs.
 Read about posting RAW events into a Seq sink here -> https://docs.datalust.co/docs/posting-raw-events
 */
 function LogToSeq(logStruct, who := 0)
+
+    logStruct["@t"] := CUnixTime();
 
     if(logStruct["@mt"] == error)
         if(who != 0)
@@ -36,6 +38,8 @@ function LogToSeq(logStruct, who := 0)
         SendSysMessage(who, "Url: " + url, FONT_NORMAL, COLOR_RED);
         SendSysMessage(who, "ApiKey: " + apiKey, FONT_NORMAL, COLOR_GREEN);
         SendSysMessage(who, "Headers: " + headers, FONT_NORMAL, COLOR_BLUE);
+        SendSysMessage(who, "[@mt]: ", logStruct["@mt"]);
+        SendSysMessage(who, "[@t]: ", logStruct["@t"]);
     endif
 
     var jsonHeaders := PackJson(headers);
