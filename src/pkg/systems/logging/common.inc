@@ -16,6 +16,5 @@ function LogPlayerLogon(player)
     print(res);
     print("-----------------");
 
-    return LogToSeq(logObject);
-
+    return res;
 endfunction
