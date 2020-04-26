@@ -15,7 +15,7 @@ program use_teleportBook(who, theBook)
         return;
     endif
 	
-	if(who.realm != BRIT_REALM)
+	if(who.realm != "britannia")
 		SendSysMessage(who, "W tym miejscu ksiega nie moze zostac uzyta", FONT_NORMAL, COLOR_RED);
 		return;
 	endif
