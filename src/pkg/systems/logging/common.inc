@@ -13,7 +13,7 @@ function LogPlayerLogon(player)
 
     var res := LogToSeq(logObject);
 
-    print("Player logon LOG:")
+    print("Player logon LOG:");
     print(res);
     print("-----------------");
 
