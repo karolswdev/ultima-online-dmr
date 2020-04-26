@@ -8,6 +8,7 @@ include "include/player/nutrition";
 include "include/poison";
 include "include/attack";
 include "include/checks/objchecks";
+include "include/mobile";
 include "../pkg/systems/wearwolf/common";
 
 //-----------------------------------------------------------------------------
