@@ -30,8 +30,12 @@ function LogToSeq(logStruct, who := 0)
         return error { errortext := "Could not consturct headers. Check URL" };
     endif
 
+    var apiKey := GetApiKey();
+
     if(who)
-        SendSysMessage(who, "Url: " + url);
+        SendSysMessage(who, "Url: " + url, FONT_NORMAL, COLOR_RED);
+        SendSysMessage(who, "ApiKey: " + apiKey, FONT_NORMAL, COLOR_GREEN);
+        SendSysMessage(who, "Headers: " + headers, FONT_NORMAL, COLOR_BLUE);
     endif
 
     var jsonHeaders := PackJson(headers);

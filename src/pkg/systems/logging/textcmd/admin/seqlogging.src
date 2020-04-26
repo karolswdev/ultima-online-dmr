@@ -37,7 +37,7 @@ program textcmd_seqTesting(who);
 
     message["@mt"] := mt;
 
-    var res := LogToSeq(message);
+    var res := LogToSeq(message, who);
 
     SendSysMessage(who, "Res:" + res);
 
