@@ -25,6 +25,14 @@ program open_auctionWindow(who, theAuctionStone)
         return;
     endif
     
+    if(FindCity(who)==error)
+        SendSysMessage(who, "Musisz byc w miescie by sprawdzic aukcje", FONT_NORMAL, RED_COLOR);
+        return;
+    endif
+
+
+
+
     SetObjProperty(who, "#AucWindow", 1);
     
     ViewMainGump(who, who);

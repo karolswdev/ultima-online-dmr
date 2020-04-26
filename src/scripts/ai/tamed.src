@@ -506,7 +506,7 @@ function ProcessFightSpeech(who,text)
   if(text["chodzcie"] or text[lower(me.name) + " chodz"] or text["za mna"] or text["chodzmy"])
     SetFollowing(_MeMaster);
     EndFight();
-   elseif(text["idzcie do"])
+   elseif(text["idzcie do"] or text[lower(me.name) + " idz do"])
         var NewLoc := LocTarget(who);
         if(!NewLoc)
             return;
