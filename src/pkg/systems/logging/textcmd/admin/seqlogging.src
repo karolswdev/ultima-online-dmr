@@ -6,19 +6,24 @@ include "include/client/fonts";
 
 program textcmd_seqTesting(who);
 
-    SendSysMessage(who, "[Key]:", FONT_NORMAL, COLOR_GREEN);
+   
 
     var keysSectionFinished := 1;
 
     var message := struct;
 
     while(keysSectionFinished)
+        SendSysMessage(who, "[Key]:", FONT_NORMAL, COLOR_GREEN);
         var key := RequestInput(who, who.backpack, "");
         SendSysMessage(who, "Value:", FONT_NORMAL, 55);
 
         var value := RequestInput(who, who.backpack, "");
 
         if(!key && !value)
+            break;
+        endif
+
+        if(message[key])
             break;
         endif
 
