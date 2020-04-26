@@ -7,7 +7,7 @@ include "include/client/fonts";
 program textcmd_seqTesting(who);
 
    
-    var time := polcore().systime;
+    var time := CUnixTime(polcore().systime, RLT_SDATE);
     
     SendSysMessage(who, "Time:" + time);
 

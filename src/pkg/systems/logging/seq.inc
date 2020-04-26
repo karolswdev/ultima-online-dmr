@@ -8,9 +8,9 @@ Read about posting RAW events into a Seq sink here -> https://docs.datalust.co/d
 */
 function LogToSeq(logStruct, who := 0)
 
-    logStruct["@t"] := CUnixTime();
+    logStruct["@t"] := CUnixTime(polcore().systime, RLT_SDATE);
 
-    if(logStruct["@mt"] == error)
+    if(!logStruct["@mt"])
         if(who != 0)
             SendSysMessage(who, "No @mt template passed" );
         endif
