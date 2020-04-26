@@ -9,6 +9,7 @@ include "include/cmds/misc";
 include "include/logon";
 include "include/checks/geometry";
 include "include/player/misc";
+include ":logging:common";
 
 //-----------------------------------------------------------------------------
 
@@ -80,6 +81,8 @@ program OnLogon(who)
   if(Beard.movable)
     Beard.movable := 0;
   endif
+
+  LogPlayerLogon(player);
   
   // New Years 2018
   if(!GetObjProperty(who, "NY2018"))
