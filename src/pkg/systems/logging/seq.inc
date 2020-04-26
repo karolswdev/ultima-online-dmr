@@ -15,7 +15,7 @@ function LogToSeq(logStruct, who := 0)
         return error { errortext := "Invalid log object. No message template passed!" };
     endif
 
-    var url := GetSeqUrl();
+    var url := ConstructSeqUrl();
     if(!url)
         if(who != 0)
             SendSysMessage(who, "No valid URL provided" );
