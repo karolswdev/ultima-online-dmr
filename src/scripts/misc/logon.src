@@ -82,7 +82,7 @@ program OnLogon(who)
     Beard.movable := 0;
   endif
 
-  LogPlayerLogon(player);
+  LogPlayerLogon(who);
   
   // New Years 2018
   if(!GetObjProperty(who, "NY2018"))
