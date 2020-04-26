@@ -1,3 +1,4 @@
+use os;
 include ":logging:seq";
 
 function LogPlayerLogon(player)
