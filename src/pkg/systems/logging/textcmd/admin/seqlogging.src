@@ -1,0 +1,40 @@
+use uo;
+use os;
+
+include "logging:seq";
+
+program textcmd_seqTesting(who);
+
+    SendSysMessage(who, "[Key]:", FONT_NORMAL, COLOR_GREEN);
+
+    var keysSectionFinished := 1;
+
+    var message := struct;
+
+    while(keysSectionFinished)
+        var key := RequestInput(who, who.backpack, "");
+        SendSysMessage(who, "Value:", FONT_NORMAL, 55);
+
+        var value := RequestInput(who, who.backpack, "");
+
+        if(!key && !value)
+            break;
+        endif
+
+        message[key] := value;
+
+    endwhile
+
+    SendSysMessage(who, "Message Template:", FONT_NORMAL, COLOR_GREEN);
+
+    var mt := RequestInput(who, who.backpack, "");
+
+    message["@mt"] := mt;
+
+    var res := LogToSeq(message);
+
+    SendSysMessage(who, "Res:" + res);
+
+endprogram
+
+

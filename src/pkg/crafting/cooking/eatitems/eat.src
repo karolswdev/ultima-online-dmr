@@ -21,6 +21,11 @@ program EatItem(who, Item)
   if(!StandardItemCheck(who, Item))
     return;
   endif
+
+  if(GetAge(who) < 23)
+    SendSysMessage(who, "Jeszcze nie musisz niczego spozywac!", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
   
   var ItemObjType := Item.objtype;
   if(!gItemCfg[ItemObjType].DonateFood)

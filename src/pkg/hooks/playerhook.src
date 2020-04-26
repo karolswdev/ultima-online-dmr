@@ -248,6 +248,10 @@ function CheckHunger(who)
   endif
 
   if(GetAge(who) < 23)
+      SetNutrValue(who, NVI_VITAMIN, 75);
+      SetNutrValue(who, NVI_PROTEIN, 75);
+      SetNutrValue(who, NVI_HUNGER,  75);
+      SetNutrValue(who, NVI_SUGAR,   75);
     return;
   endif
 
