@@ -27,3 +27,7 @@ uoconvert
 pol
 ecompile
 loggingreal.cfg
+*.em
+packethooks.txt
+src/config/servers.cfg
+core-changes.txt
