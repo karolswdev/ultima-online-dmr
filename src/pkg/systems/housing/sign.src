@@ -47,14 +47,9 @@ program HouseSign(who1,sign1)
 
   var who, sign;
 
-// might now be passed down from a script, therefore this strange check here
-if(who1[2])
-  who := who[1];
-  sign := who1[2];
-else
   who   := who1;
   sign := sign1;
-endif
+
 
   SetLogRunCycles(LST_CMD);
   
