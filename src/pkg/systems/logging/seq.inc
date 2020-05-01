@@ -8,7 +8,7 @@ Read about posting RAW events into a Seq sink here -> https://docs.datalust.co/d
 */
 function LogToSeq(logStruct, who := 0)
 
-    logStruct["@t"] := "20" + CUnixTime(polcore().systime, RLT_SDATE);
+    logStruct["@t"] := GetIso8601TimeStamp();
 
     if(!logStruct["@mt"])
         if(who != 0)

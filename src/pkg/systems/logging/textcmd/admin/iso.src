@@ -1,6 +1,5 @@
 use uo;
 
-include ":logging:common";
 include "include/clock";
 
 program textcmd_isoTest(who)
