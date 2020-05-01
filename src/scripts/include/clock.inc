@@ -661,28 +661,6 @@ function CUnixTime(Time := 0,Type := 0)
 
 endfunction
 
-function GetIso8601TimeStamp()
-
-  var source := CUnixTime(polcore().systime);
-
-
-  var timeStamp := "";
-  var year := "20" + source[1, 2];
-    timeStamp += year + "-";
-  var month := source[4, 2];
-    timeStamp += month + "-";
-  var day := source[6, 2];
-    timeStamp += day + "T";
-  var hours := source[8, 3];
-    timeStamp += hours;
-  var minutes := source[10, 3];
-    timeStamp += minutes;
-  var seconds := source[12, 2];
-    timeStamp += seconds + ".000000";
-
-  return timeStamp;
-
-endfunction
 
 //-----------------------------------------------------------------------------
 
