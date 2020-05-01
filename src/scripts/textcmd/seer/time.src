@@ -60,7 +60,6 @@ program TimeCmd(who, text)
   SendSysMessage(who, "GC: "+ReadGameClock(),FONT_NORMAL,COLOR_GREEN);
   SendSysMessage(who, "RC: "+PolCore().systime,FONT_NORMAL,COLOR_GREEN);
   SendSysMessage(who, "UPMS: "+ReadMilliSecondClock(),FONT_NORMAL,COLOR_GREEN);
-  SendSysMessage(who ,"ISO8601: " + GetIso8601TimeStamp(), FONT_NORMAL, COLOR_BLUE);
   
   var tc := ExtractTimeComponents(PolCore().systime);
   
