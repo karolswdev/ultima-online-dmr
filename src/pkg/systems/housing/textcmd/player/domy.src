@@ -1,0 +1,70 @@
+use uo;
+use os;
+
+include "include/misc";
+include ":housing:housing";
+include "include/gumpboxes";
+
+
+program textcmd_playerHouses(who, text)
+
+    var houseList := GetHouseOwnerList(who);
+
+    var houseNum := 0;
+
+    foreach House in houseList
+        houseNum := houseNum + 1;
+    endforeach
+
+    if(houseNum == 0)
+        SendSysMessage(who, "Nie masz jeszcze zadnego domu na naszym swiecie.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    GInit(0, 0);
+    GPage(1);
+    GResPic(94, 58, 3500, 428, 253);
+    GTextLine(232, 79, 32, "M O J E  D O M Y");
+
+    var i := 1;
+    var yOffset := 0;
+
+    foreach House in houseList
+    
+        GButton(123, 120+yOffset, 1209, 1208, 1000 + i);
+
+        var houseString := "";
+        var houseName := GetHouseName(House);
+        if(houseName[3])
+            houseString += houseName[1] + houseName[2] + houseName[3];
+        elseif(houseName[2])
+            houseString += houseName[1] + houseName[2];
+        elseif(houseName[1])
+            houseString += houseName[1];
+        endif
+
+        GTextLine(146, 118+yOffset, 0, houseString);
+
+        i := i + 1;
+        yOffset := yOffset + 20;
+
+    endforeach
+
+        GTilePic(455, 75, 8947); 
+        GTilePic(465, 130, 8949);
+
+    var res := GSend(who)[0];
+
+    var selectedHouse := houseList[res - 1000];
+
+    if(!selectedHouse)
+        SendSysMessage(who, "Cos sie stalo i nie mozemy znalezc tego domu.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    var sign := FindHouseSign(selectedHouse);
+    var args := { who, sign}
+    start_script(":housing:sign", args);
+
+endprogram
+
