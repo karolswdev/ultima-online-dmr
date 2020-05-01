@@ -14,7 +14,6 @@ include "include/findcity";
 
 include ":housing:common";
 include ":housing:finding";
-
 //-----------------------------------------------------------------------------
 
 function IsItemInsideHouse(item,house)
