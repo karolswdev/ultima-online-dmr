@@ -30,10 +30,10 @@ function GetIso8601TimeStamp(who := 0)
   var timeStamp := "";
   var year := "20" + source[1, 2];
   var month := source[4, 2];
-  var day := source[6, 2];
-  var hours := source[8, 2];
-  var minutes := source[10, 2];
-  var seconds := source[12, 2];
+  var day := source[7, 2];
+  var hours := source[9, 2];
+  var minutes := source[11, 2];
+  var seconds := source[13, 2];
 
   if(who)
     SendSysMessage(who, "Year:" + year);
