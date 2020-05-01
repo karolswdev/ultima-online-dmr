@@ -4,6 +4,6 @@ include "include/clock";
 
 program textcmd_isoTest(who)
 
-    SendSysMessage(who, GetIso8601TimeStamp(who));
+    SendSysMessage(who, GetIso8601TimeStamp());
 
 endprogram
