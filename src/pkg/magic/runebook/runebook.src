@@ -275,7 +275,7 @@ function Recall(Caster,book,nr)
   SpellParms[4]  := SPF_NOREGS | SPF_NODELAY | SPF_NOWORDS | SPF_RETCASTON;
 
   
-  if(Realm == "britannia_alt")
+  if(Realm == "britannia_alt" and Caster.realm != "britannia_alt")
     Fizzle(Caster, "Runa stracila swa moc.");
     return;
   endif
@@ -389,7 +389,7 @@ function GateTravel(Caster,book,nr)
   SpellParms[3]  := book;
   SpellParms[4]  := SPF_NODELAY | SPF_RETCASTON | SPF_NOREGS;
 
-  if(Realm == "britannia_alt")
+  if(Realm == "britannia_alt" and Caster.realm != "britannia_alt")
     Fizzle(Caster, "Runa stracila swa moc.");
     return;
   endif
