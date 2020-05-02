@@ -1,17 +1,17 @@
 use uo;
 use os;
 
-const DEFAULT_REALM := "britannia_alt";
+const DEFAULT_REALM := "britannia";
 
 function CreateMoongates()
 
   var moongates := {
-    {769,	1431,	0, "Nowa Britannia"},
-    {1747,	552,	0, "Iceport"},
-    {1703,	907,	0, "Castle Rock"},
-    {1301,	1948,	-1, "Heartrock"},
-    {1998,	2547,	1, "Haddinge"},
-    {1522,	1681,   0, "Morska Osada"}
+    {1176,	2457,	0, "Cannath"},
+    {1290,	682,	-1, "Tulos"},
+    {1316,	3073,	0, "Naggaroth"},
+    {598,	2617,	20, "Kopalnia Gliny"},
+    {761,	284,	10, "Lodowa Osada"},
+    {795,	873,   0, "Wedrowna Osada"}
       };
   var moongate;
   syslog( "Creating moongates." );
