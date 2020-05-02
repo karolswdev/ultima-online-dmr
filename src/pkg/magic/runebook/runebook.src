@@ -275,6 +275,11 @@ function Recall(Caster,book,nr)
   SpellParms[4]  := SPF_NOREGS | SPF_NODELAY | SPF_NOWORDS | SPF_RETCASTON;
 
   
+  if(Realm == "britannia_alt")
+    Fizzle(Caster, "Runa stracila swa moc.");
+    return;
+  endif
+
   if(NoTeleportZone(Caster.x, Caster.y, Caster.z, Caster.realm, TCF_NOCHECK_DUNG | TCF_NOCHECK_BLD | TCF_CHECK_CHAMP | TCF_NOCHECK_MULTI))
     Fizzle(Caster,"Nie mozesz stad sie odwolac.");
     return;
@@ -383,6 +388,11 @@ function GateTravel(Caster,book,nr)
   SpellParms[2]  := CAST_WAND;
   SpellParms[3]  := book;
   SpellParms[4]  := SPF_NODELAY | SPF_RETCASTON | SPF_NOREGS;
+
+  if(Realm == "britannia_alt")
+    Fizzle(Caster, "Runa stracila swa moc.");
+    return;
+  endif
 
   if(NoTeleportZone(Loc.x,Loc.y,Loc.z,Realm))
     Fizzle(caster, "Nie mozesz przywolac portalu do tego miejsca.");
