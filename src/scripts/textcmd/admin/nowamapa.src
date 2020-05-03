@@ -2,6 +2,7 @@ use uo;
 use os;
 
 include "include/misc";
+include "include/client/fonts";
 
 program textcmd_nowaMapa(who)
 
