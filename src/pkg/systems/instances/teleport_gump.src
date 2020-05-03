@@ -23,9 +23,9 @@ program selectDestination(parms)
     GButton(396, 275, 253, 254, 1);
     GButton(516, 275, 253, 254, 2);
     GButton(632, 275, 253, 254, 3);
-    GTextLine(365, 302, 55, "Nowa Brytania");
-    GTextLine(484, 302, 44, "Castle Rock");
-    GTextLine(610, 302, 33, "Dark Rock");
+    GTextLine(365, 302, 55, "Tulos");
+    GTextLine(484, 302, 44, "Cannath");
+    GTextLine(610, 302, 33, "Naggaroth");
     
 	var res := GSend(who)[0];
 	
@@ -37,35 +37,35 @@ program selectDestination(parms)
 	endif
 	
 	if(res == 1)
-		SendSysMessage(who, "Wybrano Nowa Brytania.");
+		SendSysMessage(who, "Wybrano Tulos.");
 		foreach mob in mobs
 			if(GetMaster(mob) == who)
-				MoveObjectToLocation(mob, 3358, 1970, 0, "britannia_alt");
+				MoveObjectToLocation(mob, 1215, 682, 0, "britannia");
 			endif
 		endforeach
-			MoveObjectToLocation(who, 3358, 1970, 0, "britannia_alt");
+			MoveObjectToLocation(who, 1215, 682, 0, "britannia");
 		return;
 	endif
 	
 	if(res == 2)
-		SendSysMessage(who, "Wybrano Castle Rock.");
+		SendSysMessage(who, "Wybrano Cannath.");
 		foreach mob in mobs
 			if(GetMaster(mob) == who)
-				MoveObjectToLocation(mob, 1725, 855, 0, "britannia_alt");
+				MoveObjectToLocation(mob, 1108, 2385, 50, "britannia");
 			endif
 		endforeach
-		MoveObjectToLocation(who, 1725, 855, 0, "britannia_alt");
+		MoveObjectToLocation(who, 1108, 2385, 50, "britannia");
 		return;
 	endif
 	
 	if(res == 3)
-		SendSysMessage(who, "Wybrano Dark Rock.");
+		SendSysMessage(who, "Wybrano Naggaroth.");
 		foreach mob in mobs
 			if(GetMaster(mob) == who)
-				MoveObjectToLocation(mob, 352, 1789, 30, "britannia_alt");
+				MoveObjectToLocation(mob, 1270, 2952, 32, "britannia");
 			endif
 		endforeach
-		MoveObjectToLocation(who, 352, 1789, 30, "britannia_alt");
+		MoveObjectToLocation(who, 1270, 2952, 32, "britannia");
 		return;
 	endif
 	

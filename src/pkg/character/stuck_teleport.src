@@ -16,7 +16,7 @@ program stuck_teleporter(parms)
 		randomWait := randomWait - 1;
 	endwhile
 	
-	MoveObjectToLocation(who, 1726, 854, 0, "britannia_alt");
+	MoveObjectToLocation(who, 1168, 2457, 0, "britannia");
 	
 endprogram
 	
