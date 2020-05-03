@@ -1,0 +1,28 @@
+use uo;
+use os;
+
+include "include/misc";
+
+program textcmd_nowaMapa(who)
+
+ var AllAcc   := ListAccounts();
+ var AllChars := array;
+ var Char, i;
+ var counter := 0;
+
+  foreach Acc in AllAcc
+    Acc := FindAccount(Acc);
+    for(i:=1;i<=5;i:=i+1)
+      Char := Acc.GetCharacter(i);
+      if(Char)
+        if(Char.realm != "britannia")
+            counter := counter + 1;
+            MoveObjectToLocation(Char, 1130, 704, 0, "britannia");
+        endif
+      endif
+    endfor
+  endforeach
+
+  SendSysMessage(who, "Przeniesiono " + counter + " graczy.", FONT_NORMAL, COLOR_BLUE);
+
+endprogram
