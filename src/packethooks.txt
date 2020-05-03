@@ -1,4 +1,4 @@
-Packet Hook Implementation Notes!
+Packet Hook Implementation Notes
 --------------------------------
 WARNING: Packethooks all run as critical scripts. Be sure to consider this
 when using them for packets that are used a lot by the client or server!
