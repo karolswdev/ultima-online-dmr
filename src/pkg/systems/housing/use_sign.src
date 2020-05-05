@@ -1,0 +1,9 @@
+use uo;
+use os;
+
+program useHouseSign(who, sign)
+
+    var parms := {who, sign};
+    start_script(":housing:sign", parms);
+
+endprogram

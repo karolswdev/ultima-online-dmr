@@ -63,7 +63,7 @@ program textcmd_playerHouses(who, text)
     endif
 
     var sign := FindHouseSign(selectedHouse);
-    var args := {sign, who}
+    var args := {who, sign}
     start_script(":housing:sign", args);
 
 endprogram

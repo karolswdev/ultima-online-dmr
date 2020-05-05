@@ -43,13 +43,12 @@ var ProperLocHouse;
 
 //-----------------------------------------------------------------------------
 
-program HouseSign(who1,sign1)
+program HouseSign(parms)
 
   var who, sign;
 
-  who   := who1;
-  sign := sign1;
-
+  who := parms[1];
+  sign := parms[2];
 
   SetLogRunCycles(LST_CMD);
   

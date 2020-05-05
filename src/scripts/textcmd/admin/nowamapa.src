@@ -18,7 +18,7 @@ program textcmd_nowaMapa(who)
       if(Char)
         if(Char.realm != "britannia")
             counter := counter + 1;
-            MoveObjectToLocation(Char, 1130, 704, 0, "britannia");
+            MoveObjectToLocation(Char, 1130, 704, 0, "britannia", 1);
         endif
       endif
     endfor
