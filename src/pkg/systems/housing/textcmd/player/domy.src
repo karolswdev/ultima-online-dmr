@@ -62,12 +62,16 @@ program textcmd_playerHouses(who, text)
         return;
     endif
 
+    if(who.cmdlevel)
+        SendSysMessage(who, "selectedHouse to " + selectedHouse);
+    endif
+
     var sign := FindHouseSign(selectedHouse);
 
     if(who.cmdlevel)
         SendSysMessage(who, "Sign to" + sign.serial);
     endif
-    
+
     var args := {who, sign}
     start_script(":housing:sign", args);
 
