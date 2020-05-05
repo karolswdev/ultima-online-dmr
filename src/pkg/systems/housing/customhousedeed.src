@@ -95,6 +95,8 @@ function BuildHouse( who, deed )
   var houseEntry := ItemCfg[housetype];
   var sign := CreateCustomHouseSign(created.house.x + houseEntry.SignXOffset, created.house.y + houseEntry.SignYOffset, created.house.z, created.house.realm);
   SetHouseItem(sign, created.house);
+
+  SetObjProperty(created.housue, "signserial", sign.serial);
   
   SetObjProperty(created.house,"SecNum",0);
   SetObjProperty(created.house,"LockNum",0);

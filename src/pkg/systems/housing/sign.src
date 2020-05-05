@@ -45,14 +45,25 @@ var ProperLocHouse;
 
 program HouseSign(parms)
 
-  var who, sign;
+  var who, sign, gHouse;
+
+  
+  SetLogRunCycles(LST_CMD);
 
   who := parms[1];
   sign := parms[2];
 
-  SetLogRunCycles(LST_CMD);
-  
-  gHouse := GetHouse(sign);
+  if(who.cmdlevel)
+    SendSysMessage(who, "Entrypoint!");
+  endif
+
+  if(typeof(sign) == "MultiRef")
+    if(who.cmdlevel)
+      SendSysMessage(who, "Z domkiem...");
+    endif
+  else
+    gHouse := GetHouse(sign);
+  endif
   gOwner := GetHouseOwner(gHouse);
   ProperLocHouse := 0;
 
