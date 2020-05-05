@@ -66,7 +66,9 @@ program textcmd_playerHouses(who, text)
         SendSysMessage(who, "selectedHouse to " + selectedHouse);
     endif
 
-    var sign := FindHouseSign(selectedHouse);
+    var sign := SystemFindObjectBySerial(selectedHouse);
+
+    //var sign := FindHouseSign(selectedHouse);
 
     if(who.cmdlevel)
         SendSysMessage(who, "Sign to" + sign.serial);
