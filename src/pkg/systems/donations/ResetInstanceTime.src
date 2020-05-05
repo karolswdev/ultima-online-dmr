@@ -1,0 +1,25 @@
+use uo;
+use os;
+
+include "include/misc";
+include "include/gumpboxes";
+include "include/msgs";
+
+program use_Instance_time_reset(who, item)
+
+    if(!GetObjProperty(who, "LastInstanceEntry"))
+        SendSysMessage(who, "Nie masz blokady Instancji!", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(!YesNo(who,"Na pewno?"))
+        SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(DestroyItem(item))
+        EraseObjProperty(who, "LastInstanceEntry");
+        SendSysMessage(who, "Mozesz juz wejsc do instancji.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+endprogram
