@@ -45,6 +45,8 @@ var ProperLocHouse;
 
 program HouseSign(parms)
 
+  print(parms);
+
   var who, sign, gHouse;
 
   
