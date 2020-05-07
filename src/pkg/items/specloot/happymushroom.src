@@ -18,7 +18,11 @@ program use_happyMushroom(who, shroom)
 	endif
 	
 	if(trg.script["tamed"])
-		DestroyItem(shroom);
+		if(GetAmount(shroom) > 1)
+			SubtractAmount(shroom, 1);
+		else
+			DestroyItem(shroom);
+		endif
 		HealVitalById(trg, VITALID_LIFE, 60000);
 		HealVitalById(trg, VITALID_MANA, 60000);
 		PrintTextAbove(trg, "*Sila*", FONT_NORMAL, COLOR_BLUE);
