@@ -14,22 +14,23 @@ program use_bankingBag ( who, bag )
 		    return;
         endif
     endif
-    
-    if(!GetObjProperty(bag, "Owner"))
-		SendSysMessage(who, "Worek jest od teraz powiazany z Toba", FONT_NORMAL, COLOR_BLUE);
-        var chances := RandomInt(40) + 1;
+
+    var ownerSerial := CInt(GetObjProperty(bag, "Owner"));
+
+    if(!ownerSerial)
+		    SendSysMessage(who, "Worek jest od teraz powiazany z Toba", FONT_NORMAL, COLOR_BLUE);
         SetObjProperty(bag, "SpecialUses", 40);
-		SetObjProperty(bag, "Owner", who.serial);
+		    SetObjProperty(bag, "Owner", who.serial);
         SetName(bag, bag.name);
-		return;
+		    return;
     endif
 
     SetObjProperty(bag, "SpecialUses", CInt(GetObjProperty(bag, "SpecialUses"))-1);
     
     if(CInt(GetObjProperty(bag, "SpecialUses")) < 0)
-		MoveAllItemsToBank( bag, who );
+		  MoveAllItemsToBank( bag, who );
     else
-		OpenBagBank (bag, who);
+		  OpenBagBank (bag, who);
     endif
     
     SetName(bag, bag.name); // w celu odswiezenia tooltipa
@@ -42,7 +43,7 @@ function MoveAllItemsToBank ( bag, who )
     var bbox := FindBankBox(who);
     
     foreach itm in ListRootItemsInContainer(b);
-		MoveItemToContainer(itm, bbox);
+		  MoveItemToContainer(itm, bbox);
     endforeach
     
     WipeBBankBox(b);

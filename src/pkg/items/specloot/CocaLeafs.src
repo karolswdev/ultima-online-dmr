@@ -38,7 +38,11 @@ program CocaLeafs(who, item)
 
   if(bMod)
     SendSysMessage(who, "Zjadasz liscie koki i czujesz przyplyw sil.",FONT_NORMAL,COLOR_GREEN);
-    DestroyItem(item);
+    if(GetAmount(item) > 1)
+      SubtractAmount(item, 1);
+    else
+      DestroyItem(item);
+    endif
   else
     SendSysMessage(who, "Zjedzenie lisci koki nie przyniesie efektu.",FONT_NORMAL,COLOR_ORANGE);
   endif
