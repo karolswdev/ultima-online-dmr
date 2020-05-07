@@ -25,7 +25,7 @@ program Strip(who)
   endif
 
 
-  var nr := UnEquipAll(who);
+  var nr := UnEquipAll(targ);
 
   if(!Nr)
     SendSysMessage(who, "Nie masz nic na sobie.",FONT_NORMAL, COLOR_GREEN);
