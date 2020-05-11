@@ -70,6 +70,10 @@ function UseStone(who, stone)
 	var difficulty := GetInstanceDifficulty(stone);
 	var multiplier := 1;
 	
+	if(!GetInstanceDifficulty(stone))
+		SetInstanceDifficulty(stone, INSTANCE_DIFFICULTY_NORMAL);
+	endif
+
 	if(difficulty == INSTANCE_DIFFICULTY_HEROIC)
 		multiplier := 2;
 	elseif(difficulty == INSTANCE_DIFFICULTY_EPIC)
