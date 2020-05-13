@@ -65,6 +65,7 @@ function TryToMakeItemMagic(item, chance, magiclvl);
     endif
 
   endif
+  DestroyItem(item);
   return 0;
   
 endfunction

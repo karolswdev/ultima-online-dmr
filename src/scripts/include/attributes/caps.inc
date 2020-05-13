@@ -15,13 +15,13 @@ function GetSkillCap(who)
   endif
   
   if(GetObjProperty(who, "GMDebug"))
-	SendSysMessage(who, "Skillcap: " + Cap + " before adding " + CInt(GetObjProperty(who, "AddSkCapBonus")) + " to it.");
+	  SendSysMessage(who, "Skillcap: " + Cap + " before adding " + CInt(GetObjProperty(who, "AddSkCapBonus")) + " to it.");
   endif
   
   Cap := Cap + CInt(GetObjProperty(who, "AddSkCapBonus"));
   
   if(GetObjProperty(who, "GMDebug"))
-	SendSysMessage(who, "Skillcap is now: " + Cap);
+	  SendSysMessage(who, "Skillcap is now: " + Cap);
   endif
 
   who.skillcap := CInt((Cap + SK_CRAFT_SKILLCAP_ADD) / 10);

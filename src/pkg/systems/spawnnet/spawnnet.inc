@@ -1210,7 +1210,7 @@ endfunction
 
 //-----------------------------------------------------------------------------
 
-function  IncreaseLeaderSkillsPoints(npc, points)
+function IncreaseLeaderSkillsPoints(npc, points)
 
   var SkillCfg := ReadConfigFile(ATTRIBUTES_CFG);
   var Attributes := GetConfigStringKeys(SkillCfg);

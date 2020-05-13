@@ -467,7 +467,7 @@ function AdjustInstanceStatus(mobile, rune)
 	case(difficulty)
 		INSTANCE_DIFFICULTY_NORMAL: break;
 		INSTANCE_DIFFICULTY_HEROIC: mobilePrefix := "(h)"; statModifier := 2; level := 1; break;
-		INSTANCE_DIFFICULTY_EPIC: mobilePrefix := "(e)"; statModifier := 4; level := 2; break; 
+		INSTANCE_DIFFICULTY_EPIC: mobilePrefix := "(e)"; statModifier := 3; level := 2; break; 
 	endcase
 	
 	SetName(mobile, mobilePrefix + " " + mobile.name);
@@ -483,14 +483,14 @@ function AdjustInstanceStatus(mobile, rune)
 		SetBaseStrength(mobile, GetBaseStrength(mobile) + (statModifier * 100));
 		//SetBaseDexterity(mobile, GetBaseDexterity(mobile) + (statModifier * 100));
 		
-		if(GetMaxHp(mobile) > 400)
+		if(GetMaxHp(mobile) > 200)
 			SetMaxHp(mobile, GetMaxHp(mobile) +  RandomInt(300) + (statModifier * 500));
 		endif
 		
 		SetMaxMana(mobile, GetMaxMana(mobile) + RandomInt(300) + (statModifier * 500));
 		mobile.run_speed := 4000;
 		if(statModifier > 2)
-			SetObjProperty(mobile, "NpcDmgMod", 2.0);
+			SetObjProperty(mobile, "NpcDmgMod", 1.9);
 		else
 			SetObjProperty(mobile, "NpcDmgMod", 1.5);
 		endif

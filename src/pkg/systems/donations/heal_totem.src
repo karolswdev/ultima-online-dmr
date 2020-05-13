@@ -61,7 +61,7 @@ function HealSurroundings(totem)
 
 foreach mobile in ListMobilesNearLocationEx(totem.x, totem.y, totem.z, 6, LISTEX_FLAG_NORMAL | LISTEX_FLAG_HIDDEN, totem.realm)
 
-	var healAmount := RandomInt(15) + 5;
+	var healAmount := RandomInt(20) + 5;
 	if(!mobile.isA(POLCLASS_NPC))
 		PlayObjectCenteredEffect( mobile, FX_SPARK_EFFECT, 7, 0x10 );
 		PlaySoundEffect( mobile, SFX_SPELL_GREATER_HEAL );
