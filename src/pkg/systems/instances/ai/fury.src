@@ -16,7 +16,7 @@ program startFury(parms)
 	endif
 
 	while(mob)
-		sleep(20);
+		sleep(10);
 		PrintTextAbove(mob, "*wpada w szal*");
 		SetObjProperty(mob, "#FastCast", 1);
 		sleep(1 * (level * 2));
