@@ -44,7 +44,7 @@ program textcmd_playerHouses(who, text)
         endif
         
         if(!who.cmdlevel)
-            if(House.realm == "britannia_alt")
+            if(signObject.realm == "britannia_alt")
                 GButton(123, 120+yOffset, 1209, 1208, 1000 + i);
                 GTextLine(146, 118+yOffset, 0, houseString);
             endif
