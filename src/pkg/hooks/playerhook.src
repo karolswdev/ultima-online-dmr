@@ -14,6 +14,7 @@ include "include/mobile/age";
 include "include/player/target";
 include "include/player/misc";
 include "include/player/young";
+include "include/client/misc";
 include "include/attack";
 
 include ":weather:weather";
@@ -94,6 +95,7 @@ program PlayerHook(who)
       CheckHunger(who);
       CheckWearWolf(who);
       CheckVampire(who);
+      CheckTitle(who);
       /*
         __NONPVP__ DELETED
       CheckPvPStatus(who);*/
@@ -237,6 +239,23 @@ function CheckDonationMessage(who)
       EraseObjProperty(who, "DonationMessageTime");
       SendSysMessage(who, "Stracil" + GGm(who, 3) + "swoj tytul...", FONT_NORMAL, COLOR_RED);
     endif
+  endif
+
+endfunction
+
+function CheckTitle(who)
+
+  if(!GetObjProperty(who, PROP_CUSTOM_TITLE))
+    return;
+  endif
+
+  var expiry := CInt(GetObjProperty(who, PROP_CUSTOM_TITLE_TIME));
+
+  if(ReadGameClock() > expiry)
+    SendSysMessage(who, "Stracil" + GGm(who, 3) + " swoj tytul szlachecki.");
+    EraseObjProperty(who, PROP_CUSTOM_TITLE);
+    EraseObjProperty(who, PROP_CUSTOM_TITLE_TIME);
+    return;
   endif
 
 endfunction

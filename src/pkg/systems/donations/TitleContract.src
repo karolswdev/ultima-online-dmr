@@ -1,0 +1,35 @@
+use uo;
+use os;
+
+include "include/client/misc";
+include "include/client/fonts";
+
+program use_titleScroll(who, theScroll)
+
+    if(GetObjProperty(who, PROP_CUSTOM_TITLE))
+        SendSysMessage(who, "Juz masz ustawiony tytul.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    var title := SendTextEntryGump(who,"Wpisz swoj tytul szlachecki",TE_CANCEL_ENABLE);
+
+    if(!title)
+        SendSysMessage(who, "Anulowano.",  FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+    
+    if(Len(title) > 30)
+        SendSysMessage(who, "Za duzo znakow. Maksymalnie 30.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(DestroyItem(theScroll))
+        // 14 days
+        SetObjProperty(who, PROP_CUSTOM_TITLE_TIME, ReadGameClock() + 1209600);
+        SetObjProperty(who, PROP_CUSTOM_TITLE, title);
+        SendSysMessage(who, "Od teraz posiadasz tytul szlachecki.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+endprogram
+
+

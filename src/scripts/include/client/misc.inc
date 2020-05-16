@@ -96,4 +96,7 @@ const PD_WCID_END                      := 44;
 const DK_WCID_START                    := 64;
 const DK_WCID_END                      := 76;
 
+const PROP_CUSTOM_TITLE := "CustomTitle";
+const PROP_CUSTOM_TITLE_TIME := "CustomTitleTime";
+
 //--------------------------------------------------------------------------------

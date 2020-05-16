@@ -11,6 +11,7 @@ include "include/items";
 include "include/checks/objchecks";
 include "include/coords";
 include ":quests:quest_ctrl";
+include ":logging:common";
 
 //-----------------------------------------------------------------------------
 
@@ -81,6 +82,9 @@ function CreateTreasureMap( who , oldmap , maplevel);
   else
     SendSysmessage( who , "Udalo Ci sie odczytac mape!",FONT_NORMAL,COLOR_GREEN );
   endif
+
+  var parms := { who, LOGTYPE_DECODE_MAP, map };
+  start_script(":logging:log_async", parms);
 
   DestroyItem( oldmap );
 

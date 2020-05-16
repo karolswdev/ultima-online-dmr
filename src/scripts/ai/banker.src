@@ -12,6 +12,7 @@ include "ai/include/npch";
 include "ai/setup/citynpcsetup";
 include "ai/include/tamed";
 include "ai/include/smartrun";
+include "include/client/misc";
 include "../pkg/systems/renthouse/renthouse";
 
 include ":banking:operations";
@@ -58,7 +59,7 @@ function StdHandleEvent(byref ev)
           UniPrintTextAbove(me, Res.errortext);
         else
           PlaySoundEffect(ev.source, 0x38);
-          UniPrintTextAbovePrivate(me, "Przyj"+ggm(me,26)+" "+FormatSize(Res, ".")+" gp z³ota na Twoje konto.", ev.source);
+          UniPrintTextAbovePrivate(me, "Przyj"+ggm(me,26)+" "+FormatSize(Res, ".")+" gp zï¿½ota na Twoje konto.", ev.source);
         endif
       endif      
 
@@ -92,7 +93,24 @@ function CheckMySpeech(who,text)
     var Rgc := ReadGameClock();
 
     TurnToward(who);
+    if(GetObjProperty(who, PROP_CUSTOM_TITLE))
+
+      var customTitle := "Pan";
+      if(who.gender)
+        customTitle += "i";
+      endif
+
+      var title := GetObjProperty(who, PROP_CUSTOM_TITLE);
+
+      Say("Oh... " + customTitle + " " + who.name);
+      sleep(1);
+      PrintTextAbove(me, title, FONT_NORMAL, COLOR_GREEN);
+      Rgc := Rgc - 3;
+    else
+
     Say("*szuka skrzyni*");
+
+    endif
 
     while(Rgc + 4 > ReadGameClock())
       ev := wait_for_event(5);
@@ -124,6 +142,11 @@ function CheckMySpeech(who,text)
 	sleepms(2000);
 	Say("O! jest...");
 	Say("*otwiera skrzynie*");
+
+  if(GetObjProperty(who, PROP_CUSTOM_TITLE))
+    Say("Dziekuje za skorzystanie z moich uslug!");
+  endif
+  
 	sleepms(500);
 	if(Sx != who.x or Sy != who.y or Sz != who.z)
         Say("Gdzie on"+ggm(who,4)+" uciekl"+ggm(who,4)+"?");
@@ -396,25 +419,25 @@ endfunction
 function ProcessCreateBankAccount(who)
 
   if(HaveBankAccount(who))
-    UniSay("Masz ju¿ za³o¿one konto bankowe przyjacielu!");
+    UniSay("Masz juï¿½ zaï¿½oï¿½one konto bankowe przyjacielu!");
     return;
   endif
 
-  UniSay("Ah.. chcesz za³o¿yæ konto bankowe? Nie ma sprawy. Koszt za³o¿enia to jednorazowo "+FormatSize(CREATE_BANK_ACCOUNT_COST, ".")+" gp.");
-  UniSay("Zgadzasz siê? Tak czy nie?");
+  UniSay("Ah.. chcesz zaï¿½oï¿½yï¿½ konto bankowe? Nie ma sprawy. Koszt zaï¿½oï¿½enia to jednorazowo "+FormatSize(CREATE_BANK_ACCOUNT_COST, ".")+" gp.");
+  UniSay("Zgadzasz siï¿½? Tak czy nie?");
 
   if(!NpcYesNo(who))
-    UniSay("Jakie¿ to niezdecydowane..");
+    UniSay("Jakieï¿½ to niezdecydowane..");
     return;
   endif
 
   if(!SpendGold(who, CREATE_BANK_ACCOUNT_COST))
-    UniSay("Nie masz wystarczaj¹cej iloœci z³ota przy sobie. Wróæ jak bêdziesz mieæ.");
+    UniSay("Nie masz wystarczajï¿½cej iloï¿½ci zï¿½ota przy sobie. Wrï¿½ï¿½ jak bï¿½dziesz mieï¿½.");
     return;
   endif
 
   CreateBankAccount(who);
-  UniSay("Znakomicie! Proszê bardzo, konto za³o¿one!");
+  UniSay("Znakomicie! Proszï¿½ bardzo, konto zaï¿½oï¿½one!");
 
 endfunction
 

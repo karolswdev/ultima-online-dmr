@@ -6,6 +6,7 @@ include "ai/include/shop_packets";
 include "ai/include/ainpcs";
 include "ai/include/tamed";
 include "ai/include/npch";
+include "include/client/misc";
 include "include/player/target";
 include ":artifacts:artifacts";
 include ":tinkering:common";
@@ -815,12 +816,26 @@ function StdMercHandleEvent(byref ev)
 
                              TurnToward(ev.source);
 
-                             case(RandomInt(4))
-                               0:       Say("Witaj wedrowcze! W czym moge pomoc?");
-                               1:       Say("Witaj " + ev.source.name + "! Zapraszam do obejrzenia moich towarow");
-                               2:       Say("Witaj " + ev.source.name + "! Obejrzyj me towary.");
-                               3:       Say("Witaj " + ev.source.name + "! Sluze pomoca.");
-                             endcase
+                            if(GetObjProperty(ev.source, PROP_CUSTOM_TITLE))
+
+                              var title := GetObjProperty(ev.source, PROP_CUSTOM_TITLE);
+
+                              case(RandomInt(4))
+                                0: Say("Wielk" + GGm(ev.source, 23) + " - " + title);
+                                1: Say("Witaj " + ev.source.name + "! Nasz"  + GGm(ev.sourc, 4) + " " + title);
+                                2: Say("Oto " + ev.source.name + " - " + title);
+                              endcase
+
+                            else
+
+                              case(RandomInt(4))
+                                0:       Say("Witaj wedrowcze! W czym moge pomoc?");
+                                1:       Say("Witaj " + ev.source.name + "! Zapraszam do obejrzenia moich towarow");
+                                2:       Say("Witaj " + ev.source.name + "! Obejrzyj me towary.");
+                                3:       Say("Witaj " + ev.source.name + "! Sluze pomoca.");
+                              endcase
+                              
+                            endif
 
                              SetObjProperty(me, "#GreetDelay", ReadGameClock() + 10);
 

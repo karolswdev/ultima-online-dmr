@@ -6,12 +6,22 @@ include "common";
 
 program log(parms)
 
+    // osoba
     var subject := parms[1];
+    // typ
     var logType := parms[2];
+    
+    // 3, 4, 5, 6, 7,... unlimited -> tutaj wkladamy inne parametry
 
     if(logType == LOGTYPE_LOGON)
         LogPlayerLogon(subject);
     endif
+
+    if(logType == LOGTYPE_DECODE_MAP)
+        LogPlayerDecodeMap(parms);
+    endif
+
+
 
 endprogram
         
