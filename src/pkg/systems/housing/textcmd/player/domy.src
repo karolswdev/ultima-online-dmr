@@ -69,7 +69,7 @@ program textcmd_playerHouses(who, text)
         SendSysMessage(who, "Cos sie stalo i nie mozemy znalezc tego domu.", FONT_NORMAL, COLOR_RED);
         return;
     endif
-    var sign := SystemFindObjectBySerial(selectedHouse + 1);
+    var sign := SystemFindObjectBySerial(selectedHouse);
 
     var parms := {who.serial, sign.serial};
     var ret := start_script(":housing:sign", parms);
