@@ -21,7 +21,13 @@ program log(parms)
         LogPlayerDecodeMap(parms);
     endif
 
+    if(logType == LOGTYPE_CHEST_NO_GUARDIANS_CFG)
+        LogNoGuardiansForChest(parms);
+    endif
 
+    if(logType == LOGTYPE_CHEST_NO_NPC_SPAWN)
+        LogNoChestSpawnForChest(parms);
+    endif
 
 endprogram
         

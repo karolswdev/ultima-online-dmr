@@ -27,7 +27,8 @@ program TreasureChest( character ,  chest )
   var cfgfile := ReadConfigFile( "guardians" );
 
   if(!cfgfile)
-    LogError("[TreasureChest] Nie znaleziono Cfg (guardians)", LOGF_SCRIPTS);
+    var parms := { character, LOGTYPE_CHEST_NO_GUARDIANS_CFG, chest}
+    start_script(":logging:log_async", parms);
     return;
   endif
 
@@ -82,6 +83,9 @@ function CreateGuardian( chest , character, template )
   if(nasty)
     SendChEvent(nasty,character,EVID_ENTEREDAREA);
     SaveSkillSum(nasty);
+  else
+    var parms := { chest, LOGTYPE_CHEST_NO_NPC_SPAWN, template };
+    start_script(":logging:log_async", parms);
   endif
 
   return nasty;
