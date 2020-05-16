@@ -33,7 +33,7 @@ function LogPlayerDecodeMap(parms)
     var player := parms[1];
     var map := parms[3];
 
-    var logObject = struct;
+    var logObject := struct;
 
     logObject["AccountName"] := player.acctname;
     logObject["PlayerSerial"] := player.serial;
