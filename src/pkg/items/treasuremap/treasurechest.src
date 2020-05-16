@@ -7,6 +7,7 @@ include "include/logerror";
 include "include/events";
 include "include/items/creation";
 include "include/mount";
+include ":logging:common";
 
 //--------------------------------------------------------------------------------
 

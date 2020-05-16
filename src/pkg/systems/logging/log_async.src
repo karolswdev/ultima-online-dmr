@@ -6,7 +6,7 @@ include "common";
 
 program log(parms)
 
-    // osoba
+    // obiekt
     var subject := parms[1];
     // typ
     var logType := parms[2];
