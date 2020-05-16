@@ -47,27 +47,17 @@ program HouseSign(parms)
 
   print(parms);
 
-  var who, sign, gHouse;
-
-  
   SetLogRunCycles(LST_CMD);
 
   who := parms[1];
   sign := parms[2];
 
-  if(who.cmdlevel)
-    SendSysMessage(who, "Entrypoint!");
-  endif
+  sign := SystemFindObjectBySerial(sign);
+  who := SystemFindObjectBySerial(who);
 
-  if(typeof(sign) == "MultiRef")
-    if(who.cmdlevel)
-      SendSysMessage(who, "Z domkiem...");
-    endif
-  else
-    gHouse := GetHouse(sign);
-  endif
+  gHouse := SystemFindObjectBySerial(CInt(GetObjProperty(sign, "house_serial")));
   gOwner := GetHouseOwner(gHouse);
-  ProperLocHouse := 0;
+  ProperLocHouse := 1;
 
   if(!gHouse)
     DestroyItem(sign);
@@ -93,19 +83,7 @@ program HouseSign(parms)
     IsHFriend := 1;
   endif
 
-  if(IsHOwner or IsCoOwner or IsHFriend or IsStaff(who))
-    ProperLocHouse := CanBuildHouseAt(GetDeedObjTypeByHouseType(gHouse.objtype), gHouse, gHouse.realm, gHouse);
-    if(!ProperLocHouse)
-      SendSysMessage(who, "Twoj dom stoi w nieprawidlowym miejscu.", FONT_NORMAL, COLOR_RED);
-      SendSysMessage(who, ProperLocHouse.errortext, FONT_NORMAL, COLOR_RED);
-    elseif(IsHouseAccepted(gHouse) < 0)
-      SendSysMessage(who, "Twoj dom stoi w nieprawidlowym miejscu.", FONT_NORMAL, COLOR_ORANGE);
-      SendSysMessage(who, "Mimo to zostal tymczasowo zaakceptowany, abys mogl go samodzielnie przestawic.", FONT_NORMAL, COLOR_WHITE);
-      SendSysMessage(who, "Pozostaly czas: "+RealTime(GetObjProperty(gHouse, "TerrainAccepted") - ReadGameClock()), FONT_NORMAL, COLOR_WHITE);
-    endif
-  endif
-  
-  BuildMainHouseSignGump();
+  BuildMainHouseSignGump(gHouse);
 
   var res;
   
@@ -115,6 +93,28 @@ program HouseSign(parms)
     if(!res.butid)
       keeprun := 0;
     endif
+
+    if(who.cmdlevel)
+      SendSysMessage(who, "butId: " + res.butid, FONT_NORMAL, COLOR_GREEN);
+    endif
+
+    var butId := res.butid;
+
+    if(butId == 400000)
+        SendSysMessage(who, "Milego budowania!");
+        //var signLoc := SystemFindObjectBySerial(CInt(GetObjProperty(gHouse, "signserial")));
+        MoveObjectToLocation(who, gHouse.x, gHouse.y, gHouse.z, gHouse.realm, 0x40000000); 
+        var res := SendHousingTool(who, gHouse); 
+        SendSysMessage(who, res.errortext);
+    endif
+
+    if(butId == 500000)
+        var signLoc := SystemFindObjectBySerial(CInt(GetObjProperty(gHouse, "signserial")));
+        MoveObjectToLocation(who, signLoc.x, signLoc.y, signLoc.z, signLoc.realm, 0x40000000); 
+        SendSysMessage(who, "Milego przeprowadzania.", FONT_NORMAL, COLOR_GREEN);
+    endif
+
+
 
     case(res.butid)
       11:    KickFromHouse(who,sign);
@@ -133,7 +133,6 @@ program HouseSign(parms)
       36:    SetPublic(gHouse,who);
       37:    ChangeLocks();
       9999:  keeprun := 0;
-	  9911:  MoveObjectToLocation(who, gHouse.x, gHouse.y, gHouse.z, gHouse.realm); var res := SendHousingTool(who, gHouse); SendSysMessage(who, res.errortext); break;
       190:   AddCoOwner();
       191:   EraseCoOwnerList();
       290:   AddFriend();
@@ -154,6 +153,8 @@ program HouseSign(parms)
       52:    if(CanUseCmd(who, "housesign decrease"))
                DecreaseHousePayment(who, gHouse);
              endif
+
+
     endcase
     
     res := res.butid;
@@ -174,7 +175,7 @@ program HouseSign(parms)
       endif
     endif
     
-    BuildMainHouseSignGump();
+    BuildMainHouseSignGump(gHouse);
 
   endwhile
     
@@ -182,7 +183,15 @@ endprogram
 
 //-----------------------------------------------------------------------------
 
-function BuildMainHouseSignGump()
+function BuildMainHouseSignGump(gHouse)
+
+  if(who)
+    if(who.cmdlevel)
+      SendSysMessage(who, "gOwner serial:" + gOwner);
+      SendSysMessage(who, "IsHOwner: " + IsHOwner);
+      SendSysMessage(who, "GHouse again is: " + gHouse);
+    endif
+  endif
 
   var OwnerName;
 
@@ -219,9 +228,21 @@ function BuildMainHouseSignGump()
     GTextLine(320,150,640,"Opcje");
   endif
 
+  if(who)
+    if(who.cmdlevel)
+      SendSysMessage(who, "gHouse custom again: " + gHouse.custom);
+      SendSysMessage(who, "gHouse is: " + typeof(gHouse));
+    endif
+  endif
+
   if(gHouse.custom)
-	GButton(370,150,2714,2715,9911);
-	GTextLine(390,150,640,"Buduj");
+    GButton(370,150,2714,2715,400000);
+    GTextLine(390,150,640,"Buduj");
+  endif
+
+  if(gHouse.realm == "britannia_alt" || who.cmdlevel)
+    GTextLine(330,190,530,"Przeprowadz");
+    GButton(305, 190, 2714, 2715, 500000);
   endif
 
   GPage();
@@ -233,12 +254,12 @@ function BuildMainHouseSignGump()
     GButton(130,270,2714,2715,33);
     GTextLine(160,270,550,"Zniszcz dom i odzyskaj deeda");
   else
-    GTextLine(180,190,550,"Wlasciciel");
-    GTextLine(250,190,570,OwnerName);
+    GTextLine(115,190,550,"Wlasciciel");
+    GTextLine(185,190,570,OwnerName);
     
     if(IsStaff(who) and GetObjProperty(gHouse, "GMName"))
-      GTextLine(180,210,550,"Postawil");
-      GTextLine(250,210,1410,GetObjProperty(gHouse, "GMAccName")+"/"+GetObjProperty(gHouse, "GMName"));
+      GTextLine(115,210,550,"Postawil");
+      GTextLine(185,210,1410,GetObjProperty(gHouse, "GMAccName")+"/"+GetObjProperty(gHouse, "GMName"));
     endif
 
     GTextLine(150,240,550,"Zabezpieczone pojemniki");
@@ -700,7 +721,7 @@ function ChangeOwner()
     return;
   endif
   
-  if(!IfHouseContainsBoundItem( who, ghouse ))
+  if(!IfHouseContainsBoundItem( who, gHouse ))
     return;
   endif
 

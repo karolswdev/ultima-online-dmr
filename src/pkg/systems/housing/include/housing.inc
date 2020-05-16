@@ -356,7 +356,7 @@ function GetHouseName(house)
 
   var HouseName := GetObjProperty(house,"HouseName");
   if(!HouseName)
-    HouseName := "";
+    HouseName := "Dom";
     SetObjProperty(house,"HouseName",HouseName);
   endif
 

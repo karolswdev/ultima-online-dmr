@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+// Modified: 2005-05-03
+//-----------------------------------------------------------------------------
+
+use uo;
+use polsys;
+
+//-----------------------------------------------------------------------------
+
+include "include/client/fonts";
+
+//-----------------------------------------------------------------------------
+
+program WhereCmd(who, text)
+
+  if(text)
+    var Rlms := Realms();
+    SendSysMessage( who, who.x+" "+who.y+" "+who.z+" "+Rlms[who.realm].mapid, FONT_NORMAL, COLOR_GREEN);
+  else
+    SendSysMessage( who, who.x+","+who.y+","+who.z+" "+who.realm, FONT_NORMAL, COLOR_GREEN);
+  endif
+
+endprogram
+
+//-----------------------------------------------------------------------------

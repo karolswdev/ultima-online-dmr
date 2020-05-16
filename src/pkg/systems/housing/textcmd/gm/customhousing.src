@@ -3,14 +3,12 @@ use os;
 
 program textcmd_customHousing(who)
 
-	SendInstaResDialog(who);
-	var house := CreateMultiAtLocation(who.x,who.y,who.z,0x60c7 ,CRMULTI_IGNORE_ALL,who.realm);
-	if(!house)
-		SendSysMessage(who, house.errortext);
-	endif
+	var house := who.multi;
+
+	SendSysMessage(who, "House custom  is" + house.custom);
 	
 	
-	house.setcustom(1);
+	//house.setcustom(1);
 	SendHousingTool(who, house);
 	
 endprogram

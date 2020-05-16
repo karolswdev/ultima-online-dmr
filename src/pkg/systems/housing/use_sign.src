@@ -3,7 +3,12 @@ use os;
 
 program useHouseSign(who, sign)
 
-    var parms := {who, sign};
-    start_script(":housing:sign", parms);
+    PrintTextAbove(who, "-");
+    PrintTextAbove(sign, "+");
+
+    var parms := {who.serial, sign.serial};
+    var ret := start_script(":housing:sign", parms);
+
+    SendSysMessage(who, "RET: " + ret);
 
 endprogram

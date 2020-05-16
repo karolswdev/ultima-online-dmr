@@ -101,11 +101,6 @@ function BuildHouse( who, deed )
   SetObjProperty(created.house,"SecNum",0);
   SetObjProperty(created.house,"LockNum",0);
   
-  
-  
-
-
-  /*
   set_critical(0);
 
   if(!created)
@@ -156,8 +151,6 @@ function BuildHouse( who, deed )
   if(DeedCreated)
     SetPropCreated(who,created.house);
   endif
-  
-  */
 
 endfunction
 
@@ -269,13 +262,27 @@ function CreateHouseKeysAndBuiltDeed( who, housetype, where, deed )
       return;
     endif
 	
-	SetObjProperty(house, "packkey", packkey.serial);
-	SetObjProperty(house, "bankkey", bankkey.serial);
-	house.setcustom(1);
+	  SetObjProperty(house, "packkey", packkey.serial);
+	  SetObjProperty(house, "bankkey", bankkey.serial);
+
+    if(who.cmdlevel)
+      SendSysMessage(who, "About to set house to custom");
+      SendSysMessage(who, "House is: " + typeof(house));
+    endif
+
+
+	  house.setcustom(1);
+
+    if(who.cmdlevel)
+      SendSysMessage(who, "After house to custom");
+      SendSysMessage(who, "house.custom = " + house.custom);
+    endif
 
     VerifyItemCreation(house);
 
     SetHouseOwner(house, who);
+
+    SetObjProperty(house, "ownerserial", who.serial);
 
     if(housetype==0x6BB8 or housetype==0x6070 or housetype==0x6072)
       house.movable := 0;

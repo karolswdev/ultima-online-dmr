@@ -30,20 +30,28 @@ program textcmd_playerHouses(who, text)
     var yOffset := 0;
 
     foreach House in houseList
-    
-        GButton(123, 120+yOffset, 1209, 1208, 1000 + i);
 
-        var houseString := "";
-        var houseName := GetHouseName(House);
-        if(houseName[3])
-            houseString += houseName[1] + houseName[2] + houseName[3];
-        elseif(houseName[2])
-            houseString += houseName[1] + houseName[2];
-        elseif(houseName[1])
-            houseString += houseName[1];
+        var signObject := SystemFindObjectBySerial(House);
+        var houseObject := GetHouseName(signObject);
+        if(who.cmdlevel)
+            PrintTextAbove(who, "Moj houseObject to " + typeof(houseObject));
+            PrintTextAbove(who, "Moj signObject to " + typeof(signObject));
         endif
 
-        GTextLine(146, 118+yOffset, 0, houseString);
+        var houseString := GetHouseName(signObject);
+        if(houseString == "")
+            houseString := "Dom " + House;
+        endif
+        
+        if(!who.cmdlevel)
+            if(House.realm == "britannia_alt")
+                GButton(123, 120+yOffset, 1209, 1208, 1000 + i);
+                GTextLine(146, 118+yOffset, 0, houseString);
+            endif
+        else
+            GButton(123, 120+yOffset, 1209, 1208, 1000 + i);
+            GTextLine(146, 118+yOffset, 0, houseString);
+        endif
 
         i := i + 1;
         yOffset := yOffset + 20;
@@ -61,22 +69,10 @@ program textcmd_playerHouses(who, text)
         SendSysMessage(who, "Cos sie stalo i nie mozemy znalezc tego domu.", FONT_NORMAL, COLOR_RED);
         return;
     endif
+    var sign := SystemFindObjectBySerial(selectedHouse + 1);
 
-    if(who.cmdlevel)
-        SendSysMessage(who, "selectedHouse to " + selectedHouse);
-    endif
-
-    var sign := SystemFindObjectBySerial(selectedHouse);
-
-    //var sign := FindHouseSign(selectedHouse);
-
-    if(who.cmdlevel)
-        SendSysMessage(who, "Sign to " + sign.serial);
-        SendSysMessage(who, "Sign to " + typeof(sign));
-    endif
-
-    var args := {who, sign}
-    start_script(":housing:sign", args);
+    var parms := {who.serial, sign.serial};
+    var ret := start_script(":housing:sign", parms);
 
 endprogram
 
