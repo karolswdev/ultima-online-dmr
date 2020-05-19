@@ -115,6 +115,17 @@ function CraftItem(who, tool, ObjType, byref IterData, byref Materials)
   endif
   */
   
+  var maps := FindObjTypeInContainer(who.backpack, 0x14EB);
+  if(!maps)
+	  SendSysMessage(who, "Nie znaleziono czystych map w plecaku.", FONT_NORMAL, COLOR_RED);
+	  return 1;
+  endif
+  
+  if(!SubtractAmount(maps, 1))
+	  SendSysMessage(who, "Za malo map", FONT_NORMAL, COLOR_RED);
+  	return 1;
+  endif
+
   if(!CheckSkill(who, SKILLID_CARTOGRAPHY, Diff, 0))
     SendSysMessage(who, GetCraftIterDesc(IterData) + " Nie udalo Ci sie i zniszczyl"+ggm(who,3)+" mape.",FONT_NORMAL,COLOR_RED);
     FailCraftIteration(IterData);
@@ -131,17 +142,6 @@ function CraftItem(who, tool, ObjType, byref IterData, byref Materials)
 	SendSysMessage(who, "Anulowano.", FONT_NORMAL, COLOR_RED);
 	return 1;
   endif
-  
-  var maps := FindObjTypeInContainer(who.backpack, 0x14EB);
-  if(!maps)
-	SendSysMessage(who, "Nie znaleziono czystych map w plecaku.", FONT_NORMAL, COLOR_RED);
-	return 1;
-  endif
-  
-  if(!SubtractAmount(maps, 1))
-	SendSysMessage(who, "Za malo map", FONT_NORMAL, COLOR_RED);
-	return 1;
-   endif
   
   PlaySoundEffect(who, SOUND_EFFECT_INSCRIPTION);
   
