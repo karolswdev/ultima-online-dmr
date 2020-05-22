@@ -70,6 +70,7 @@ function TinkerCraftGump(who)
       22:  BuildStuddedSamuraiGump();
       23:  BuildElvenHideGump(); // ML
       24:  BuildElvenArmorGump(); // ML
+      25:  BuildDaemonBoneArmorGump(who);
 
       30:  BuildCarpetGump(LastCraft.itemSize);
       31:  BuildTapestryGump();
@@ -178,6 +179,10 @@ function BuildMainTailorEndGump(who)
   Buttons.Down[22] := "Utwardzana Samuraja";
   Buttons.Up[23] := "Elfia Skorzana"; // ML
   Buttons.Up[24] := "Elfia Wzmacniana"; //ML
+  
+  if(GetBaseSkill(who,SKILLID_TAILORING) >= 103)
+    Buttons.Down[25] := "Demonie kosciane";
+  endif
 
   Buttons.Up[30] := "Dywany";
   Buttons.Up[31] := "Gobeliny";
@@ -358,6 +363,28 @@ function BuildBoneArmorGump(who)
      AddGumpElem( 0x1452, 375, 175, 350,  200, 410, 200, "nogawice");
 
      AddGumpElem( 0x144f, 75,  270, 50,   295, 110, 295, "tunika");
+
+   endif
+
+endfunction
+
+//-----------------------------------------------------------------------------
+
+function BuildDaemonBoneArmorGump(who)
+ 
+   if(GetBaseSkill(who, SKILLID_TAILORING) >= 100)
+
+     AddGumpElem( 0x9013, 80,  175, 60,   200, 110, 200, "helm");
+     AddGumpElem( 0x9012, 150, 175, 160,  200, 210, 200, "rekawiczki");
+    if (GetBaseSkill(who, SKILLID_TAILORING) >= 105)
+     AddGumpElem( 0x9010, 250, 175, 250,  200, 310, 200, "naramienniki");
+    endif 
+    if (GetBaseSkill(who, SKILLID_TAILORING) >= 108)
+     AddGumpElem( 0x9014, 375, 175, 350,  200, 410, 200, "nogawice");
+    endif 
+    if (GetBaseSkill(who, SKILLID_TAILORING) >= 110)
+     AddGumpElem( 0x9011, 75,  270, 50,   295, 110, 295, "tunika");
+    endif
 
    endif
 
