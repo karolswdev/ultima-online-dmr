@@ -6,14 +6,16 @@ include ":spawnnet:spawnnet";
 program textcmd_toggleSp(who, state)
 
 	if(!state)
-		SendSysMessage(who, "Uzycie: .togglesp [on/off]. Zatrzymuje albo wznawia runy 10 kratek naokolo", FONT_NORMAL, COLOR_RED);
+		SendSysMessage(who, "Uzycie: .togglesp [on/off/destroy]. Zatrzymuje albo wznawia lub usuwa runy 10 kratek naokolo", FONT_NORMAL, COLOR_RED);
 		return;
 	endif
 	
 	if(state != "on")
 		if(state != "off")
-			SendSysMessage(who, "Dostepne wartosci to tylko on albo off.", FONT_NORMAL, COLOR_RED);
-			return;
+			if(state != "destroy")
+				SendSysMessage(who, "Dostepne wartosci to tylko on albo off lub destroy.", FONT_NORMAL, COLOR_RED);
+				return;
+			endif
 		endif
 	endif
 	
@@ -24,17 +26,25 @@ program textcmd_toggleSp(who, state)
 			if(state == "on")
 				SetRunning(item);
 				i := i + 1;
-			else
+			elseif(state == "off")
 				SetStopped(item);
 				i := i + 1;
+			else
+				i := i + 1;
+				SetStopped(item);
+				DestroyItem(item);
 			endif
 		endif
 	endforeach
 	
 	var word := "wlaczonych";
 	
-	if(state == "off")
+	if(state == "on")
+		word := "wlaczonych";
+	elseif(state == "off")
 		word := "wylaczonych";
+	else
+		word := "zniszczonych";
 	endif
 	
 	SendSysMessage(who, i + " run zostalo " + word, FONT_NORMAL, COLOR_GREEN);

@@ -53,7 +53,6 @@ function CheckExistingObjects(rune)
     var i := 1;
     foreach serial in GetObjProperty(rune,PROP_CREATED_OBJECTS)
       if(!SystemFindObjectBySerial(Cint(serial)))
-		PrintTextAbove(rune, "Cannot find serial " + serial + " erasing!");
         CreatedObjects.erase(i);
       else
         i := i + 1;

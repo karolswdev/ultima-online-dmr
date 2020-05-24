@@ -23,6 +23,8 @@ program DestroyRune(rune)
   if(RuneNr and Rune == FindRuneByNr(RuneNr))
     SetGlobalProperty(SR_SER_FLAG+CStr(RuneNr),"Empty");
   endif
+
+  PrintTextAbove(rune, "Goodbye from " + rune.serial);
   return 1;
 
 endprogram
