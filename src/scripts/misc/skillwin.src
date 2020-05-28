@@ -676,45 +676,68 @@ function UseHonorScroll(skill)
 		endif
 	endif
 
-	if(GetBaseSkillBaseValue(who, skill) > 1000)
+	if(GetBaseSkillBaseValue(who, skill) > 1150)
 	    SendSysMessage(who, "Nie mozesz powiekszyc tej umiejetnosci.", FONT_NORMAL, COLOR_RED);
 	    return 0;
 	endif
 	
 	var unblockSkill := 0;
 	
-	if(GetBaseSkillBaseValue(who, skill) == 1000)
+  
+  if(GetBaseSkillBaseValue(who, skill) >= 1000 && IsSkillUnlocked(who,skill))
+    	if(YesNo(who, "Na pewno uzyc Zwoj Zaslugi na udoskonalenie tej umiejetnosci?"))
+    		if(DestroyItem(hs))
+	  			var currentSkill := GetBaseSKillBaseValue(who, skill);				
+  				if(currentSkill+10 > 1150)
+				  	SetBaseSkillBaseValue(who, skill, 1150);
+  				else
+					  SetBaseSkillBaseValue(who, skill, currentSkill+10);
+				  endif
+				
+			  	return 1;
+		  	endif
+	  	endif
+  
+  elseif(GetBaseSkillBaseValue(who, skill) == 1000)
 		if(YesNo(who, "Na pewno odblokowac nauke tej umiejetnosci do 115%?"))
 			unblockSkill := 1;
+	    	if(DestroyItem(hs))
+		      	if(unblockSkill)
+		        		if(SetMaxSkillValue(who, skill, 1150, MSKT_CLASS))
+		        			SendSysMessage(who, "Odblokowano te umiejetnosc.", FONT_NORMAL, COLOR_BLUE);
+		        			return 1;
+		        		else
+		        			SendSysMessage(who, "Nie udalo sie odblokowac tej umiejetnosci.", FONT_NORMAL, COLOR_RED);
+		        			return 1;
+		        		endif
+            endif
+        endif 
 		endif
-	endif
-
-	if(YesNo(who, "Na pewno uzyc Zwoj Zaslugi na te umiejetnosc?"))
-		if(DestroyItem(hs))
-			if(unblockSkill)
-				if(SetMaxSkillValue(who, skill, 1150, MSKT_CLASS))
-					SendSysMessage(who, "Odblokowano te umiejetnosc.", FONT_NORMAL, COLOR_BLUE);
-					return 1;
-				else
-					SendSysMessage(who, "Nie udalo sie odblokowac tej umiejetnosci.", FONT_NORMAL, COLOR_RED);
-					return 1;
-				endif
-			else
+	elseif(YesNo(who, "Na pewno uzyc Zwoj Zaslugi na te umiejetnosc?"))
+		if(DestroyItem(hs))	
 				var currentSkill := GetBaseSKillBaseValue(who, skill);
 				
-				if(currentSkill+30 > 1030)
+			  if(currentSkill + 30 > 1000)
 					SetBaseSkillBaseValue(who, skill, 1000);
-				else
+		  	else
 					SetBaseSkillBaseValue(who, skill, currentSkill+30);
-				endif
+			  endif
 				
 				return 1;
-			endif
 		endif
+		
 	endif
    endif
 
 return 0;
+
+endfunction
+//---------------------------------------------------------------------------
+function IsSkillUnlocked(who, skill)
+
+  var AttrId := GetAttributeIdBySkillId(Skill);
+
+  return GetObjProperty(who, PROP_MAXSK + "_" + AttrId) != error;
 
 endfunction
 
