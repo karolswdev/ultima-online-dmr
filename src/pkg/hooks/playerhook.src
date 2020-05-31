@@ -378,7 +378,11 @@ function CheckTimers(who)
 
   var logonTime := ReadGameClock() - CInt(GetObjProperty(who,PROP_LOGONTIME));
   SetObjProperty(who,PROP_LOGONTIME, ReadGameClock());
-  SetObjProperty(who,PROP_ONLINETIMER,CInt(GetObjProperty(who,PROP_ONLINETIMER)) + logonTime);
+  if(!IsGainBlockTimed(who))
+    SetObjProperty(who,PROP_ONLINETIMER,CInt(GetObjProperty(who,PROP_ONLINETIMER)) + logonTime);
+  else
+    SendSysMessage(who, "Twoj czas online nie liczy sie z powodu blokady.", FONT_NORMAL, COLOR_RED);
+  endif
 
 endfunction
 
