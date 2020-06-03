@@ -1,0 +1,79 @@
+use uo;
+use os;
+
+include "include/misc";
+include "include/msgs";
+include "include/client/fonts";
+include ":happyhour:common";
+include "include/clock";
+
+program textcmd_happyHour(who, text)
+
+    text := lower(text);
+
+    if(!text)
+        SendSysMessage(who, "[HappyHour]: Dostepne opcje [start], [stop], [info]", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(IsHHStarted(who) && text == "start")
+        SendSysMessage(who, "Juz wlaczyl" + GGm(who, 3) + " happy hour.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(!IsHHStarted(who) && text == "stop")
+        SendSysMessage(who, "Nie masz aktywnej happy hour.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    var availableTimeInSeconds := GetAvailableHHTime(who);
+    var lastUsedTime := GetStartHHTime(who);
+    var timeDifference := ReadGameClock() - lastUsedTime;
+
+    if(text == "stop" && timeDifference < 600)
+        SendSysMessage(who, "Musisz odczekac minimum 10 minut aby zatrzymac happy hour.", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(text == "start")
+        if(availableTimeInSeconds <= 0)
+            SendSysMessage(who, "Nie masz juz happy hour do wykorzystania.", FONT_NORMAL, COLOR_RED);
+            return;
+        endif
+        SendSysMessage(who, "Wlaczyl" + Ggm(who, 3) + " happy hour.", FONT_NORMAL, COLOR_BLUE);
+        PrintTextAbove(who, "!",  FONT_NORMAL, COLOR_BLUE);
+        StartHH(who);
+        return;
+    endif
+
+    if(text == "stop")
+        if(availableTimeInSeconds <= 0)
+            SendSysMessage(who, "Nie masz juz happy hour do wykorzystania.", FONT_NORMAL, COLOR_RED);
+            return;
+        endif
+        StopHH(who);
+        SendSysMessage(who, "Wylacz" + GGm(who, 3) + " happy hour", FONT_NORMAL, COLOR_RED);
+        return;
+    endif
+
+    if(text == "info")
+        if(availableTimeInSeconds <= 0)
+            SendSysMessage(who, "Nie masz juz happy hour do wykorzystania.", FONT_NORMAL, COLOR_RED);
+            return;
+        else
+            SendSysMessage(who, "Masz jeszcze " + RealTime(availableTimeInSeconds) + " happy hour do wykorzystania.", FONT_NORMAL, COLOR_BLUE);
+            var statusAdjective := "aktywny";
+        endif
+    endif
+
+endprogram
+
+
+
+
+
+
+
+
+
+
