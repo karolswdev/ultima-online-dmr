@@ -49,9 +49,11 @@ const MAX_MAGIC_LVL           := 20;
 
 //--------------------------------------------------------------------------------
 
-function TryToMakeItemMagic(item, chance, magiclvl);
+function TryToMakeItemMagic(item, chance, magiclvl)
 
-  if(CInt(chance) > Cint(RandomInt(100)+1))
+  var mods := GetMagicModsType(item);
+
+  if(CInt(chance) > Cint(RandomInt(100)+1) && mods)
 
     var MagicMods     := GetMagicModsType(item);
     MagicLvl := CInt(MagicLvl);
@@ -64,8 +66,12 @@ function TryToMakeItemMagic(item, chance, magiclvl);
       return MakeItemMagic(item,magiclvl,MagicMods);
     endif
 
+  else
+    if(mods)
+      DestroyItem(item);
+    endif
   endif
-  DestroyItem(item);
+
   return 0;
   
 endfunction

@@ -29,5 +29,9 @@ program log(parms)
         LogNoChestSpawnForChest(parms);
     endif
 
+    if(logType == LOGTYPE_HAPPYHOUR_DISTRIBUTED)
+        LogHappyHourDistribution(parms);
+    endif
+
 endprogram
         

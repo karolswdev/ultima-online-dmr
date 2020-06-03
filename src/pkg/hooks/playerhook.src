@@ -26,6 +26,7 @@ include ":housing:housing";
 include ":jail:common";
 include ":miracleworker:ritual";
 include ":character:race_validation";
+include ":happyhour:common";
 
 //-----------------------------------------------------------------------------
 
@@ -127,10 +128,10 @@ program PlayerHook(who)
     endif
 
     if(!who.cmdlevel)
-      sleep(3+RandomInt(3));
+      sleep(3);
       UpdateNatureFlags(who);
       PlayHookWaterSound(who);
-      sleep(3+RandomInt(3));
+      sleep(3);
     else
       sleep(10);
     endif
@@ -142,13 +143,15 @@ program PlayerHook(who)
       PlayHookNatureSounds(who);
       PlayHookWaterSound(who);
 
-      sleep(3+RandomInt(3));
+      sleep(3);
       PlayHookWaterSound(who);
 
       PlayHookNatureSounds(who);
     else
       sleep(10);
     endif
+
+    CheckHappyHourTimers(who);
 
   endwhile
 
@@ -429,6 +432,28 @@ function CheckLongTermCounts(who)
 
 endfunction
 
+function CheckHappyHourTimers(who)
+
+  var available := GetAvailableHHTime(who);
+
+  if(!available)
+    if(IsHHStarted(who))
+      StopHH(who);
+      SendSysMessage(who, "Czas zwiekszonej nauki skonczyl sie.", FONT_NORMAL, COLOR_BLUE);
+    endif
+  endif
+  
+  if(IsHHStarted(who) && available > 0)
+    if(available <= 10)
+      SendSysMessage(who, "Czas zwiekszonej nauki dobiega konca.", FONT_NORMAL, COLOR_RED);
+      StopHH(who);
+    else
+      SetAvailableHHTime(who, available - 10);
+    endif
+  endif
+
+endfunction
+
 //-----------------------------------------------------------------------------
 
 function CheckShortTermCounts(who);
@@ -458,7 +483,6 @@ function CheckWearWolf(who)
       EndMorph(who);
     endif
   endif
-
 
   if(IsWearWolf(who) and !GetObjProperty(who, "WearwolfStopped"))
   

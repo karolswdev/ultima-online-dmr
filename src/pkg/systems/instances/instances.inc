@@ -340,8 +340,6 @@ function GivePrize(stone)
 	
 	points := basePoints * multiplier;
 	
-	
-	
 	var participants := GetParticipants(stone);
 	var pointsPerParticipant := CInt(points/participants.size());
 	

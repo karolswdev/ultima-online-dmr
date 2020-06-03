@@ -51,7 +51,7 @@ program winter2010_onLogon(who)
 
     endif
 	var item;
-	var onlineTimer := CInt(GetObjProperty(who, "onlinetimer"));
+	var onlineTimer := CInt(GetObjProperty(who, PROP_ONLINETIMER));
 	var flag := GetObjProperty(who, "XmasStallGiven");
 	if(onlineTimer > 32400 && flag == error) 
 		item := CreateItemInPack(who, "vendorstallfoundationdeed");

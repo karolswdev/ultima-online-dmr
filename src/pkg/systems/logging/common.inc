@@ -10,6 +10,8 @@ const LOGTYPE_USE_BANKER := 4;
 const LOGTYPE_DECODE_MAP := 5;
 const LOGTYPE_CHEST_NO_GUARDIANS_CFG := 6;
 const LOGTYPE_CHEST_NO_NPC_SPAWN := 7;
+// when happy hour gets assigned to all chars
+const LOGTYPE_HAPPYHOUR_DISTRIBUTED := 8;
 
 // etc.
 
@@ -80,6 +82,7 @@ function LogNoChestSpawnForChest(parms)
 
     var logObject := struct;
 
+
     logObject["ChestSerial"] := chest.serial;
     logObject["ChestCoords"] := { chest.x, chest.y, chest.z, chest.realm };
     logObject["NpcTemplate"] := template;
@@ -90,6 +93,17 @@ function LogNoChestSpawnForChest(parms)
 
 endfunction
 
+function LogHappyHourDistribution(parms)
 
-// "[TreasureChest] Nie znaleziono Cfg (guardians)
+    var numberOfCharactersAffected := parms[1];
+
+    var logObject := struct;
+
+    logObject["HappyHourCount"] := numberOfCharactersAffected;
+    logObject["@mt"] := "Happy Hour rozdano HH {HappyHourCount} postaciom.";
+
+    var res := LogToSeq(logObject);
+    return res;
+
+endfunction
 
