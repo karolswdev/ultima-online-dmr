@@ -25,14 +25,10 @@ program use_bankingBag ( who, bag )
 		return;
     endif
 
-    var uses := CInt(GetObjProperty(bag, "SpecialUses"))
+    var uses := CInt(GetObjProperty(bag, "SpecialUses"));
 
-    SetObjProperty(bag, "SpecialUses", CInt(GetObjProperty(bag, "SpecialUses"))-1);
-
-    
-    
-    if(CInt(GetObjProperty(bag, "SpecialUses")) < 0)
-		  MoveAllItemsToBank( bag, who );
+    if(uses - 1 <= 0)
+        MoveAllItemsToBank( bag, who );
     else
 		  OpenBagBank (bag, who);
     endif
