@@ -42,7 +42,7 @@ program happyHour(Parms)
 
       curTime := ExtractTimeComponents(polcore().systime);
 
-      if (curTime.hour >= StartHour and curTime.hour < Duration)
+      if (curTime.hour >= StartHour and curTime.hour < Duration or GetGlobalProperty("ForceApplyHH"))
         var lastHHAppliedTime := CInt(GetGlobalProperty("#HHApplied"));
         if(lastHHAppliedTime > 0)
           if(ReadGameClock() - lastHHAppliedTime > 86200)
