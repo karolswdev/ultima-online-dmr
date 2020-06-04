@@ -10,7 +10,9 @@ const LOGTYPE_USE_BANKER := 4;
 const LOGTYPE_DECODE_MAP := 5;
 const LOGTYPE_CHEST_NO_GUARDIANS_CFG := 6;
 const LOGTYPE_CHEST_NO_NPC_SPAWN := 7;
-const LOGTYPE_NO_DEFINED_ORES := 8;
+// when happy hour gets assigned to all chars
+const LOGTYPE_HAPPYHOUR_DISTRIBUTED := 8;
+const LOGTYPE_NO_DEFINED_ORES := 9;
 
 // etc.
 
@@ -86,6 +88,20 @@ function LogNoChestSpawnForChest(parms)
     logObject["NpcTemplate"] := template;
 
     logObject["@mt"] := "Skrzynia skarbow (S: {ChestSerial} / C: {ChestCoords}) - nie mozna bylo zespawnowac {NpcTemplate}";
+    var res := LogToSeq(logObject);
+    return res;
+
+endfunction
+
+function LogHappyHourDistribution(parms)
+
+    var numberOfCharactersAffected := parms[1];
+
+    var logObject := struct;
+
+    logObject["HappyHourCount"] := numberOfCharactersAffected;
+    logObject["@mt"] := "Happy Hour rozdano HH {HappyHourCount} postaciom.";
+
     var res := LogToSeq(logObject);
     return res;
 
