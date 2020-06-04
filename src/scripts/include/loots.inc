@@ -276,7 +276,6 @@ function CreateItemFromString(Cont,ItmString)
     endif
 
     if(Amount)
-
       if(IsStackableObj(ItmString[2]))
         LootData.LootItem := CreateItemInCont(Cont,ItmString[2], Amount);
         if(!LootData.LootItem)

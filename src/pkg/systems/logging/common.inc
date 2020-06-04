@@ -83,6 +83,7 @@ function LogNoChestSpawnForChest(parms)
 
     var logObject := struct;
 
+
     logObject["ChestSerial"] := chest.serial;
     logObject["ChestCoords"] := { chest.x, chest.y, chest.z, chest.realm };
     logObject["NpcTemplate"] := template;

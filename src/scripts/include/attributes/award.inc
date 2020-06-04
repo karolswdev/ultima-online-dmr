@@ -14,6 +14,7 @@ include "include/checks/locchecks";
 include "include/clock";
 include "include/std";
 include "include/const/props";
+include ":happyhour:common";
 
 //--------------------------------------------------------------------------------
 
@@ -119,8 +120,6 @@ endfunction
 
 function AwardPoints(who, SkId, SkPoints, GainFlags := 0, GainValue := -1)
 
-
-
   if(who.isa(POLCLASS_NPC))
     return AwardNpcPoints(who, SkId, SkPoints);
   endif
@@ -130,7 +129,7 @@ function AwardPoints(who, SkId, SkPoints, GainFlags := 0, GainValue := -1)
   endif
 
   if(IsGainBlockTimed(who))
-	SendSysMessage(who, "Niestety, ale nie mozesz sie teraz uczyc.", FONT_NORMAL, COLOR_RED);
+	  SendSysMessage(who, "Niestety, ale nie mozesz sie teraz uczyc.", FONT_NORMAL, COLOR_RED);
     return 0;
   endif
 
@@ -212,10 +211,10 @@ function AwardPoints(who, SkId, SkPoints, GainFlags := 0, GainValue := -1)
   var skillPotion := CInt(GetObjProperty(who, "SkillPotion"));
   if(skillPotion > 0)
     if(skillPotion > ReadGameClock())
-	SkPoints += CInt(SkPoints * 0.5);
+	    SkPoints += CInt(SkPoints * 0.5);
     else
-	EraseObjProperty(who, "SkillPotion");
-	SendSysMessage(who, "Mikstura nauki przestaje dzialac...", FONT_NORMAL, COLOR_RED);
+      EraseObjProperty(who, "SkillPotion");
+      SendSysMessage(who, "Mikstura nauki przestaje dzialac...", FONT_NORMAL, COLOR_RED);
     endif
   endif
 
@@ -448,8 +447,11 @@ function AwardRawAttributePoints(who, byref AttrId, rawpoints, SkId, GainFlags :
     SendAttrEvent(who,EVID_ST_AWARD,AttrId,RawPoints, IsBitOn(GainFlags, STAT_ALWAYS_GAIN));
   else
  
-    if(GetGlobalProperty("#HH") and RawPoints)
-      RawPoints := max(1, CInt(RawPoints*HAPPY_HOUR_GAIN_MOD));
+    if(GetAvailableHHTime(who) > 0 && IsHHStarted(who))
+        RawPoints := max(1, CInt(RawPoints*HAPPY_HOUR_GAIN_MOD));
+        if((RandomInt(22)+1) == 5)
+          SendSysMessage(who, "Uczysz sie ze zwiekszona predkoscia.");
+        endif
     endif
 	
 	var desc := GetObjProperty(who, PROP_DESCRIPTION);
@@ -467,7 +469,6 @@ function AwardRawAttributePoints(who, byref AttrId, rawpoints, SkId, GainFlags :
 		    SetObjProperty(who, "SuperGain", gainAmount-1);
 		endif
 	endif
-	
 
     SendAttrEvent(who,EVID_SK_AWARD,AttrId,RawPoints);
   endif

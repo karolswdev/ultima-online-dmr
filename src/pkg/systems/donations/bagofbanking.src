@@ -15,20 +15,20 @@ program use_bankingBag ( who, bag )
         endif
     endif
 
-    var ownerSerial := CInt(GetObjProperty(bag, "Owner"));
+    var ownerSerial := GetObjProperty(bag, "Owner");
 
-    if(!ownerSerial)
-		    SendSysMessage(who, "Worek jest od teraz powiazany z Toba", FONT_NORMAL, COLOR_BLUE);
+    if(ownerSerial == error)
+		SendSysMessage(who, "Worek jest od teraz powiazany z Toba", FONT_NORMAL, COLOR_BLUE);
         SetObjProperty(bag, "SpecialUses", 40);
-		    SetObjProperty(bag, "Owner", who.serial);
+		SetObjProperty(bag, "Owner", who.serial);
         SetName(bag, bag.name);
-		    return;
+		return;
     endif
 
-    SetObjProperty(bag, "SpecialUses", CInt(GetObjProperty(bag, "SpecialUses"))-1);
-    
-    if(CInt(GetObjProperty(bag, "SpecialUses")) < 0)
-		  MoveAllItemsToBank( bag, who );
+    var uses := CInt(GetObjProperty(bag, "SpecialUses"));
+
+    if(uses - 1 <= 0)
+        MoveAllItemsToBank( bag, who );
     else
 		  OpenBagBank (bag, who);
     endif
