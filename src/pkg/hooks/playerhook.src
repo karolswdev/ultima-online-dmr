@@ -461,12 +461,14 @@ function CheckHappyHourTimers(who)
     var lastMeasuredTime := CInt(GetObjProperty(who, "LastHHMeasured"));
     var diff := ReadGameClock() - lastMeasuredTime;
 
-    if(diff <= 5)
+    available := available - diff;
+
+    if(available <= 5)
       SendSysMessage(who, "Czas zwiekszonej nauki dobiega konca.", FONT_NORMAL, COLOR_RED);
       SetAvailableHHTime(who, 0);
       StopHH(who);
     else
-      SetAvailableHHTime(who, available - diff);
+      SetAvailableHHTime(who, available);
       if(who.cmdlevel)
         if(GetObjProperty(who, "HHDebug"))
           SendSysMessage(who, "HH diff was " + diff);
