@@ -434,6 +434,14 @@ endfunction
 
 function CheckHappyHourTimers(who)
 
+  if(!IsHHStarted(who))
+    if(GetObjProperty(who, "LastHHMeasured"))
+      EraseObjProperty(who, "LastHHMeasured");
+      return;
+    endif
+    return;
+  endif
+
   var available := GetAvailableHHTime(who);
 
   if(!available)
@@ -444,11 +452,27 @@ function CheckHappyHourTimers(who)
   endif
   
   if(IsHHStarted(who) && available > 0)
-    if(available <= 10)
+
+    if(!GetObjProperty(who, "LastHHMeasured"))
+      SetObjProperty(who, "LastHHMeasured", ReadGameClock() - 10);
+    endif
+
+    // We measure the last time our playerhook was in this function, that way we can have a better track of time without guessing how much to decrease.
+    var lastMeasuredTime := CInt(GetObjProperty(who, "LastHHMeasured"));
+    var diff := ReadGameClock() - lastMeasuredTime;
+
+    if(diff <= 5)
       SendSysMessage(who, "Czas zwiekszonej nauki dobiega konca.", FONT_NORMAL, COLOR_RED);
+      SetAvailableHHTime(who, 0);
       StopHH(who);
     else
-      SetAvailableHHTime(who, available - 10);
+      SetAvailableHHTime(who, available - diff);
+      if(who.cmdlevel)
+        if(GetObjProperty(who, "HHDebug"))
+          SendSysMessage(who, "HH diff was " + diff);
+          SendSysMessage(who, "HH available was " + diff);
+        endif
+      endif
     endif
   endif
 
