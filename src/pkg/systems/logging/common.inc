@@ -10,6 +10,7 @@ const LOGTYPE_USE_BANKER := 4;
 const LOGTYPE_DECODE_MAP := 5;
 const LOGTYPE_CHEST_NO_GUARDIANS_CFG := 6;
 const LOGTYPE_CHEST_NO_NPC_SPAWN := 7;
+const LOGTYPE_NO_DEFINED_ORES := 8;
 
 // etc.
 
@@ -90,6 +91,22 @@ function LogNoChestSpawnForChest(parms)
 
 endfunction
 
+function LogNoDefinedOresInRegion(parms)
 
-// "[TreasureChest] Nie znaleziono Cfg (guardians)
+    var player := parms[1];
+
+    var logObject := struct;
+
+    logObject["AccountName"] := player.acctname;
+    logObject["PlayerSerial"] := player.serial;
+    logObject["PlayerName"] := player.name;
+    logObject["PlayerCoords"] := { player.x, player.y, player.z, player.realm };
+
+    logObject["@mt"] := "{PlayerName} (S: {PlayerSerial}/A: {AccountName}) Brak zdefiniowanych rud dla lokacji: (s: {PlayerCoords})";
+    var res :=LogToSeq(logObject);
+    return res;
+
+endfunction
+
+
 

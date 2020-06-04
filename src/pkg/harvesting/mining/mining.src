@@ -23,6 +23,7 @@ include ":harvesting:harvcont";
 include ":bulks:common";
 
 include ":glyphs:glyphs";
+include ":logging:common";
 
 //-----------------------------------------------------------------------------
 
@@ -261,7 +262,8 @@ function Mine(who,Loc,tool, byref IterData)
 
      if(!Ores)
        Sendsysmessage(who, "Nie znalazl"+ggm(who,3)+" w tym miejscu zloza rudy.",FONT_NORMAL,COLOR_RED);
-       LogError("Brak zdefiniowanych rud dla lokacji:" + Loc.x + " " + Loc.y + " " + Loc.z + " " + Loc.realm, LOGF_FORCE_SYSLOG);
+       var parms := {who, LOGTYPE_NO_DEFINED_ORES};
+       start_script(":logging:log_async", parms);
        return error;
      endif
 
