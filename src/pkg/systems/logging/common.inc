@@ -12,6 +12,7 @@ const LOGTYPE_CHEST_NO_GUARDIANS_CFG := 6;
 const LOGTYPE_CHEST_NO_NPC_SPAWN := 7;
 // when happy hour gets assigned to all chars
 const LOGTYPE_HAPPYHOUR_DISTRIBUTED := 8;
+const LOGTYPE_NO_DEFINED_ORES := 9;
 
 // etc.
 
@@ -106,4 +107,23 @@ function LogHappyHourDistribution(parms)
     return res;
 
 endfunction
+
+function LogNoDefinedOresInRegion(parms)
+
+    var player := parms[1];
+
+    var logObject := struct;
+
+    logObject["AccountName"] := player.acctname;
+    logObject["PlayerSerial"] := player.serial;
+    logObject["PlayerName"] := player.name;
+    logObject["PlayerCoords"] := { player.x, player.y, player.z, player.realm };
+
+    logObject["@mt"] := "{PlayerName} (S: {PlayerSerial}/A: {AccountName}) Brak zdefiniowanych rud dla lokacji: (s: {PlayerCoords})";
+    var res :=LogToSeq(logObject);
+    return res;
+
+endfunction
+
+
 

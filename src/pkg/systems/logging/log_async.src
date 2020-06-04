@@ -32,6 +32,10 @@ program log(parms)
     if(logType == LOGTYPE_HAPPYHOUR_DISTRIBUTED)
         LogHappyHourDistribution(parms);
     endif
+    
+    if(logType == LOGTYPE_NO_DEFINED_ORES)
+        LogNoDefinedOresInRegion(parms);
+    endif
 
 endprogram
         
