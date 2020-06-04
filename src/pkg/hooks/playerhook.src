@@ -466,13 +466,15 @@ function CheckHappyHourTimers(who)
     if(available <= 5)
       SendSysMessage(who, "Czas zwiekszonej nauki dobiega konca.", FONT_NORMAL, COLOR_RED);
       SetAvailableHHTime(who, 0);
+      
       StopHH(who);
     else
       SetAvailableHHTime(who, available);
+      SetObjProperty(who, "LastHHMeasured", ReadGameClock());
       if(who.cmdlevel)
         if(GetObjProperty(who, "HHDebug"))
           SendSysMessage(who, "HH diff was " + diff);
-          SendSysMessage(who, "HH available was " + diff);
+          SendSysMessage(who, "HH available was " + available);
         endif
       endif
     endif
