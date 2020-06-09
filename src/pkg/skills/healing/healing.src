@@ -640,7 +640,7 @@ function WashBloody(who, Bloody)
     Amount := GetEffectiveSkill(who, SKILLID_VETERINARY);
   endif
 
-  Amount := CInt(Amount);
+  Amount := CInt(Amount); 
 
   if(!Amount)
     Amount := 1;
