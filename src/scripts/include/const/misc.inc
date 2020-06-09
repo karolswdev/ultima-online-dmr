@@ -132,7 +132,7 @@ const STCAP_TIME_BARIER                := AGE_COUNT * 5; // zaczynajac od 40 lat
 const STCAP_TIME_DIVIDER               := AGE_COUNT * 2; // co 2 lata +1 do statcapa
 const STCAP_ADD_BASE_POINTS            := 10;
 
-const DEFAULT_SKILL_CAP                := 7000;
+const DEFAULT_SKILL_CAP                := 8000;
 const DEFAULT_STAT_CAP                 := 2000;
 const MAX_SKILL_CAP                    := 9000;
 const MAX_STAT_CAP                     := 2250;
