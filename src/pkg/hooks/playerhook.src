@@ -27,6 +27,7 @@ include ":jail:common";
 include ":miracleworker:ritual";
 include ":character:race_validation";
 include ":happyhour:common";
+include ":logging:common";
 
 //-----------------------------------------------------------------------------
 
@@ -448,6 +449,10 @@ function CheckHappyHourTimers(who)
     if(IsHHStarted(who))
       StopHH(who);
       SendSysMessage(who, "Czas zwiekszonej nauki skonczyl sie.", FONT_NORMAL, COLOR_BLUE);
+
+      var parms := { who, LOGTYPE_HH_HAS_ENDED, available };
+      start_script(":logging:log_async", parms);
+
     endif
   endif
   
@@ -467,6 +472,9 @@ function CheckHappyHourTimers(who)
       SendSysMessage(who, "Czas zwiekszonej nauki dobiega konca.", FONT_NORMAL, COLOR_RED);
       SetAvailableHHTime(who, 0);
       
+      var parms := { who, LOGTYPE_HH_HAS_ENDED, available };
+      start_script(":logging:log_async", parms); 
+
       StopHH(who);
     else
       SetAvailableHHTime(who, available);

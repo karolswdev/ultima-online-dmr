@@ -13,6 +13,8 @@ const LOGTYPE_CHEST_NO_NPC_SPAWN := 7;
 // when happy hour gets assigned to all chars
 const LOGTYPE_HAPPYHOUR_DISTRIBUTED := 8;
 const LOGTYPE_NO_DEFINED_ORES := 9;
+const LOGTYPE_HH_START_STOP := 10;
+const LOGTYPE_HH_HAS_ENDED :=11;
 
 // etc.
 
@@ -126,4 +128,39 @@ function LogNoDefinedOresInRegion(parms)
 endfunction
 
 
+function LogHappyHourStartStop(parms)
+    var player := parms[1];
+    var text := parms [3];
+    var availableTimeInSeconds := RealTime(parms [4]) ;
 
+    var logObject := struct;
+
+    logObject["AccountName"] := player.acctname;
+    logObject["PlayerSerial"] := player.serial;
+    logObject["PlayerName"] := player.name;
+    logObject["PlayerText"] := text;
+    logObject["HHTime"] := availableTimeInSeconds;
+
+    logObject["@mt"] := "{PlayerName} (S: {PlayerSerial}/A: {AccountName}) uruchomił funkcje Happy Hour : {PlayerText} (Pozostało czasu:{HHTime})";
+    var res :=LogToSeq(logObject);
+    return res;
+endfunction 
+
+
+function LogHappyHourTimeEnd(parms)
+
+    var player := parms[1];
+    var available := RealTime(parms [3]) ;
+
+    var logObject := struct;
+
+    logObject["AccountName"] := player.acctname;
+    logObject["PlayerSerial"] := player.serial;
+    logObject["PlayerName"] := player.name;
+    logObject["HHTime"] := available;
+
+    logObject["@mt"] := "{PlayerName} (S: {PlayerSerial}/A: {AccountName}) Czas Happy Hour dobiegł końca. Skrypt się zatrzymał (Pozostało czasu:{HHTime})";
+    var res :=LogToSeq(logObject);
+    return res;
+
+endfunction

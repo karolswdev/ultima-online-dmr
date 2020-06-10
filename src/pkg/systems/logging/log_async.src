@@ -37,5 +37,13 @@ program log(parms)
         LogNoDefinedOresInRegion(parms);
     endif
 
+    if(logType == LOGTYPE_HH_START_STOP)
+        LogHappyHourStartStop(parms);
+    endif 
+
+    if(logType == LOGTYPE_HH_HAS_ENDED)
+        LogHappyHourTimeEnd(parms); 
+    endif
+
 endprogram
         

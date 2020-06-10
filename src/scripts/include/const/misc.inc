@@ -128,9 +128,9 @@ const SKCAP_TIME_BARIER                := 0; // zaczynajac od 21 lat (od 3d onli
 const SKCAP_TIME_DIVIDER               := AGE_COUNT / 10; // co 1 rok +10 do skillcapa, dzielone na 10 - w wieku 30 lat dostanie 800.
 const SKCAP_ADD_BASE_POINTS            := 10;
 
-const STCAP_TIME_BARIER                := AGE_COUNT * 5; // zaczynajac od 40 lat
-const STCAP_TIME_DIVIDER               := AGE_COUNT * 2; // co 2 lata +1 do statcapa
-const STCAP_ADD_BASE_POINTS            := 10;
+const STCAP_TIME_BARIER                := AGE_COUNT * 5; // zaczynajac od 25 lat
+const STCAP_TIME_DIVIDER               := AGE_COUNT * 2; // co rok +1 do statcapa
+const STCAP_ADD_BASE_POINTS            := 20;
 
 const DEFAULT_SKILL_CAP                := 8000;
 const DEFAULT_STAT_CAP                 := 2000;
