@@ -10,6 +10,13 @@ function LogToSeq(logStruct, who := 0)
 
     logStruct["@t"] := GetIso8601TimeStamp();
 
+    var serverName := "DebugServer";
+    if(GetGlobalProperty("LogServerName"))
+        serverName := CStr(GetGlobalProperty("LogServerName"));
+    endif
+
+    logStruct["FromServer"] := serverName;
+
     if(!logStruct["@mt"])
         if(who != 0)
             SendSysMessage(who, "No @mt template passed" );

@@ -1,6 +1,8 @@
 
 const PROP_HAPPYHOURSTARTED := "HHLaunched";
 const PROP_HAPPYHOURAVAILABLE := "HHAvailableTime";
+const PROP_GLOBALAPPLIEDTIME := "HHAppliedTime";
+const PROP_LAST_HAPPYHOUR_MEASURED := "LastHHMeasured";
 
 function SetAvailableHHTime(who, timeinSeconds)
 
@@ -27,6 +29,7 @@ endfunction
 function StopHH(who)
 
     EraseObjProperty(who, PROP_HAPPYHOURSTARTED);
+    EraseObjProperty(who, PROP_LAST_HAPPYHOUR_MEASURED);
 
 endfunction
 

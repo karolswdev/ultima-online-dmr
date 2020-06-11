@@ -8,6 +8,7 @@ use os;
 //-----------------------------------------------------------------------------
 
 include "include/logon";
+include ":happyhour:common";
 
 //-----------------------------------------------------------------------------
 
@@ -17,6 +18,11 @@ program OnLogOff(who)
   EraseObjProperty(who, "#LoggingOut");
   SendStaffNotify(EVID_PLAYER_LOGOFF, who);
   CheckLogOff(who);
+
+  if(IsHHStarted(who))
+    StopHH(who);
+  endif
+  
 
 endprogram
 

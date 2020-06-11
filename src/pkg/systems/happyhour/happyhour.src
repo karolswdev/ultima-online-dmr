@@ -26,10 +26,9 @@ program happyHour(Parms)
 
   var Cfg;
 
-  while (1)          
+  while (1)       
     UnloadConfigFile(":happyhour:happyhour");
     Cfg := ReadConfigFile(":happyhour:happyhour");
-
     if(!Cfg)
       LogError("Saver: Nie znaleziono konfiga! :happyhour:happyhour");
       sleep(900);
@@ -43,9 +42,9 @@ program happyHour(Parms)
       curTime := ExtractTimeComponents(polcore().systime);
 
       if (curTime.hour >= StartHour and curTime.hour < Duration or GetGlobalProperty("ForceApplyHH"))
-        var lastHHAppliedTime := CInt(GetGlobalProperty("#HHApplied"));
+        var lastHHAppliedTime := CInt(GetGlobalProperty("HHApplied"));
         if(lastHHAppliedTime > 0)
-          if(ReadGameClock() - lastHHAppliedTime > 86200)
+          if(ReadGameClock() - lastHHAppliedTime > 86400)
             ApplyHappyHourProps();
           endif
         else
@@ -85,6 +84,6 @@ function ApplyHappyHourProps()
   var parms := {count, LOGTYPE_HAPPYHOUR_DISTRIBUTED};
   start_script(":logging:log_async", parms);
 
-  SetGlobalProperty("#HHApplied", ReadGameClock());
+  SetGlobalProperty("HHApplied", ReadGameClock());
 
 endfunction
