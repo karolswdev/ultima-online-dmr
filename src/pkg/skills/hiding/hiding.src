@@ -14,6 +14,11 @@ program Hidding( hider )
   var Points  := GetDefaultPointsValue(SKILLID_HIDING);
   
   var canH := CanHide(hider);
+
+  if(GetObjProperty(hider, "HidingDebug"))
+    PrintTextAbove(hider, "CanHide: " + canH);
+  endif
+
   if(IsBusy(hider,NO_COMBAT_CHECK))
     return;
   endif
@@ -24,6 +29,14 @@ program Hidding( hider )
     // double gain for stat
     if(!GetObjProperty(hider, PROP_NO_FIGHT))
       AwardPoints(hider, SKILLID_HIDING, Points*3);
+    endif
+  endif
+
+  if(GetObjProperty(hider, "HidingDebug"))
+    if(Npc)
+      PrintTextAbove(hider, "Gainable NPC: " + Npc);
+    else
+      PrintTextAbove(hider, "No gainable NPC");
     endif
   endif
 
@@ -82,6 +95,10 @@ program Hidding( hider )
 
     if(!GetObjProperty(hider, PROP_NO_FIGHT))
       AwardPoints(hider, SKILLID_HIDING, Points);
+    else
+        if(GetObjProperty(hider, "HidingDebug"))
+          PrintTextAbove(hider, "PROP_NO_FIGHT was set, no points!");
+        endif
     endif
     
     foreach Enemy in ListHostiles(hider)
