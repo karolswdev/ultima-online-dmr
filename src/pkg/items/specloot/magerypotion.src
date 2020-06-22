@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+use uo;
+
+include "include/tempmods";
+include "include/checks/objchecks";
+
+
+program MageryPotion(who, item)
+     
+  if(!CanSkillMod(who, 25))
+    SendSysMessage(who, "Nie mozesz teraz skorzystac z tej mikstury...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(!StandardItemCheck(who, item)
+    SendSysMessage(who, "Nie mozesz skorzystac z tej mikstury.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(SubtractAmount(item, 1))
+    DoSkillMod(who, 25, 35, 300);
+    PrintTextAbove(who, "*sila magii*", FONT_NORMAL, COLOR_BLUE);
+  endif
+	
+endprogram

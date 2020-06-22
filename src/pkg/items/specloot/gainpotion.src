@@ -1,0 +1,24 @@
+//-----------------------------------------------------------------------------
+use uo;
+
+include "include/tempmods";
+include "include/checks/objchecks";
+
+
+program GainPotion(who, item)
+     
+  if(!YesNo(who, "Na pewno?"))
+	return;
+  endif
+  
+  if(!StandardItemCheck(who, item)
+    SendSysMessage(who, "Nie mozesz skorzystac z tej mikstury.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(SubtractAmount(item, 1))
+    SetObjProperty(who, "SuperGain", 3);
+    PrintTextAbove(who, "*sila nauki*", FONT_NORMAL, COLOR_BLUE);
+  endif
+	
+endprogram

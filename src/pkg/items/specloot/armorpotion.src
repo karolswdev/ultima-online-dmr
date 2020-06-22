@@ -1,0 +1,25 @@
+//-----------------------------------------------------------------------------
+use uo;
+
+include "include/tempmods";
+include "include/checks/objchecks";
+
+
+program MageryPotion(who, item)
+     
+  if(!CanMod(who, MOD_AR))
+    SendSysMessage(who, "Nie mozesz teraz skorzystac z tej mikstury...", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+  
+  if(!StandardItemCheck(who, item)
+    SendSysMessage(who, "Nie mozesz skorzystac z tej mikstury.", FONT_NORMAL, COLOR_RED);
+    return;
+  endif
+
+  if(SubtractAmount(item, 1))
+    DoMod(who, MOD_AR, 45, 360);
+    PrintTextAbove(who, "*sila obrony*", FONT_NORMAL, COLOR_BLUE);
+  endif
+	
+endprogram
