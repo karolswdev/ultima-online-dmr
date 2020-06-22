@@ -11,7 +11,7 @@ program GainPotion(who, item)
 	return;
   endif
   
-  if(!StandardItemCheck(who, item)
+  if(!StandardItemCheck(who, item))
     SendSysMessage(who, "Nie mozesz skorzystac z tej mikstury.", FONT_NORMAL, COLOR_RED);
     return;
   endif
