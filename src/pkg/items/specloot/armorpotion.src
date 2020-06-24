@@ -5,7 +5,7 @@ include "include/tempmods";
 include "include/checks/objchecks";
 
 
-program MageryPotion(who, item)
+program ArmorPotion(who, item)
      
   if(!CanMod(who, MOD_AR))
     SendSysMessage(who, "Nie mozesz teraz skorzystac z tej mikstury...", FONT_NORMAL, COLOR_RED);
@@ -18,7 +18,7 @@ program MageryPotion(who, item)
   endif
 
   if(SubtractAmount(item, 1))
-    DoMod(who, MOD_AR, 45, 360);
+    DoMod(who, MOD_AR, 30, 360);
     PrintTextAbove(who, "*sila obrony*", FONT_NORMAL, COLOR_BLUE);
   endif
 	

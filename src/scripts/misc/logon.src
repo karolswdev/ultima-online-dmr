@@ -36,7 +36,7 @@ program OnLogon(who)
   
   RecalcVitals(who);
 
-  var ProfData := who.acct.GetProp("profile");
+/*  var ProfData := who.acct.GetProp("profile"); */
 
   CheckIps(who);
 
@@ -88,23 +88,23 @@ program OnLogon(who)
   
   // New Years 2018
   if(!GetObjProperty(who, "NY2018"))
-	var hs := CreateItemInPack(who, 0xe34, 1);
-	if(hs)
-		hs.color := 1158;
-		SetName(hs, "Celebracja Nowego Roku");
-		SetObjProperty(hs, "ToolTip", "Nowy Rok to wzrost naszego swiata<br>Zwieksza wybrana umiejetnosc o 1 procent");
-		SetObjProperty(hs, "OwnerSerial", who.serial);
-	endif
-	
-	hs := CreateItemInPack(who, 0xe34, 1);
-	if(hs)
-		hs.color := 1158;
-		SetName(hs, "Celebracja Nowego Roku");
-		SetObjProperty(hs, "ToolTip", "Nowy Rok to wzrost naszego swiata<br>Zwieksza wybrana umiejetnosc o 1 procent");
-		SetObjProperty(hs, "OwnerSerial", who.serial);
-   endif
-   
-   SetObjProperty(who, "NY2018", 1);
+	  var hs := CreateItemInPack(who, 0xe34, 1);
+	  if(hs)
+	  	hs.color := 1158;
+	  	SetName(hs, "Zwoj umiejetnosci");
+	  	SetObjProperty(hs, "ToolTip", "Witamy na Naszym swiecie<br>Zwoj zwieksza wybrana umiejetnosc o 3 procent");
+	  	SetObjProperty(hs, "OwnerSerial", who.serial);
+	  endif
+  
+	  hs := CreateItemInPack(who, 0xe34, 1);
+	  if(hs)
+	  	hs.color := 1158;
+	  	SetName(hs, "Zwoj umiejetnosci");
+	  	SetObjProperty(hs, "ToolTip", "Witamy na Naszym swiecie<br>Zwoj zwieksza wybrana umiejetnosc o 3 procent");
+	  	SetObjProperty(hs, "OwnerSerial", who.serial);
+    endif
+
+    SetObjProperty(who, "NY2018", 1);
    
   endif
   
