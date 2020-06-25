@@ -64,7 +64,7 @@ program BoatControl(param)
   SetObjProperty(boat.tillerman, "#BoatPid", GetPid());
   EnableEvents(EVID_SPEECH, 15);
   RegisterForSpeechEvents(tillerman, 15);
-  var nextencounter := ReadGameClock()+(RandomInt(120) + 120);
+  var nextencounter := ReadGameClock()+(RandomInt(5) + 20);
   var nextsound     := ReadGameClock()+5;
   var driftcounter  := 1;
   var x,y,ev;
@@ -110,7 +110,7 @@ program BoatControl(param)
         DestroyMulti(boat);
       endif
     endif
-    case(state)
+    case(state) 
       STATE_MOVING:     if(ReadGameClock() > nextsound)
                           PlayBoatSounds();
                           nextsound := ReadGameClock()+5;
@@ -156,14 +156,14 @@ program BoatControl(param)
                         while(events_waiting())
                           process_event(wait_for_event(0));
                         endwhile
-      STATE_STATIONARY: ev := wait_for_event(120);
+      STATE_STATIONARY: ev := wait_for_event(30);
                         if(ev)
                           process_event(ev);
                         endif
     endcase
     if(ReadGameClock() > nextencounter)
       CheckRes();
-      nextencounter := ReadGameClock()+120;
+      nextencounter := ReadGameClock()+5;
     endif
     foreach mob in (boat.mobiles)
       if(mob.dead)
@@ -341,8 +341,7 @@ function checkres()
   if(!boat)
     return;
   endif
-  foreach who in  ListMobilesNearLocationEx(boat.x, boat.y, GetMapInfo(boat.x, boat.y,boat.realm).z, 10, LISTEX_FLAG_GHOST,boat.realm)
-    if(who in boat.mobiles)
+  foreach who in  ListMobilesNearLocationEx(boat.x, boat.y, GetMapInfo(boat.x, boat.y,boat.realm).z, 30, LISTEX_FLAG_GHOST,boat.realm)
       x := who.x;
       y := who.y;
       if(YesNo(who,"Wskrzesic?"))
@@ -352,7 +351,7 @@ function checkres()
           Resurrection(who,1);
         endif
       endif
-    endif
+    
   endforeach
 endfunction
 

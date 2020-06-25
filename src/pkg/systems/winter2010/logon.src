@@ -11,45 +11,47 @@ program winter2010_onLogon(who)
 
     if(!prop)
 
-	var item := CreateItemInPack(who, "skillpotion", 1);
-
-	if(item)
-	    SetObjProperty(item, "DestSerial", who.serial);
-	    SetObjProperty(item, "ToolTip", "Magia Zimy");
-	    item.newbie := 1;
-	endif
-
-	item := CreateItemInPack(who, "skillpotion", 1);
-	if(item)
-	    SetObjProperty(item, "ToolTip", "Magia Zimy");
-	    item.newbie := 1;
-	    SetObjProperty(item, "DestSerial", who.serial);
-	endif
-
-	item := CreateItemInPack(who, "skillpotion", 1);
-	if(item)
-	    SetObjProperty(item, "ToolTip", "Magia Zimy");
-	    item.newbie := 1;
-	    SetObjProperty(item, "DestSerial", who.serial);
-	endif
-
-	item := CreateItemInPack(who, "skillpotion", 1);
-	if(item)
-	    SetObjProperty(item, "ToolTip", "Magia Zimy");
-	    item.newbie := 1;
-	    SetObjProperty(item, "DestSerial", who.serial);
-	endif
+		var item := CreateItemInPack(who, "skillpotion", 1);
 	
-	item := CreateItemInPack(who, "skillpotion", 1);
-	if(item)
-	    SetObjProperty(item, "ToolTip", "Magia Zimy");
-	    item.newbie := 1;
-	    SetObjProperty(item, "DestSerial", who.serial);
-	endif
-
-	SetObjProperty(who, "Winter2010SkPotionsGiven", 1);
+		if(item)
+		    SetObjProperty(item, "DestSerial", who.serial);
+		    SetObjProperty(item, "ToolTip", "Przyspiesza nauke");
+		    item.newbie := 1;
+		endif
+	
+		item := CreateItemInPack(who, "skillpotion", 1);
+		if(item)
+		    SetObjProperty(item, "ToolTip", "Przyspiesza nauke");
+		    item.newbie := 1;
+		    SetObjProperty(item, "DestSerial", who.serial);
+		endif
+	
+		item := CreateItemInPack(who, "skillpotion", 1);
+		if(item)
+		    SetObjProperty(item, "ToolTip", "Przyspiesza nauke");
+		    item.newbie := 1;
+		    SetObjProperty(item, "DestSerial", who.serial);
+		endif
+	
+		item := CreateItemInPack(who, "skillpotion", 1);
+		if(item)
+		    SetObjProperty(item, "ToolTip", "Przyspiesza nauke");
+		    item.newbie := 1;
+		    SetObjProperty(item, "DestSerial", who.serial);
+		endif
+		
+		item := CreateItemInPack(who, "skillpotion", 1);
+		if(item)
+		    SetObjProperty(item, "ToolTip", "Przyspiesza nauke");
+		    item.newbie := 1;
+		    SetObjProperty(item, "DestSerial", who.serial);
+		endif
+	
+		SetObjProperty(who, "Winter2010SkPotionsGiven", 1);
 
     endif
+/* ---- Prezent w postaci "deed na fundamenty handlowe"
+
 	var item;
 	var onlineTimer := CInt(GetObjProperty(who, PROP_ONLINETIMER));
 	var flag := GetObjProperty(who, "XmasStallGiven");
@@ -60,5 +62,5 @@ program winter2010_onLogon(who)
 			SetObjProperty(who, "XmasStallGiven", 1);
 		endif
 	endif
-
+*/
 endprogram
