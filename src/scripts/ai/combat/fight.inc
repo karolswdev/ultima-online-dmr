@@ -34,6 +34,8 @@ function Fight(opp)
     return;
   endif
 
+var ResTimer := CInt(GetObjProperty(opp, "ResTimer"));
+
   if(!opp)
     EndFight();
     return;
@@ -46,6 +48,9 @@ function Fight(opp)
       return;
     endif
   elseif(opp.enabled("invul"))
+    EndFight();
+    return;
+  elseif((GetObjProperty(opp, "ResTimer")) and ( (ReadGameClock() + 900 - ResTimer) < 20 ))
     EndFight();
     return;
   endif
