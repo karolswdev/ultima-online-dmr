@@ -58,6 +58,7 @@ program PlayerHook(who)
   CheckMakro(who);
   CheckMurderLongCount(who);
 
+
   /*__NOPVP__  
   if(GetPvPStatus(who) == error)
     if(IsYoung(who))

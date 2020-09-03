@@ -231,6 +231,7 @@ function Stable(player)
     var price := Min(100 + CInt(EvaluateNpcPrice(pet) * 0.5), 5000);
     //var IsAnimal := (GetNpcConfig(pet).script == "animal");
 
+
 	/*
     if(GetGold(player) < price)
       if(!IsAnimal)

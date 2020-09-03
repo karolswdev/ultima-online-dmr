@@ -1663,6 +1663,7 @@ function CheckRestriction()
       var NrNum := 0;
       var MaxTamedCount  := CInt(GetNpcConfig(me).MaxTamedCount);
 
+
       if(MaxTamedCount <= 0)
         MaxTamedCount := MAX_TAMED_COUNT;
       endif

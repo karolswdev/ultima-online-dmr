@@ -25,7 +25,7 @@ program AnimalTaming( who )
   
   if(Malloc(who))
 	return;
-  endif
+  endif 
   
   SetBusyTime(who,GetSkillDelay(SKILLID_TAMING));
   

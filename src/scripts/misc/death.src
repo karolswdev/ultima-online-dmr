@@ -45,7 +45,7 @@ program NpcDeath(corpse)
     endif
   endif
 
-  var Master := FindPlayerBySerial(GetObjProperty(corpse, PROP_MASTER));
+  var Master := FindPlayerBySerial(GetObjProperty(corpse, PROP_MASTER)); 
   if(Master and Template != "playervendor")
     SetObjProperty(corpse, "DeathStatus", __IfElse(Master.murderer, "Murderer", __IfElse(Master.criminal, "Criminal", "Order")));
   endif

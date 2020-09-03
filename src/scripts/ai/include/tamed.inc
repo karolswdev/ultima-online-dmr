@@ -59,6 +59,7 @@ function EraseHappiness(me)
   EraseObjProperty(me,"happiness");
 
 endfunction
+
 //----------------------------------------------------------------------
 
 function GetMaxFollowers(who)
