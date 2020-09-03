@@ -50,6 +50,8 @@ program NpcDeath(corpse)
     SetObjProperty(corpse, "DeathStatus", __IfElse(Master.murderer, "Murderer", __IfElse(Master.criminal, "Criminal", "Order")));
   endif
   
+  GetFollowers(Master);
+
   if(IsPlayer(killer) and killer.cmdlevel)
     LogMsg(KILL_LOG, Killer, corpse);
   endif

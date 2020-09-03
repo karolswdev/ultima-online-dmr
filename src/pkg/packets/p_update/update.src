@@ -1,7 +1,11 @@
 //-----------------------------------------------------------------------------
+use polsys;
+
 
 include ":banking:gold";
 include "include/player/basic";
+include "include/attributes/caps";
+include "ai/include/tamed";
 
 //-----------------------------------------------------------------------------
 
@@ -16,11 +20,84 @@ endprogram
 
 exported function Stats(who, byref Packet)
 
-  var pSerial := Packet.GetInt32(3);
-  var Flag    := Packet.GetInt8(42);
+  var pSerial := Packet.GetInt32(3); // BYTE[4] Player Serial.  3 bo zaczynamy liczenie od 0
+  var Flag    := Packet.GetInt8(42); 
+  //var Name		:= Packet.GetString(who, 7);
 
-  if(pSerial == who.serial and Flag > 0)
-    Packet.SetInt32(58, GetGold(who));
+  	//print("Flaga to " + Flag);
+	//print ("obrona na zimno " + who.resist_cold);
+	//print ("obrona na ogien " + Name + who.resist_fire);
+	
+  if(pSerial == who.serial and Flag > 0)  //	BYTE[4] Player Serial = start from 3 BYTE
+		//Packet.SetString(7,who.name,0);//	BYTE[30] Player Name = start from 7 BYTE
+		//	BYTE[2] Current Hit Points (see notes) = 37 BYTE
+		//	BYTE[2] Max Hit Points (see notes) = 39 BYTE
+		//	BYTE[1] Name Change Flag (see notes) = 41
+		//	BYTE[1] Status Flag (see notes) = 42
+		//	BYTE[1] Sex+Race (see notes) = 43
+		//	BYTE[2] Strength = 44
+		//	BYTE[2] Dexterity = 46
+		//	BYTE[2] Intelligence = 48
+		//	BYTE[2] Current Stamina = 50
+		//	BYTE[2] Max Stamina = 52
+		//	BYTE[2] Current Mana = 54
+		//	BYTE[2] Max Mana = 56
+    	Packet.SetInt32(58, GetGold(who)); 	// BYTE[4] Gold In Pack = 58
+		Packet.SetInt16(62, who.ar );		//	BYTE[2] Armor Rating (physical resistance) = 62
+		//	BYTE[2] Weight = 64
+
+		//	if(flag >= 5)
+
+		//  BYTE[2] Max Weight = 66
+		//  BYTE[1] Race (see notes) = 68
+
+		if(flag >= 3)
+		Packet.SetInt16(69, who.statcap); //	BYTE[2] Stats Cap = 69  GetStatCap(who)
+		Packet.SetInt8(71, who.followers );  // BYTE[1] Followers (Pets) = 71, followers
+		Packet.SetInt8(72, who.followers_max );	// BYTE[1] Followers Max Possible (Pets) = 72, followers_max
+		//print("max followers to " + who.followers_max);
+		print("followersow " + who.followers);
+		endif
+
+		if(Flag >= 4)
+		Packet.SetInt16(73, who.resist_fire );  //	BYTE[2] Fire Resist (see notes) = 73, who.resist_fire
+		Packet.SetInt16(75, who.resist_cold);	//	BYTE[2] Cold Resist (see notes) = 75, who.resist_cold
+		Packet.SetInt16(77, who.resist_poison);	//	BYTE[2] Poison Resist (see notes) = 77, who.resist_poison
+		Packet.SetInt16(79, who.resist_energy);	//	BYTE[2] Energy Resist (see notes) = 79, who.resist_energy
+		//	BYTE[2] Luck = 81
+		//	BYTE[2] Damage Minimum = 83
+		//	BYTE[2] Damage Maximum = 85
+		//	BYTE[4] Tithing points (Paladin Books) = 87
+		endif
+		
+//	if(Flag >= 6)
+
+		//   BYTE[2] Hit Chance Increase = 91
+		//   BYTE[2] Swing Speed Increase = 93
+		//   BYTE[2] Damage Chance Increase = 95
+		//   BYTE[2] Lower Reagent Cost = 97
+		//   BYTE[2] Hit Points Regeneration = 99
+		//   BYTE[2] Stamina Regeneration = 101
+		//   BYTE[2] Mana Regeneration = 103
+		//   BYTE[2] Reflect Physical Damage = 105
+		//   BYTE[2] Enhance Potions = 107
+		//   BYTE[2] Defense Chance Increase = 109
+		//   BYTE[2] Spell Damage Increase = 111
+		//   BYTE[2] Faster Cast Recovery = 113
+		//   BYTE[2] Faster Casting = 115
+		//   BYTE[2] Lower Mana Cost = 117
+		//   BYTE[2] Strength Increase = 119
+		//   BYTE[2] Dexterity Increase = 121
+		//   BYTE[2] Intelligence Increase = 123
+		//   BYTE[2] Hit Points Increase = 125
+		//   BYTE[2] Stamina Increase = 127
+		//   BYTE[2] Mana Increase = 129
+		//   BYTE[2] Maximum Hit Points Increase = 131
+		//   BYTE[2] Maximum Stamina Increase = 133
+		//   BYTE[2] Maximum Mana Increase = 135
+	//	endif
+
+
   endif
 
   return 0;

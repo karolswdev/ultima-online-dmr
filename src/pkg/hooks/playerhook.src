@@ -28,6 +28,7 @@ include ":miracleworker:ritual";
 include ":character:race_validation";
 include ":happyhour:common";
 include ":logging:common";
+include "ai/include/tamed";
 
 //-----------------------------------------------------------------------------
 
@@ -87,6 +88,8 @@ program PlayerHook(who)
     CheckYoung(who);
     CheckTimers(who);
     CheckDelayedMaxSkill(who);
+    CheckMaxFollowers(who);
+    CheckFollowers(who);
     
     if(GetObjProperty(who, PROP_REGENERATIONEND) and GetObjProperty(who, PROP_REGENERATIONEND) < ReadGameClock())
       FinishRitual(who);
@@ -660,7 +663,19 @@ function CheckHairs(who)
 
 endfunction
 
+//-------------------------------------------------------------------------------
+
+function CheckMaxFollowers(who)
+  who.followers_max := GetMaxFollowers(who) ;
+endfunction
+
 //-----------------------------------------------------------------------------
+
+function CheckFollowers(who)
+who.followers := GetFollowers(who);
+endfunction
+
+//-------------------------------------------------------------------------
 
 function ChangeHairs(who, Race)
 
