@@ -7,7 +7,7 @@ include "include/attributes/npcs";
 include "include/objtypes/misc";
 include "include/checks/stdchecks";
 include "include/mobile/tamed";
-
+include "include/mount";
 include "ai/include/abilities";
 
 //-----------------------------------------------------------------------------
@@ -20,12 +20,13 @@ const HIGH_HAPPY_LVL         := 18;
 const MAX_HAPPY_LVL          := 20;
 
 const NPCF_TAMED_CGUARD      := 0x00001000;
-
+const PROP_TAMEDLIST         := "TAMED_SERS";
 const MOUNT_EXPTIME          := 345600;
-
+const MAX_TAMED_COUNT        := 10;
 const JUKA_MIN_SKVAL         := 60;
 
 const PROP_TAMERS_LIST       := "TamersList";
+const MF_ONLYONE             := 0x0020;
 
 //-----------------------------------------------------------------------------
 
@@ -59,7 +60,129 @@ function EraseHappiness(me)
 
 endfunction
 
+//----------------------------------------------------------------------
+
+function GetMaxFollowers(who)
+
+  var Taming := GetBaseSkill(who,SKILLID_TAMING);
+  var AnimalLore := GetBaseSkill(who, SKILLID_ANIMALLORE);
+  var MaxControlPoints := 0;
+  var TamingMod := GetSkillTemporaryMod(who,SKILLID_TAMING);
+  var AnimalLoreMod := GetSkillTemporaryMod(who,SKILLID_ANIMALLORE);
+
+Taming := Taming + TamingMod;
+AnimalLore := AnimalLore + AnimalLoreMod;
+
+if (Taming < 105)
+  Taming := Taming / 20;
+elseif (Taming >= 105)
+  Taming := 6;
+elseif (Taming >= 120)
+  Taming := 7;
+endif
+
+if (AnimalLore < 105)
+  AnimalLore := AnimalLore / 20;
+elseif (AnimalLore >= 105)
+  AnimalLore := 6;
+elseif (AnimalLore >= 120)
+  AnimalLore := 7;
+endif
+
+  MaxControlPoints := Taming + AnimalLore; 
+ 
+  return CInt(MaxControlPoints);
+endfunction
+
 //-----------------------------------------------------------------------------
+
+function GetFollowers(who)
+
+  CheckPetArray(who);
+
+  var petList := GetObjProperty(who, PROP_TAMEDLIST);
+  var totalControlPoints := 0;
+  
+  foreach petElement in petList
+    totalControlPoints += petElement["ControlPoints"];
+  endforeach  
+ 
+  return Cint(totalControlPoints);
+
+endfunction 
+
+//---------------------------------------------------------------------------------
+
+function FollowersListSize(who)
+
+  return Cint(GetObjProperty(who, PROP_TAMEDLIST).size());
+
+endfunction
+
+//----------------------------------------------------------------------------
+
+function SetTamedSerialNumber(who, pet)
+
+  var petArray := GetObjProperty(who, PROP_TAMEDLIST);
+  var cfgElem  := GetNpcConfig(pet);
+  var ControlPoints  := cfgElem.ControlPoints ;
+
+  if(!GetObjProperty(who, PROP_TAMEDLIST))
+    petArray := {};
+    SetObjProperty(who, PROP_TAMEDLIST, {});
+  endif
+  
+  if (ControlPoints == error) 
+    ControlPoints := 0;
+  endif
+
+  if(! (pet.serial in petArray))  
+    var petArrayEntry := struct;
+
+    petArrayEntry.+serial := pet.serial;
+    petArrayEntry.+ControlPoints := ControlPoints;
+
+    petArray.append(petArrayEntry);    
+  endif
+
+SetObjProperty(who, PROP_TAMEDLIST, petArray);
+
+endfunction
+
+// ------------------------------------------
+
+function CheckPetArray(who)
+
+  var petArray := GetObjProperty(who, PROP_TAMEDLIST);
+
+  if(!GetObjProperty(who, PROP_TAMEDLIST))
+    petArray := {};
+    SetObjProperty(who, PROP_TAMEDLIST, {});
+  endif
+
+  var arrayIndex := 1;
+
+  foreach petEntry in petArray
+ 
+    var pet_serial := petEntry["serial"];
+    var pet := SystemFindObjectBySerial( pet_serial);
+    var IsMaster := (GetObjProperty(pet, PROP_MASTER) );
+    var obj_from_array := SystemFindObjectBySerial( pet_serial, SYSFIND_SEARCH_OFFLINE_MOBILES );
+    
+    if ((obj_from_array.npcTemplate == error) or (IsMaster != who.serial ))
+      petArray.erase(arrayIndex);
+    endif
+
+    if (arrayIndex <= petArray.size())
+      arrayIndex += 1;
+    endif
+    sleepms(50);
+  endforeach
+  
+  SetObjProperty(who, PROP_TAMEDLIST, petArray);
+endfunction
+
+//------------------------------------------------------------------------------
 
 function CheckHappinessCounter(me, mount := 0)
 
@@ -192,7 +315,7 @@ function AddTamedCounter(critter, who, Amt := 1)
   endif
 
   var List := GetTamersList(critter);
-  
+
   List[who.serial] := CInt(List[who.serial]) + Amt;
 
   SetObjProperty(critter, PROP_TAMERS_LIST, List);
@@ -340,7 +463,7 @@ function UnTame(critter, utType := 0)
   EraseObjProperty(critter,"#Following");
   EraseObjProperty(critter,"#Followed");
   RestartScript(critter);
-  
+  GetFollowers(Master);
 endfunction
 
 //-----------------------------------------------------------------------------
@@ -353,6 +476,8 @@ function CanControlTamed(npctemplate, newmaster)
 
   var cfgElem := GetNpcConfig(npctemplate);
   var tameskill := cfgElem.tameskill;
+  var ControlPoints  := Cint(cfgElem.ControlPoints);
+
 
   if(!cfgElem.tameanyctrl)
     if(tameskill > 100)
@@ -366,6 +491,14 @@ function CanControlTamed(npctemplate, newmaster)
     endif
   endif
   
+  if (FollowersListSize(newmaster) >= MAX_TAMED_COUNT)
+    return;
+  endif
+
+  if ((FollowersListSize(newmaster) <= MAX_TAMED_COUNT) and ((GetFollowers(newmaster) + ControlPoints) > GetMaxFollowers(newmaster)))
+    return;  
+  endif
+
   var ReqSkill := cfgElem.ReqSkill;
 
   if(ReqSkill)
@@ -503,5 +636,56 @@ function GetHungry(hungry)
   return status;
 
 endfunction
+//-----------------------------------------------------------------------------
 
+function MountSleep()
+
+  var mount := GetEquipmentByLayer(_MeMaster, LAYER_MOUNT);
+  var OnMount := 0;
+  if(mount)
+    DisableMainEvents();
+
+    if(!IsLoggedIn(_MeMaster))
+      MountWaitForLogon();
+    endif
+
+    clear_event_queue();
+
+    while(me and GetObjProperty(me, PROP_MOUNTING))
+
+      if(!mount)
+        mount := GetEquipmentByLayer(_MeMaster, LAYER_MOUNT);
+      endif
+
+      if(CheckHappinessCounter(me, mount))
+        DisMount(_MeMaster);
+        EraseObjProperty(me, PROP_MOUNTING);
+        Release();
+        break;
+      endif
+
+      ev := wait_for_event(30);
+
+      case(ev.type)
+        EVID_MOUNT_LOGOFF:  MountWaitForLogon();
+      endcase
+
+      if(!_MeMaster)
+        _MeMaster := GetMaster(me);
+      endif
+
+      if(!IsLoggedIn(_MeMaster))
+        MountWaitForLogon();
+      endif
+
+    endwhile
+
+    EnableMainEvents();
+    OnMount := 1;
+    
+  endif
+  return OnMount;
+  EraseObjProperty(me, PROP_MOUNTING);
+
+endfunction
 //-----------------------------------------------------------------------------

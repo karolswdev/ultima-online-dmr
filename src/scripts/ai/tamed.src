@@ -30,7 +30,7 @@ const HALT_THRESHOLD    := 15;
 const FENCE_EAT_TIME    := 900;
 const FREE_TIME         := 1800;
 const FREE_TIME_RANGE   := 20;
-const MAX_TAMED         := 10;
+
 const ENVIOUS_INTERVAL  := 3;
 const ENVIOUS_MAX_COUNT := 10;
 
@@ -40,7 +40,7 @@ const MF_RESTMODE       := 0x0001;
 const MF_SMARTRUN       := 0x0002;
 const MF_HEALING        := 0x0004;
 const MF_ENDURANCE      := 0x0008;
-const MF_ONLYONE        := 0x0020;
+
 const MF_PATH_GAIN      := 0x0040;
 const MF_ARCHER         := 0x8000;
 
@@ -274,7 +274,7 @@ program TamedAI()
     if(guarding)
       Guard();
     endif
-
+    
     if(following != 0)
       if(!GetObjProperty(me,"#Following"))
         EndFight();
@@ -602,6 +602,7 @@ function ProcessSpeech(who,text)
       AllCommand(EVID_ALL_GUARD_CMD,NewGuard);
     endif
   elseif(text["uwalniam was"] or text[lower(me.name) + " uwalniam cie"] or text["uwalniam wszystkich"])
+    GetFollowers(who);
     if(CheckLineOfSight(_MeMaster, me) and Distance(_MeMaster, me) < 5)
       Release();
     endif
@@ -1479,6 +1480,7 @@ function TransferTo(NewMaster)
       EndGuardCorpse();
       SetObjProperty(me.backpack, PROP_OWNER, _MeMaster.serial);
       SetObjProperty(me, PROP_MASTER, _MeMaster.serial);
+      SetTamedSerialNumber(NewMaster, me);
     else
       Say("*zwierze odmawia posluszenstwa*");
     endif
@@ -1661,8 +1663,9 @@ function CheckRestriction()
       var NrNum := 0;
       var MaxTamedCount  := CInt(GetNpcConfig(me).MaxTamedCount);
 
+
       if(MaxTamedCount <= 0)
-        MaxTamedCount := MAX_TAMED;
+        MaxTamedCount := MAX_TAMED_COUNT;
       endif
 
       foreach mob in ListMobilesNearLocation(me.x,me.y,me.z,12,me.realm)
@@ -1674,11 +1677,15 @@ function CheckRestriction()
       if(mountNpcTemp and me.serial != mountSerial)
         NrNum := NrNum + 1;
       endif
+      
+      if (!CanControlTamed(mountNpcTemp, _MeMaster))
+        Envious := 1;
+      endif
 
       if(NrNum >= MaxTamedCount)
         Envious := 1;
       endif
-
+     
     endif
 
     if(Envious)
@@ -1689,7 +1696,7 @@ function CheckRestriction()
         Release(1);
       else
         if(Modulo(gEnviousCount, 2) == 1)
-          Say("*zazdrosny*");
+          Say("*Probuje uciec*");
         endif
       endif
     elseif(gEnviousCount > 0)
@@ -1742,56 +1749,7 @@ function PutOffJuka()
 
 endfunction
 
-//-----------------------------------------------------------------------------
 
-function MountSleep()
-
-  var mount := GetEquipmentByLayer(_MeMaster, LAYER_MOUNT);
-
-  if(mount)
-    DisableMainEvents();
-
-    if(!IsLoggedIn(_MeMaster))
-      MountWaitForLogon();
-    endif
-
-    clear_event_queue();
-
-    while(me and GetObjProperty(me, PROP_MOUNTING))
-
-      if(!mount)
-        mount := GetEquipmentByLayer(_MeMaster, LAYER_MOUNT);
-      endif
-
-      if(CheckHappinessCounter(me, mount))
-        DisMount(_MeMaster);
-        EraseObjProperty(me, PROP_MOUNTING);
-        Release();
-        break;
-      endif
-
-      ev := wait_for_event(30);
-
-      case(ev.type)
-        EVID_MOUNT_LOGOFF:  MountWaitForLogon();
-      endcase
-
-      if(!_MeMaster)
-        _MeMaster := GetMaster(me);
-      endif
-
-      if(!IsLoggedIn(_MeMaster))
-        MountWaitForLogon();
-      endif
-
-    endwhile
-
-    EnableMainEvents();
-  endif
-
-  EraseObjProperty(me, PROP_MOUNTING);
-
-endfunction
 
 //-----------------------------------------------------------------------------
 

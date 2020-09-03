@@ -146,6 +146,7 @@ function Load_Ticket_Data(player, ticket)
 	SetHappiness(newpet, MAX_HAPPY_LVL);
 	PrintTextAbove(newpet, "*szczesliwe*");
     Say("Opiekuj sie nim, i nie zapominaj go karmic!");
+    SetTamedSerialNumber(player, newpet);
     return 1;
   endif
 
@@ -228,7 +229,8 @@ function Stable(player)
     endif
 
     var price := Min(100 + CInt(EvaluateNpcPrice(pet) * 0.5), 5000);
-    var IsAnimal := (GetNpcConfig(pet).script == "animal");
+    //var IsAnimal := (GetNpcConfig(pet).script == "animal");
+
 
 	/*
     if(GetGold(player) < price)
@@ -257,6 +259,7 @@ function Stable(player)
     EraseObjProperty(ev.pet, "#IsStabling");
   endif
 
+GetFollowers(player);
 endfunction
 
 //-----------------------------------------------------------------------------

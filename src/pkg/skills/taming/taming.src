@@ -25,7 +25,7 @@ program AnimalTaming( who )
   
   if(Malloc(who))
 	return;
-  endif
+  endif 
   
   SetBusyTime(who,GetSkillDelay(SKILLID_TAMING));
   
@@ -36,7 +36,7 @@ program AnimalTaming( who )
   var ReqSkill   := cfgElem.ReqSkill;
   var AnimalDiff := Cint(TameSkill - 20);
   var TamePoints := GetDefaultPointsValue(SKILLID_TAMING);
-  
+ 
   if(AnimalDiff < 0)
     AnimalDiff := 0;
   endif
@@ -72,6 +72,11 @@ program AnimalTaming( who )
     return;
   endif
   
+  if (!CanControlTamed(creature, who))
+    SendSysMessage(who, "Nie jestes w stanie kontrolowac wiecej stworzen", FONT_NORMAL,COLOR_RED);
+    return;
+  endif
+
   if(ReqSkill)
     ReqSkill := SplitWords(ReqSkill);
     if(GetBaseSkill(who, CInt(ReqSkill[1])) < CInt(ReqSkill[2]))
@@ -154,6 +159,7 @@ program AnimalTaming( who )
       Tame(creature, who, MAX_HAPPY_LVL);
     endif
 
+    SetTamedSerialNumber(who, creature); 
     SendQuestEvent(who, EVQID_SKILL, SKILLID_TAMING, creature);
   else
     SendSysmessage (who, "Nie udalo Ci sie oswoic tego stworzenia.",FONT_NORMAL,COLOR_RED);
