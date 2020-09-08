@@ -75,18 +75,18 @@ AnimalLore := AnimalLore + AnimalLoreMod;
 
 if (Taming < 105)
   Taming := Taming / 20;
+elseif (Taming >= 115)
+  Taming := 7;
 elseif (Taming >= 105)
   Taming := 6;
-elseif (Taming >= 120)
-  Taming := 7;
 endif
 
 if (AnimalLore < 105)
   AnimalLore := AnimalLore / 20;
+elseif (AnimalLore >= 115)
+  AnimalLore := 7;
 elseif (AnimalLore >= 105)
   AnimalLore := 6;
-elseif (AnimalLore >= 120)
-  AnimalLore := 7;
 endif
 
   MaxControlPoints := Taming + AnimalLore; 
