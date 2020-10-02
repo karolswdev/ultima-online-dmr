@@ -71,7 +71,7 @@ program BlacksmithyCraftItem(Params)
   var IterData := DefineCraftIterations(who, gMainSkId, CraftData.iters, Materials);
 
   while(CraftIteration(who, IterData))
-
+  
     if(!CraftItem(who, hammer, Cont, Anvil, CraftData.objtype, IterData, Materials))
       FinishCraftIteration(who, IterData);
       break;
@@ -139,6 +139,10 @@ function CraftItem(who, hammer, Cont, Anvil, ObjType, byref IterData, byref Mate
   var NewName       := "";
   var TheItem;
   var IngotMod      := Cint(MatCfg[Materials.mainObj].ArMod);
+  var FireResist    := Cint(MatCfg[Materials.mainObj].FireResist);
+  var ColdResist    := Cint(MatCfg[Materials.mainObj].ColdResist);
+  var EnergyResist  := Cint(MatCfg[Materials.mainObj].EnergyResist);
+  var PoisonResist  := Cint(MatCfg[Materials.mainObj].PoisonResist);
   var IngotSkill    := CInt(MatCfg[Materials.mainObj].Skill);
   var ReqSkill      := CInt(MatCfg[Materials.mainObj].ReqSkill);
   var ProdAmount    := 1;
@@ -150,7 +154,7 @@ function CraftItem(who, hammer, Cont, Anvil, ObjType, byref IterData, byref Mate
   endif
 
   var Res := CheckCraftMaterials(Materials, ProdAmount);
-  
+ 
   if(!Res)
     SendSysMessage(who, Res.errortext, FONT_NORMAL, COLOR_RED);
     SendCraftMaterialList(who, Materials);
@@ -189,76 +193,107 @@ function CraftItem(who, hammer, Cont, Anvil, ObjType, byref IterData, byref Mate
   ExpMod := ExpMod + CheckItemQuality(hammer);
   
   MySkill  := Cint(MySkill / 10);
-  
+ 
   var itemLoops := 1;
-  
+
   var doubleProduce := GetGlyphMod(who, "DoubleProduce");
   
   if(HaveChance(doubleProduce))
 	PrintTextAbove(who, "*cud, cud, podwojny wyrob!", FONT_NORMAL, COLOR_GREEN);
 	itemLoops := 2;
-   endif
+  endif
    
    
    
-   while(itemLoops > 0)
+  while(itemLoops > 0)
 
 	  TheItem := CreateItemInCont(cont, ObjType, 1, who);
 	  
 	  if(TheItem)
-		NewName := GetDescForItem(ObjType) + " " + GetDpsType(Materials.mainObj) + " " + GetDps(Materials.mainObj,ObjType);
-		TheItem.color := Materials.mainColor;
+		  NewName := GetDescForItem(ObjType) + " " + GetDpsType(Materials.mainObj) + " " + GetDps(Materials.mainObj,ObjType);
+		  TheItem.color := Materials.mainColor;
 
-		var ExpData := CraftExceptional(who, gMainSkId, ExpMod, CraftLevel);
-		
-		if(ExpData.makeExp)
-		  var AlMod := CInt(GetEffectiveSkill(who, gMainSkId) / 5) * 0.01;
-		  SetItemQuality(TheItem, EXP_QUALITY_MULTIPLIER - (0.2 - AlMod));
-		  SendSysMessage(who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" wyjatkowej jakosci przedmiot i wlozyl"+ggm(who, 3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
-		  if(ExpData.makeNamed)
-			NewName := EXP_ITEM_NAME + " " + NewName + " [wykonal"+ggm(who, 4)+" " + GetRealName(who) + "]";
+		  var ExpData := CraftExceptional(who, gMainSkId, ExpMod, CraftLevel);
+		  var MatsAmount :=MaterialAmountForResist(Materials);
+      var BaseFireResistPoints := Cint(MatsAmount * FireResist);
+      var BaseColdResistPoints := Cint(MatsAmount * ColdResist);
+      var BasePoisonResistPoints := Cint(MatsAmount * PoisonResist);
+      var BaseEnergyResistPoints := Cint(MatsAmount * EnergyResist);
+
+		  if(ExpData.makeExp)
+		   var AlMod := CInt(GetEffectiveSkill(who, gMainSkId) / 5) * 0.01;
+
+		   SetItemQuality(TheItem, EXP_QUALITY_MULTIPLIER - (0.2 - AlMod));
+        BaseFireResistPoints := BaseFireResistPoints * 0.3 + BaseFireResistPoints;
+        BaseColdResistPoints := BaseColdResistPoints * 0.3 + BaseColdResistPoints;
+        BasePoisonResistPoints := BasePoisonResistPoints * 0.3 + BasePoisonResistPoints;
+        BaseEnergyResistPoints := BaseEnergyResistPoints * 0.3 + BaseEnergyResistPoints;
+
+		    SendSysMessage(who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" wyjatkowej jakosci przedmiot i wlozyl"+ggm(who, 3)+" go do plecaka.",FONT_NORMAL,COLOR_BLUE);
+		    if(ExpData.makeNamed)
+			    NewName := EXP_ITEM_NAME + " " + NewName + " [wykonal"+ggm(who, 4)+" " + GetRealName(who) + "]";
+		    else
+			    NewName := EXP_ITEM_NAME + " " + NewName;
+		    endif
+       
+		  elseif(RandomInt(100) >= MySkill)
+		    SendSysMessage( who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" przedmiot sredniej jakosci.",FONT_NORMAL, COLOR_ORANGE);
+		    case((RandomInt(3)+1))
+			  1: SetItemQuality(theitem, 0.7);
+			  2: SetItemQuality(theitem, 0.8);
+			  3: SetItemQuality(theitem, 0.9);
+		    endcase
 		  else
-			NewName := EXP_ITEM_NAME + " " + NewName;
-		  endif
-		elseif(RandomInt(100) >= MySkill)
-		  SendSysMessage( who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" przedmiot sredniej jakosci.",FONT_NORMAL, COLOR_ORANGE);
-		  case((RandomInt(3)+1))
-			1: SetItemQuality(theitem, 0.7);
-			2: SetItemQuality(theitem, 0.8);
-			3: SetItemQuality(theitem, 0.9);
-		  endcase
-		else
 		  SendSysMessage( who, GetCraftIterDesc(IterData)+" Wykul"+ggm(who, 3)+" przedmiot i wlozyl"+ggm(who, 3)+" go do plecaka.",FONT_NORMAL,COLOR_GREEN);
 		  SetItemQuality(theitem, 1.0);
-		endif
+		  endif
 
-		SetName(TheItem,NewName);
+		  SetName(TheItem,NewName);
 		
-		if(expData.inscribe)
-			start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, TheItem});
-		endif
+		  if(expData.inscribe)
+		  	start_script(GetGlyphCustomScript(who, "CustomInscription"), {who, TheItem});
+		  endif
 		
-		if(expData.changeColor)
-			start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, TheItem});
-		endif
-		
-		SetItemHp(TheItem, GetItemMaxHp(TheItem) + CInt(IngotMod/2));
-		if(TheItem.isa(POLCLASS_ARMOR))
-		  TheItem.ar_mod  := IngotMod;
-		elseif(TheItem.isa(POLCLASS_WEAPON))
-		  TheItem.dmg_mod := Cint(IngotMod/2);
-		endif
+		  if(expData.changeColor)
+		  	start_script(GetGlyphCustomScript(who, "ColorChanger"), {who, TheItem});
+	  	endif
 
-		SetMade(who, TheItem, MTYPE_INGOT, IngotMod);
-		AwardPoints(who, gMainSkId, Points, GAIN_RESTRICT, CInt(Skill/10));
-		SendQuestEvent(who, EVQID_ITEM_CREATE, gMainSkId, array(TheItem, Materials.mainObj));
+		  SetItemHp(TheItem, GetItemMaxHp(TheItem) + CInt(IngotMod/2));
+
+		  if(TheItem.isa(POLCLASS_ARMOR))
+		    TheItem.ar_mod  := IngotMod;
+
+        if(FireResist > 0)
+          TheItem.resist_fire_mod := Cint(BaseFireResistPoints/30);
+        endif
+
+        if (ColdResist > 0)
+          TheItem.resist_cold_mod := Cint(BaseColdResistPoints/30);
+        endif
+
+        if (PoisonResist > 0 )
+           TheItem.resist_poison_mod := Cint(BasePoisonResistPoints/30);
+        endif
+
+        if (EnergyResist > 0)
+          TheItem.resist_energy_mod := Cint(BaseEnergyResistPoints/30);
+        endif
+
+		  elseif(TheItem.isa(POLCLASS_WEAPON))
+		    TheItem.dmg_mod := Cint(IngotMod/2);
+		  endif
+
+		  SetMade(who, TheItem, MTYPE_INGOT, IngotMod);
+		  AwardPoints(who, gMainSkId, Points, GAIN_RESTRICT, CInt(Skill/10));
+		  SendQuestEvent(who, EVQID_ITEM_CREATE, gMainSkId, array(TheItem, Materials.mainObj));
+    
 	  else
-		SendSysMessage(who, "Wiecej przedmiotow nie zmiesci Ci sie w plecaku.",FONT_NORMAL,COLOR_RED);
-		return 0;
+		  SendSysMessage(who, "Wiecej przedmiotow nie zmiesci Ci sie w plecaku.",FONT_NORMAL,COLOR_RED);
+		  return 0;
 	  endif
 	  
-	itemLoops := itemLoops - 1;
-	  
+	  itemLoops := itemLoops - 1;
+
   endwhile
 
   return 1;
