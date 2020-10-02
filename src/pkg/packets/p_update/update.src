@@ -57,7 +57,6 @@ exported function Stats(who, byref Packet)
 		Packet.SetInt8(71, who.followers );  // BYTE[1] Followers (Pets) = 71, followers
 		Packet.SetInt8(72, who.followers_max );	// BYTE[1] Followers Max Possible (Pets) = 72, followers_max
 		//print("max followers to " + who.followers_max);
-		print("followersow " + who.followers);
 		endif
 
 		if(Flag >= 4)
@@ -71,32 +70,41 @@ exported function Stats(who, byref Packet)
 		//	BYTE[4] Tithing points (Paladin Books) = 87
 		endif
 		
-//	if(Flag >= 6)
-
-		//   BYTE[2] Hit Chance Increase = 91
-		//   BYTE[2] Swing Speed Increase = 93
-		//   BYTE[2] Damage Chance Increase = 95
-		//   BYTE[2] Lower Reagent Cost = 97
-		//   BYTE[2] Hit Points Regeneration = 99
-		//   BYTE[2] Stamina Regeneration = 101
-		//   BYTE[2] Mana Regeneration = 103
-		//   BYTE[2] Reflect Physical Damage = 105
-		//   BYTE[2] Enhance Potions = 107
-		//   BYTE[2] Defense Chance Increase = 109
-		//   BYTE[2] Spell Damage Increase = 111
-		//   BYTE[2] Faster Cast Recovery = 113
-		//   BYTE[2] Faster Casting = 115
-		//   BYTE[2] Lower Mana Cost = 117
-		//   BYTE[2] Strength Increase = 119
-		//   BYTE[2] Dexterity Increase = 121
-		//   BYTE[2] Intelligence Increase = 123
-		//   BYTE[2] Hit Points Increase = 125
-		//   BYTE[2] Stamina Increase = 127
-		//   BYTE[2] Mana Increase = 129
-		//   BYTE[2] Maximum Hit Points Increase = 131
-		//   BYTE[2] Maximum Stamina Increase = 133
-		//   BYTE[2] Maximum Mana Increase = 135
-	//	endif
+		//if(Flag >= 6)
+//
+		//Packet.SetInt16(91, 91); //  max Physical Resistance -- BYTE[2]  = 91 
+		//Packet.SetInt16(93, 93);//   max Fire Resistance -- BYTE[2]  = 93 
+		//Packet.SetInt16(95, 95);//   max Cold Resistance -- BYTE[2] = 95   
+		//Packet.SetInt16(97, 97);//   max Poison Resistance -- BYTE[2]  = 97
+		//Packet.SetInt16(99, 99);//   max energy Resistance -- BYTE[2]  = 99
+		//Packet.SetInt16(101, 101);//  Defense Chance Increase --  BYTE[2]  = 101  Defense Chance Increase
+		//Packet.SetInt16(103, 103);//   max Defense Chance Increase -- BYTE[2]  = 103
+		//Packet.SetInt16(105, 105);//   Hit Chance Increase -- BYTE[2]  = 105 Hit Chance Increase
+		//Packet.SetInt16(107, 107);//   Swing Speed Incrace -- BYTE[2]  = 107 Swing Speed Increase
+		//Packet.SetInt16(109, 109);//   Weapon Damage Increase -- BYTE[2]  = 109 Damage Chance Increase
+		//Packet.SetInt16(111, 111);//   Lower Reagent Cost -- BYTE[2]  = 111  Lower Reagent Cost
+		//Packet.SetInt16(113, 113);//   Spell Damage Increase -- BYTE[2]  = 113  Spell Damage Increase
+		//Packet.SetInt16(115, 115);//   Faster Cast Recovery -- BYTE[2]  = 115  Faster Cast Recovery
+		//Packet.SetInt16(117, 117);//   Faster Casting -- BYTE[2]  = 117  Faster Casting
+		//Packet.SetInt16(119, 119);//   Lower Mana Cost -- BYTE[2]  = 119  Lower Mana Cost
+		//Packet.SetInt16(121, 121);//   ?? -- BYTE[2] Dexterity Increase = 121
+		//Packet.SetInt16(123, 123);//   ?? -- BYTE[2] Intelligence Increase = 123
+		//Packet.SetInt16(125, 125);//   ?? -- BYTE[2] Hit Points Increase = 125
+		//Packet.SetInt16(127, 127);//   ?? -- BYTE[2] Stamina Increase = 127
+		//Packet.SetInt16(129, 129);//   ?? -- BYTE[2] Mana Increase = 129
+		//Packet.SetInt16(131, 131);//   ?? -- BYTE[2] Maximum Hit Points Increase = 131
+		//Packet.SetInt16(133, 133);//   ?? -- BYTE[2] Maximum Stamina Increase = 133
+		//Packet.SetInt16(135, 135);//   ?? -- BYTE[2] Maximum Mana Increase = 135
+		
+		//zostały niewiadome
+		//Hit Chance Increase
+		//Hit Points Regeneration
+		//Stamina Regeneration
+		//Mana Regeneration
+		//Reflect Physical Damage
+		//Enhance Potions
+		//Strength Increase
+		//endif
 
 
   endif

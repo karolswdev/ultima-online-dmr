@@ -56,8 +56,8 @@ program EquipIt(who, item)
     endif
   endif
   
-  if(!who.isa(POLCLASS_NPC) and !who.cmdlevel)
-
+  if(!who.isa(POLCLASS_NPC) and who.cmdlevel <= 1)
+ 
     if(IsSetTempFlag(Item, ITEMF_NO_EQUIP))
       return 0;
     endif
@@ -71,12 +71,12 @@ program EquipIt(who, item)
     var Hand1 := GetEquipmentByLayer(who,LAYER_HAND1);
     var Hand2 := GetEquipmentByLayer(who,LAYER_HAND2);
 	
-	var mount := HaveMount(who);
+	  var mount := HaveMount(who);
 	
-	if(ItemCfg[item.objtype].NoMount && mount)
-		SendBad(who, "Ciezko Ci bedzie z tym na wierzchowcu");
-		return 0;
-	endif
+	  if(ItemCfg[item.objtype].NoMount && mount)
+	  	SendBad(who, "Ciezko Ci bedzie z tym na wierzchowcu");
+		  return 0;
+	  endif
 
     if(item.isa(POLCLASS_SPELLBOOK))
       if(IsLoggedIn(who))

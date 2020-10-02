@@ -277,6 +277,32 @@ function GetCraftMaterialList(byref Materials)
 
 endfunction
 
+//----------------------------------------------------------------------
+function MaterialAmountForResist(byref Materials)
+  var MaterialArray := GetCraftMaterialList(Materials);
+  var totalMaterials := 0;
+  var arrayIndex := 1;
+ 
+
+  foreach Material in (Materials.items)
+   var MaterialAmount := Material["amount"];
+
+    if (arrayIndex >= 2)  
+      MaterialAmount := MaterialAmount / 2;
+    endif
+
+    totalMaterials += MaterialAmount;
+
+    if (arrayIndex <= MaterialArray.size())
+      arrayIndex += 1;
+    endif
+    sleepms(50);
+  endforeach  
+
+  return Cint(totalMaterials);
+
+endfunction 
+
 //-----------------------------------------------------------------------------
 
 function SendCraftMaterialList(who, byref Materials)

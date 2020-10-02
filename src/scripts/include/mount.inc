@@ -166,6 +166,7 @@ function GetMount(master, me)
   
   if(hand1Item)
 	if(hand1Item.NoMount)
+    SendSysMessage(master,"Nie mozesz wsiasc z tym w reku.",FONT_NORMAL,COLOR_RED);
 		return 0;
 	endif
   endif
@@ -174,6 +175,7 @@ function GetMount(master, me)
   
   if(hand2Item)
 	if(hand2Item.NoMount)
+    SendSysMessage(master,"Nie mozesz wsiasc z tym w reku.",FONT_NORMAL,COLOR_RED);
 		return 0;
 	endif
   endif

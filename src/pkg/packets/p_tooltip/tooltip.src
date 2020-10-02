@@ -55,18 +55,7 @@ exported function MegaCliloc( who, byref packet )
 		// display right for some reason.
 		// If you want to change the color of the Object's name.
 		// Use this. 
-   Object_Name[1] := Upper(Object_Name[1]);
-   Object_Name := CAscZ(Object_Name);
-	 //Object_Name := CAscZ("<BASEFONT COLOR=#" + Text_Color + ">" + Object_Name + "</FONT>");
-
-
-		packet.SetInt32(OFFSET_CLILOC_ID, 1042971);
-		packet.SetUnicodeString(OFFSET_UNICODE_TEXT, Object_Name, 1);
-		// I've noticed that this packet is only sent if this value has changed
-		// from the last time it was checked. And using html to change the size doesn't work
-		// for some reason. Maybe a core/client issue?
-		packet.SetInt16(OFFSET_LENGTH_ID, Object_Name.Size() * 2);
-
+    Object_Name[1] := Upper(Object_Name[1]);   
 
 	
 
@@ -80,7 +69,8 @@ exported function MegaCliloc( who, byref packet )
       endif
 
       if(exp)
-        main_desc := "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
+        Object_Name := "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME+ " " + Object_Name ; // koloruje nazwe i dodaje napis wyjatkowy
+        //main_desc := "<BASEFONT COLOR=#99D9EA>" + EXP_ITEM_NAME + "<br>";
       endif
 
       if( Obj.amount > 1 )
@@ -95,6 +85,7 @@ exported function MegaCliloc( who, byref packet )
       elseif(IsMagicItem(obj))
         Desc := Desc + "Magiczny<br>";
         if(ExPid(GetObjProperty(obj, "#Pid")))
+          Object_Name := "<BASEFONT COLOR=#04bc77>" + Object_Name ; // koloruje nazwe w przypadku magicznego przedmiotu
           Desc := Desc + "<BASEFONT COLOR=#04bc77>Aktywny<br>";
         endif
       endif
@@ -213,6 +204,20 @@ exported function MegaCliloc( who, byref packet )
       endforeach
     endif
 //--------------------------------------------------------------------------
+
+
+   Object_Name := CAscZ(Object_Name);
+	 //Object_Name := CAscZ("<BASEFONT COLOR=#" + Text_Color + ">" + Object_Name + "</FONT>");
+
+
+		packet.SetInt32(OFFSET_CLILOC_ID, 1042971);
+		packet.SetUnicodeString(OFFSET_UNICODE_TEXT, Object_Name, 1);
+		// I've noticed that this packet is only sent if this value has changed
+		// from the last time it was checked. And using html to change the size doesn't work
+		// for some reason. Maybe a core/client issue?
+		packet.SetInt16(OFFSET_LENGTH_ID, Object_Name.Size() * 2);
+
+
     
     if(main_desc and desc)
       Desc := main_desc + "<BASEFONT COLOR=#FFFFFF>" + Desc;
