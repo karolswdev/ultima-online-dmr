@@ -60,10 +60,31 @@ exported function Stats(who, byref Packet)
 		endif
 
 		if(Flag >= 4)
-		Packet.SetInt16(73, who.resist_fire );  //	BYTE[2] Fire Resist (see notes) = 73, who.resist_fire
-		Packet.SetInt16(75, who.resist_cold);	//	BYTE[2] Cold Resist (see notes) = 75, who.resist_cold
-		Packet.SetInt16(77, who.resist_poison);	//	BYTE[2] Poison Resist (see notes) = 77, who.resist_poison
-		Packet.SetInt16(79, who.resist_energy);	//	BYTE[2] Energy Resist (see notes) = 79, who.resist_energy
+
+		if ( who.resist_fire > 0)
+			Packet.SetInt16(73, who.resist_fire );  //	BYTE[2] Fire Resist (see notes) = 73, who.resist_fire
+		else
+			packet.SetInt16(73, 0x10000 + who.Resist_fire );
+		endif
+
+		if ( who.resist_cold > 0)
+			Packet.SetInt16(75, who.resist_cold);	//	BYTE[2] Cold Resist (see notes) = 75, who.resist_cold
+		else
+			Packet.SetInt16(75, 0x10000 + who.resist_cold);
+		endif
+		
+		if (who.resist_poison > 0)
+			Packet.SetInt16(77, who.resist_poison);	//	BYTE[2] Poison Resist (see notes) = 77, who.resist_poison
+		else
+			Packet.SetInt16(77, 0x10000 + who.resist_poison);	
+		endif	
+		
+		if (who.resist_energy > 0)
+			Packet.SetInt16(79, who.resist_energy);	//	BYTE[2] Energy Resist (see notes) = 79, who.resist_energy
+		else
+			Packet.SetInt16(79, 0x10000 + who.resist_energy);
+		endif
+		
 		//	BYTE[2] Luck = 81
 		//	BYTE[2] Damage Minimum = 83
 		//	BYTE[2] Damage Maximum = 85
@@ -97,7 +118,6 @@ exported function Stats(who, byref Packet)
 		//Packet.SetInt16(135, 135);//   ?? -- BYTE[2] Maximum Mana Increase = 135
 		
 		//zostały niewiadome
-		//Hit Chance Increase
 		//Hit Points Regeneration
 		//Stamina Regeneration
 		//Mana Regeneration
