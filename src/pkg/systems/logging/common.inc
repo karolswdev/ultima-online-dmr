@@ -15,6 +15,8 @@ const LOGTYPE_HAPPYHOUR_DISTRIBUTED := 8;
 const LOGTYPE_NO_DEFINED_ORES := 9;
 const LOGTYPE_HH_START_STOP := 10;
 const LOGTYPE_HH_HAS_ENDED := 11;
+const LOGTYPE_REPLACE_FIRE_INGOT := 12;
+const LOGTYPE_NO_REPLACE_FIRE_INGOT := 13;
 
 // etc.
 
@@ -164,3 +166,46 @@ function LogHappyHourTimeEnd(parms)
     return res;
 
 endfunction
+
+
+function LogFireIngotReplace(parms)
+
+    var Ingot := parms[1];
+    var Amount := parms[3];
+    var container := parms[4];
+    
+
+    var logObject := struct;
+
+    logObject["Ingot"] := Ingot;
+    logObject["ContainerSerial"] := container.serial;
+    logObject["Amount"] := Amount;
+    
+
+    logObject["@mt"] := "{Ingot} (S: ContainerSerial/ {ContainerSerial}) wymieniono {Amount} sztab ";
+    var res :=LogToSeq(logObject);
+    return res;
+
+endfunction
+
+function LogNoFireIngotReplace(parms)
+
+     var Ingot := parms[1];
+    var Amount := parms[3];
+    var container := parms[4];
+    
+
+    var logObject := struct;
+
+    logObject["Ingot"] := Ingot;
+    logObject["ContainerSerial"] := container.serial;
+    logObject["Amount"] := Amount;
+    
+
+    logObject["@mt"] := "{Ingot} (S: ContainerSerial/ {ContainerSerial}) Nie udalo sie wymienic {Amount} sztab ";
+    var res :=LogToSeq(logObject);
+    return res;
+
+endfunction
+
+

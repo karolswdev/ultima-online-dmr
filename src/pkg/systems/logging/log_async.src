@@ -45,5 +45,14 @@ program log(parms)
         LogHappyHourTimeEnd(parms); 
     endif
 
+    if(logType == LOGTYPE_REPLACE_FIRE_INGOT)
+        LogFireIngotReplace(parms); 
+    endif
+
+    if(logType == LOGTYPE_NO_REPLACE_FIRE_INGOT)
+        LogNoFireIngotReplace(parms); 
+    endif
+
+
 endprogram
         
