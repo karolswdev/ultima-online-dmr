@@ -73,19 +73,19 @@ function GetMaxFollowers(who)
 Taming := Taming + TamingMod;
 AnimalLore := AnimalLore + AnimalLoreMod;
 
-if (Taming < 105)
+if (Taming < 103)
   Taming := Taming / 20;
 elseif (Taming >= 115)
   Taming := 7;
-elseif (Taming >= 105)
+elseif (Taming >= 103)
   Taming := 6;
 endif
 
-if (AnimalLore < 105)
+if (AnimalLore < 103)
   AnimalLore := AnimalLore / 20;
 elseif (AnimalLore >= 115)
   AnimalLore := 7;
-elseif (AnimalLore >= 105)
+elseif (AnimalLore >= 103)
   AnimalLore := 6;
 endif
 
