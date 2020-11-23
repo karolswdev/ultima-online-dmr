@@ -1,0 +1,40 @@
+use uo;
+use os;
+use basic;
+use polsys;
+
+include "include/items/creation";
+include "include/client/fonts";
+include ":character:include/checks";
+include "include/const/props";
+include ":logging:common";
+
+
+program ReplaceIngots(ingots)
+ 
+  var container := ingots.container;
+  var amount := ingots.amount;
+  var IngotName := ingots.desc;
+
+// Jesli uda sie zrobic nowa rude, o tej samej ilosci i w tym samym kontenerze
+if(CreateItemInCont(container, 0x655b , amount))
+
+      var parms := { IngotName, LOGTYPE_REPLACE_FIRE_INGOT, amount, container };
+      start_script(":logging:log_async", parms); 
+
+  // wtedy zniszcz stara rude
+  DestroyItem(ingots);
+else
+
+      var parms := { IngotName, LOGTYPE_NO_REPLACE_FIRE_INGOT, amount, container };
+      start_script(":logging:log_async", parms); 
+
+endif
+
+
+endprogram
+
+
+
+
+
